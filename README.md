@@ -1,139 +1,190 @@
-# AI-powered Near-Expiry Food Trading Platform
+# Backend – AI-powered Near-Expiry Food Trading Platform
 
 ## 1. Giới thiệu
-Lãng phí thực phẩm, đặc biệt là các sản phẩm cận hạn sử dụng, đang là một vấn đề nghiêm trọng tại Việt Nam. Nhiều sản phẩm vẫn còn an toàn để sử dụng nhưng không thể bán theo kênh truyền thống, dẫn đến thất thoát kinh tế và ảnh hưởng môi trường.
+Đây là **hệ thống Backend** cho đồ án tốt nghiệp  
+**“Ứng dụng AI để phát triển nền tảng bán các sản phẩm cận hạn sử dụng”**.
 
-Đồ án này đề xuất và xây dựng một **nền tảng ứng dụng AI** nhằm kết nối các **siêu thị** với **người bán thực phẩm (food vendors)** để tiêu thụ hiệu quả các sản phẩm cận hạn, góp phần giảm lãng phí và tối ưu chuỗi cung ứng.
-
----
-
-## 2. Mục tiêu của đồ án
-- Xây dựng hệ thống quản lý và phân phối sản phẩm cận hạn sử dụng.
-- Ứng dụng AI để:
-  - Tự động trích xuất thông tin hạn sử dụng từ hình ảnh sản phẩm.
-  - Gợi ý mức giá bán phù hợp dựa trên thời gian còn lại của hạn sử dụng.
-- Thiết kế hệ thống theo **Clean Architecture**, dễ bảo trì và mở rộng.
-- Đảm bảo hệ thống hoạt động ổn định, bảo mật và đáp ứng yêu cầu thực tế.
+Backend chịu trách nhiệm:
+- Quản lý nghiệp vụ sản phẩm cận hạn
+- Xử lý đơn hàng, đóng gói và giao hàng
+- Tích hợp AI OCR để trích xuất hạn sử dụng
+- Đề xuất giá bán dựa trên quy tắc
+- Cung cấp RESTful API cho Web và Mobile App
 
 ---
 
-## 3. Phạm vi hệ thống
-### 3.1 Đối tượng sử dụng
-- **Admin**: Quản lý hệ thống, người dùng, giao dịch và thống kê.
-- **Nhân viên siêu thị**: Đăng tải và quản lý sản phẩm cận hạn.
-- **Nhân viên đóng gói nội bộ**: Thu gom, đóng gói và chuẩn bị đơn hàng.
-- **Nhân viên giao hàng**: Giao đơn hàng đến điểm nhận hoặc tận nhà.
-- **Nhân viên Marketing**: Quản lý chương trình khuyến mãi (chức năng mở rộng).
-- **Khách hàng (Food Vendor)**: Đặt hàng, theo dõi giao dịch và phản hồi dịch vụ.
+## 2. Mục tiêu Backend
+- Xây dựng hệ thống API ổn định, bảo mật và dễ mở rộng
+- Áp dụng **Clean Architecture** và **Repository Pattern**
+- Đảm bảo toàn vẹn dữ liệu giao dịch
+- Tích hợp AI ở mức phù hợp với phạm vi đồ án tốt nghiệp
 
 ---
 
-## 4. Chức năng chính
-### 4.1 Chức năng bắt buộc
-- Đăng tải sản phẩm cận hạn sử dụng.
-- AI OCR trích xuất thông tin:
+## 3. Phạm vi chức năng Backend
+
+### 3.1 Quản lý người dùng & phân quyền
+- Đăng nhập / đăng xuất
+- Phân quyền theo vai trò:
+  - Admin
+  - Supermarket Staff
+  - Internal Packaging Staff
+  - Delivery Staff
+  - Marketing Staff
+  - Food Vendor
+- Tự động khóa tài khoản sau 5 lần đăng nhập sai
+
+---
+
+### 3.2 Quản lý sản phẩm cận hạn
+- Tạo và quản lý sản phẩm cận hạn
+- Lưu trữ thông tin:
+  - Tên sản phẩm
   - Ngày sản xuất
   - Hạn sử dụng
-- Hệ thống gợi ý giá bán dựa trên:
-  - Loại sản phẩm
-  - Số ngày còn lại của hạn sử dụng
-- Đặt hàng theo khung giờ cố định.
-- Quản lý quy trình:
-  - Xác nhận đơn hàng
-  - Đóng gói
-  - Giao hàng
-- Theo dõi trạng thái đơn hàng.
-
-### 4.2 Chức năng mở rộng
-- Quản lý chiến dịch marketing và chương trình khách hàng thân thiết.
-- Thống kê và phân tích dữ liệu nâng cao.
-- So sánh giá sản phẩm giữa các siêu thị.
-
----
-
-## 5. Ứng dụng AI trong hệ thống
-### 5.1 AI trích xuất thông tin sản phẩm
-- Sử dụng công nghệ **OCR (Optical Character Recognition)** để nhận diện văn bản từ hình ảnh sản phẩm.
-- Trích xuất thông tin hạn sử dụng và ngày sản xuất.
-- Công nghệ dự kiến:
-  - Google Vision API / Azure OCR (hoặc tương đương)
-- Nhân viên có thể chỉnh sửa thông tin nếu AI nhận diện sai.
-
-### 5.2 AI gợi ý giá bán
-- Áp dụng mô hình **Rule-based Pricing Recommendation**.
-- Giá bán được đề xuất dựa trên:
   - Giá gốc
+  - Giá đề xuất
+  - Siêu thị cung cấp
+- Cho phép chỉnh sửa dữ liệu AI nhận diện nếu cần
+
+---
+
+### 3.3 Tích hợp AI OCR
+- Nhận hình ảnh sản phẩm từ nhân viên siêu thị
+- Gửi ảnh đến dịch vụ OCR
+- Trích xuất:
+  - Ngày sản xuất
+  - Hạn sử dụng
+- Lưu kết quả OCR vào hệ thống
+- Ghi nhận trạng thái xác thực AI
+
+**Công nghệ dự kiến:**
+- Google Vision API / Azure OCR / Tesseract OCR
+
+---
+
+### 3.4 Gợi ý giá bán (Pricing Recommendation)
+- Áp dụng mô hình **Rule-based Pricing**
+- Giá đề xuất phụ thuộc:
   - Số ngày còn lại của hạn sử dụng
   - Loại sản phẩm
-- Mô hình đảm bảo dễ giải thích và phù hợp phạm vi đồ án.
+- Cho phép nhân viên siêu thị điều chỉnh giá
 
 ---
 
-## 6. Kiến trúc hệ thống
-- Áp dụng **Kiến trúc phân lớp (Layered Architecture)**:
-  - Presentation Layer
-  - Application Layer
-  - Domain Layer
-  - Infrastructure Layer
-- Tuân thủ nguyên tắc **Clean Architecture**.
-- Giao tiếp giữa các thành phần thông qua REST API.
+### 3.5 Quản lý đơn hàng
+- Tạo đơn hàng theo khung giờ cố định
+- Gom sản phẩm từ nhiều siêu thị
+- Cập nhật trạng thái đơn hàng:
+  - Created
+  - Confirmed
+  - Packed
+  - Delivering
+  - Completed / Failed
+- Ghi log lịch sử trạng thái đơn hàng
 
 ---
 
-## 7. Công nghệ sử dụng
+### 3.6 Đóng gói & giao hàng
+- Xác nhận đóng gói theo mã đơn
+- Phân công đơn cho nhân viên giao hàng
+- Theo dõi kết quả giao hàng
+- Hỗ trợ giao:
+  - Điểm nhận
+  - Giao tận nhà
+
+---
+
+## 4. Kiến trúc Backend
+
+### 4.1 Kiến trúc tổng thể
+Backend được xây dựng theo **Layered Architecture**, tuân thủ **Clean Architecture**:
+
+
+### 4.2 Mô tả các layer
+- **API Layer**: Controllers, Request/Response DTO
+- **Application Layer**: Use Cases, Services, Business Logic
+- **Domain Layer**: Entities, Enums, Interfaces
+- **Infrastructure Layer**: Database, Repository, External Services (AI OCR)
+
+---
+
+## 5. Công nghệ sử dụng
+
 ### Backend
 - Ngôn ngữ: **.NET / Java**
 - RESTful API
 - Repository Pattern
-
-### Frontend
-- Web: **ReactJS**, Material UI
-- Mobile (nhân viên giao hàng): Mobile App
+- Dependency Injection
 
 ### Cơ sở dữ liệu
 - SQL Server / Firebase hoặc tương đương
+- Transaction đảm bảo toàn vẹn dữ liệu
 
-### Công cụ khác
+### Bảo mật
 - JWT Authentication
-- API Documentation (Swagger/OpenAPI)
+- Role-based Authorization
+- Account Lockout Policy
 
 ---
 
-## 8. Yêu cầu phi chức năng
-- **Hiệu năng**: Thời gian tải trang dashboard ≤ 5 giây.
-- **Bảo mật**:
-  - Khóa tài khoản sau 5 lần đăng nhập sai.
-  - Mở khóa bằng OTP hoặc email xác nhận.
+## 6. Thiết kế cơ sở dữ liệu (Tóm tắt)
+Các bảng chính:
+- Users
+- Roles
+- Products
+- NearExpiryBatches
+- Orders
+- OrderItems
+- Deliveries
+- AuditLogs
+
+Cơ sở dữ liệu tuân thủ chuẩn **3NF**.
+
+---
+
+## 7. Yêu cầu phi chức năng
+- **Hiệu năng**: API phản hồi ≤ 5 giây với các request chính
 - **Độ tin cậy**:
-  - Giao dịch sử dụng transaction để đảm bảo toàn vẹn dữ liệu.
-  - Ghi log các thao tác quan trọng.
-- **Tính khả dụng**:
-  - Thông báo hệ thống được gửi trong vòng ≤ 3 giây sau khi sự kiện xảy ra.
+  - Sử dụng transaction khi tạo đơn hàng
+  - Rollback khi xảy ra lỗi
+- **Bảo mật**:
+  - Mã hóa mật khẩu
+  - JWT + phân quyền
 - **Khả năng bảo trì**:
-  - Mã nguồn có chú thích rõ ràng.
-  - Tài liệu API đầy đủ.
+  - Clean Architecture
+  - Code có comment và tài liệu API
 
 ---
 
-## 9. Kế hoạch phát triển
-Thời gian thực hiện: **5 tháng**
-- Tháng 1: Phân tích yêu cầu, thiết kế hệ thống.
-- Tháng 2: Thiết kế cơ sở dữ liệu, xây dựng backend.
-- Tháng 3: Phát triển frontend web và tích hợp backend.
-- Tháng 4: Tích hợp AI OCR và gợi ý giá.
-- Tháng 5: Kiểm thử, hoàn thiện tài liệu và chuẩn bị bảo vệ.
+## 8. API Documentation
+- API được tài liệu hóa bằng **Swagger / OpenAPI**
+- Bao gồm:
+  - Authentication APIs
+  - Product APIs
+  - Order APIs
+  - Delivery APIs
 
 ---
 
-## 10. Tài liệu bàn giao
-- SRS (Software Requirements Specification)
-- Thiết kế kiến trúc hệ thống
-- Thiết kế chi tiết
-- Kế hoạch và báo cáo kiểm thử
-- Hướng dẫn cài đặt và triển khai
-- Mã nguồn và gói phần mềm triển khai
+## 9. Kế hoạch phát triển Backend (5 tháng)
+
+| Tháng | Nội dung |
+|----|--------|
+| 1 | Phân tích yêu cầu, thiết kế kiến trúc |
+| 2 | Thiết kế DB, xây dựng API nền tảng |
+| 3 | Hoàn thiện nghiệp vụ sản phẩm & đơn hàng |
+| 4 | Tích hợp AI OCR & gợi ý giá |
+| 5 | Kiểm thử, tối ưu, hoàn thiện tài liệu |
 
 ---
 
-## 11. Kết luận
-Đồ án hướng tới giải quyết một vấn đề thực tế tại Việt Nam thông qua việc ứng dụng công nghệ AI và kiến trúc phần mềm hiện đại. Hệ thống không chỉ mang ý nghĩa học thuật mà còn có tiềm năng phát triển thành sản phẩm thực tế trong tương lai.
+## 10. Kết luận
+Backend của hệ thống được thiết kế nhằm đảm bảo:
+- Tính mở rộng
+- Độ ổn định
+- Phù hợp phạm vi đồ án tốt nghiệp
+
+Hệ thống có khả năng phát triển thành sản phẩm thực tế trong tương lai với việc mở rộng AI và quy mô triển khai.
+
+---
