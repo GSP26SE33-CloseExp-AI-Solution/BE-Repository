@@ -1,7 +1,6 @@
 # Backend – AI-powered Near-Expiry Food Trading Platform
 
 ## 1. Giới thiệu
-Đây là **hệ thống Backend** cho đồ án tốt nghiệp  
 **“Ứng dụng AI để phát triển nền tảng bán các sản phẩm cận hạn sử dụng”**.
 
 Backend chịu trách nhiệm:
