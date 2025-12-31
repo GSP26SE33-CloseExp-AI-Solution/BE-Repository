@@ -1,0 +1,6 @@
+@CloseExpAISolution.API_HostAddress = http://localhost:5014
+
+GET {{CloseExpAISolution.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
