@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CloseExpAISolution.Infrastructure.Extensions;
+namespace CloseExpAISolution.Infrastructure.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
@@ -13,7 +13,6 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services, 
         IConfiguration configuration)
     {
-        // Database
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("DefaultConnection"),
@@ -21,7 +20,6 @@ public static class ServiceCollectionExtensions
             )
         );
 
-        // Repository Pattern
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

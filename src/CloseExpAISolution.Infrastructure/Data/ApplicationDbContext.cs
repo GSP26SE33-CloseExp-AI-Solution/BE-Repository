@@ -19,7 +19,6 @@ public class ApplicationDbContext : DbContext
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // Add audit fields automatically
         var entries = ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
 
@@ -27,15 +26,20 @@ public class ApplicationDbContext : DbContext
         {
             if (entry.State == EntityState.Added)
             {
-                if (entry.Property("CreatedAt").CurrentValue == null)
+                var createdAtProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "CreatedAt");
+                if (createdAtProperty != null && createdAtProperty.CurrentValue == null)
                 {
-                    entry.Property("CreatedAt").CurrentValue = DateTime.UtcNow;
+                    createdAtProperty.CurrentValue = DateTime.UtcNow;
                 }
             }
 
             if (entry.State == EntityState.Modified)
             {
-                entry.Property("UpdatedAt").CurrentValue = DateTime.UtcNow;
+                var updatedAtProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "UpdatedAt");
+                if (updatedAtProperty != null)
+                {
+                    updatedAtProperty.CurrentValue = DateTime.UtcNow;
+                }
             }
         }
 

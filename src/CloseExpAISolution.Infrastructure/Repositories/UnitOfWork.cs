@@ -80,4 +80,13 @@ public class UnitOfWork : IUnitOfWork
         _transaction?.Dispose();
         _context.Dispose();
     }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_transaction != null)
+        {
+            await _transaction.DisposeAsync();
+        }
+        await _context.DisposeAsync();
+    }
 }
