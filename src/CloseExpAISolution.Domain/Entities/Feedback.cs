@@ -10,5 +10,6 @@ public class Feedback
     public DateTime CreatedAt { get; set; }
     
     public User? User { get; set; }
+    public Order? Order { get; set; }
 }
 

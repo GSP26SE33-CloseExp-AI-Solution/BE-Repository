@@ -3,7 +3,7 @@ namespace CloseExpAISolution.Domain.Entities;
 public class AIVerificationLog
 {
     public Guid VerificationId { get; set; }
-    public int ProductId { get; set; }
+    public Guid ProductId { get; set; }
     public string ExtractedName { get; set; } = string.Empty;
     public DateTime? ExtractedExpiryDate { get; set; }
     public string ExtractedBarcode { get; set; } = string.Empty;

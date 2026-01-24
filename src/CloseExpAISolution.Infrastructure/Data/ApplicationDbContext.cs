@@ -1,3 +1,4 @@
+using CloseExpAISolution.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace CloseExpAISolution.Infrastructure.Data;
@@ -9,12 +10,36 @@ public class ApplicationDbContext : DbContext
     {
     }
 
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<UserImage> UserImages => Set<UserImage>();
+    public DbSet<Feedback> Feedbacks => Set<Feedback>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<DeliveryRecord> DeliveryRecords => Set<DeliveryRecord>();
+    public DbSet<Supermarket> Supermarkets => Set<Supermarket>();
+    public DbSet<MarketStaff> MarketStaff => Set<MarketStaff>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
+    public DbSet<PackagingRecord> PackagingRecords => Set<PackagingRecord>();
+    public DbSet<TimeSlot> TimeSlots => Set<TimeSlot>();
+    public DbSet<PickupPoint> PickupPoints => Set<PickupPoint>();
+    public DbSet<DoorPickup> DoorPickups => Set<DoorPickup>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         
-        // Apply all configurations from current assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+        modelBuilder.Entity<AIVerificationLog>().HasKey(x => x.VerificationId);
+        modelBuilder.Entity<DeliveryRecord>().HasKey(x => x.DeliveryId);
+        modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
+        modelBuilder.Entity<PackagingRecord>().HasKey(x => x.PackagingId);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

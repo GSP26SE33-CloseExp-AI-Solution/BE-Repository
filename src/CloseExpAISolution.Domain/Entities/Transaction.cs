@@ -4,7 +4,7 @@ public class Transaction
 {
     public Guid TransactionId { get; set; }
 
-    public int OrderId { get; set; }
+    public Guid OrderId { get; set; }
     public Order? Order { get; set; }
 
     public decimal Amount { get; set; }
