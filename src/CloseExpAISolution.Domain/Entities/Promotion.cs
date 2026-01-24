@@ -1,0 +1,15 @@
+namespace CloseExpAISolution.Domain.Entities;
+
+public class Promotion
+{
+    public Guid PromotionId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string DiscountType { get; set; } = string.Empty;
+    public decimal DiscountValue { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public string Status { get; set; } = string.Empty;
+
+    public ICollection<Order> Orders { get; set; } = new List<Order>();
+}
+
