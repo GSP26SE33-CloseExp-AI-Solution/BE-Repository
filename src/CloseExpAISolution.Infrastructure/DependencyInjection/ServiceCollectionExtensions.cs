@@ -1,6 +1,6 @@
-using CloseExpAISolution.Domain.Interfaces;
+using CloseExpAISolution.Infrastructure.Base;
 using CloseExpAISolution.Infrastructure.Context;
-using CloseExpAISolution.Infrastructure.Repositories;
+using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,12 +16,12 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
-                b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)
+                b => b.MigrationsAssembly(typeof(CloseExpAISolution.Domain.Migrations.ApplicationDbContextModelSnapshot).Assembly.FullName)
             )
         );
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
 
         return services;
     }
