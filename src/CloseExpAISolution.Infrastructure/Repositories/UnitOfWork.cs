@@ -1,5 +1,5 @@
 using CloseExpAISolution.Domain.Interfaces;
-using CloseExpAISolution.Infrastructure.Data;
+using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace CloseExpAISolution.Infrastructure.Repositories;

@@ -1,7 +1,7 @@
 using CloseExpAISolution.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace CloseExpAISolution.Infrastructure.Data;
+namespace CloseExpAISolution.Infrastructure.Context;
 
 public class ApplicationDbContext : DbContext
 {

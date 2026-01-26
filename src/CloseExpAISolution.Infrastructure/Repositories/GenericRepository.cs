@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 using CloseExpAISolution.Domain.Interfaces;
-using CloseExpAISolution.Infrastructure.Data;
+using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 
 namespace CloseExpAISolution.Infrastructure.Repositories;

@@ -1,5 +1,5 @@
 using CloseExpAISolution.Domain.Interfaces;
-using CloseExpAISolution.Infrastructure.Data;
+using CloseExpAISolution.Infrastructure.Context;
 using CloseExpAISolution.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
