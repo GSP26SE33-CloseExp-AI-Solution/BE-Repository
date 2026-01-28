@@ -27,7 +27,7 @@ public class ProductService : IProductService
     public Task<int> CountAsync(Expression<Func<Product, bool>>? predicate = null) => _unitOfWork.ProductRepository.CountAsync(predicate);
     public Task<bool> ExistsAsync(Expression<Func<Product, bool>> predicate) => _unitOfWork.ProductRepository.ExistsAsync(predicate);
 
-    public async Task<Product> AddAsync(Product entity, CancellationToken cancellationToken = default)
+    public async Task<Product> CreateAsync(Product entity, CancellationToken cancellationToken = default)
     {
         var added = await _unitOfWork.ProductRepository.AddAsync(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

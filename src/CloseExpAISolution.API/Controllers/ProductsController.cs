@@ -1,4 +1,5 @@
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,10 +17,23 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductResponseDto>>> GetAll()
+    public async Task<ActionResult<PaginatedResult<ProductResponseDto>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
-        var items = await _services.ProductService.GetAllWithImagesAsync();
-        return Ok(items);
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var items = (await _services.ProductService.GetAllWithImagesAsync()).ToList();
+        var total = items.Count;
+        var pageItems = items.Skip((pageNumber - 1) * pageSize).Take(pageSize);
+
+        return Ok(new PaginatedResult<ProductResponseDto>
+        {
+            Items = pageItems,
+            TotalResult = total,
+            Rage = pageNumber,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id:guid}")]
