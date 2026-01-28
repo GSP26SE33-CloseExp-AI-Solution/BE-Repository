@@ -3,6 +3,14 @@
   "WorkspaceRootPath": "D:\\Project\\CapstoneProject\\BE-Repository\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\serviceproviders\\serviceproviders.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\serviceproviders\\serviceproviders.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\serviceproviders\\iserviceproviders.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\serviceproviders\\iserviceproviders.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -103,6 +111,32 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "ServiceProviders.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\ServiceProviders\\ServiceProviders.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\ServiceProviders\\ServiceProviders.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\ServiceProviders\\ServiceProviders.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Application\\ServiceProviders\\ServiceProviders.cs",
+              "ViewState": "AgIAAAcAAAAAAAAAAAAswBsAAAB5AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T07:27:41.613Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "IServiceProviders.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\ServiceProviders\\IServiceProviders.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\ServiceProviders\\IServiceProviders.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\ServiceProviders\\IServiceProviders.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Application\\ServiceProviders\\IServiceProviders.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAA6AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T07:27:19.397Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "Program.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Program.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Program.cs",
@@ -115,7 +149,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 3,
               "Title": "ApplicationDbContextModelSnapshot.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Migrations\\ApplicationDbContextModelSnapshot.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Migrations\\ApplicationDbContextModelSnapshot.cs",
@@ -127,7 +161,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "20260126202206_InitialCreate.Designer.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Migrations\\20260126202206_InitialCreate.Designer.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Migrations\\20260126202206_InitialCreate.Designer.cs",
@@ -139,7 +173,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 8,
               "Title": "ApplicationDbContext.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Context\\ApplicationDbContext.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Context\\ApplicationDbContext.cs",
@@ -151,7 +185,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 7,
               "Title": "ServiceCollectionExtensions.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\DependencyInjection\\ServiceCollectionExtensions.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\DependencyInjection\\ServiceCollectionExtensions.cs",
@@ -163,7 +197,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 11,
               "Title": "CloseExpAISolution.Infrastructure.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj",
@@ -175,7 +209,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 12,
               "Title": "CloseExpAISolution.API.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj",
@@ -187,7 +221,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 5,
               "Title": "UnitOfWork.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\UnitOfWork\\UnitOfWork.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\UnitOfWork\\UnitOfWork.cs",
@@ -199,7 +233,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 6,
               "Title": "CloseExpAISolution.Domain.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Domain\\CloseExpAISolution.Domain.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Domain\\CloseExpAISolution.Domain.csproj",
@@ -211,7 +245,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 10,
               "Title": "IAIVerificationLogRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IAIVerificationLogRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IAIVerificationLogRepository.cs",
@@ -223,7 +257,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 9,
               "Title": "IUnitOfWork.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\UnitOfWork\\IUnitOfWork.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\UnitOfWork\\IUnitOfWork.cs",
@@ -235,7 +269,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
+              "DocumentIndex": 15,
               "Title": "IProductImageRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IProductImageRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IProductImageRepository.cs",
@@ -247,7 +281,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 14,
+              "DocumentIndex": 16,
               "Title": "IMarketStaffRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IMarketStaffRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IMarketStaffRepository.cs",
@@ -259,7 +293,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
+              "DocumentIndex": 14,
               "Title": "IProductRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IProductRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Repositories\\Interface\\IProductRepository.cs",
@@ -271,7 +305,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 13,
               "Title": "CloseExpAISolution.Application.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj",
@@ -283,7 +317,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 15,
+              "DocumentIndex": 17,
               "Title": "IGenericRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
@@ -295,7 +329,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 16,
+              "DocumentIndex": 18,
               "Title": "GenericRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
@@ -307,7 +341,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 17,
+              "DocumentIndex": 19,
               "Title": "ProductRepository.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Repositories\\Class\\ProductRepository.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Repositories\\Class\\ProductRepository.cs",
