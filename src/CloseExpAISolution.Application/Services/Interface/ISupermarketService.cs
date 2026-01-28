@@ -1,8 +1,21 @@
+using System.Linq.Expressions;
 using CloseExpAISolution.Domain.Entities;
 
 namespace CloseExpAISolution.Application.Services.Interface;
 
-public interface ISupermarketService : IBaseCrudService<Supermarket>
+public interface ISupermarketService
 {
+    Task<Supermarket?> GetByIdAsync(int id);
+    Task<IEnumerable<Supermarket>> GetAllAsync();
+    Task<IEnumerable<Supermarket>> FindAsync(Expression<Func<Supermarket, bool>> predicate);
+    Task<Supermarket?> FirstOrDefaultAsync(Expression<Func<Supermarket, bool>> predicate);
+    Task<Supermarket> AddAsync(Supermarket entity, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Supermarket>> AddRangeAsync(IEnumerable<Supermarket> entities, CancellationToken cancellationToken = default);
+    Task UpdateAsync(Supermarket entity, CancellationToken cancellationToken = default);
+    Task UpdateRangeAsync(IEnumerable<Supermarket> entities, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Supermarket entity, CancellationToken cancellationToken = default);
+    Task DeleteRangeAsync(IEnumerable<Supermarket> entities, CancellationToken cancellationToken = default);
+    Task<int> CountAsync(Expression<Func<Supermarket, bool>>? predicate = null);
+    Task<bool> ExistsAsync(Expression<Func<Supermarket, bool>> predicate);
 }
 

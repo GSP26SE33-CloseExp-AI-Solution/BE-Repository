@@ -15,7 +15,8 @@ namespace CloseExpAISolution.Application.ServiceProviders
         private ISupermarketService _supermarketService;
         private IProductImageService _productImageService;
         private IAIVerificationLogService _aIVerificationLogService;
-        private ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
+
+        public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
         {
             _unitOfWork = unitOfWork;
             _httpContextAccessor = httpContextAccessor;
