@@ -1,9 +1,9 @@
 using System.Linq.Expressions;
-using CloseExpAISolution.Domain.Interfaces;
-using CloseExpAISolution.Infrastructure.Data;
+using CloseExpAISolution.Infrastructure.Base;
+using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace CloseExpAISolution.Infrastructure.Repositories;
+namespace CloseExpAISolution.Infrastructure.Base;
 
 public class GenericRepository<T> : IGenericRepository<T> where T : class
 {

@@ -1,7 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\CloseExpAISolution.Application\CloseExpAISolution.Application.csproj" />
     <ProjectReference Include="..\CloseExpAISolution.Domain\CloseExpAISolution.Domain.csproj" />
   </ItemGroup>
 
