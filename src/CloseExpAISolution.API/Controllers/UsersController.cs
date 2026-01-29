@@ -1,6 +1,6 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
-using CloseExpAISolution.Application.Interfaces;
+using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,11 +11,11 @@ namespace CloseExpAISolution.API.Controllers;
 [Authorize(Roles = "Admin")]
 public class UsersController : ControllerBase
 {
-    private readonly IUserService _userService;
+    private readonly IServiceProviders _services;
 
-    public UsersController(IUserService userService)
+    public UsersController(IServiceProviders services)
     {
-        _userService = userService;
+        _services = services;
     }
 
     /// <summary>
@@ -25,7 +25,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllUsers()
     {
-        var result = await _userService.GetAllUsersAsync();
+        var result = await _services.UserService.GetAllUsersAsync();
         return Ok(result);
     }
 
@@ -37,7 +37,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUserById(Guid id)
     {
-        var result = await _userService.GetUserByIdAsync(id);
+        var result = await _services.UserService.GetUserByIdAsync(id);
 
         if (!result.Success)
         {
@@ -55,7 +55,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
     {
-        var result = await _userService.CreateUserAsync(request);
+        var result = await _services.UserService.CreateUserAsync(request);
 
         if (!result.Success)
         {
@@ -74,7 +74,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
     {
-        var result = await _userService.UpdateUserAsync(id, request);
+        var result = await _services.UserService.UpdateUserAsync(id, request);
 
         if (!result.Success)
         {
@@ -96,7 +96,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteUser(Guid id)
     {
-        var result = await _userService.DeleteUserAsync(id);
+        var result = await _services.UserService.DeleteUserAsync(id);
 
         if (!result.Success)
         {

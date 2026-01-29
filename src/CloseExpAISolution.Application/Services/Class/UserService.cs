@@ -1,11 +1,11 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
-using CloseExpAISolution.Application.Interfaces;
+using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
-using CloseExpAISolution.Domain.Interfaces;
+using CloseExpAISolution.Infrastructure.UnitOfWork;
 
-namespace CloseExpAISolution.Application.Services;
+namespace CloseExpAISolution.Application.Services.Class;
 
 public class UserService : IUserService
 {

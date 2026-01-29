@@ -3,14 +3,14 @@ using System.Security.Claims;
 using System.Text;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
-using CloseExpAISolution.Application.Interfaces;
+using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
-using CloseExpAISolution.Domain.Interfaces;
+using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
-namespace CloseExpAISolution.Application.Services;
+namespace CloseExpAISolution.Application.Services.Class;
 
 public class AuthService : IAuthService
 {
@@ -150,7 +150,7 @@ public class AuthService : IAuthService
         );
 
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
-        var refreshToken = Guid.NewGuid().ToString("N"); // Simple refresh token for now
+        var refreshToken = Guid.NewGuid().ToString("N");
 
         return new AuthResponse
         {

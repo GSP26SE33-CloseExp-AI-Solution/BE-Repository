@@ -1,5 +1,3 @@
-using CloseExpAISolution.Application.Interfaces;
-using CloseExpAISolution.Application.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -18,3 +16,4 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
+

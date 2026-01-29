@@ -1,6 +1,6 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
-using CloseExpAISolution.Application.Interfaces;
+using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -9,11 +9,11 @@ namespace CloseExpAISolution.API.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly IAuthService _authService;
+    private readonly IServiceProviders _services;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IServiceProviders services)
     {
-        _authService = authService;
+        _services = services;
     }
 
     /// <summary>
@@ -24,7 +24,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var result = await _authService.LoginAsync(request);
+        var result = await _services.AuthService.LoginAsync(request);
 
         if (!result.Success)
         {
@@ -42,7 +42,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        var result = await _authService.RegisterAsync(request);
+        var result = await _services.AuthService.RegisterAsync(request);
 
         if (!result.Success)
         {

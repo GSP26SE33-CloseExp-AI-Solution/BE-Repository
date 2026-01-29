@@ -1,7 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 
-namespace CloseExpAISolution.Application.Interfaces;
+namespace CloseExpAISolution.Application.Services.Interface;
 
 public interface IUserService
 {
