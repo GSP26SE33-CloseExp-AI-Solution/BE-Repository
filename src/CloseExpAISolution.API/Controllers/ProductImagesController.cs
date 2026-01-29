@@ -1,3 +1,4 @@
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -16,46 +17,59 @@ public class ProductImagesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductImage>>> GetAll()
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductImage>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
-        var items = await _services.ProductImageService.GetAllAsync();
-        return Ok(items);
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var items = (await _services.ProductImageService.GetAllAsync()).ToList();
+        var total = items.Count;
+        var pageItems = items.Skip((pageNumber - 1) * pageSize).Take(pageSize);
+
+        var result = new PaginatedResult<ProductImage>
+        {
+            Items = pageItems,
+            TotalResult = total,
+            Rage = pageNumber,
+            PageSize = pageSize
+        };
+        return Ok(ApiResponse<PaginatedResult<ProductImage>>.SuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<ProductImage>> GetById(Guid id)
+    public async Task<ActionResult<ApiResponse<ProductImage>>> GetById(Guid id)
     {
         var item = await _services.ProductImageService.FirstOrDefaultAsync(x => x.ProductImageId == id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        if (item == null) return NotFound(ApiResponse<ProductImage>.ErrorResponse("ProductImage not found"));
+        return Ok(ApiResponse<ProductImage>.SuccessResponse(item));
     }
 
     [HttpPost]
-    public async Task<ActionResult<ProductImage>> Create([FromBody] ProductImage input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<ProductImage>>> Create([FromBody] ProductImage input, CancellationToken cancellationToken)
     {
         var created = await _services.ProductImageService.AddAsync(input, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.ProductImageId }, created);
+        return CreatedAtAction(nameof(GetById), new { id = created.ProductImageId }, ApiResponse<ProductImage>.SuccessResponse(created, "Created"));
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] ProductImage input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] ProductImage input, CancellationToken cancellationToken)
     {
         var existing = await _services.ProductImageService.FirstOrDefaultAsync(x => x.ProductImageId == id);
-        if (existing == null) return NotFound();
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("ProductImage not found"));
 
         input.ProductImageId = id;
         await _services.ProductImageService.UpdateAsync(input, cancellationToken);
-        return NoContent();
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
         var existing = await _services.ProductImageService.FirstOrDefaultAsync(x => x.ProductImageId == id);
-        if (existing == null) return NotFound();
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("ProductImage not found"));
 
         await _services.ProductImageService.DeleteAsync(existing, cancellationToken);
-        return NoContent();
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
     }
 }
-
