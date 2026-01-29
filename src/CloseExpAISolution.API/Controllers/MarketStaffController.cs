@@ -1,5 +1,5 @@
-using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +17,7 @@ public class MarketStaffController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResult<MarketStaff>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<ApiResponse<PaginatedResult<MarketStaff>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize < 1) pageSize = 1;
@@ -27,49 +27,49 @@ public class MarketStaffController : ControllerBase
         var total = items.Count;
         var pageItems = items.Skip((pageNumber - 1) * pageSize).Take(pageSize);
 
-        return Ok(new PaginatedResult<MarketStaff>
+        var result = new PaginatedResult<MarketStaff>
         {
             Items = pageItems,
             TotalResult = total,
             Rage = pageNumber,
             PageSize = pageSize
-        });
+        };
+        return Ok(ApiResponse<PaginatedResult<MarketStaff>>.SuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<MarketStaff>> GetById(Guid id)
+    public async Task<ActionResult<ApiResponse<MarketStaff>>> GetById(Guid id)
     {
         var item = await _services.MarketStaffService.FirstOrDefaultAsync(x => x.MarketStaffId == id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        if (item == null) return NotFound(ApiResponse<MarketStaff>.ErrorResponse("MarketStaff not found"));
+        return Ok(ApiResponse<MarketStaff>.SuccessResponse(item));
     }
 
     [HttpPost]
-    public async Task<ActionResult<MarketStaff>> Create([FromBody] MarketStaff input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<MarketStaff>>> Create([FromBody] MarketStaff input, CancellationToken cancellationToken)
     {
         var created = await _services.MarketStaffService.AddAsync(input, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.MarketStaffId }, created);
+        return CreatedAtAction(nameof(GetById), new { id = created.MarketStaffId }, ApiResponse<MarketStaff>.SuccessResponse(created, "Created"));
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] MarketStaff input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] MarketStaff input, CancellationToken cancellationToken)
     {
         var existing = await _services.MarketStaffService.FirstOrDefaultAsync(x => x.MarketStaffId == id);
-        if (existing == null) return NotFound();
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("MarketStaff not found"));
 
         input.MarketStaffId = id;
         await _services.MarketStaffService.UpdateAsync(input, cancellationToken);
-        return NoContent();
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
         var existing = await _services.MarketStaffService.FirstOrDefaultAsync(x => x.MarketStaffId == id);
-        if (existing == null) return NotFound();
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("MarketStaff not found"));
 
         await _services.MarketStaffService.DeleteAsync(existing, cancellationToken);
-        return NoContent();
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
     }
 }
-

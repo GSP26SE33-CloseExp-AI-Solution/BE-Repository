@@ -17,7 +17,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResult<ProductResponseDto>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductResponseDto>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize < 1) pageSize = 1;
@@ -27,56 +27,56 @@ public class ProductsController : ControllerBase
         var total = items.Count;
         var pageItems = items.Skip((pageNumber - 1) * pageSize).Take(pageSize);
 
-        return Ok(new PaginatedResult<ProductResponseDto>
+        var result = new PaginatedResult<ProductResponseDto>
         {
             Items = pageItems,
             TotalResult = total,
             Rage = pageNumber,
             PageSize = pageSize
-        });
+        };
+        return Ok(ApiResponse<PaginatedResult<ProductResponseDto>>.SuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<ProductResponseDto>> GetById(Guid id)
+    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> GetById(Guid id)
     {
         var item = await _services.ProductService.GetByIdWithImagesAsync(id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        if (item == null) return NotFound(ApiResponse<ProductResponseDto>.ErrorResponse("Product not found"));
+        return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(item));
     }
 
     [HttpPost]
-    public async Task<ActionResult<ProductResponseDto>> Create([FromBody] CreateProductRequestDto request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Create([FromBody] CreateProductRequestDto request, CancellationToken cancellationToken)
     {
         var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, created);
+        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(created, "Created"));
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductRequestDto request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] UpdateProductRequestDto request, CancellationToken cancellationToken)
     {
         try
         {
             await _services.ProductService.UpdateProductAsync(id, request, cancellationToken);
-            return NoContent();
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound();
+            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
         }
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
         try
         {
             await _services.ProductService.DeleteProductAsync(id, cancellationToken);
-            return NoContent();
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound();
+            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
         }
     }
 }
-

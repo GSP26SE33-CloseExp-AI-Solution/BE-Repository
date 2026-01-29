@@ -3,6 +3,34 @@
   "WorkspaceRootPath": "D:\\Project\\CapstoneProject\\BE-Repository\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\controllers\\marketstaffcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\marketstaffcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dtos\\request\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dtos\\request\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dtos\\response\\apiresponse.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dtos\\response\\apiresponse.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dtos\\response\\paginatedresult.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dtos\\response\\paginatedresult.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\controllers\\aiverificationlogscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\aiverificationlogscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\controllers\\supermarketscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\supermarketscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\services\\interface\\iproductservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\services\\interface\\iproductservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -19,10 +47,6 @@
       "RelativeMoniker": "D:0:0:{B63D6690-78B0-41B7-9D38-A0CA04A498D4}|src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj|solutionrelative:src\\closeexpaisolution.infrastructure\\base\\igenericrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\productscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -31,28 +55,12 @@
       "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\productimagescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.api\\controllers\\marketstaffcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{548C8FBC-C628-47B9-8B4A-15F78784EFDF}|src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj|solutionrelative:src\\closeexpaisolution.api\\controllers\\marketstaffcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dtos\\request\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dtos\\request\\productdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dependencyinjection\\servicecollectionextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dependencyinjection\\servicecollectionextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dtos\\response\\paginatedresult.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dtos\\response\\paginatedresult.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{B63D6690-78B0-41B7-9D38-A0CA04A498D4}|src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.infrastructure\\dependencyinjection\\servicecollectionextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{B63D6690-78B0-41B7-9D38-A0CA04A498D4}|src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj|solutionrelative:src\\closeexpaisolution.infrastructure\\dependencyinjection\\servicecollectionextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.application\\dtos\\response\\apiresponse.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D8D1E1E-AF4A-4930-B1A5-4A0FE569B1BC}|src\\CloseExpAISolution.Application\\CloseExpAISolution.Application.csproj|solutionrelative:src\\closeexpaisolution.application\\dtos\\response\\apiresponse.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{B63D6690-78B0-41B7-9D38-A0CA04A498D4}|src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj|d:\\project\\capstoneproject\\be-repository\\src\\closeexpaisolution.infrastructure\\migrations\\applicationdbcontextmodelsnapshot.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -78,19 +86,32 @@
       "DocumentGroups": [
         {
           "DockedHeight": 299,
-          "SelectedChildIndex": 8,
+          "SelectedChildIndex": 7,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "IGenericRepository.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs*",
-              "RelativeToolTip": "src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs*",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAArAAAAAAAAAA==",
+              "DocumentIndex": 6,
+              "Title": "SupermarketsController.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\SupermarketsController.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\SupermarketsController.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\SupermarketsController.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\SupermarketsController.cs",
+              "ViewState": "AgIAABQAAAAAAAAAAAAowBkAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T17:33:41.077Z",
+              "WhenOpened": "2026-01-28T17:42:50.551Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "AIVerificationLogsController.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\AIVerificationLogsController.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\AIVerificationLogsController.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\AIVerificationLogsController.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\AIVerificationLogsController.cs",
+              "ViewState": "AgIAACgAAAAAAAAAAAAwwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T17:42:38.505Z",
               "EditorCaption": ""
             },
             {
@@ -111,46 +132,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "GenericRepository.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
-              "ViewState": "AgIAAAsAAAAAAAAAAAAQwBkAAAA4AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T17:33:53.589Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "ProductImagesController.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T17:25:56.403Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 7,
-              "Title": "MarketStaffController.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T17:25:55.881Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
               "Title": "IProductService.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\Services\\Interface\\IProductService.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\Services\\Interface\\IProductService.cs",
@@ -163,72 +145,33 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "ProductService.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAqwAsAAAAtAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T17:18:54.378Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 0,
               "Title": "ProductsController.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\ProductsController.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\ProductsController.cs",
               "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\ProductsController.cs",
               "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\ProductsController.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAACMAAABHAAAAAAAAAA==",
+              "ViewState": "AgIAAAUAAAAAAAAAAAAAAC8AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-01-28T17:12:53.382Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "ProductDto.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "DocumentIndex": 3,
+              "Title": "ApiResponse.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T17:12:33.956Z",
+              "WhenOpened": "2026-01-28T11:54:17.576Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "ServiceCollectionExtensions.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T15:37:37.878Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "Program.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Program.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Program.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Program.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.API\\Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T07:10:03.373Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 4,
               "Title": "PaginatedResult.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Response\\PaginatedResult.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DTOs\\Response\\PaginatedResult.cs",
@@ -241,20 +184,111 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
-              "Title": "ApiResponse.cs",
-              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
-              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
-              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
-              "RelativeToolTip": "src\\CloseExpAISolution.Application\\DTOs\\Response\\ApiResponse.cs",
-              "ViewState": "AgIAAAIAAAAAAAAAAAAxwA8AAAAXAAAAAAAAAA==",
+              "DocumentIndex": 2,
+              "Title": "ProductDto.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Application\\DTOs\\Request\\ProductDto.cs",
+              "ViewState": "AgIAADcAAAAAAAAAAAAmwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T11:54:17.576Z",
+              "WhenOpened": "2026-01-28T17:12:33.956Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "MarketStaffController.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\MarketStaffController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T17:25:55.881Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "GenericRepository.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Infrastructure\\Base\\GenericRepository.cs",
+              "ViewState": "AgIAAAsAAAAAAAAAAAAQwBkAAAA4AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T17:33:53.589Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "IGenericRepository.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Infrastructure\\Base\\IGenericRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T17:33:41.077Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "ProductImagesController.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.API\\Controllers\\ProductImagesController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T17:25:56.403Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "ProductService.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Application\\Services\\Class\\ProductService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAqwAsAAAAtAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T17:18:54.378Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "ServiceCollectionExtensions.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.Application\\DependencyInjection\\ServiceCollectionExtensions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T15:37:37.878Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 11,
+              "Title": "Program.cs",
+              "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Program.cs",
+              "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\Program.cs",
+              "ToolTip": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\Program.cs",
+              "RelativeToolTip": "src\\CloseExpAISolution.API\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T07:10:03.373Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
               "Title": "ServiceCollectionExtensions.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\DependencyInjection\\ServiceCollectionExtensions.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\DependencyInjection\\ServiceCollectionExtensions.cs",
@@ -267,7 +301,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 15,
+              "DocumentIndex": 17,
               "Title": "CloseExpAISolution.Infrastructure.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\CloseExpAISolution.Infrastructure.csproj",
@@ -279,7 +313,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
+              "DocumentIndex": 15,
               "Title": "ApplicationDbContextModelSnapshot.cs",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Infrastructure\\Migrations\\ApplicationDbContextModelSnapshot.cs",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Infrastructure\\Migrations\\ApplicationDbContextModelSnapshot.cs",
@@ -291,7 +325,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 16,
+              "DocumentIndex": 18,
               "Title": "CloseExpAISolution.API.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj",
@@ -303,7 +337,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 14,
+              "DocumentIndex": 16,
               "Title": "CloseExpAISolution.Domain.csproj",
               "DocumentMoniker": "D:\\Project\\CapstoneProject\\BE-Repository\\src\\CloseExpAISolution.Domain\\CloseExpAISolution.Domain.csproj",
               "RelativeDocumentMoniker": "src\\CloseExpAISolution.Domain\\CloseExpAISolution.Domain.csproj",

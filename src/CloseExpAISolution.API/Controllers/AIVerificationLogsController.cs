@@ -1,5 +1,5 @@
-using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +17,7 @@ public class AIVerificationLogsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PaginatedResult<AIVerificationLog>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<ApiResponse<PaginatedResult<AIVerificationLog>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize < 1) pageSize = 1;
@@ -27,49 +27,49 @@ public class AIVerificationLogsController : ControllerBase
         var total = items.Count;
         var pageItems = items.Skip((pageNumber - 1) * pageSize).Take(pageSize);
 
-        return Ok(new PaginatedResult<AIVerificationLog>
+        var result = new PaginatedResult<AIVerificationLog>
         {
             Items = pageItems,
             TotalResult = total,
             Rage = pageNumber,
             PageSize = pageSize
-        });
+        };
+        return Ok(ApiResponse<PaginatedResult<AIVerificationLog>>.SuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<AIVerificationLog>> GetById(Guid id)
+    public async Task<ActionResult<ApiResponse<AIVerificationLog>>> GetById(Guid id)
     {
         var item = await _services.AIVerificationLogService.FirstOrDefaultAsync(x => x.VerificationId == id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        if (item == null) return NotFound(ApiResponse<AIVerificationLog>.ErrorResponse("AIVerificationLog not found"));
+        return Ok(ApiResponse<AIVerificationLog>.SuccessResponse(item));
     }
 
     [HttpPost]
-    public async Task<ActionResult<AIVerificationLog>> Create([FromBody] AIVerificationLog input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<AIVerificationLog>>> Create([FromBody] AIVerificationLog input, CancellationToken cancellationToken)
     {
         var created = await _services.AIVerificationLogService.AddAsync(input, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.VerificationId }, created);
+        return CreatedAtAction(nameof(GetById), new { id = created.VerificationId }, ApiResponse<AIVerificationLog>.SuccessResponse(created, "Created"));
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] AIVerificationLog input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] AIVerificationLog input, CancellationToken cancellationToken)
     {
         var existing = await _services.AIVerificationLogService.FirstOrDefaultAsync(x => x.VerificationId == id);
-        if (existing == null) return NotFound();
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("AIVerificationLog not found"));
 
         input.VerificationId = id;
         await _services.AIVerificationLogService.UpdateAsync(input, cancellationToken);
-        return NoContent();
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
         var existing = await _services.AIVerificationLogService.FirstOrDefaultAsync(x => x.VerificationId == id);
-        if (existing == null) return NotFound();
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("AIVerificationLog not found"));
 
         await _services.AIVerificationLogService.DeleteAsync(existing, cancellationToken);
-        return NoContent();
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
     }
 }
-
