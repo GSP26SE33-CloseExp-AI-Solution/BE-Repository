@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 
@@ -17,7 +18,9 @@ public class ProductDto
     public decimal SuggestedPrice { get; set; }
     public decimal FinalPrice { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string CreatedBy { get; set; }
+
+    [Required(ErrorMessage = "CreatedBy is required")]
+    public required string CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }
     public User? CreatedByUser { get; set; }
     public Supermarket? Supermarket { get; set; }
@@ -67,7 +70,9 @@ public class ProductResponseDto
     public decimal SuggestedPrice { get; set; }
     public decimal FinalPrice { get; set; }
     public ProductState Status { get; set; }
-    public string CreatedBy { get; set; }
+
+    [Required(ErrorMessage = "CreatedBy is required")]
+    public required string CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }
     public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
 }

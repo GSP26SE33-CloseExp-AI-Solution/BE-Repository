@@ -1,4 +1,4 @@
-using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +22,7 @@ public class UsersController : ControllerBase
     /// Get all users (Admin only)
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllUsers()
     {
         var result = await _services.UserService.GetAllUsersAsync();
@@ -33,8 +33,8 @@ public class UsersController : ControllerBase
     /// Get user by ID (Admin only)
     /// </summary>
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUserById(Guid id)
     {
         var result = await _services.UserService.GetUserByIdAsync(id);
@@ -51,9 +51,9 @@ public class UsersController : ControllerBase
     /// Create a new user (Admin only)
     /// </summary>
     [HttpPost]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequestDto request)
     {
         var result = await _services.UserService.CreateUserAsync(request);
 
@@ -69,16 +69,16 @@ public class UsersController : ControllerBase
     /// Update an existing user (Admin only)
     /// </summary>
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequestDto request)
     {
         var result = await _services.UserService.UpdateUserAsync(id, request);
 
         if (!result.Success)
         {
-            if (result.Message == "User not found")
+            if (result.Message == "Không tìm thấy người dùng")
             {
                 return NotFound(result);
             }

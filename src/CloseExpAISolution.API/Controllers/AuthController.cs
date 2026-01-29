@@ -22,12 +22,18 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _services.AuthService.LoginAsync(request);
 
         if (!result.Success)
         {
+            // Return 404 for user not found, 400 for invalid credentials
+            if (result.Message != null && (result.Message.Contains("không tìm thấy") || result.Message.Contains("đã bị xóa")))
+            {
+                return NotFound(result);
+            }
             return BadRequest(result);
         }
 
@@ -35,20 +41,44 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Register a new user account
+    /// Register a new user account (Public registration for Vendor or MarketStaff only)
     /// </summary>
+    /// <remarks>
+    /// Sample request:
+    /// 
+    ///     POST /api/auth/register
+    ///     {
+    ///         "fullName": "John Doe",
+    ///         "email": "john@example.com",
+    ///         "phone": "+84901234567",
+    ///         "password": "SecureP@ssw0rd",
+    ///         "registrationType": 1  // 1 = Vendor, 2 = MarketStaff
+    ///     }
+    /// 
+    /// Registration Types:
+    /// - 1 (Vendor): Small restaurant/retail seller
+    /// - 2 (MarketStaff): Supermarket staff
+    /// 
+    /// Other roles (Admin, Staff, SupplierStaff, DeliveryStaff) can only be created by Admin via /api/users endpoint
+    /// </remarks>
     [HttpPost("register")]
-    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var result = await _services.AuthService.RegisterAsync(request);
 
         if (!result.Success)
         {
+            // Return 409 Conflict for duplicate email
+            if (result.Message != null && result.Message.Contains("đã được đăng ký"))
+            {
+                return Conflict(result);
+            }
             return BadRequest(result);
         }
 
-        return Ok(result);
+        return Created(string.Empty, result);
     }
 }

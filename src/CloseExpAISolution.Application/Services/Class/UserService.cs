@@ -1,4 +1,4 @@
-using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
@@ -16,7 +16,7 @@ public class UserService : IUserService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<ApiResponse<IEnumerable<UserResponse>>> GetAllUsersAsync()
+    public async Task<ApiResponse<IEnumerable<UserResponseDto>>> GetAllUsersAsync()
     {
         var userRepository = _unitOfWork.Repository<User>();
         var roleRepository = _unitOfWork.Repository<Role>();
@@ -25,7 +25,7 @@ public class UserService : IUserService
         var roles = await roleRepository.GetAllAsync();
         var roleDictionary = roles.ToDictionary(r => r.RoleId, r => r.RoleName);
 
-        var userResponses = users.Select(u => new UserResponse
+        var userResponses = users.Select(u => new UserResponseDto
         {
             UserId = u.UserId,
             FullName = u.FullName,
@@ -33,28 +33,28 @@ public class UserService : IUserService
             Phone = u.Phone,
             RoleId = u.RoleId,
             RoleName = roleDictionary.GetValueOrDefault(u.RoleId, "Unknown"),
-            Status = u.Status,
+            Status = Enum.TryParse<UserState>(u.Status, out var status) ? status : UserState.Active,
             CreatedAt = u.CreatedAt,
             UpdatedAt = u.UpdateAt
         });
 
-        return ApiResponse<IEnumerable<UserResponse>>.SuccessResponse(userResponses);
+        return ApiResponse<IEnumerable<UserResponseDto>>.SuccessResponse(userResponses);
     }
 
-    public async Task<ApiResponse<UserResponse>> GetUserByIdAsync(Guid id)
+    public async Task<ApiResponse<UserResponseDto>> GetUserByIdAsync(Guid id)
     {
         var userRepository = _unitOfWork.Repository<User>();
         var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == id);
 
         if (user == null)
         {
-            return ApiResponse<UserResponse>.ErrorResponse("User not found");
+            return ApiResponse<UserResponseDto>.ErrorResponse("Không tìm thấy người dùng");
         }
 
         var roleRepository = _unitOfWork.Repository<Role>();
         var role = await roleRepository.GetByIdAsync(user.RoleId);
 
-        var userResponse = new UserResponse
+        var userResponse = new UserResponseDto
         {
             UserId = user.UserId,
             FullName = user.FullName,
@@ -62,15 +62,15 @@ public class UserService : IUserService
             Phone = user.Phone,
             RoleId = user.RoleId,
             RoleName = role?.RoleName ?? "Unknown",
-            Status = user.Status,
+            Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Active,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdateAt
         };
 
-        return ApiResponse<UserResponse>.SuccessResponse(userResponse);
+        return ApiResponse<UserResponseDto>.SuccessResponse(userResponse);
     }
 
-    public async Task<ApiResponse<UserResponse>> CreateUserAsync(CreateUserRequest request)
+    public async Task<ApiResponse<UserResponseDto>> CreateUserAsync(CreateUserRequestDto request)
     {
         var userRepository = _unitOfWork.Repository<User>();
 
@@ -78,7 +78,7 @@ public class UserService : IUserService
         var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
         if (existingUser != null)
         {
-            return ApiResponse<UserResponse>.ErrorResponse("Email already exists");
+            return ApiResponse<UserResponseDto>.ErrorResponse("Email đã tồn tại");
         }
 
         // Verify role exists
@@ -86,7 +86,7 @@ public class UserService : IUserService
         var role = await roleRepository.GetByIdAsync(request.RoleId);
         if (role == null)
         {
-            return ApiResponse<UserResponse>.ErrorResponse("Invalid role");
+            return ApiResponse<UserResponseDto>.ErrorResponse("Vai trò không hợp lệ");
         }
 
         var user = new User
@@ -106,7 +106,7 @@ public class UserService : IUserService
         await userRepository.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
 
-        var userResponse = new UserResponse
+        var userResponse = new UserResponseDto
         {
             UserId = user.UserId,
             FullName = user.FullName,
@@ -114,22 +114,22 @@ public class UserService : IUserService
             Phone = user.Phone,
             RoleId = user.RoleId,
             RoleName = role.RoleName,
-            Status = user.Status,
+            Status = UserState.Active,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdateAt
         };
 
-        return ApiResponse<UserResponse>.SuccessResponse(userResponse, "User created successfully");
+        return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, "Tạo người dùng thành công");
     }
 
-    public async Task<ApiResponse<UserResponse>> UpdateUserAsync(Guid id, UpdateUserRequest request)
+    public async Task<ApiResponse<UserResponseDto>> UpdateUserAsync(Guid id, UpdateUserRequestDto request)
     {
         var userRepository = _unitOfWork.Repository<User>();
         var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == id);
 
         if (user == null)
         {
-            return ApiResponse<UserResponse>.ErrorResponse("User not found");
+            return ApiResponse<UserResponseDto>.ErrorResponse("Không tìm thấy người dùng");
         }
 
         // Check if email is being changed and if it already exists
@@ -138,7 +138,7 @@ public class UserService : IUserService
             var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (existingUser != null)
             {
-                return ApiResponse<UserResponse>.ErrorResponse("Email already exists");
+                return ApiResponse<UserResponseDto>.ErrorResponse("Email đã tồn tại");
             }
             user.Email = request.Email;
         }
@@ -150,8 +150,8 @@ public class UserService : IUserService
         if (!string.IsNullOrEmpty(request.Phone))
             user.Phone = request.Phone;
 
-        if (!string.IsNullOrEmpty(request.Status))
-            user.Status = request.Status;
+        if (request.Status.HasValue)
+            user.Status = request.Status.Value.ToString();
 
         if (request.RoleId.HasValue)
         {
@@ -159,7 +159,7 @@ public class UserService : IUserService
             var role = await roleRepository.GetByIdAsync(request.RoleId.Value);
             if (role == null)
             {
-                return ApiResponse<UserResponse>.ErrorResponse("Invalid role");
+                return ApiResponse<UserResponseDto>.ErrorResponse("Vai trò không hợp lệ");
             }
             user.RoleId = request.RoleId.Value;
         }
@@ -173,7 +173,7 @@ public class UserService : IUserService
         var roleRepo = _unitOfWork.Repository<Role>();
         var userRole = await roleRepo.GetByIdAsync(user.RoleId);
 
-        var userResponse = new UserResponse
+        var userResponse = new UserResponseDto
         {
             UserId = user.UserId,
             FullName = user.FullName,
@@ -181,12 +181,12 @@ public class UserService : IUserService
             Phone = user.Phone,
             RoleId = user.RoleId,
             RoleName = userRole?.RoleName ?? "Unknown",
-            Status = user.Status,
+            Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Active,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdateAt
         };
 
-        return ApiResponse<UserResponse>.SuccessResponse(userResponse, "User updated successfully");
+        return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, "Cập nhật người dùng thành công");
     }
 
     public async Task<ApiResponse<bool>> DeleteUserAsync(Guid id)
@@ -196,7 +196,7 @@ public class UserService : IUserService
 
         if (user == null)
         {
-            return ApiResponse<bool>.ErrorResponse("User not found");
+            return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
         }
 
         // Soft delete - change status to Deleted
@@ -206,6 +206,6 @@ public class UserService : IUserService
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
-        return ApiResponse<bool>.SuccessResponse(true, "User deleted successfully");
+        return ApiResponse<bool>.SuccessResponse(true, "Xóa người dùng thành công");
     }
 }

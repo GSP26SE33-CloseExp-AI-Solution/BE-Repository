@@ -174,7 +174,7 @@ public class ProductService : IProductService
             .Include(p => p.ProductImages)
             .FirstOrDefaultAsync(p => p.ProductId == id, cancellationToken);
 
-        if (product == null) throw new KeyNotFoundException($"Product with id {id} not found");
+        if (product == null) throw new KeyNotFoundException($"Không tìm thấy sản phẩm với id {id}");
 
         product.SupermarketId = request.SupermarketId;
         product.Name = request.Name;
@@ -194,7 +194,7 @@ public class ProductService : IProductService
     public async Task DeleteProductAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var product = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(p => p.ProductId == id);
-        if (product == null) throw new KeyNotFoundException($"Product with id {id} not found");
+        if (product == null) throw new KeyNotFoundException($"Không tìm thấy sản phẩm với id {id}");
 
         await DeleteAsync(product, cancellationToken);
     }

@@ -12,20 +12,22 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private readonly IUnitOfWork _unitOfWork;
                 private readonly IHttpContextAccessor _httpContextAccessor;
                 private readonly ApplicationDbContext _context;
+                private readonly IConfiguration _configuration;
 
-                private IProductService _productService;
-                private IMarketStaffService _marketStaffService;
-                private ISupermarketService _supermarketService;
-                private IProductImageService _productImageService;
-                private IAIVerificationLogService _aIVerificationLogService;
-                private IAuthService _authService;
-                private IUserService _userService;
+                private IProductService? _productService;
+                private IMarketStaffService? _marketStaffService;
+                private ISupermarketService? _supermarketService;
+                private IProductImageService? _productImageService;
+                private IAIVerificationLogService? _aIVerificationLogService;
+                private IAuthService? _authService;
+                private IUserService? _userService;
 
-                public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context)
+                public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration)
                 {
                         _unitOfWork = unitOfWork;
                         _httpContextAccessor = httpContextAccessor;
                         _context = context;
+                        _configuration = configuration;
                 }
                 public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context);
                 public IMarketStaffService MarketStaffService => _marketStaffService ??= new MarketStaffService(_unitOfWork);

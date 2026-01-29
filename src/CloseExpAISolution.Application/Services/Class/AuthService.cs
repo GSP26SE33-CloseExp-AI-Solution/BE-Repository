@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
@@ -31,18 +32,18 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            return ApiResponse<AuthResponse>.ErrorResponse("Invalid email or password");
+            return ApiResponse<AuthResponse>.ErrorResponse("Email hoặc mật khẩu không hợp lệ");
         }
 
         // Check if account is locked
         if (user.Status == UserState.Banned.ToString())
         {
-            return ApiResponse<AuthResponse>.ErrorResponse("Account has been locked due to too many failed login attempts");
+            return ApiResponse<AuthResponse>.ErrorResponse("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
         }
 
         if (user.Status == UserState.Deleted.ToString())
         {
-            return ApiResponse<AuthResponse>.ErrorResponse("Account has been deleted");
+            return ApiResponse<AuthResponse>.ErrorResponse("Tài khoản đã bị xóa");
         }
 
         // Verify password
@@ -50,18 +51,18 @@ public class AuthService : IAuthService
         {
             // Increment failed login count
             user.FailedLoginCount++;
-            
+
             if (user.FailedLoginCount >= MaxFailedLoginAttempts)
             {
                 user.Status = UserState.Banned.ToString();
                 userRepository.Update(user);
                 await _unitOfWork.SaveChangesAsync();
-                return ApiResponse<AuthResponse>.ErrorResponse("Account has been locked due to too many failed login attempts");
+                return ApiResponse<AuthResponse>.ErrorResponse("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
             }
 
             userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync();
-            return ApiResponse<AuthResponse>.ErrorResponse($"Invalid email or password. {MaxFailedLoginAttempts - user.FailedLoginCount} attempts remaining");
+            return ApiResponse<AuthResponse>.ErrorResponse($"Email hoặc mật khẩu không hợp lệ. Còn {MaxFailedLoginAttempts - user.FailedLoginCount} lần thử");
         }
 
         // Reset failed login count on successful login
@@ -77,7 +78,7 @@ public class AuthService : IAuthService
         // Generate tokens
         var authResponse = GenerateTokens(user, role?.RoleName ?? "User");
 
-        return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Login successful");
+        return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập thành công");
     }
 
     public async Task<ApiResponse<AuthResponse>> RegisterAsync(RegisterRequest request)
@@ -88,15 +89,24 @@ public class AuthService : IAuthService
         var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
         if (existingUser != null)
         {
-            return ApiResponse<AuthResponse>.ErrorResponse("Email already registered");
+            return ApiResponse<AuthResponse>.ErrorResponse("Email đã được đăng ký");
         }
 
-        // Verify role exists
+        // Map RegistrationType to RoleId
+        var roleId = (int)request.RegistrationType;
+
+        // Verify role exists and is allowed for public registration
         var roleRepository = _unitOfWork.Repository<Role>();
-        var role = await roleRepository.GetByIdAsync(request.RoleId);
+        var role = await roleRepository.GetByIdAsync(roleId);
         if (role == null)
         {
-            return ApiResponse<AuthResponse>.ErrorResponse("Invalid role");
+            return ApiResponse<AuthResponse>.ErrorResponse("Loại đăng ký không hợp lệ");
+        }
+
+        // Double-check that only Vendor and MarketStaff can register publicly
+        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.MarketStaff)
+        {
+            return ApiResponse<AuthResponse>.ErrorResponse("Loại đăng ký này không được phép. Chỉ Vendor và MarketStaff mới có thể đăng ký công khai.");
         }
 
         // Create new user
@@ -107,7 +117,7 @@ public class AuthService : IAuthService
             Email = request.Email,
             Phone = request.Phone,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId = request.RoleId,
+            RoleId = roleId,
             Status = UserState.Active.ToString(),
             FailedLoginCount = 0,
             CreatedAt = DateTime.UtcNow,
@@ -120,7 +130,7 @@ public class AuthService : IAuthService
         // Generate tokens
         var authResponse = GenerateTokens(user, role.RoleName);
 
-        return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Registration successful");
+        return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng ký thành công");
     }
 
     private AuthResponse GenerateTokens(User user, string roleName)
@@ -157,7 +167,7 @@ public class AuthService : IAuthService
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
-            User = new UserResponse
+            User = new UserResponseDto
             {
                 UserId = user.UserId,
                 FullName = user.FullName,
@@ -165,7 +175,7 @@ public class AuthService : IAuthService
                 Phone = user.Phone,
                 RoleName = roleName,
                 RoleId = user.RoleId,
-                Status = user.Status,
+                Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Active,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdateAt
             }

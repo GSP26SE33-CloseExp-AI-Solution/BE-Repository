@@ -31,7 +31,7 @@ public class AIVerificationLogsController : ControllerBase
         {
             Items = pageItems,
             TotalResult = total,
-            Rage = pageNumber,
+            Page = pageNumber,
             PageSize = pageSize
         };
         return Ok(ApiResponse<PaginatedResult<AIVerificationLog>>.SuccessResponse(result));
@@ -41,7 +41,7 @@ public class AIVerificationLogsController : ControllerBase
     public async Task<ActionResult<ApiResponse<AIVerificationLog>>> GetById(Guid id)
     {
         var item = await _services.AIVerificationLogService.FirstOrDefaultAsync(x => x.VerificationId == id);
-        if (item == null) return NotFound(ApiResponse<AIVerificationLog>.ErrorResponse("AIVerificationLog not found"));
+        if (item == null) return NotFound(ApiResponse<AIVerificationLog>.ErrorResponse("Không tìm thấy nhật ký xác minh AI"));
         return Ok(ApiResponse<AIVerificationLog>.SuccessResponse(item));
     }
 
@@ -49,27 +49,27 @@ public class AIVerificationLogsController : ControllerBase
     public async Task<ActionResult<ApiResponse<AIVerificationLog>>> Create([FromBody] AIVerificationLog input, CancellationToken cancellationToken)
     {
         var created = await _services.AIVerificationLogService.AddAsync(input, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.VerificationId }, ApiResponse<AIVerificationLog>.SuccessResponse(created, "Created"));
+        return CreatedAtAction(nameof(GetById), new { id = created.VerificationId }, ApiResponse<AIVerificationLog>.SuccessResponse(created, "Tạo thành công"));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] AIVerificationLog input, CancellationToken cancellationToken)
     {
         var existing = await _services.AIVerificationLogService.FirstOrDefaultAsync(x => x.VerificationId == id);
-        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("AIVerificationLog not found"));
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy nhật ký xác minh AI"));
 
         input.VerificationId = id;
         await _services.AIVerificationLogService.UpdateAsync(input, cancellationToken);
-        return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Cập nhật thành công"));
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
         var existing = await _services.AIVerificationLogService.FirstOrDefaultAsync(x => x.VerificationId == id);
-        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("AIVerificationLog not found"));
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy nhật ký xác minh AI"));
 
         await _services.AIVerificationLogService.DeleteAsync(existing, cancellationToken);
-        return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Xóa thành công"));
     }
 }
