@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CloseExpAISolution.Application.ServiceProviders;
 
@@ -5,7 +6,7 @@ namespace CloseExpAISolution.Application.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddHttpContextAccessor();
 
@@ -15,3 +16,4 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
+
