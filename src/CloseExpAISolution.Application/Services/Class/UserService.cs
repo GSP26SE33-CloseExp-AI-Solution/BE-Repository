@@ -1,3 +1,4 @@
+using AutoMapper;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
@@ -10,202 +11,222 @@ namespace CloseExpAISolution.Application.Services.Class;
 public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
 
-    public UserService(IUnitOfWork unitOfWork)
+    public UserService(IUnitOfWork unitOfWork, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
+        _mapper = mapper;
     }
+
+    #region Public Methods
 
     public async Task<ApiResponse<IEnumerable<UserResponseDto>>> GetAllUsersAsync()
     {
-        var userRepository = _unitOfWork.Repository<User>();
-        var roleRepository = _unitOfWork.Repository<Role>();
+        var users = await _unitOfWork.Repository<User>().GetAllAsync();
+        var roleDictionary = await GetRoleDictionary();
 
-        var users = await userRepository.GetAllAsync();
-        var roles = await roleRepository.GetAllAsync();
-        var roleDictionary = roles.ToDictionary(r => r.RoleId, r => r.RoleName);
-
-        var userResponses = users.Select(u => new UserResponseDto
-        {
-            UserId = u.UserId,
-            FullName = u.FullName,
-            Email = u.Email,
-            Phone = u.Phone,
-            RoleId = u.RoleId,
-            RoleName = roleDictionary.GetValueOrDefault(u.RoleId, "Unknown"),
-            Status = Enum.TryParse<UserState>(u.Status, out var status) ? status : UserState.Active,
-            CreatedAt = u.CreatedAt,
-            UpdatedAt = u.UpdateAt
-        });
+        var userResponses = users.Select(u => MapUserWithRole(u, roleDictionary));
 
         return ApiResponse<IEnumerable<UserResponseDto>>.SuccessResponse(userResponses);
     }
 
     public async Task<ApiResponse<UserResponseDto>> GetUserByIdAsync(Guid id)
     {
-        var userRepository = _unitOfWork.Repository<User>();
-        var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == id);
-
+        var user = await FindUserById(id);
         if (user == null)
-        {
-            return ApiResponse<UserResponseDto>.ErrorResponse("Không tìm thấy người dùng");
-        }
+            return NotFound();
 
-        var roleRepository = _unitOfWork.Repository<Role>();
-        var role = await roleRepository.GetByIdAsync(user.RoleId);
-
-        var userResponse = new UserResponseDto
-        {
-            UserId = user.UserId,
-            FullName = user.FullName,
-            Email = user.Email,
-            Phone = user.Phone,
-            RoleId = user.RoleId,
-            RoleName = role?.RoleName ?? "Unknown",
-            Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Active,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdateAt
-        };
-
+        var userResponse = await MapUserWithRoleAsync(user);
         return ApiResponse<UserResponseDto>.SuccessResponse(userResponse);
     }
 
     public async Task<ApiResponse<UserResponseDto>> CreateUserAsync(CreateUserRequestDto request)
     {
-        var userRepository = _unitOfWork.Repository<User>();
+        // Validate email uniqueness
+        if (await EmailExists(request.Email))
+            return Error("Email đã tồn tại");
 
-        // Check if email already exists
-        var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
-        if (existingUser != null)
-        {
-            return ApiResponse<UserResponseDto>.ErrorResponse("Email đã tồn tại");
-        }
-
-        // Verify role exists
-        var roleRepository = _unitOfWork.Repository<Role>();
-        var role = await roleRepository.GetByIdAsync(request.RoleId);
+        // Validate role
+        var role = await GetRoleById(request.RoleId);
         if (role == null)
-        {
-            return ApiResponse<UserResponseDto>.ErrorResponse("Vai trò không hợp lệ");
-        }
+            return Error("Vai trò không hợp lệ");
 
-        var user = new User
-        {
-            UserId = Guid.NewGuid(),
-            FullName = request.FullName,
-            Email = request.Email,
-            Phone = request.Phone,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId = request.RoleId,
-            Status = UserState.Active.ToString(),
-            FailedLoginCount = 0,
-            CreatedAt = DateTime.UtcNow,
-            UpdateAt = DateTime.UtcNow
-        };
+        // Create user
+        var user = _mapper.Map<User>(request);
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
-        await userRepository.AddAsync(user);
+        await _unitOfWork.Repository<User>().AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
 
-        var userResponse = new UserResponseDto
-        {
-            UserId = user.UserId,
-            FullName = user.FullName,
-            Email = user.Email,
-            Phone = user.Phone,
-            RoleId = user.RoleId,
-            RoleName = role.RoleName,
-            Status = UserState.Active,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdateAt
-        };
+        var userResponse = _mapper.Map<UserResponseDto>(user);
+        userResponse.RoleName = role.RoleName;
 
         return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, "Tạo người dùng thành công");
     }
 
     public async Task<ApiResponse<UserResponseDto>> UpdateUserAsync(Guid id, UpdateUserRequestDto request)
     {
-        var userRepository = _unitOfWork.Repository<User>();
-        var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == id);
-
+        var user = await FindUserById(id);
         if (user == null)
-        {
-            return ApiResponse<UserResponseDto>.ErrorResponse("Không tìm thấy người dùng");
-        }
+            return NotFound();
 
-        // Check if email is being changed and if it already exists
+        // Validate email change
         if (!string.IsNullOrEmpty(request.Email) && request.Email != user.Email)
         {
-            var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
-            if (existingUser != null)
-            {
-                return ApiResponse<UserResponseDto>.ErrorResponse("Email đã tồn tại");
-            }
+            if (await EmailExists(request.Email))
+                return Error("Email đã tồn tại");
             user.Email = request.Email;
         }
 
-        // Update fields if provided
-        if (!string.IsNullOrEmpty(request.FullName))
-            user.FullName = request.FullName;
+        // Validate role change
+        if (request.RoleId.HasValue)
+        {
+            var role = await GetRoleById(request.RoleId.Value);
+            if (role == null)
+                return Error("Vai trò không hợp lệ");
+            user.RoleId = request.RoleId.Value;
+        }
 
-        if (!string.IsNullOrEmpty(request.Phone))
-            user.Phone = request.Phone;
+        // Update basic fields
+        UpdateUserFields(user, request.FullName, request.Phone);
 
         if (request.Status.HasValue)
             user.Status = request.Status.Value.ToString();
 
-        if (request.RoleId.HasValue)
-        {
-            var roleRepository = _unitOfWork.Repository<Role>();
-            var role = await roleRepository.GetByIdAsync(request.RoleId.Value);
-            if (role == null)
-            {
-                return ApiResponse<UserResponseDto>.ErrorResponse("Vai trò không hợp lệ");
-            }
-            user.RoleId = request.RoleId.Value;
-        }
+        await SaveUserChanges(user);
 
-        user.UpdateAt = DateTime.UtcNow;
-
-        userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync();
-
-        // Get role name
-        var roleRepo = _unitOfWork.Repository<Role>();
-        var userRole = await roleRepo.GetByIdAsync(user.RoleId);
-
-        var userResponse = new UserResponseDto
-        {
-            UserId = user.UserId,
-            FullName = user.FullName,
-            Email = user.Email,
-            Phone = user.Phone,
-            RoleId = user.RoleId,
-            RoleName = userRole?.RoleName ?? "Unknown",
-            Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Active,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdateAt
-        };
-
+        var userResponse = await MapUserWithRoleAsync(user);
         return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, "Cập nhật người dùng thành công");
+    }
+
+    public async Task<ApiResponse<UserResponseDto>> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request)
+    {
+        var user = await FindUserById(userId);
+        if (user == null)
+            return NotFound();
+
+        UpdateUserFields(user, request.FullName, request.Phone);
+        await SaveUserChanges(user);
+
+        var userResponse = await MapUserWithRoleAsync(user);
+        return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, "Cập nhật thông tin cá nhân thành công");
+    }
+
+    public async Task<ApiResponse<UserResponseDto>> UpdateUserStatusAsync(Guid id, UpdateUserStatusRequestDto request)
+    {
+        var user = await FindUserById(id);
+        if (user == null)
+            return NotFound();
+
+        var oldStatus = user.Status;
+        user.Status = request.Status.ToString();
+
+        // Reset failed login count when verifying or unlocking
+        if (request.Status == UserState.Verified)
+            user.FailedLoginCount = 0;
+
+        await SaveUserChanges(user);
+
+        var userResponse = await MapUserWithRoleAsync(user);
+        var statusMessage = GetStatusChangeMessage(oldStatus, request.Status.ToString());
+
+        return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, statusMessage);
     }
 
     public async Task<ApiResponse<bool>> DeleteUserAsync(Guid id)
     {
-        var userRepository = _unitOfWork.Repository<User>();
-        var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == id);
-
+        var user = await FindUserById(id);
         if (user == null)
-        {
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
-        }
 
-        // Soft delete - change status to Deleted
+        // Soft delete
         user.Status = UserState.Deleted.ToString();
-        user.UpdateAt = DateTime.UtcNow;
-
-        userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync();
+        await SaveUserChanges(user);
 
         return ApiResponse<bool>.SuccessResponse(true, "Xóa người dùng thành công");
     }
+
+    #endregion
+
+    #region Private Helpers
+
+    /// <summary>Finds user by ID, returns null if not found</summary>
+    private async Task<User?> FindUserById(Guid id)
+        => await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == id);
+
+    /// <summary>Checks if email already exists in database</summary>
+    private async Task<bool> EmailExists(string email)
+    {
+        var existingUser = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.Email == email);
+        return existingUser != null;
+    }
+
+    /// <summary>Gets role entity by ID</summary>
+    private async Task<Role?> GetRoleById(int roleId)
+        => await _unitOfWork.Repository<Role>().GetByIdAsync(roleId);
+
+    /// <summary>Gets all roles as dictionary for bulk mapping</summary>
+    private async Task<Dictionary<int, string>> GetRoleDictionary()
+    {
+        var roles = await _unitOfWork.Repository<Role>().GetAllAsync();
+        return roles.ToDictionary(r => r.RoleId, r => r.RoleName);
+    }
+
+    /// <summary>Maps user to DTO with role name lookup</summary>
+    private async Task<UserResponseDto> MapUserWithRoleAsync(User user)
+    {
+        var role = await GetRoleById(user.RoleId);
+        var dto = _mapper.Map<UserResponseDto>(user);
+        dto.RoleName = role?.RoleName ?? "Unknown";
+        return dto;
+    }
+
+    /// <summary>Maps user to DTO using pre-loaded role dictionary</summary>
+    private UserResponseDto MapUserWithRole(User user, Dictionary<int, string> roleDictionary)
+    {
+        var dto = _mapper.Map<UserResponseDto>(user);
+        dto.RoleName = roleDictionary.GetValueOrDefault(user.RoleId, "Unknown");
+        return dto;
+    }
+
+    /// <summary>Updates user's basic info (name, phone) if provided</summary>
+    private static void UpdateUserFields(User user, string? fullName, string? phone)
+    {
+        if (!string.IsNullOrEmpty(fullName))
+            user.FullName = fullName;
+
+        if (!string.IsNullOrEmpty(phone))
+            user.Phone = phone;
+    }
+
+    /// <summary>Updates timestamp and saves user changes to database</summary>
+    private async Task SaveUserChanges(User user)
+    {
+        user.UpdateAt = DateTime.UtcNow;
+        _unitOfWork.Repository<User>().Update(user);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    /// <summary>Returns Vietnamese message for status change action</summary>
+    private static string GetStatusChangeMessage(string oldStatus, string newStatus) => newStatus switch
+    {
+        nameof(UserState.Verified) => "Xác minh tài khoản thành công",
+        nameof(UserState.Locked) => "Khóa tạm thời tài khoản thành công (30 phút)",
+        nameof(UserState.Banned) => "Khóa vĩnh viễn tài khoản thành công",
+        nameof(UserState.Unverified) => "Hủy xác minh tài khoản thành công",
+        nameof(UserState.Hidden) => "Ẩn tài khoản thành công",
+        nameof(UserState.Deleted) => "Xóa tài khoản thành công",
+        _ => $"Cập nhật trạng thái từ {oldStatus} sang {newStatus} thành công"
+    };
+
+    /// <summary>Shortcut for user not found error</summary>
+    private static ApiResponse<UserResponseDto> NotFound()
+        => ApiResponse<UserResponseDto>.ErrorResponse("Không tìm thấy người dùng");
+
+    /// <summary>Shortcut to create error response</summary>
+    private static ApiResponse<UserResponseDto> Error(string message)
+        => ApiResponse<UserResponseDto>.ErrorResponse(message);
+
+    #endregion
 }

@@ -17,7 +17,9 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
+
     private const int MaxFailedLoginAttempts = 5;
+    private const int LockoutDurationMinutes = 30;
 
     public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration)
     {
@@ -25,58 +27,30 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
+    #region Public Methods
+
     public async Task<ApiResponse<AuthResponse>> LoginAsync(LoginRequest request)
     {
         var userRepository = _unitOfWork.Repository<User>();
         var user = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
 
         if (user == null)
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Email hoặc mật khẩu không hợp lệ");
-        }
+            return Error("Email hoặc mật khẩu không hợp lệ");
 
-        // Check if account is locked
-        if (user.Status == UserState.Banned.ToString())
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
-        }
-
-        if (user.Status == UserState.Deleted.ToString())
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Tài khoản đã bị xóa");
-        }
+        // Validate account status
+        var statusError = await ValidateAndHandleAccountStatus(user, userRepository);
+        if (statusError != null)
+            return statusError;
 
         // Verify password
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            // Increment failed login count
-            user.FailedLoginCount++;
+        if (!VerifyPassword(request.Password, user.PasswordHash))
+            return await HandleFailedLogin(user, userRepository);
 
-            if (user.FailedLoginCount >= MaxFailedLoginAttempts)
-            {
-                user.Status = UserState.Banned.ToString();
-                userRepository.Update(user);
-                await _unitOfWork.SaveChangesAsync();
-                return ApiResponse<AuthResponse>.ErrorResponse("Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần");
-            }
+        // Success: Reset failed attempts and generate tokens
+        await ResetFailedLoginCount(user, userRepository);
 
-            userRepository.Update(user);
-            await _unitOfWork.SaveChangesAsync();
-            return ApiResponse<AuthResponse>.ErrorResponse($"Email hoặc mật khẩu không hợp lệ. Còn {MaxFailedLoginAttempts - user.FailedLoginCount} lần thử");
-        }
-
-        // Reset failed login count on successful login
-        user.FailedLoginCount = 0;
-        user.Status = UserState.Active.ToString();
-        userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync();
-
-        // Get role
-        var roleRepository = _unitOfWork.Repository<Role>();
-        var role = await roleRepository.GetByIdAsync(user.RoleId);
-
-        // Generate tokens
-        var authResponse = GenerateTokens(user, role?.RoleName ?? "User");
+        var roleName = await GetRoleName(user.RoleId);
+        var authResponse = GenerateTokens(user, roleName);
 
         return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập thành công");
     }
@@ -85,61 +59,179 @@ public class AuthService : IAuthService
     {
         var userRepository = _unitOfWork.Repository<User>();
 
-        // Check if email already exists
-        var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
-        if (existingUser != null)
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Email đã được đăng ký");
-        }
+        // Validate email uniqueness
+        if (await EmailExists(request.Email))
+            return Error("Email đã được đăng ký");
 
-        // Map RegistrationType to RoleId
+        // Validate role
         var roleId = (int)request.RegistrationType;
+        var roleValidation = await ValidatePublicRegistrationRole(roleId);
+        if (roleValidation != null)
+            return roleValidation;
 
-        // Verify role exists and is allowed for public registration
-        var roleRepository = _unitOfWork.Repository<Role>();
-        var role = await roleRepository.GetByIdAsync(roleId);
-        if (role == null)
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Loại đăng ký không hợp lệ");
-        }
-
-        // Double-check that only Vendor and MarketStaff can register publicly
-        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.MarketStaff)
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Loại đăng ký này không được phép. Chỉ Vendor và MarketStaff mới có thể đăng ký công khai.");
-        }
-
-        // Create new user
-        var user = new User
-        {
-            UserId = Guid.NewGuid(),
-            FullName = request.FullName,
-            Email = request.Email,
-            Phone = request.Phone,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId = roleId,
-            Status = UserState.Active.ToString(),
-            FailedLoginCount = 0,
-            CreatedAt = DateTime.UtcNow,
-            UpdateAt = DateTime.UtcNow
-        };
-
+        // Create user
+        var user = CreateNewUser(request, roleId);
         await userRepository.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
 
-        // Generate tokens
-        var authResponse = GenerateTokens(user, role.RoleName);
-
-        return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng ký thành công");
+        return ApiResponse<AuthResponse>.SuccessWithMessage(
+            "Đăng ký thành công. Vui lòng chờ Admin xác minh tài khoản của bạn trước khi đăng nhập");
     }
 
+    #endregion
+
+    #region Login Helpers
+
+    /// <summary>Checks account status and auto-unlocks if lockout expired</summary>
+    private async Task<ApiResponse<AuthResponse>?> ValidateAndHandleAccountStatus(User user, dynamic userRepository)
+    {
+        var status = user.Status;
+
+        if (status == UserState.Unverified.ToString())
+            return Error("Tài khoản chưa được xác minh. Vui lòng chờ Admin phê duyệt");
+
+        if (status == UserState.Locked.ToString())
+        {
+            var unlockResult = TryAutoUnlock(user);
+            if (!unlockResult.IsUnlocked)
+                return Error($"Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau {unlockResult.RemainingMinutes} phút");
+
+            // Save the unlock
+            userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        if (status == UserState.Banned.ToString())
+            return Error("Tài khoản đã bị khóa vĩnh viễn bởi Admin");
+
+        if (status == UserState.Deleted.ToString())
+            return Error("Tài khoản đã bị xóa");
+
+        return null;
+    }
+
+    /// <summary>Attempts to unlock account if 30-min lockout has passed</summary>
+    private (bool IsUnlocked, int RemainingMinutes) TryAutoUnlock(User user)
+    {
+        var lockoutEndTime = user.UpdateAt.AddMinutes(LockoutDurationMinutes);
+        var remainingTime = lockoutEndTime - DateTime.UtcNow;
+
+        if (remainingTime > TimeSpan.Zero)
+            return (false, (int)Math.Ceiling(remainingTime.TotalMinutes));
+
+        // Auto-unlock
+        user.Status = UserState.Verified.ToString();
+        user.FailedLoginCount = 0;
+        user.UpdateAt = DateTime.UtcNow;
+        return (true, 0);
+    }
+
+    /// <summary>Increments failed count and locks account after 5 attempts</summary>
+    private async Task<ApiResponse<AuthResponse>> HandleFailedLogin(User user, dynamic userRepository)
+    {
+        user.FailedLoginCount++;
+        user.UpdateAt = DateTime.UtcNow;
+
+        if (user.FailedLoginCount >= MaxFailedLoginAttempts)
+        {
+            user.Status = UserState.Locked.ToString();
+            userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync();
+            return Error($"Tài khoản đã bị khóa tạm thời do đăng nhập sai quá {MaxFailedLoginAttempts} lần. Vui lòng thử lại sau {LockoutDurationMinutes} phút");
+        }
+
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        var attemptsLeft = MaxFailedLoginAttempts - user.FailedLoginCount;
+        return Error($"Email hoặc mật khẩu không hợp lệ. Còn {attemptsLeft} lần thử");
+    }
+
+    /// <summary>Resets failed login counter after successful login</summary>
+    private async Task ResetFailedLoginCount(User user, dynamic userRepository)
+    {
+        if (user.FailedLoginCount == 0) return;
+
+        user.FailedLoginCount = 0;
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    /// <summary>Verifies password against BCrypt hash</summary>
+    private static bool VerifyPassword(string password, string passwordHash)
+        => BCrypt.Net.BCrypt.Verify(password, passwordHash);
+
+    #endregion
+
+    #region Registration Helpers
+
+    /// <summary>Checks if email is already registered</summary>
+    private async Task<bool> EmailExists(string email)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == email);
+        return existingUser != null;
+    }
+
+    /// <summary>Validates role is allowed for public registration (Vendor/MarketStaff only)</summary>
+    private async Task<ApiResponse<AuthResponse>?> ValidatePublicRegistrationRole(int roleId)
+    {
+        var roleRepository = _unitOfWork.Repository<Role>();
+        var role = await roleRepository.GetByIdAsync(roleId);
+
+        if (role == null)
+            return Error("Loại đăng ký không hợp lệ");
+
+        // Only Vendor and MarketStaff can register publicly
+        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.MarketStaff)
+            return Error("Loại đăng ký này không được phép. Chỉ Vendor và MarketStaff mới có thể đăng ký công khai.");
+
+        return null;
+    }
+
+    /// <summary>Creates a new user entity with Unverified status</summary>
+    private static User CreateNewUser(RegisterRequest request, int roleId) => new()
+    {
+        UserId = Guid.NewGuid(),
+        FullName = request.FullName,
+        Email = request.Email,
+        Phone = request.Phone,
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+        RoleId = roleId,
+        Status = UserState.Unverified.ToString(),
+        FailedLoginCount = 0,
+        CreatedAt = DateTime.UtcNow,
+        UpdateAt = DateTime.UtcNow
+    };
+
+    #endregion
+
+    #region Token Generation
+
+    /// <summary>Generates JWT access token and refresh token</summary>
     private AuthResponse GenerateTokens(User user, string roleName)
     {
         var jwtSettings = _configuration.GetSection("Jwt");
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var expiryMinutes = int.Parse(jwtSettings["ExpiryInMinutes"] ?? "60");
         var expiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes);
+
+        var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt);
+        var refreshToken = Guid.NewGuid().ToString("N");
+
+        return new AuthResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            ExpiresAt = expiresAt,
+            User = MapToUserResponse(user, roleName)
+        };
+    }
+
+    /// <summary>Creates JWT token with user claims</summary>
+    private static string GenerateAccessToken(User user, string roleName, IConfigurationSection jwtSettings, DateTime expiresAt)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
         {
@@ -159,26 +251,38 @@ public class AuthService : IAuthService
             signingCredentials: credentials
         );
 
-        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
-        var refreshToken = Guid.NewGuid().ToString("N");
-
-        return new AuthResponse
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            ExpiresAt = expiresAt,
-            User = new UserResponseDto
-            {
-                UserId = user.UserId,
-                FullName = user.FullName,
-                Email = user.Email,
-                Phone = user.Phone,
-                RoleName = roleName,
-                RoleId = user.RoleId,
-                Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Active,
-                CreatedAt = user.CreatedAt,
-                UpdatedAt = user.UpdateAt
-            }
-        };
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    /// <summary>Maps User entity to UserResponseDto</summary>
+    private static UserResponseDto MapToUserResponse(User user, string roleName) => new()
+    {
+        UserId = user.UserId,
+        FullName = user.FullName,
+        Email = user.Email,
+        Phone = user.Phone,
+        RoleName = roleName,
+        RoleId = user.RoleId,
+        Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Unverified,
+        CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdateAt
+    };
+
+    #endregion
+
+    #region Common Helpers
+
+    /// <summary>Gets role name by roleId from database</summary>
+    private async Task<string> GetRoleName(int roleId)
+    {
+        var roleRepository = _unitOfWork.Repository<Role>();
+        var role = await roleRepository.GetByIdAsync(roleId);
+        return role?.RoleName ?? "User";
+    }
+
+    /// <summary>Shortcut to create error response</summary>
+    private static ApiResponse<AuthResponse> Error(string message)
+        => ApiResponse<AuthResponse>.ErrorResponse(message);
+
+    #endregion
 }

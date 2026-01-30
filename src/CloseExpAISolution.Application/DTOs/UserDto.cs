@@ -64,6 +64,28 @@ public class UpdateUserRequestDto
 }
 
 /// <summary>
+/// Request DTO for user to update their own profile (without status/role)
+/// </summary>
+public class UpdateProfileRequestDto
+{
+    [StringLength(100, ErrorMessage = "Họ tên không được vượt quá 100 ký tự")]
+    public string? FullName { get; set; }
+
+    [Phone(ErrorMessage = "Số điện thoại không hợp lệ")]
+    public string? Phone { get; set; }
+}
+
+/// <summary>
+/// Request DTO for updating user status only (Admin only)
+/// Used for verifying/banning user accounts
+/// </summary>
+public class UpdateUserStatusRequestDto
+{
+    [Required(ErrorMessage = "Trạng thái là bắt buộc")]
+    public UserState Status { get; set; }
+}
+
+/// <summary>
 /// Response DTO for user API output
 /// </summary>
 public class UserResponseDto

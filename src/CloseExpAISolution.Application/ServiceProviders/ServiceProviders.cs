@@ -1,3 +1,4 @@
+using AutoMapper;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Infrastructure.Context;
@@ -13,6 +14,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private readonly IHttpContextAccessor _httpContextAccessor;
                 private readonly ApplicationDbContext _context;
                 private readonly IConfiguration _configuration;
+                private readonly IMapper _mapper;
 
                 private IProductService? _productService;
                 private IMarketStaffService? _marketStaffService;
@@ -22,19 +24,20 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IAuthService? _authService;
                 private IUserService? _userService;
 
-                public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration)
+                public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration, IMapper mapper)
                 {
                         _unitOfWork = unitOfWork;
                         _httpContextAccessor = httpContextAccessor;
                         _context = context;
                         _configuration = configuration;
+                        _mapper = mapper;
                 }
-                public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context);
-                public IMarketStaffService MarketStaffService => _marketStaffService ??= new MarketStaffService(_unitOfWork);
-                public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork);
+                public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context, _mapper);
+                public IMarketStaffService MarketStaffService => _marketStaffService ??= new MarketStaffService(_unitOfWork, _mapper);
+                public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
                 public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
                 public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
                 public IAuthService AuthService => _authService ??= new AuthService(_unitOfWork, _configuration);
-                public IUserService UserService => _userService ??= new UserService(_unitOfWork);
+                public IUserService UserService => _userService ??= new UserService(_unitOfWork, _mapper);
         }
 }

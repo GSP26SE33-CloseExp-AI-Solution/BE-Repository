@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
@@ -9,10 +10,12 @@ namespace CloseExpAISolution.Application.Services.Class;
 public class MarketStaffService : IMarketStaffService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
 
-    public MarketStaffService(IUnitOfWork unitOfWork)
+    public MarketStaffService(IUnitOfWork unitOfWork, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
+        _mapper = mapper;
     }
 
     public Task<MarketStaff?> GetByIdAsync(int id) => _unitOfWork.MarketStaffRepository.GetByIdAsync(id);
@@ -65,61 +68,31 @@ public class MarketStaffService : IMarketStaffService
         var marketStaff = await _unitOfWork.MarketStaffRepository.FirstOrDefaultAsync(x => x.MarketStaffId == id);
         if (marketStaff == null) return null;
 
-        return new MarketStaffResponseDto
-        {
-            MarketStaffId = marketStaff.MarketStaffId,
-            UserId = marketStaff.UserId,
-            SupermarketId = marketStaff.SupermarketId,
-            Position = marketStaff.Position,
-            CreatedAt = marketStaff.CreatedAt
-        };
+        return _mapper.Map<MarketStaffResponseDto>(marketStaff);
     }
 
     public async Task<IEnumerable<MarketStaffResponseDto>> GetAllWithDtoAsync()
     {
         var items = await _unitOfWork.MarketStaffRepository.GetAllAsync();
-        return items.Select(x => new MarketStaffResponseDto
-        {
-            MarketStaffId = x.MarketStaffId,
-            UserId = x.UserId,
-            SupermarketId = x.SupermarketId,
-            Position = x.Position,
-            CreatedAt = x.CreatedAt
-        });
+        return _mapper.Map<IEnumerable<MarketStaffResponseDto>>(items);
     }
 
     public async Task<MarketStaffResponseDto> CreateMarketStaffAsync(CreateMarketStaffRequestDto request, CancellationToken cancellationToken = default)
     {
-        var marketStaff = new MarketStaff
-        {
-            MarketStaffId = Guid.NewGuid(),
-            UserId = request.UserId,
-            SupermarketId = request.SupermarketId,
-            Position = request.Position,
-            CreatedAt = DateTime.UtcNow
-        };
+        var marketStaff = _mapper.Map<MarketStaff>(request);
 
         var added = await _unitOfWork.MarketStaffRepository.AddAsync(marketStaff);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new MarketStaffResponseDto
-        {
-            MarketStaffId = added.MarketStaffId,
-            UserId = added.UserId,
-            SupermarketId = added.SupermarketId,
-            Position = added.Position,
-            CreatedAt = added.CreatedAt
-        };
+        return _mapper.Map<MarketStaffResponseDto>(added);
     }
 
     public async Task UpdateMarketStaffAsync(Guid id, UpdateMarketStaffRequestDto request, CancellationToken cancellationToken = default)
     {
         var marketStaff = await _unitOfWork.MarketStaffRepository.FirstOrDefaultAsync(x => x.MarketStaffId == id);
-        if (marketStaff == null) throw new KeyNotFoundException($"MarketStaff with id {id} not found");
+        if (marketStaff == null) throw new KeyNotFoundException($"Không tìm thấy nhân viên siêu thị với id {id}");
 
-        marketStaff.UserId = request.UserId;
-        marketStaff.SupermarketId = request.SupermarketId;
-        marketStaff.Position = request.Position;
+        _mapper.Map(request, marketStaff);
 
         _unitOfWork.MarketStaffRepository.Update(marketStaff);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -128,7 +101,7 @@ public class MarketStaffService : IMarketStaffService
     public async Task DeleteMarketStaffAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var marketStaff = await _unitOfWork.MarketStaffRepository.FirstOrDefaultAsync(x => x.MarketStaffId == id);
-        if (marketStaff == null) throw new KeyNotFoundException($"MarketStaff with id {id} not found");
+        if (marketStaff == null) throw new KeyNotFoundException($"Không tìm thấy nhân viên siêu thị với id {id}");
 
         await DeleteAsync(marketStaff, cancellationToken);
     }

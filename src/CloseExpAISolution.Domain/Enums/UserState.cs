@@ -6,17 +6,25 @@ namespace CloseExpAISolution.Domain.Enums;
 public enum UserState
 {
     /// <summary>
-    /// User is active and can use the system
+    /// Tài khoản chưa được xác minh - chờ Admin phê duyệt
+    /// Account not verified - waiting for Admin approval
     /// </summary>
-    Active,
+    Unverified,
 
     /// <summary>
-    /// User is temporarily inactive
+    /// Tài khoản đã được xác minh bởi Admin - có thể hoạt động trên nền tảng
+    /// Account verified by Admin - can operate on the platform
     /// </summary>
-    Inactive,
+    Verified,
 
     /// <summary>
-    /// User is permanently banned from the system
+    /// Tài khoản bị khóa tạm thời do đăng nhập sai quá nhiều lần (30 phút)
+    /// Account temporarily locked due to too many failed login attempts (30 minutes)
+    /// </summary>
+    Locked,
+
+    /// <summary>
+    /// User is permanently banned from the system by Admin
     /// </summary>
     Banned,
 
