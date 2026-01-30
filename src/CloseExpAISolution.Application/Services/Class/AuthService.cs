@@ -91,15 +91,7 @@ public class AuthService : IAuthService
             return ApiResponse<AuthResponse>.ErrorResponse("Email already registered");
         }
 
-        // Verify role exists
-        var roleRepository = _unitOfWork.Repository<Role>();
-        var role = await roleRepository.GetByIdAsync(request.RoleId);
-        if (role == null)
-        {
-            return ApiResponse<AuthResponse>.ErrorResponse("Invalid role");
-        }
-
-        // Create new user
+        // Create new user (default RoleId = 2 for customer)
         var user = new User
         {
             UserId = Guid.NewGuid(),
@@ -107,7 +99,7 @@ public class AuthService : IAuthService
             Email = request.Email,
             Phone = request.Phone,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId = request.RoleId,
+            RoleId = 2,
             Status = UserState.Active.ToString(),
             FailedLoginCount = 0,
             CreatedAt = DateTime.UtcNow,
@@ -117,8 +109,12 @@ public class AuthService : IAuthService
         await userRepository.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
 
+        var roleRepository = _unitOfWork.Repository<Role>();
+        var defaultRole = await roleRepository.GetByIdAsync(2);
+        var roleName = defaultRole?.RoleName ?? "Customer";
+
         // Generate tokens
-        var authResponse = GenerateTokens(user, role.RoleName);
+        var authResponse = GenerateTokens(user, roleName);
 
         return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Registration successful");
     }

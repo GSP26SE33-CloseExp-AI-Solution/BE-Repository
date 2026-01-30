@@ -20,6 +20,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<MarketStaff> MarketStaff => Set<MarketStaff>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<ProductLot> ProductLots => Set<ProductLot>();
+    public DbSet<Unit> Units => Set<Unit>();
+    public DbSet<DestroyRecord> DestroyRecords => Set<DestroyRecord>();
+    public DbSet<AIPriceHistory> AIPriceHistories => Set<AIPriceHistory>();
+    public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
     public DbSet<PackagingRecord> PackagingRecords => Set<PackagingRecord>();
     public DbSet<TimeSlot> TimeSlots => Set<TimeSlot>();
@@ -40,6 +45,35 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DeliveryRecord>().HasKey(x => x.DeliveryId);
         modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
         modelBuilder.Entity<PackagingRecord>().HasKey(x => x.PackagingId);
+        modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
+        modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
+        modelBuilder.Entity<DestroyRecord>().HasKey(x => x.DestroyId);
+        modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
+        modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
+
+        modelBuilder.Entity<ProductLot>()
+            .HasOne(pl => pl.Product)
+            .WithMany(p => p.ProductLots)
+            .HasForeignKey(pl => pl.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProductLot>()
+            .HasOne(pl => pl.Unit)
+            .WithMany(u => u.ProductLots)
+            .HasForeignKey(pl => pl.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<DestroyRecord>()
+            .HasOne(dr => dr.ProductLot)
+            .WithMany(pl => pl.DestroyRecords)
+            .HasForeignKey(dr => dr.LotId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AIPriceHistory>()
+            .HasOne(aph => aph.ProductLot)
+            .WithMany(pl => pl.AIPriceHistories)
+            .HasForeignKey(aph => aph.LotId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
