@@ -1,7 +1,10 @@
 using System.Text;
 using CloseExpAISolution.Application.DependencyInjection;
+using CloseExpAISolution.Infrastructure.Context;
+using CloseExpAISolution.Infrastructure.Data;
 using CloseExpAISolution.Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -98,5 +101,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Apply migrations and seed data on startup
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await context.Database.MigrateAsync();
+    await DataSeeder.SeedAsync(context);
+}
 
 app.Run();

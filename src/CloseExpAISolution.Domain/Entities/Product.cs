@@ -17,6 +17,5 @@ public class Product
     public Supermarket? Supermarket { get; set; }
     public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
     public ICollection<ProductLot> ProductLots { get; set; } = new List<ProductLot>();
-    public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     public ICollection<AIVerificationLog> AIVerificationLogs { get; set; } = new List<AIVerificationLog>();
 }

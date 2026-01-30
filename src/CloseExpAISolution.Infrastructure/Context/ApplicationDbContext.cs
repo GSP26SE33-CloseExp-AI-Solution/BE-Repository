@@ -74,6 +74,12 @@ public class ApplicationDbContext : DbContext
             .WithMany(pl => pl.AIPriceHistories)
             .HasForeignKey(aph => aph.LotId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<OrderItem>()
+            .HasOne(oi => oi.ProductLot)
+            .WithMany(pl => pl.OrderItems)
+            .HasForeignKey(oi => oi.LotId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
