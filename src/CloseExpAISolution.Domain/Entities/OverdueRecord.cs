@@ -1,8 +1,8 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-public class DestroyRecord
+public class OverdueRecord
 {
-    public Guid DestroyId { get; set; }
+    public Guid OverdueId { get; set; }
     public Guid LotId { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string DestroyedBy { get; set; } = string.Empty;

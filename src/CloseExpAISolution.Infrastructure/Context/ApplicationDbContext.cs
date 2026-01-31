@@ -22,7 +22,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductLot> ProductLots => Set<ProductLot>();
     public DbSet<Unit> Units => Set<Unit>();
-    public DbSet<DestroyRecord> DestroyRecords => Set<DestroyRecord>();
+    public DbSet<OverdueRecord> OverdueRecords => Set<OverdueRecord>();
     public DbSet<AIPriceHistory> AIPriceHistories => Set<AIPriceHistory>();
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
@@ -47,7 +47,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<PackagingRecord>().HasKey(x => x.PackagingId);
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
         modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
-        modelBuilder.Entity<DestroyRecord>().HasKey(x => x.DestroyId);
+        modelBuilder.Entity<OverdueRecord>().HasKey(x => x.OverdueId);
         modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
         modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
 
@@ -63,10 +63,10 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(pl => pl.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<DestroyRecord>()
-            .HasOne(dr => dr.ProductLot)
-            .WithMany(pl => pl.DestroyRecords)
-            .HasForeignKey(dr => dr.LotId)
+        modelBuilder.Entity<OverdueRecord>()
+            .HasOne(or => or.ProductLot)
+            .WithMany(pl => pl.OverdueRecords)
+            .HasForeignKey(or => or.LotId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<AIPriceHistory>()

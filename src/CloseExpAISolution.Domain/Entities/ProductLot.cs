@@ -17,7 +17,7 @@ public class ProductLot
 
     public Product? Product { get; set; }
     public Unit? Unit { get; set; }
-    public ICollection<DestroyRecord> DestroyRecords { get; set; } = new List<DestroyRecord>();
+    public ICollection<OverdueRecord> OverdueRecords { get; set; } = new List<OverdueRecord>();
     public ICollection<AIPriceHistory> AIPriceHistories { get; set; } = new List<AIPriceHistory>();
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 }
