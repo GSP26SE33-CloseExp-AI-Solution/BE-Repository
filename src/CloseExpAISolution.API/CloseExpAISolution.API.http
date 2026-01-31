@@ -4,3 +4,153 @@ GET {{CloseExpAISolution.API_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+### Products API
+
+### GET All Products (Paginated)
+GET {{CloseExpAISolution.API_HostAddress}}/api/Products?pageNumber=1&pageSize=20
+Accept: application/json
+
+###
+
+### GET Product by ID
+GET {{CloseExpAISolution.API_HostAddress}}/api/Products/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### POST Create Product
+POST {{CloseExpAISolution.API_HostAddress}}/api/Products
+Content-Type: application/json
+
+{
+  "supermarketId": "00000000-0000-0000-0000-000000000001",
+  "name": "Organic Milk 1L",
+  "brand": "FreshFarm",
+  "category": "Dairy",
+  "barcode": "1234567890123",
+  "manufactureDate": "2025-01-15T00:00:00Z",
+  "expiryDate": "2025-02-15T00:00:00Z",
+  "originalPrice": 5.99,
+  "suggestedPrice": 4.99
+}
+
+###
+
+### PUT Update Product
+PUT {{CloseExpAISolution.API_HostAddress}}/api/Products/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+
+{
+  "supermarketId": "00000000-0000-0000-0000-000000000001",
+  "name": "Organic Milk 1L Updated",
+  "brand": "FreshFarm",
+  "category": "Dairy",
+  "barcode": "1234567890123",
+  "manufactureDate": "2025-01-15T00:00:00Z",
+  "expiryDate": "2025-02-15T00:00:00Z",
+  "originalPrice": 5.99,
+  "suggestedPrice": 4.99,
+  "status": 0
+}
+
+###
+
+### DELETE Product
+DELETE {{CloseExpAISolution.API_HostAddress}}/api/Products/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### Supermarkets API
+
+### GET All Supermarkets (Paginated)
+GET {{CloseExpAISolution.API_HostAddress}}/api/Supermarkets?pageNumber=1&pageSize=20
+Accept: application/json
+
+###
+
+### GET Supermarket by ID
+GET {{CloseExpAISolution.API_HostAddress}}/api/Supermarkets/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### POST Create Supermarket
+POST {{CloseExpAISolution.API_HostAddress}}/api/Supermarkets
+Content-Type: application/json
+
+{
+  "name": "FreshMart Downtown",
+  "address": "123 Main Street, City Center",
+  "latitude": 10.762622,
+  "longitude": 106.660172,
+  "contactPhone": "+84901234567"
+}
+
+###
+
+### PUT Update Supermarket
+PUT {{CloseExpAISolution.API_HostAddress}}/api/Supermarkets/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+
+{
+  "name": "FreshMart Downtown Updated",
+  "address": "123 Main Street, City Center",
+  "latitude": 10.762622,
+  "longitude": 106.660172,
+  "contactPhone": "+84901234567",
+  "status": 0
+}
+
+###
+
+### DELETE Supermarket
+DELETE {{CloseExpAISolution.API_HostAddress}}/api/Supermarkets/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### MarketStaff API
+
+### GET All MarketStaff (Paginated)
+GET {{CloseExpAISolution.API_HostAddress}}/api/MarketStaff?pageNumber=1&pageSize=20
+Accept: application/json
+
+###
+
+### GET MarketStaff by ID
+GET {{CloseExpAISolution.API_HostAddress}}/api/MarketStaff/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### POST Create MarketStaff
+POST {{CloseExpAISolution.API_HostAddress}}/api/MarketStaff
+Content-Type: application/json
+
+{
+  "userId": "00000000-0000-0000-0000-000000000002",
+  "supermarketId": "00000000-0000-0000-0000-000000000001",
+  "position": "Store Manager"
+}
+
+###
+
+### PUT Update MarketStaff
+PUT {{CloseExpAISolution.API_HostAddress}}/api/MarketStaff/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+
+{
+  "userId": "00000000-0000-0000-0000-000000000002",
+  "supermarketId": "00000000-0000-0000-0000-000000000001",
+  "position": "Senior Store Manager"
+}
+
+###
+
+### DELETE MarketStaff
+DELETE {{CloseExpAISolution.API_HostAddress}}/api/MarketStaff/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###

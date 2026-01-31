@@ -1,5 +1,6 @@
+using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
-using CloseExpAISolution.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -16,46 +17,66 @@ public class SupermarketsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Supermarket>>> GetAll()
+    public async Task<ActionResult<ApiResponse<PaginatedResult<SupermarketResponseDto>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
-        var items = await _services.SupermarketService.GetAllAsync();
-        return Ok(items);
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var items = (await _services.SupermarketService.GetAllWithDtoAsync()).ToList();
+        var total = items.Count;
+        var pageItems = items.Skip((pageNumber - 1) * pageSize).Take(pageSize);
+
+        var result = new PaginatedResult<SupermarketResponseDto>
+        {
+            Items = pageItems,
+            TotalResult = total,
+            Rage = pageNumber,
+            PageSize = pageSize
+        };
+        return Ok(ApiResponse<PaginatedResult<SupermarketResponseDto>>.SuccessResponse(result));
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<Supermarket>> GetById(Guid id)
+    public async Task<ActionResult<ApiResponse<SupermarketResponseDto>>> GetById(Guid id)
     {
-        var item = await _services.SupermarketService.FirstOrDefaultAsync(x => x.SupermarketId == id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        var item = await _services.SupermarketService.GetByIdWithDtoAsync(id);
+        if (item == null) return NotFound(ApiResponse<SupermarketResponseDto>.ErrorResponse("Supermarket not found"));
+        return Ok(ApiResponse<SupermarketResponseDto>.SuccessResponse(item));
     }
 
     [HttpPost]
-    public async Task<ActionResult<Supermarket>> Create([FromBody] Supermarket input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<SupermarketResponseDto>>> Create([FromBody] CreateSupermarketRequestDto request, CancellationToken cancellationToken)
     {
-        var created = await _services.SupermarketService.AddAsync(input, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.SupermarketId }, created);
+        var created = await _services.SupermarketService.CreateSupermarketAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = created.SupermarketId }, ApiResponse<SupermarketResponseDto>.SuccessResponse(created, "Created"));
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] Supermarket input, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] UpdateSupermarketRequestDto request, CancellationToken cancellationToken)
     {
-        var existing = await _services.SupermarketService.FirstOrDefaultAsync(x => x.SupermarketId == id);
-        if (existing == null) return NotFound();
-
-        input.SupermarketId = id;
-        await _services.SupermarketService.UpdateAsync(input, cancellationToken);
-        return NoContent();
+        try
+        {
+            await _services.SupermarketService.UpdateSupermarketAsync(id, request, cancellationToken);
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("Supermarket not found"));
+        }
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var existing = await _services.SupermarketService.FirstOrDefaultAsync(x => x.SupermarketId == id);
-        if (existing == null) return NotFound();
-
-        await _services.SupermarketService.DeleteAsync(existing, cancellationToken);
-        return NoContent();
+        try
+        {
+            await _services.SupermarketService.DeleteSupermarketAsync(id, cancellationToken);
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("Supermarket not found"));
+        }
     }
 }
-
