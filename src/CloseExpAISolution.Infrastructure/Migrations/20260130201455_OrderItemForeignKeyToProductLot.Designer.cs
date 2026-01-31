@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Domain.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260130201455_OrderItemForeignKeyToProductLot")]
+    partial class OrderItemForeignKeyToProductLot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -119,6 +122,33 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("DeliveryRecords");
+                });
+
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DestroyRecord", b =>
+                {
+                    b.Property<Guid>("DestroyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DestroyedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DestroyedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("DestroyId");
+
+                    b.HasIndex("LotId");
+
+                    b.ToTable("DestroyRecords");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DoorPickup", b =>
@@ -315,33 +345,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("OrderItems");
-                });
-
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.OverdueRecord", b =>
-                {
-                    b.Property<Guid>("OverdueId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("DestroyedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DestroyedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("LotId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("OverdueId");
-
-                    b.HasIndex("LotId");
-
-                    b.ToTable("OverdueRecords");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PackagingRecord", b =>
@@ -801,6 +804,17 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DestroyRecord", b =>
+                {
+                    b.HasOne("CloseExpAISolution.Domain.Entities.ProductLot", "ProductLot")
+                        .WithMany("DestroyRecords")
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProductLot");
+                });
+
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Feedback", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.Order", "Order")
@@ -902,17 +916,6 @@ namespace CloseExpAISolution.Domain.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
-
-                    b.Navigation("ProductLot");
-                });
-
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.OverdueRecord", b =>
-                {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.ProductLot", "ProductLot")
-                        .WithMany("OverdueRecords")
-                        .HasForeignKey("LotId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("ProductLot");
                 });
@@ -1046,9 +1049,9 @@ namespace CloseExpAISolution.Domain.Migrations
                 {
                     b.Navigation("AIPriceHistories");
 
-                    b.Navigation("OrderItems");
+                    b.Navigation("DestroyRecords");
 
-                    b.Navigation("OverdueRecords");
+                    b.Navigation("OrderItems");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Promotion", b =>
