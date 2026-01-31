@@ -82,11 +82,7 @@ public class ProductService : IProductService
             Brand = product.Brand,
             Category = product.Category,
             Barcode = product.Barcode,
-            ManufactureDate = product.ManufactureDate,
-            ExpiryDate = product.ExpiryDate,
-            OriginalPrice = product.OriginalPrice,
-            SuggestedPrice = product.SuggestedPrice,
-            FinalPrice = product.FinalPrice,
+            IsFreshFood = product.IsFreshFood,
             Status = status,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
@@ -111,11 +107,7 @@ public class ProductService : IProductService
                 Brand = p.Brand,
                 Category = p.Category,
                 Barcode = p.Barcode,
-                ManufactureDate = p.ManufactureDate,
-                ExpiryDate = p.ExpiryDate,
-                OriginalPrice = p.OriginalPrice,
-                SuggestedPrice = p.SuggestedPrice,
-                FinalPrice = p.FinalPrice,
+                IsFreshFood = p.IsFreshFood,
                 Status = status,
                 CreatedBy = p.CreatedBy,
                 CreatedAt = p.CreatedAt,
@@ -134,11 +126,7 @@ public class ProductService : IProductService
             Brand = request.Brand,
             Category = request.Category,
             Barcode = request.Barcode,
-            ManufactureDate = request.ManufactureDate,
-            ExpiryDate = request.ExpiryDate,
-            OriginalPrice = request.OriginalPrice,
-            SuggestedPrice = request.SuggestedPrice,
-            FinalPrice = request.SuggestedPrice,
+            IsFreshFood = request.IsFreshFood,
             Status = ProductState.Hidden.ToString(),
             CreatedBy = string.Empty,
             CreatedAt = DateTime.UtcNow
@@ -156,15 +144,11 @@ public class ProductService : IProductService
             Brand = added.Brand,
             Category = added.Category,
             Barcode = added.Barcode,
-            ManufactureDate = added.ManufactureDate,
-            ExpiryDate = added.ExpiryDate,
-            OriginalPrice = added.OriginalPrice,
-            SuggestedPrice = added.SuggestedPrice,
-            FinalPrice = added.FinalPrice,
+            IsFreshFood = added.IsFreshFood,
             Status = status,
             CreatedBy = added.CreatedBy,
             CreatedAt = added.CreatedAt,
-            ProductImages = added.ProductImages
+            ProductImages = added.ProductImages ?? new List<ProductImage>()
         };
     }
 
@@ -181,10 +165,7 @@ public class ProductService : IProductService
         product.Brand = request.Brand;
         product.Category = request.Category;
         product.Barcode = request.Barcode;
-        product.ManufactureDate = request.ManufactureDate;
-        product.ExpiryDate = request.ExpiryDate;
-        product.OriginalPrice = request.OriginalPrice;
-        product.SuggestedPrice = request.SuggestedPrice;
+        product.IsFreshFood = request.IsFreshFood;
         product.Status = request.Status.ToString();
 
         _unitOfWork.ProductRepository.Update(product);
