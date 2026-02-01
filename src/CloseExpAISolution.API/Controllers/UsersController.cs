@@ -21,7 +21,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Get current user profile (Authenticated user)
     /// </summary>
-    [HttpGet("me")]
+    [HttpGet("current-user")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status404NotFound)]
@@ -45,7 +45,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Update current user profile (Authenticated user - cannot update status/role)
     /// </summary>
-    [HttpPut("me")]
+    [HttpPut("current-user")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status400BadRequest)]

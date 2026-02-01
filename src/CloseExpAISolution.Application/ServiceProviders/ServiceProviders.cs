@@ -23,6 +23,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IAIVerificationLogService? _aIVerificationLogService;
                 private IAuthService? _authService;
                 private IUserService? _userService;
+                private IFeedbackService? _feedbackService;
 
                 public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration, IMapper mapper)
                 {
@@ -39,5 +40,6 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
                 public IAuthService AuthService => _authService ??= new AuthService(_unitOfWork, _configuration);
                 public IUserService UserService => _userService ??= new UserService(_unitOfWork, _mapper);
+                public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
         }
 }

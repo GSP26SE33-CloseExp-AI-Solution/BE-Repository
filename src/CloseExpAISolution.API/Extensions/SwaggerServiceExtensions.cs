@@ -1,4 +1,5 @@
 using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerUI;
 
 namespace CloseExpAISolution.API.Extensions;
 
@@ -56,11 +57,26 @@ public static class SwaggerServiceExtensions
 
         if (env.IsDevelopment())
         {
+            // Enable serving static files (for custom JS)
+            app.UseStaticFiles();
+
             app.UseSwagger();
             app.UseSwaggerUI(options =>
             {
                 options.SwaggerEndpoint("/swagger/v1/swagger.json", "CloseExpAISolution API v1");
                 options.RoutePrefix = "swagger";
+
+                // Enable search/filter box
+                options.EnableFilter();
+
+                // Collapse all endpoints by default (only show controller names)
+                options.DocExpansion(DocExpansion.None);
+
+                // Optional: Show request duration
+                options.DisplayRequestDuration();
+
+                // Inject custom JS for auto-fill token after login
+                options.InjectJavascript("/swagger/custom-swagger.js");
             });
         }
 
