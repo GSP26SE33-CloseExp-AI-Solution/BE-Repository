@@ -11,4 +11,11 @@ public interface IR2StorageService
     Task<object> UploadToR2Async(Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default);
     string GeneratePreSignedUrl(string key, TimeSpan expiry);
     string? GetPreSignedUrlForImage(string imageUrl, TimeSpan? expiry = null);
+
+    // User Images
+    Task<UserImage> UploadUserImageAsync(Stream fileStream, string fileName, string contentType, Guid userId, string imageType = "avatar", bool isPrimary = false, CancellationToken cancellationToken = default);
+    Task<IEnumerable<UserImage>> GetImagesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserImage?> GetPrimaryUserImageAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<bool> SetPrimaryUserImageAsync(Guid userId, Guid imageId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteUserImageAsync(Guid imageId, CancellationToken cancellationToken = default);
 }
