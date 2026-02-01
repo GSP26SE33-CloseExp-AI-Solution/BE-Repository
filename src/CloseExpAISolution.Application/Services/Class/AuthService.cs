@@ -301,6 +301,10 @@ public class AuthService : IAuthService
         await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken);
         await _unitOfWork.SaveChangesAsync();
 
+        var roleRepository = _unitOfWork.Repository<Role>();
+        var defaultRole = await roleRepository.GetByIdAsync(2);
+        var roleName = defaultRole?.RoleName ?? "Customer";
+
         return GenerateAuthResponse(user, roleName, refreshTokenString);
     }
 

@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Domain.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260131141119_RenameDestroyRecordToOverdueRecord")]
+    partial class RenameDestroyRecordToOverdueRecord
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -552,44 +555,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.ToTable("Promotions");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.RefreshToken", b =>
-                {
-                    b.Property<Guid>("RefreshTokenId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeviceInfo")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("IpAddress")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ReplacedByToken")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("RefreshTokenId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RefreshTokens");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Role", b =>
                 {
                     b.Property<int>("RoleId")
@@ -1021,17 +986,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Navigation("Unit");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.RefreshToken", b =>
-                {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.User", "User")
-                        .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Transaction", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.Order", "Order")
@@ -1134,8 +1088,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Navigation("Feedbacks");
 
                     b.Navigation("Notifications");
-
-                    b.Navigation("RefreshTokens");
 
                     b.Navigation("UserImages");
                 });

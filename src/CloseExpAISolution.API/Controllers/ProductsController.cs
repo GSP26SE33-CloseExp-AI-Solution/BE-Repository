@@ -52,6 +52,52 @@ public class ProductsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(created, "Tạo thành công"));
     }
 
+    /// <summary>
+    /// Create product with images. Used when MarketStaff creates a product and uploads images to R2.
+    /// Form fields: SupermarketId, Name, Brand, Category, Barcode, IsFreshFood. Files: one or more image files.
+    /// </summary>
+    [HttpPost("with-images")]
+    [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB
+    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> CreateWithImages(
+        [FromForm] Guid SupermarketId,
+        [FromForm] string Name,
+        [FromForm] string Brand,
+        [FromForm] string Category,
+        [FromForm] string Barcode,
+        [FromForm] bool IsFreshFood,
+        [FromForm] IFormFileCollection? files,
+        CancellationToken cancellationToken)
+    {
+        var request = new CreateProductRequestDto
+        {
+            SupermarketId = SupermarketId,
+            Name = Name,
+            Brand = Brand,
+            Category = Category,
+            Barcode = Barcode,
+            IsFreshFood = IsFreshFood
+        };
+
+        var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
+
+        if (files != null && files.Count > 0)
+        {
+            foreach (var file in files.Where(f => f.Length > 0))
+            {
+                await using var stream = file.OpenReadStream();
+                await _services.R2StorageService.UploadProductImageToR2Async(
+                    stream,
+                    file.FileName,
+                    file.ContentType,
+                    created.ProductId,
+                    cancellationToken);
+            }
+        }
+
+        var result = await _services.ProductService.GetByIdWithImagesAsync(created.ProductId);
+        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(result!, "Product created with images"));
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] UpdateProductRequestDto request, CancellationToken cancellationToken)
     {

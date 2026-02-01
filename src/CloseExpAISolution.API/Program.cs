@@ -1,6 +1,12 @@
 using CloseExpAISolution.API.Extensions;
 using CloseExpAISolution.Application.DependencyInjection;
+using CloseExpAISolution.Infrastructure.Context;
+using CloseExpAISolution.Infrastructure.Data;
 using CloseExpAISolution.Infrastructure.DependencyInjection;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
