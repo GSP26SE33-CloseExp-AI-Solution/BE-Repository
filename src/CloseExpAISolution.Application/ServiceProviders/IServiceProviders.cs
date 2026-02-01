@@ -11,4 +11,5 @@ public interface IServiceProviders
     IAIVerificationLogService AIVerificationLogService { get; }
     IAuthService AuthService { get; }
     IUserService UserService { get; }
+    IR2StorageService R2StorageService { get; }
 }

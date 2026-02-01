@@ -94,7 +94,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 
 // Authentication & Authorization middleware - order matters!
 app.UseAuthentication();

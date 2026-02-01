@@ -1,11 +1,14 @@
+using Amazon.S3.Model;
+using CloseExpAISolution.Domain.Entities;
+
 namespace CloseExpAISolution.Application.Services.Interface;
 
 public interface IR2StorageService
 {
-    Task<string> UploadFileAsync(Stream fileStream, string fileName, string contentType);
-    string GeneratePreSignedUrl(string bucket, string key, TimeSpan expiry);
-    Task<object?> GetFileInfoAsync(int id);
-    Task<Stream> DownloadFileAsync(string fileName);
-    Task<Stream> DownloadFileByKeyAsync(string key);
-    Task<(byte[] FileBytes, string FileName)> DownloadLatestFileAsync();
+    Task<ProductImage> UploadProductImageToR2Async(Stream fileStream, string fileName, string contentType, Guid productId, CancellationToken cancellationToken = default);
+    Task<List<S3Object>> GetAllFilesAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<ProductImage>> GetImagesByProductIdAsync(Guid productId, CancellationToken cancellationToken = default);
+    Task<object> UploadToR2Async(Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default);
+    string GeneratePreSignedUrl(string key, TimeSpan expiry);
+    string? GetPreSignedUrlForImage(string imageUrl, TimeSpan? expiry = null);
 }

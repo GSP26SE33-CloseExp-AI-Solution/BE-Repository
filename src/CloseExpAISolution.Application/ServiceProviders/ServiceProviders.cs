@@ -21,6 +21,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
         private IAIVerificationLogService _aIVerificationLogService;
         private IAuthService _authService;
         private IUserService _userService;
+        private IR2StorageService? _r2StorageService;
 
         public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, ApplicationDbContext context)
         {
@@ -36,5 +37,6 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
         public IAuthService AuthService => _authService ??= new AuthService(_unitOfWork, _configuration);
         public IUserService UserService => _userService ??= new UserService(_unitOfWork);
+        public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
     }
 }
