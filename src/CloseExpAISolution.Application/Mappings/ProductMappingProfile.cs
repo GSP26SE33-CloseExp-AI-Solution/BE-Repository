@@ -23,13 +23,12 @@ public class ProductMappingProfile : Profile
         CreateMap<CreateProductRequestDto, Product>()
             .ForMember(dest => dest.ProductId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => ProductState.Hidden.ToString()))
-            .ForMember(dest => dest.FinalPrice, opt => opt.MapFrom(src => src.SuggestedPrice))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore()) // Set manually from claims
             .ForMember(dest => dest.CreatedByUser, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore())
             .ForMember(dest => dest.ProductImages, opt => opt.Ignore())
-            .ForMember(dest => dest.OrderItems, opt => opt.Ignore())
+            .ForMember(dest => dest.ProductLots, opt => opt.Ignore())
             .ForMember(dest => dest.AIVerificationLogs, opt => opt.Ignore());
 
         // UpdateProductRequestDto -> Product (for updates)
@@ -38,11 +37,10 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.ProductId, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
-            .ForMember(dest => dest.FinalPrice, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedByUser, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore())
             .ForMember(dest => dest.ProductImages, opt => opt.Ignore())
-            .ForMember(dest => dest.OrderItems, opt => opt.Ignore())
+            .ForMember(dest => dest.ProductLots, opt => opt.Ignore())
             .ForMember(dest => dest.AIVerificationLogs, opt => opt.Ignore());
     }
 
