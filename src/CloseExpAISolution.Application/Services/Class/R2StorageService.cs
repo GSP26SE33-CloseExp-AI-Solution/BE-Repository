@@ -68,80 +68,6 @@ public class R2StorageService : IR2StorageService
 
     #endregion
 
-    #region User Images
-
-    /// <summary>Upload ảnh người dùng (avatar, cover...)</summary>
-    public async Task<UserImage> UploadUserImageAsync(
-        Stream fileStream, string fileName, string contentType, Guid userId,
-        string imageType = "avatar", bool isPrimary = false,
-        CancellationToken cancellationToken = default)
-    {
-        var key = $"users/{userId}/{imageType}/{Guid.NewGuid():N}_{SanitizeFileName(fileName)}";
-        var imageUrl = await UploadFileToR2(fileStream, key, contentType, cancellationToken);
-
-        // Nếu đặt làm ảnh chính → bỏ primary của các ảnh cũ
-        if (isPrimary)
-            await UnsetPrimaryImages(userId);
-
-        var userImage = new UserImage
-        {
-            ImageId = Guid.NewGuid(),
-            UserId = userId,
-            ImageUrl = imageUrl,
-            ImageType = imageType,
-            IsPrimary = isPrimary,
-            UploadedAt = DateTime.UtcNow
-        };
-
-        await _unitOfWork.Repository<UserImage>().AddAsync(userImage);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return userImage;
-    }
-
-    /// <summary>Lấy tất cả ảnh của user</summary>
-    public async Task<IEnumerable<UserImage>> GetImagesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
-        => await _unitOfWork.Repository<UserImage>().FindAsync(ui => ui.UserId == userId);
-
-    /// <summary>Lấy ảnh đại diện chính của user</summary>
-    public async Task<UserImage?> GetPrimaryUserImageAsync(Guid userId, CancellationToken cancellationToken = default)
-        => await _unitOfWork.Repository<UserImage>().FirstOrDefaultAsync(ui => ui.UserId == userId && ui.IsPrimary);
-
-    /// <summary>Đặt ảnh làm avatar chính</summary>
-    public async Task<bool> SetPrimaryUserImageAsync(Guid userId, Guid imageId, CancellationToken cancellationToken = default)
-    {
-        var targetImage = await _unitOfWork.Repository<UserImage>()
-            .FirstOrDefaultAsync(ui => ui.ImageId == imageId && ui.UserId == userId);
-
-        if (targetImage == null) return false;
-
-        await UnsetPrimaryImages(userId);
-
-        targetImage.IsPrimary = true;
-        _unitOfWork.Repository<UserImage>().Update(targetImage);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return true;
-    }
-
-    /// <summary>Xóa ảnh user (cả R2 và DB)</summary>
-    public async Task<bool> DeleteUserImageAsync(Guid imageId, CancellationToken cancellationToken = default)
-    {
-        var image = await _unitOfWork.Repository<UserImage>().FirstOrDefaultAsync(ui => ui.ImageId == imageId);
-        if (image == null) return false;
-
-        // Xóa file trên R2
-        await TryDeleteFromR2(image.ImageUrl, cancellationToken);
-
-        // Xóa trong DB
-        _unitOfWork.Repository<UserImage>().Delete(image);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return true;
-    }
-
-    #endregion
-
     #region Common Methods
 
     /// <summary>Lấy danh sách tất cả file trên bucket</summary>
@@ -202,17 +128,6 @@ public class R2StorageService : IR2StorageService
         }, cancellationToken);
 
         return $"{_publicBaseUrl}/{key}";
-    }
-
-    /// <summary>Bỏ flag primary của tất cả ảnh user</summary>
-    private async Task UnsetPrimaryImages(Guid userId)
-    {
-        var images = await _unitOfWork.Repository<UserImage>().FindAsync(ui => ui.UserId == userId && ui.IsPrimary);
-        foreach (var img in images)
-        {
-            img.IsPrimary = false;
-            _unitOfWork.Repository<UserImage>().Update(img);
-        }
     }
 
     /// <summary>Thử xóa file trên R2 (không throw lỗi)</summary>

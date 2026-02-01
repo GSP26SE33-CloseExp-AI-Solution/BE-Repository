@@ -219,7 +219,7 @@ public class UsersController : ControllerBase
             return BadRequest(ApiResponse<UserImageResponseDto>.ErrorResponse(validationError));
 
         await using var stream = file.OpenReadStream();
-        var userImage = await _services.R2StorageService.UploadUserImageAsync(
+        var userImage = await _services.UserImageService.UploadAsync(
             stream, file.FileName, file.ContentType, userId.Value, imageType, setAsPrimary);
 
         var response = MapToUserImageResponse(userImage);
@@ -238,7 +238,7 @@ public class UsersController : ControllerBase
         if (userId == null)
             return Unauthorized(ApiResponse<IEnumerable<UserImageResponseDto>>.ErrorResponse("Không thể xác định người dùng"));
 
-        var images = await _services.R2StorageService.GetImagesByUserIdAsync(userId.Value);
+        var images = await _services.UserImageService.GetByUserIdAsync(userId.Value);
         var response = images.Select(MapToUserImageResponse);
 
         return Ok(ApiResponse<IEnumerable<UserImageResponseDto>>.SuccessResponse(response));
@@ -257,7 +257,7 @@ public class UsersController : ControllerBase
         if (userId == null)
             return Unauthorized(ApiResponse<UserImageResponseDto>.ErrorResponse("Không thể xác định người dùng"));
 
-        var image = await _services.R2StorageService.GetPrimaryUserImageAsync(userId.Value);
+        var image = await _services.UserImageService.GetPrimaryAsync(userId.Value);
         if (image == null)
             return NotFound(ApiResponse<UserImageResponseDto>.ErrorResponse("Không tìm thấy ảnh đại diện"));
 
@@ -277,7 +277,7 @@ public class UsersController : ControllerBase
         if (userId == null)
             return Unauthorized(ApiResponse<bool>.ErrorResponse("Không thể xác định người dùng"));
 
-        var result = await _services.R2StorageService.SetPrimaryUserImageAsync(userId.Value, imageId);
+        var result = await _services.UserImageService.SetPrimaryAsync(userId.Value, imageId);
         if (!result)
             return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy ảnh hoặc ảnh không thuộc về bạn"));
 
@@ -298,11 +298,11 @@ public class UsersController : ControllerBase
             return Unauthorized(ApiResponse<bool>.ErrorResponse("Không thể xác định người dùng"));
 
         // Verify image belongs to user
-        var images = await _services.R2StorageService.GetImagesByUserIdAsync(userId.Value);
+        var images = await _services.UserImageService.GetByUserIdAsync(userId.Value);
         if (!images.Any(i => i.ImageId == imageId))
             return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy ảnh hoặc ảnh không thuộc về bạn"));
 
-        var result = await _services.R2StorageService.DeleteUserImageAsync(imageId);
+        var result = await _services.UserImageService.DeleteAsync(imageId);
         if (!result)
             return NotFound(ApiResponse<bool>.ErrorResponse("Xóa ảnh thất bại"));
 
@@ -317,7 +317,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserImageResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUserImages(Guid userId)
     {
-        var images = await _services.R2StorageService.GetImagesByUserIdAsync(userId);
+        var images = await _services.UserImageService.GetByUserIdAsync(userId);
         var response = images.Select(MapToUserImageResponse);
         return Ok(ApiResponse<IEnumerable<UserImageResponseDto>>.SuccessResponse(response));
     }
