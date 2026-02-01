@@ -1,0 +1,142 @@
+using Amazon;
+using Amazon.S3;
+using Amazon.S3.Model;
+using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.Extensions.Configuration;
+
+namespace CloseExpAISolution.Application.Services.Class;
+
+public class R2StorageService : IR2StorageService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IConfiguration _configuration;
+    private readonly AmazonS3Client _s3Client;
+    private readonly string _bucketName;
+    private readonly string _publicBaseUrl;
+
+    public R2StorageService(IUnitOfWork unitOfWork, IConfiguration configuration)
+    {
+        _unitOfWork = unitOfWork;
+        _configuration = configuration;
+
+        var r2 = configuration.GetSection("R2Storage");
+        _bucketName = r2["BucketName"] ?? throw new InvalidOperationException("R2Storage:BucketName is required");
+        _publicBaseUrl = (r2["PublicBaseUrl"] ?? $"{r2["AccountUrl"]?.TrimEnd('/')}/{_bucketName}").TrimEnd('/');
+
+        var config = new AmazonS3Config
+        {
+            ServiceURL = r2["AccountUrl"],
+            ForcePathStyle = true
+        };
+
+        _s3Client = new AmazonS3Client(
+            r2["AccessKeyId"],
+            r2["SecretAccessKey"],
+            config);
+    }
+
+    public async Task<ProductImage> UploadProductImageToR2Async(Stream fileStream, string fileName, string contentType, Guid productId, CancellationToken cancellationToken = default)
+    {
+        var key = $"products/{productId}/{Guid.NewGuid():N}_{SanitizeFileName(fileName)}";
+
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream, cancellationToken);
+        memoryStream.Position = 0;
+
+        var request = new PutObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = key,
+            InputStream = memoryStream,
+            ContentType = contentType,
+            AutoCloseStream = false,
+            DisablePayloadSigning = true,
+            DisableDefaultChecksumValidation = true
+        };
+
+        await _s3Client.PutObjectAsync(request, cancellationToken);
+
+        var imageUrl = $"{_publicBaseUrl}/{key}";
+
+        var productImage = new ProductImage
+        {
+            ProductImageId = Guid.NewGuid(),
+            ProductId = productId,
+            ImageUrl = imageUrl,
+            UploadedAt = DateTime.UtcNow
+        };
+
+        await _unitOfWork.ProductImageRepository.AddAsync(productImage);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return productImage;
+    }
+
+    public async Task<List<S3Object>> GetAllFilesAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ListObjectsV2Request { BucketName = _bucketName };
+        var response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
+        return response.S3Objects;
+    }
+
+    public async Task<IEnumerable<ProductImage>> GetImagesByProductIdAsync(Guid productId, CancellationToken cancellationToken = default)
+    {
+        return await _unitOfWork.ProductImageRepository.FindAsync(pi => pi.ProductId == productId);
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return string.Join("_", fileName.Split(invalid, StringSplitOptions.RemoveEmptyEntries));
+    }
+    public async Task<object> UploadToR2Async(Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default)
+    {
+        var key = $"products/{Guid.NewGuid():N}_{SanitizeFileName(fileName)}";
+
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream, cancellationToken);
+        memoryStream.Position = 0;
+
+        var request = new PutObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = key,
+            InputStream = memoryStream,
+            ContentType = contentType,
+            AutoCloseStream = false,
+            DisablePayloadSigning = true,
+            DisableDefaultChecksumValidation = true
+        };
+        await _s3Client.PutObjectAsync(request, cancellationToken);
+        return new { Key = key, Url = $"{_publicBaseUrl}/{key}" };
+    }
+
+    public string GeneratePreSignedUrl(string key, TimeSpan expiry)
+    {
+        AWSConfigsS3.UseSignatureVersion4 = true;
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _bucketName,
+            Key = key,
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.Add(expiry)
+        };
+        return _s3Client.GetPreSignedURL(request);
+    }
+
+    public string? GetPreSignedUrlForImage(string imageUrl, TimeSpan? expiry = null)
+    {
+        var key = ExtractKeyFromImageUrl(imageUrl);
+        if (string.IsNullOrEmpty(key)) return null;
+        return GeneratePreSignedUrl(key, expiry ?? TimeSpan.FromHours(1));
+    }
+
+    private string? ExtractKeyFromImageUrl(string imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl)) return null;
+        var productsIndex = imageUrl.IndexOf("/products/", StringComparison.OrdinalIgnoreCase);
+        return productsIndex >= 0 ? imageUrl[(productsIndex + 1)..] : null;
+    }
+}

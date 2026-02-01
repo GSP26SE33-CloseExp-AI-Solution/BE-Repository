@@ -29,11 +29,16 @@ Content-Type: application/json
   "brand": "FreshFarm",
   "category": "Dairy",
   "barcode": "1234567890123",
-  "manufactureDate": "2025-01-15T00:00:00Z",
-  "expiryDate": "2025-02-15T00:00:00Z",
-  "originalPrice": 5.99,
-  "suggestedPrice": 4.99
+  "isFreshFood": true
 }
+
+###
+
+### POST Create Product with Images (MarketStaff flow)
+### Form fields: SupermarketId, Name, Brand, Category, Barcode, IsFreshFood, files (multiple)
+### Use Postman: Body -> form-data, add product fields + files
+POST {{CloseExpAISolution.API_HostAddress}}/api/Products/with-images
+Content-Type: multipart/form-data
 
 ###
 
@@ -151,6 +156,46 @@ Content-Type: application/json
 
 ### DELETE MarketStaff
 DELETE {{CloseExpAISolution.API_HostAddress}}/api/MarketStaff/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### Upload API (R2)
+
+### POST Test upload to R2 (any file, returns Key and Url - no ProductImage)
+### Form field: file (IFormFile)
+POST {{CloseExpAISolution.API_HostAddress}}/api/Upload/test
+Content-Type: multipart/form-data
+
+###
+
+### POST Upload image to R2 (product image - requires productId)
+### Form fields: file (IFormFile), productId (Guid)
+POST {{CloseExpAISolution.API_HostAddress}}/api/Upload
+Content-Type: multipart/form-data
+
+###
+
+### GET All files in R2 bucket
+GET {{CloseExpAISolution.API_HostAddress}}/api/Upload/files
+Accept: application/json
+
+###
+
+### GET Images by Product ID
+GET {{CloseExpAISolution.API_HostAddress}}/api/Upload/product/00000000-0000-0000-0000-000000000001/images
+Accept: application/json
+
+###
+
+### GET Pre-signed URL for image (by ProductImageId) - use returned URL in browser
+GET {{CloseExpAISolution.API_HostAddress}}/api/Upload/image/00000000-0000-0000-0000-000000000000/presign?expiryMinutes=60
+Accept: application/json
+
+###
+
+### GET Pre-signed URL by key (from test upload response)
+GET {{CloseExpAISolution.API_HostAddress}}/api/Upload/presign?key=products/xxx_filename.png&expiryMinutes=60
 Accept: application/json
 
 ###
