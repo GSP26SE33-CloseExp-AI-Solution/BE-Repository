@@ -111,6 +111,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAIService");
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 
 // Authentication & Authorization middleware - order matters!
 app.UseAuthentication();
