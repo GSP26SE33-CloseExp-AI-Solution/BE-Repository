@@ -72,6 +72,7 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Pricing)
             .FirstOrDefaultAsync(p => p.ProductId == id);
 
         if (product == null) return null;
@@ -83,6 +84,7 @@ public class ProductService : IProductService
     {
         var products = await _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Pricing)
             .ToListAsync();
 
         return _mapper.Map<IEnumerable<ProductResponseDto>>(products);
@@ -102,6 +104,7 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Pricing)
             .FirstOrDefaultAsync(p => p.ProductId == id, cancellationToken);
 
         if (product == null) throw new KeyNotFoundException($"Không tìm thấy sản phẩm với id {id}");

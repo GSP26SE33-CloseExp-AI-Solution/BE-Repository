@@ -109,9 +109,9 @@ public static class DataSeeder
         if (await context.Products.AnyAsync())
             return;
 
+        var now = DateTime.UtcNow;
         var products = new List<Product>
         {
-            // Dairy Products - CoopMart
             new()
             {
                 ProductId = Guid.NewGuid(),
@@ -121,24 +121,22 @@ public static class DataSeeder
                 Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673111119",
                 IsFreshFood = true,
+                Type = ProductType.Fresh,
+                Sku = "SKU-VN-001",
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
+                Status = ProductState.Verified.ToString(),
+                Ingredients = "Sữa tươi, vitamin D3",
+                Nutrition = "Calo: 62kcal/100ml, Protein: 3.2g",
+                Usage = "Uống trực tiếp hoặc dùng chế biến",
+                Manufacturer = "Vinamilk",
+                ResponsibleOrg = "Bộ Y tế",
+                Warning = "Bảo quản lạnh 2-6°C",
+                isActive = true,
+                isFeatured = true,
+                Tags = new[] { "sữa", "tươi", "bổ dưỡng" },
+                CreatedAt = now,
+                UpdatedAt = now
             },
-            new()
-            {
-                ProductId = Guid.NewGuid(),
-                SupermarketId = SupermarketCoopMartId,
-                Name = "Sữa chua Vinamilk có đường",
-                Brand = "Vinamilk",
-                Category = "Sữa & Sản phẩm từ sữa",
-                Barcode = "8934673222226",
-                IsFreshFood = true,
-                CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
-            },
-            // Meat - CoopMart
             new()
             {
                 ProductId = Guid.NewGuid(),
@@ -148,11 +146,22 @@ public static class DataSeeder
                 Category = "Thịt & Hải sản",
                 Barcode = "8934673333333",
                 IsFreshFood = true,
+                Type = ProductType.Fresh,
+                Sku = "SKU-MT-002",
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
+                Status = ProductState.Verified.ToString(),
+                Ingredients = "Thịt heo tươi",
+                Nutrition = "Protein: 21g, Chất béo: 14g/100g",
+                Usage = "Chế biến các món ăn",
+                Manufacturer = "Meat Deli",
+                ResponsibleOrg = "Chi cục Thú y",
+                Warning = "Bảo quản lạnh, dùng trong 2 ngày",
+                isActive = true,
+                isFeatured = false,
+                Tags = new[] { "thịt", "heo", "tươi" },
+                CreatedAt = now,
+                UpdatedAt = now
             },
-            // Vegetables - BigC
             new()
             {
                 ProductId = Guid.NewGuid(),
@@ -162,24 +171,22 @@ public static class DataSeeder
                 Category = "Rau củ quả",
                 Barcode = "8934673444440",
                 IsFreshFood = true,
+                Type = ProductType.Fresh,
+                Sku = "SKU-VG-003",
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
+                Status = ProductState.Verified.ToString(),
+                Ingredients = "Rau cải xanh hữu cơ",
+                Nutrition = "Vitamin A, C, K, chất xơ",
+                Usage = "Luộc, xào, nấu canh",
+                Manufacturer = "Dalat Garden",
+                ResponsibleOrg = "Bộ NN&PTNT",
+                Warning = "Rửa sạch trước khi dùng",
+                isActive = true,
+                isFeatured = true,
+                Tags = new[] { "rau", "hữu cơ", "đà lạt" },
+                CreatedAt = now,
+                UpdatedAt = now
             },
-            new()
-            {
-                ProductId = Guid.NewGuid(),
-                SupermarketId = SupermarketBigCId,
-                Name = "Cà chua Đà Lạt 1kg",
-                Brand = "Dalat Garden",
-                Category = "Rau củ quả",
-                Barcode = "8934673555557",
-                IsFreshFood = true,
-                CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
-            },
-            // Bakery - BigC
             new()
             {
                 ProductId = Guid.NewGuid(),
@@ -189,11 +196,22 @@ public static class DataSeeder
                 Category = "Bánh & Đồ nướng",
                 Barcode = "8934673666664",
                 IsFreshFood = true,
+                Type = ProductType.Standard,
+                Sku = "SKU-BK-004",
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
+                Status = ProductState.Verified.ToString(),
+                Ingredients = "Bột mì, men, đường, muối",
+                Nutrition = "Calo: 265kcal/100g",
+                Usage = "Ăn trực tiếp, làm sandwich",
+                Manufacturer = "Kinh Đô",
+                ResponsibleOrg = "Bộ Y tế",
+                Warning = "Hạn sử dụng in trên bao bì",
+                isActive = true,
+                isFeatured = false,
+                Tags = new[] { "bánh mì", "sandwich" },
+                CreatedAt = now,
+                UpdatedAt = now
             },
-            // Beverages - VinMart
             new()
             {
                 ProductId = Guid.NewGuid(),
@@ -203,11 +221,22 @@ public static class DataSeeder
                 Category = "Đồ uống",
                 Barcode = "8934673777771",
                 IsFreshFood = true,
+                Type = ProductType.Beverage,
+                Sku = "SKU-BV-005",
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
+                Status = ProductState.Verified.ToString(),
+                Ingredients = "Nước cam ép, vitamin C",
+                Nutrition = "Vitamin C: 60mg/100ml",
+                Usage = "Uống trực tiếp",
+                Manufacturer = "Tropicana",
+                ResponsibleOrg = "Bộ Y tế",
+                Warning = "Lắc đều trước khi dùng",
+                isActive = true,
+                isFeatured = true,
+                Tags = new[] { "nước cam", "vitamin", "bổ dưỡng" },
+                CreatedAt = now,
+                UpdatedAt = now
             },
-            // Snacks - VinMart (Non-fresh)
             new()
             {
                 ProductId = Guid.NewGuid(),
@@ -217,37 +246,21 @@ public static class DataSeeder
                 Category = "Bánh kẹo",
                 Barcode = "8934673888888",
                 IsFreshFood = false,
+                Type = ProductType.Dry,
+                Sku = "SKU-SN-006",
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
-            },
-            // Instant Noodles - VinMart (Non-fresh)
-            new()
-            {
-                ProductId = Guid.NewGuid(),
-                SupermarketId = SupermarketVinMartId,
-                Name = "Mì Hảo Hảo tôm chua cay",
-                Brand = "Acecook",
-                Category = "Thực phẩm khô",
-                Barcode = "8934673999995",
-                IsFreshFood = false,
-                CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
-            },
-            // Seafood - CoopMart
-            new()
-            {
-                ProductId = Guid.NewGuid(),
-                SupermarketId = SupermarketCoopMartId,
-                Name = "Cá hồi phi lê đông lạnh 500g",
-                Brand = "Seafood King",
-                Category = "Thịt & Hải sản",
-                Barcode = "8934673101010",
-                IsFreshFood = true,
-                CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                Status = ProductState.Verified.ToString()
+                Status = ProductState.Verified.ToString(),
+                Ingredients = "Bột mì, đường, cacao, dầu thực vật",
+                Nutrition = "Calo: 474kcal/100g",
+                Usage = "Ăn trực tiếp",
+                Manufacturer = "Mondelez",
+                ResponsibleOrg = "Bộ Y tế",
+                Warning = "Chứa gluten, sữa",
+                isActive = true,
+                isFeatured = false,
+                Tags = new[] { "bánh", "oreo", "snack" },
+                CreatedAt = now,
+                UpdatedAt = now
             }
         };
 
