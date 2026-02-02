@@ -8,7 +8,8 @@ public class ProductLot
     public DateTime ExpiryDate { get; set; }
     public DateTime ManufactureDate { get; set; }
     public decimal Quantity { get; set; }
-    public decimal Weight { get; set; }
+    public decimal TotalWeight { get; set; }
+    public decimal RemainingWeight { get; set; }
     public decimal OriginalUnitPrice { get; set; }
     public decimal SuggestedUnitPrice { get; set; }
     public decimal FinalUnitPrice { get; set; }

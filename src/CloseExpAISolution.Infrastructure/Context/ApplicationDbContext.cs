@@ -19,6 +19,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Supermarket> Supermarkets => Set<Supermarket>();
     public DbSet<MarketStaff> MarketStaff => Set<MarketStaff>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Pricing> Pricings => Set<Pricing>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductLot> ProductLots => Set<ProductLot>();
     public DbSet<Unit> Units => Set<Unit>();
@@ -51,6 +52,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<OverdueRecord>().HasKey(x => x.OverdueId);
         modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
         modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
+        modelBuilder.Entity<Pricing>().HasKey(x => x.PricingId);
+
+        modelBuilder.Entity<Pricing>()
+            .HasOne(pr => pr.Product)
+            .WithOne(p => p.Pricing)
+            .HasForeignKey<Pricing>(pr => pr.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<ProductLot>()
             .HasOne(pl => pl.Product)
