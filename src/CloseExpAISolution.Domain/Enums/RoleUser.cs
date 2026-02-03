@@ -18,10 +18,10 @@ public enum RoleUser
     /// <summary>
     /// Marketing staff - Manages promotions and campaigns
     /// </summary>
-    MarketStaff = 3,
+    MarketingStaff = 3,
 
     /// <summary>
-    /// Supplier staff - Works for large vendor/supplier companies, supermarkets
+    /// Supplier staff - Works at supermarkets (nhân viên siêu thị)
     /// </summary>
     SupplierStaff = 4,
 

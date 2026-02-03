@@ -256,7 +256,7 @@ public class AuthService : IAuthService
         return existingUser != null;
     }
 
-    /// <summary>Validates role is allowed for public registration (Vendor/MarketStaff only)</summary>
+    /// <summary>Validates role is allowed for public registration (Vendor/SupplierStaff only)</summary>
     private async Task<ApiResponse<AuthResponse>?> ValidatePublicRegistrationRole(int roleId)
     {
         var roleRepository = _unitOfWork.Repository<Role>();
@@ -265,9 +265,9 @@ public class AuthService : IAuthService
         if (role == null)
             return Error("Loại đăng ký không hợp lệ");
 
-        // Only Vendor and MarketStaff can register publicly
-        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.MarketStaff)
-            return Error("Loại đăng ký này không được phép. Chỉ Vendor và MarketStaff mới có thể đăng ký công khai.");
+        // Only Vendor and SupplierStaff can register publicly
+        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.SupplierStaff)
+            return Error("Loại đăng ký này không được phép. Chỉ Vendor và SupplierStaff (nhân viên siêu thị) mới có thể đăng ký công khai.");
 
         return null;
     }

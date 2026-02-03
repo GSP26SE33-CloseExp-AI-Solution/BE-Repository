@@ -44,7 +44,7 @@ public enum RegistrationType
     Vendor = (int)RoleUser.Vendor,
 
     /// <summary>
-    /// Register as MarketStaff (Supermarket staff)
+    /// Register as SupplierStaff (Supermarket staff - nhân viên siêu thị)
     /// </summary>
-    MarketStaff = (int)RoleUser.MarketStaff
+    SupplierStaff = (int)RoleUser.SupplierStaff
 }

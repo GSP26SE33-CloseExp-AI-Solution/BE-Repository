@@ -46,7 +46,7 @@ public static class DataSeeder
         await context.Database.ExecuteSqlRawAsync(@"INSERT INTO ""Roles"" (""RoleId"", ""RoleName"") VALUES 
             (1, 'Admin'),
             (2, 'Staff'),
-            (3, 'MarketStaff'),
+            (3, 'MarketingStaff'),
             (4, 'SupplierStaff'),
             (5, 'DeliveryStaff'),
             (6, 'Vendor')
