@@ -11,12 +11,29 @@ public static class DataSeeder
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid SupermarketVinMartId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+    // User GUIDs
     private static readonly Guid AdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid StaffUserId1 = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly Guid StaffUserId2 = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static readonly Guid StaffUserId3 = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    private static readonly Guid MarketStaffUserId1 = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static readonly Guid MarketStaffUserId2 = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    private static readonly Guid MarketStaffUserId3 = Guid.Parse("11111111-2222-2222-2222-222222222222");
+    private static readonly Guid SupplierStaffUserId1 = Guid.Parse("33333333-4444-4444-4444-444444444444");
+    private static readonly Guid SupplierStaffUserId2 = Guid.Parse("55555555-6666-6666-6666-666666666666");
+    private static readonly Guid SupplierStaffUserId3 = Guid.Parse("77777777-8888-8888-8888-888888888888");
+    private static readonly Guid DeliveryStaffUserId1 = Guid.Parse("99999999-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid DeliveryStaffUserId2 = Guid.Parse("bbbbbbbb-cccc-cccc-cccc-cccccccccccc");
+    private static readonly Guid DeliveryStaffUserId3 = Guid.Parse("dddddddd-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static readonly Guid VendorUserId1 = Guid.Parse("ffffffff-0000-0000-0000-000000000000");
+    private static readonly Guid VendorUserId2 = Guid.Parse("11111111-1111-1111-0000-000000000001");
+    private static readonly Guid VendorUserId3 = Guid.Parse("22222222-2222-2222-0000-000000000002");
 
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         await SeedRolesAsync(context);
-        await SeedAdminUserAsync(context);
+        await SeedUsersAsync(context);
         await SeedSupermarketsAsync(context);
         await SeedProductsAsync(context);
     }
@@ -28,33 +45,253 @@ public static class DataSeeder
 
         await context.Database.ExecuteSqlRawAsync(@"INSERT INTO ""Roles"" (""RoleId"", ""RoleName"") VALUES 
             (1, 'Admin'),
-            (2, 'MarketStaff'),
-            (3, 'FoodVendor'),
-            (4, 'DeliveryStaff'),
-            (5, 'InternalStaff')
+            (2, 'Staff'),
+            (3, 'MarketStaff'),
+            (4, 'SupplierStaff'),
+            (5, 'DeliveryStaff'),
+            (6, 'Vendor')
             ON CONFLICT (""RoleId"") DO NOTHING");
     }
 
-    private static async Task SeedAdminUserAsync(ApplicationDbContext context)
+    private static async Task SeedUsersAsync(ApplicationDbContext context)
     {
-        if (await context.Users.AnyAsync(u => u.Email == "admin"))
+        if (await context.Users.AnyAsync())
             return;
 
-        var admin = new User
+        var users = new List<User>
         {
-            UserId = AdminUserId,
-            FullName = "Administrator",
-            Email = "admin",
-            Phone = string.Empty,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-            RoleId = 1,
-            Status = UserState.Verified.ToString(),
-            FailedLoginCount = 0,
-            CreatedAt = DateTime.UtcNow,
-            UpdateAt = DateTime.UtcNow
+            // Admin (RoleId = 1)
+            new()
+            {
+                UserId = AdminUserId,
+                FullName = "Quản trị viên hệ thống",
+                Email = "admin@gmail.com",
+                Phone = "0912345678",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 1,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Staff - Internal (RoleId = 2)
+            new()
+            {
+                UserId = StaffUserId1,
+                FullName = "Vũ Văn A - Nhân viên kho",
+                Email = "staff.1@gmail.com",
+                Phone = "0912111111",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 2,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+            new()
+            {
+                UserId = StaffUserId2,
+                FullName = "Tô Thị B - Nhân viên kiểm kho",
+                Email = "staff.2@gmail.com",
+                Phone = "0912222222",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 2,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Staff - Internal (RoleId = 2) - No numbers
+            new()
+            {
+                UserId = StaffUserId3,
+                FullName = "Lê Văn Minh - Nhân viên kho",
+                Email = "staff@gmail.com",
+                Phone = "0917123456",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 2,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Market Staff (RoleId = 3)
+            new()
+            {
+                UserId = MarketStaffUserId1,
+                FullName = "Nguyễn Văn C - Nhân viên Marketing",
+                Email = "market.1@gmail.com",
+                Phone = "0913333333",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 3,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+            new()
+            {
+                UserId = MarketStaffUserId2,
+                FullName = "Trần Thị D - Nhân viên Marketing",
+                Email = "market.2@gmail.com",
+                Phone = "0913444444",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 3,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Market Staff (RoleId = 3) - No numbers
+            new()
+            {
+                UserId = MarketStaffUserId3,
+                FullName = "Trần Phương - Nhân viên marketing",
+                Email = "market@gmail.com",
+                Phone = "0917234567",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 3,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Supplier Staff (RoleId = 4)
+            new()
+            {
+                UserId = SupplierStaffUserId1,
+                FullName = "Lê Văn E - Nhà cung cấp rau",
+                Email = "supplier.1@gmail.com",
+                Phone = "0914555555",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 4,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+            new()
+            {
+                UserId = SupplierStaffUserId2,
+                FullName = "Phạm Thị F - Nhà cung cấp thịt",
+                Email = "supplier.2@gmail.com",
+                Phone = "0914666666",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 4,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Supplier Staff (RoleId = 4) - No numbers
+            new()
+            {
+                UserId = SupplierStaffUserId3,
+                FullName = "Ngô Kim Liên - Nhà cung cấp",
+                Email = "supplier@gmail.com",
+                Phone = "0917345678",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 4,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Delivery Staff (RoleId = 5)
+            new()
+            {
+                UserId = DeliveryStaffUserId1,
+                FullName = "Hoàng Văn G - Nhân viên giao hàng",
+                Email = "delivery.1@gmail.com",
+                Phone = "0915777777",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 5,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+            new()
+            {
+                UserId = DeliveryStaffUserId2,
+                FullName = "Đỗ Thị H - Nhân viên giao hàng",
+                Email = "delivery.2@gmail.com",
+                Phone = "0915888888",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 5,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Delivery Staff (RoleId = 5) - No numbers
+            new()
+            {
+                UserId = DeliveryStaffUserId3,
+                FullName = "Phan Hương - Nhân viên giao hàng",
+                Email = "delivery@gmail.com",
+                Phone = "0917456789",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 5,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Vendor - Customer (RoleId = 6)
+            new()
+            {
+                UserId = VendorUserId1,
+                FullName = "Cửa hàng Tạp hóa Ngõ 5",
+                Email = "vendor.1@gmail.com",
+                Phone = "0916999999",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 6,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+            new()
+            {
+                UserId = VendorUserId2,
+                FullName = "Quán cơm Cô Hòa",
+                Email = "vendor.2@gmail.com",
+                Phone = "0917888888",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 6,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Vendor - Customer (RoleId = 6) - No numbers
+            new()
+            {
+                UserId = VendorUserId3,
+                FullName = "Cửa hàng Tạp hóa Hoa Cúc",
+                Email = "vendor@gmail.com",
+                Phone = "0917567890",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 6,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            }
         };
 
-        await context.Users.AddAsync(admin);
+        await context.Users.AddRangeAsync(users);
         await context.SaveChangesAsync();
     }
 
