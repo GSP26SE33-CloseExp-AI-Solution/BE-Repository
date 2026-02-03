@@ -4,7 +4,7 @@ using CloseExpAISolution.Domain.Enums;
 namespace CloseExpAISolution.Application.DTOs.Request;
 
 /// <summary>
-/// Public registration request (for Vendor or MarketStaff only)
+/// Public registration request (for Vendor or SupplierStaff only)
 /// </summary>
 public class RegisterRequest
 {
@@ -27,10 +27,20 @@ public class RegisterRequest
     public string Password { get; set; } = string.Empty;
 
     /// <summary>
-    /// Registration type: Only Vendor or MarketStaff allowed for public registration
+    /// Registration type: Only Vendor or SupplierStaff allowed for public registration
     /// </summary>
     [Required(ErrorMessage = "Registration type is required")]
     public RegistrationType RegistrationType { get; set; }
+
+    /// <summary>
+    /// Siêu thị mà nhân viên làm việc (bắt buộc nếu đăng ký là SupplierStaff)
+    /// </summary>
+    public Guid? SupermarketId { get; set; }
+
+    /// <summary>
+    /// Vị trí công việc tại siêu thị (tùy chọn, mặc định: "Nhân viên")
+    /// </summary>
+    public string? Position { get; set; }
 }
 
 /// <summary>

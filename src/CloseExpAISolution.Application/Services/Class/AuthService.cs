@@ -71,10 +71,38 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
+        // Nếu đăng ký là SupplierStaff thì phải chọn siêu thị
+        if (roleId == (int)RoleUser.SupplierStaff)
+        {
+            if (!request.SupermarketId.HasValue)
+                return Error("Vui lòng chọn siêu thị bạn làm việc");
+
+            // Validate supermarket exists
+            var supermarket = await _unitOfWork.Repository<Supermarket>()
+                .FirstOrDefaultAsync(s => s.SupermarketId == request.SupermarketId.Value);
+            if (supermarket == null)
+                return Error("Siêu thị không tồn tại");
+        }
+
         // Create user
         var user = CreateNewUser(request, roleId);
         await userRepository.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
+
+        // Nếu là SupplierStaff, tạo record MarketStaff để liên kết với Supermarket
+        if (roleId == (int)RoleUser.SupplierStaff && request.SupermarketId.HasValue)
+        {
+            var marketStaff = new MarketStaff
+            {
+                MarketStaffId = Guid.NewGuid(),
+                UserId = user.UserId,
+                SupermarketId = request.SupermarketId.Value,
+                Position = request.Position ?? "Nhân viên",
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<MarketStaff>().AddAsync(marketStaff);
+            await _unitOfWork.SaveChangesAsync();
+        }
 
         return ApiResponse<AuthResponse>.SuccessWithMessage(
             "Đăng ký thành công. Vui lòng chờ Admin xác minh tài khoản của bạn trước khi đăng nhập");
