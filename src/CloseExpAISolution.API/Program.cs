@@ -13,7 +13,8 @@ builder.Services
     .AddSwaggerServices()
     .AddAuthenticationServices(builder.Configuration)
     .AddApplicationServices(builder.Configuration)
-    .AddInfrastructureServices(builder.Configuration);
+    .AddInfrastructureServices(builder.Configuration)
+    .AddEmailServices(builder.Configuration);
 
 var app = builder.Build();
 

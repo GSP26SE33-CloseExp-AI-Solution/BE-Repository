@@ -15,6 +15,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly IMapper _mapper;
+        private readonly IEmailService _emailService;
 
         private IProductService? _productService;
         private IMarketStaffService? _marketStaffService;
@@ -27,13 +28,14 @@ namespace CloseExpAISolution.Application.ServiceProviders
         private IFeedbackService? _feedbackService;
         private IUserImageService? _userImageService;
 
-        public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration, IMapper mapper)
+        public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration, IMapper mapper, IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
             _httpContextAccessor = httpContextAccessor;
             _configuration = configuration;
             _context = context;
             _mapper = mapper;
+            _emailService = emailService;
         }
         public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context, _mapper);
         public IMarketStaffService MarketStaffService => _marketStaffService ??= new MarketStaffService(_unitOfWork, _mapper);
@@ -45,5 +47,6 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
         public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
         public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);
+        public IEmailService EmailService => _emailService;
     }
 }

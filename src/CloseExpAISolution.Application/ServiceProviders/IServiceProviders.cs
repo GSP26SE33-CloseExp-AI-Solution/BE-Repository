@@ -14,4 +14,5 @@ public interface IServiceProviders
     IFeedbackService FeedbackService { get; }
     IR2StorageService R2StorageService { get; }
     IUserImageService UserImageService { get; }
+    IEmailService EmailService { get; }
 }
