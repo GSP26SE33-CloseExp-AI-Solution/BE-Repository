@@ -26,7 +26,12 @@ public class UserService : IUserService
         var users = await _unitOfWork.Repository<User>().GetAllAsync();
         var roleDictionary = await GetRoleDictionary();
 
-        var userResponses = users.Select(u => MapUserWithRole(u, roleDictionary));
+        var userResponses = new List<UserResponseDto>();
+        foreach (var user in users)
+        {
+            var dto = await MapUserWithRoleAndStaffInfoAsync(user, roleDictionary);
+            userResponses.Add(dto);
+        }
 
         return ApiResponse<IEnumerable<UserResponseDto>>.SuccessResponse(userResponses);
     }
@@ -179,6 +184,13 @@ public class UserService : IUserService
         var role = await GetRoleById(user.RoleId);
         var dto = _mapper.Map<UserResponseDto>(user);
         dto.RoleName = role?.RoleName ?? "Unknown";
+
+        // Nếu là MarketStaff (RoleId = 3) thì load thông tin siêu thị
+        if (user.RoleId == (int)RoleUser.MarketStaff)
+        {
+            dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+        }
+
         return dto;
     }
 
@@ -188,6 +200,48 @@ public class UserService : IUserService
         var dto = _mapper.Map<UserResponseDto>(user);
         dto.RoleName = roleDictionary.GetValueOrDefault(user.RoleId, "Unknown");
         return dto;
+    }
+
+    /// <summary>Maps user to DTO using pre-loaded role dictionary + load MarketStaff info if needed</summary>
+    private async Task<UserResponseDto> MapUserWithRoleAndStaffInfoAsync(User user, Dictionary<int, string> roleDictionary)
+    {
+        var dto = _mapper.Map<UserResponseDto>(user);
+        dto.RoleName = roleDictionary.GetValueOrDefault(user.RoleId, "Unknown");
+
+        // Nếu là MarketStaff thì load thông tin siêu thị
+        if (user.RoleId == (int)RoleUser.MarketStaff)
+        {
+            dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+        }
+
+        return dto;
+    }
+
+    /// <summary>Lấy thông tin MarketStaff và Supermarket theo UserId</summary>
+    private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
+    {
+        var marketStaff = await _unitOfWork.Repository<MarketStaff>()
+            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+
+        if (marketStaff == null)
+            return null;
+
+        var supermarket = await _unitOfWork.Repository<Supermarket>()
+            .FirstOrDefaultAsync(s => s.SupermarketId == marketStaff.SupermarketId);
+
+        return new MarketStaffInfoDto
+        {
+            MarketStaffId = marketStaff.MarketStaffId,
+            Position = marketStaff.Position,
+            JoinedAt = marketStaff.CreatedAt,
+            Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto
+            {
+                SupermarketId = supermarket.SupermarketId,
+                Name = supermarket.Name,
+                Address = supermarket.Address,
+                ContactPhone = supermarket.ContactPhone
+            }
+        };
     }
 
     /// <summary>Updates user's basic info (name, phone) if provided</summary>
