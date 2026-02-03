@@ -185,8 +185,8 @@ public class UserService : IUserService
         var dto = _mapper.Map<UserResponseDto>(user);
         dto.RoleName = role?.RoleName ?? "Unknown";
 
-        // Nếu là MarketStaff (RoleId = 3) thì load thông tin siêu thị
-        if (user.RoleId == (int)RoleUser.MarketStaff)
+        // Nếu là SupplierStaff (RoleId = 4) - nhân viên siêu thị thì load thông tin siêu thị
+        if (user.RoleId == (int)RoleUser.SupplierStaff)
         {
             dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
         }
@@ -208,8 +208,8 @@ public class UserService : IUserService
         var dto = _mapper.Map<UserResponseDto>(user);
         dto.RoleName = roleDictionary.GetValueOrDefault(user.RoleId, "Unknown");
 
-        // Nếu là MarketStaff thì load thông tin siêu thị
-        if (user.RoleId == (int)RoleUser.MarketStaff)
+        // Nếu là SupplierStaff (nhân viên siêu thị) thì load thông tin siêu thị
+        if (user.RoleId == (int)RoleUser.SupplierStaff)
         {
             dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
         }
