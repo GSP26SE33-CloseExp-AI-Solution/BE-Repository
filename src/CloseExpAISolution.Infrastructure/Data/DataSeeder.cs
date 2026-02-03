@@ -16,14 +16,19 @@ public static class DataSeeder
     private static readonly Guid AdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid StaffUserId1 = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid StaffUserId2 = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
-    private static readonly Guid MarketStaffUserId1 = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
-    private static readonly Guid MarketStaffUserId2 = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
-    private static readonly Guid SupplierStaffUserId1 = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
-    private static readonly Guid SupplierStaffUserId2 = Guid.Parse("11111111-2222-2222-2222-222222222222");
-    private static readonly Guid DeliveryStaffUserId1 = Guid.Parse("33333333-4444-4444-4444-444444444444");
-    private static readonly Guid DeliveryStaffUserId2 = Guid.Parse("55555555-6666-6666-6666-666666666666");
-    private static readonly Guid VendorUserId1 = Guid.Parse("77777777-7777-7777-7777-777777777777");
-    private static readonly Guid VendorUserId2 = Guid.Parse("99999999-9999-9999-9999-999999999999");
+    private static readonly Guid StaffUserId3 = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    private static readonly Guid MarketStaffUserId1 = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static readonly Guid MarketStaffUserId2 = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    private static readonly Guid MarketStaffUserId3 = Guid.Parse("11111111-2222-2222-2222-222222222222");
+    private static readonly Guid SupplierStaffUserId1 = Guid.Parse("33333333-4444-4444-4444-444444444444");
+    private static readonly Guid SupplierStaffUserId2 = Guid.Parse("55555555-6666-6666-6666-666666666666");
+    private static readonly Guid SupplierStaffUserId3 = Guid.Parse("77777777-8888-8888-8888-888888888888");
+    private static readonly Guid DeliveryStaffUserId1 = Guid.Parse("99999999-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid DeliveryStaffUserId2 = Guid.Parse("bbbbbbbb-cccc-cccc-cccc-cccccccccccc");
+    private static readonly Guid DeliveryStaffUserId3 = Guid.Parse("dddddddd-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static readonly Guid VendorUserId1 = Guid.Parse("ffffffff-0000-0000-0000-000000000000");
+    private static readonly Guid VendorUserId2 = Guid.Parse("11111111-1111-1111-0000-000000000001");
+    private static readonly Guid VendorUserId3 = Guid.Parse("22222222-2222-2222-0000-000000000002");
 
     public static async Task SeedAsync(ApplicationDbContext context)
     {
@@ -98,6 +103,21 @@ public static class DataSeeder
                 UpdateAt = DateTime.UtcNow
             },
 
+            // Staff - Internal (RoleId = 2) - No numbers
+            new()
+            {
+                UserId = StaffUserId3,
+                FullName = "Lê Văn Minh - Nhân viên kho",
+                Email = "staff@gmail.com",
+                Phone = "0917123456",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 2,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
             // Market Staff (RoleId = 3)
             new()
             {
@@ -118,6 +138,21 @@ public static class DataSeeder
                 FullName = "Trần Thị D - Nhân viên Marketing",
                 Email = "market.2@gmail.com",
                 Phone = "0913444444",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 3,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Market Staff (RoleId = 3) - No numbers
+            new()
+            {
+                UserId = MarketStaffUserId3,
+                FullName = "Trần Phương - Nhân viên marketing",
+                Email = "market@gmail.com",
+                Phone = "0917234567",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
                 Status = UserState.Verified.ToString(),
@@ -154,6 +189,21 @@ public static class DataSeeder
                 UpdateAt = DateTime.UtcNow
             },
 
+            // Supplier Staff (RoleId = 4) - No numbers
+            new()
+            {
+                UserId = SupplierStaffUserId3,
+                FullName = "Ngô Kim Liên - Nhà cung cấp",
+                Email = "supplier@gmail.com",
+                Phone = "0917345678",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 4,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
             // Delivery Staff (RoleId = 5)
             new()
             {
@@ -182,6 +232,21 @@ public static class DataSeeder
                 UpdateAt = DateTime.UtcNow
             },
 
+            // Delivery Staff (RoleId = 5) - No numbers
+            new()
+            {
+                UserId = DeliveryStaffUserId3,
+                FullName = "Phan Hương - Nhân viên giao hàng",
+                Email = "delivery@gmail.com",
+                Phone = "0917456789",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 5,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
             // Vendor - Customer (RoleId = 6)
             new()
             {
@@ -202,6 +267,21 @@ public static class DataSeeder
                 FullName = "Quán cơm Cô Hòa",
                 Email = "vendor.2@gmail.com",
                 Phone = "0917888888",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                RoleId = 6,
+                Status = UserState.Verified.ToString(),
+                FailedLoginCount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow
+            },
+
+            // Vendor - Customer (RoleId = 6) - No numbers
+            new()
+            {
+                UserId = VendorUserId3,
+                FullName = "Cửa hàng Tạp hóa Hoa Cúc",
+                Email = "vendor@gmail.com",
+                Phone = "0917567890",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
                 Status = UserState.Verified.ToString(),
