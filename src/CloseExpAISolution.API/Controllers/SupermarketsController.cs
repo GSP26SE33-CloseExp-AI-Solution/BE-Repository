@@ -31,7 +31,7 @@ public class SupermarketsController : ControllerBase
         {
             Items = pageItems,
             TotalResult = total,
-            Rage = pageNumber,
+            Page = pageNumber,
             PageSize = pageSize
         };
         return Ok(ApiResponse<PaginatedResult<SupermarketResponseDto>>.SuccessResponse(result));
@@ -41,7 +41,7 @@ public class SupermarketsController : ControllerBase
     public async Task<ActionResult<ApiResponse<SupermarketResponseDto>>> GetById(Guid id)
     {
         var item = await _services.SupermarketService.GetByIdWithDtoAsync(id);
-        if (item == null) return NotFound(ApiResponse<SupermarketResponseDto>.ErrorResponse("Supermarket not found"));
+        if (item == null) return NotFound(ApiResponse<SupermarketResponseDto>.ErrorResponse("Không tìm thấy siêu thị"));
         return Ok(ApiResponse<SupermarketResponseDto>.SuccessResponse(item));
     }
 
@@ -49,7 +49,7 @@ public class SupermarketsController : ControllerBase
     public async Task<ActionResult<ApiResponse<SupermarketResponseDto>>> Create([FromBody] CreateSupermarketRequestDto request, CancellationToken cancellationToken)
     {
         var created = await _services.SupermarketService.CreateSupermarketAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.SupermarketId }, ApiResponse<SupermarketResponseDto>.SuccessResponse(created, "Created"));
+        return CreatedAtAction(nameof(GetById), new { id = created.SupermarketId }, ApiResponse<SupermarketResponseDto>.SuccessResponse(created, "Tạo thành công"));
     }
 
     [HttpPut("{id:guid}")]
@@ -58,11 +58,11 @@ public class SupermarketsController : ControllerBase
         try
         {
             await _services.SupermarketService.UpdateSupermarketAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Cập nhật thành công"));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound(ApiResponse<object>.ErrorResponse("Supermarket not found"));
+            return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy siêu thị"));
         }
     }
 
@@ -72,11 +72,11 @@ public class SupermarketsController : ControllerBase
         try
         {
             await _services.SupermarketService.DeleteSupermarketAsync(id, cancellationToken);
-            return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Xóa thành công"));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound(ApiResponse<object>.ErrorResponse("Supermarket not found"));
+            return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy siêu thị"));
         }
     }
 }

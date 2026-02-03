@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 
@@ -13,7 +14,9 @@ public class ProductDto
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string CreatedBy { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "CreatedBy is required")]
+    public required string CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }
     public User? CreatedByUser { get; set; }
     public Supermarket? Supermarket { get; set; }
@@ -54,7 +57,9 @@ public class ProductResponseDto
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
     public ProductState Status { get; set; }
-    public string CreatedBy { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "CreatedBy is required")]
+    public required string CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }
     public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
 }

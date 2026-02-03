@@ -31,7 +31,7 @@ public class ProductImagesController : ControllerBase
         {
             Items = pageItems,
             TotalResult = total,
-            Rage = pageNumber,
+            Page = pageNumber,
             PageSize = pageSize
         };
         return Ok(ApiResponse<PaginatedResult<ProductImage>>.SuccessResponse(result));
@@ -41,7 +41,7 @@ public class ProductImagesController : ControllerBase
     public async Task<ActionResult<ApiResponse<ProductImage>>> GetById(Guid id)
     {
         var item = await _services.ProductImageService.FirstOrDefaultAsync(x => x.ProductImageId == id);
-        if (item == null) return NotFound(ApiResponse<ProductImage>.ErrorResponse("ProductImage not found"));
+        if (item == null) return NotFound(ApiResponse<ProductImage>.ErrorResponse("Không tìm thấy hình ảnh sản phẩm"));
         return Ok(ApiResponse<ProductImage>.SuccessResponse(item));
     }
 
@@ -49,27 +49,27 @@ public class ProductImagesController : ControllerBase
     public async Task<ActionResult<ApiResponse<ProductImage>>> Create([FromBody] ProductImage input, CancellationToken cancellationToken)
     {
         var created = await _services.ProductImageService.AddAsync(input, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.ProductImageId }, ApiResponse<ProductImage>.SuccessResponse(created, "Created"));
+        return CreatedAtAction(nameof(GetById), new { id = created.ProductImageId }, ApiResponse<ProductImage>.SuccessResponse(created, "Tạo thành công"));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(Guid id, [FromBody] ProductImage input, CancellationToken cancellationToken)
     {
         var existing = await _services.ProductImageService.FirstOrDefaultAsync(x => x.ProductImageId == id);
-        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("ProductImage not found"));
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy hình ảnh sản phẩm"));
 
         input.ProductImageId = id;
         await _services.ProductImageService.UpdateAsync(input, cancellationToken);
-        return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Cập nhật thành công"));
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
         var existing = await _services.ProductImageService.FirstOrDefaultAsync(x => x.ProductImageId == id);
-        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("ProductImage not found"));
+        if (existing == null) return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy hình ảnh sản phẩm"));
 
         await _services.ProductImageService.DeleteAsync(existing, cancellationToken);
-        return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
+        return Ok(ApiResponse<object>.SuccessResponse(null!, "Xóa thành công"));
     }
 }

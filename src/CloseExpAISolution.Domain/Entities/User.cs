@@ -20,5 +20,6 @@ public class User
     public ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<DeliveryRecord> DeliveryRecords { get; set; } = new List<DeliveryRecord>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
 

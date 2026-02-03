@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
@@ -10,10 +11,12 @@ namespace CloseExpAISolution.Application.Services.Class;
 public class SupermarketService : ISupermarketService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
 
-    public SupermarketService(IUnitOfWork unitOfWork)
+    public SupermarketService(IUnitOfWork unitOfWork, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
+        _mapper = mapper;
     }
 
     public Task<Supermarket?> GetByIdAsync(int id) => _unitOfWork.SupermarketRepository.GetByIdAsync(id);
@@ -66,82 +69,31 @@ public class SupermarketService : ISupermarketService
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(x => x.SupermarketId == id);
         if (supermarket == null) return null;
 
-        Enum.TryParse<UserState>(supermarket.Status, out var status);
-        return new SupermarketResponseDto
-        {
-            SupermarketId = supermarket.SupermarketId,
-            Name = supermarket.Name,
-            Address = supermarket.Address,
-            Latitude = supermarket.Latitude,
-            Longitude = supermarket.Longitude,
-            ContactPhone = supermarket.ContactPhone,
-            Status = status,
-            CreatedAt = supermarket.CreatedAt
-        };
+        return _mapper.Map<SupermarketResponseDto>(supermarket);
     }
 
     public async Task<IEnumerable<SupermarketResponseDto>> GetAllWithDtoAsync()
     {
         var items = await _unitOfWork.SupermarketRepository.GetAllAsync();
-        return items.Select(x =>
-        {
-            Enum.TryParse<UserState>(x.Status, out var status);
-            return new SupermarketResponseDto
-            {
-                SupermarketId = x.SupermarketId,
-                Name = x.Name,
-                Address = x.Address,
-                Latitude = x.Latitude,
-                Longitude = x.Longitude,
-                ContactPhone = x.ContactPhone,
-                Status = status,
-                CreatedAt = x.CreatedAt
-            };
-        });
+        return _mapper.Map<IEnumerable<SupermarketResponseDto>>(items);
     }
 
     public async Task<SupermarketResponseDto> CreateSupermarketAsync(CreateSupermarketRequestDto request, CancellationToken cancellationToken = default)
     {
-        var supermarket = new Supermarket
-        {
-            SupermarketId = Guid.NewGuid(),
-            Name = request.Name,
-            Address = request.Address,
-            Latitude = request.Latitude,
-            Longitude = request.Longitude,
-            ContactPhone = request.ContactPhone,
-            Status = UserState.Active.ToString(),
-            CreatedAt = DateTime.UtcNow
-        };
+        var supermarket = _mapper.Map<Supermarket>(request);
 
         var added = await _unitOfWork.SupermarketRepository.AddAsync(supermarket);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        Enum.TryParse<UserState>(added.Status, out var status);
-        return new SupermarketResponseDto
-        {
-            SupermarketId = added.SupermarketId,
-            Name = added.Name,
-            Address = added.Address,
-            Latitude = added.Latitude,
-            Longitude = added.Longitude,
-            ContactPhone = added.ContactPhone,
-            Status = status,
-            CreatedAt = added.CreatedAt
-        };
+        return _mapper.Map<SupermarketResponseDto>(added);
     }
 
     public async Task UpdateSupermarketAsync(Guid id, UpdateSupermarketRequestDto request, CancellationToken cancellationToken = default)
     {
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(x => x.SupermarketId == id);
-        if (supermarket == null) throw new KeyNotFoundException($"Supermarket with id {id} not found");
+        if (supermarket == null) throw new KeyNotFoundException($"Không tìm thấy siêu thị với id {id}");
 
-        supermarket.Name = request.Name;
-        supermarket.Address = request.Address;
-        supermarket.Latitude = request.Latitude;
-        supermarket.Longitude = request.Longitude;
-        supermarket.ContactPhone = request.ContactPhone;
-        supermarket.Status = request.Status.ToString();
+        _mapper.Map(request, supermarket);
 
         _unitOfWork.SupermarketRepository.Update(supermarket);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -150,7 +102,7 @@ public class SupermarketService : ISupermarketService
     public async Task DeleteSupermarketAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(x => x.SupermarketId == id);
-        if (supermarket == null) throw new KeyNotFoundException($"Supermarket with id {id} not found");
+        if (supermarket == null) throw new KeyNotFoundException($"Không tìm thấy siêu thị với id {id}");
 
         await DeleteAsync(supermarket, cancellationToken);
     }

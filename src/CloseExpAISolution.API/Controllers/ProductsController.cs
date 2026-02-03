@@ -31,7 +31,7 @@ public class ProductsController : ControllerBase
         {
             Items = pageItems,
             TotalResult = total,
-            Rage = pageNumber,
+            Page = pageNumber,
             PageSize = pageSize
         };
         return Ok(ApiResponse<PaginatedResult<ProductResponseDto>>.SuccessResponse(result));
@@ -41,7 +41,7 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> GetById(Guid id)
     {
         var item = await _services.ProductService.GetByIdWithImagesAsync(id);
-        if (item == null) return NotFound(ApiResponse<ProductResponseDto>.ErrorResponse("Product not found"));
+        if (item == null) return NotFound(ApiResponse<ProductResponseDto>.ErrorResponse("Không tìm thấy sản phẩm"));
         return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(item));
     }
 
@@ -49,7 +49,7 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Create([FromBody] CreateProductRequestDto request, CancellationToken cancellationToken)
     {
         var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(created, "Created"));
+        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(created, "Tạo thành công"));
     }
 
     /// <summary>
@@ -104,11 +104,11 @@ public class ProductsController : ControllerBase
         try
         {
             await _services.ProductService.UpdateProductAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<object>.SuccessResponse(null!, "Updated"));
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Cập nhật thành công"));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
+            return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
         }
     }
 
@@ -118,11 +118,11 @@ public class ProductsController : ControllerBase
         try
         {
             await _services.ProductService.DeleteProductAsync(id, cancellationToken);
-            return Ok(ApiResponse<object>.SuccessResponse(null!, "Deleted"));
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Xóa thành công"));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
+            return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
         }
     }
 }
