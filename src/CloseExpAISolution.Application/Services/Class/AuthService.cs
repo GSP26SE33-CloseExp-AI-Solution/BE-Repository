@@ -150,7 +150,7 @@ public class AuthService : IAuthService
 
         // Generate new access token
         var roleName = await GetRoleName(user.RoleId);
-        var authResponse = GenerateAuthResponse(user, roleName, newRefreshToken);
+        var authResponse = await GenerateAuthResponseAsync(user, roleName, newRefreshToken);
 
         return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Làm mới token thành công");
     }
@@ -329,11 +329,11 @@ public class AuthService : IAuthService
         await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken);
         await _unitOfWork.SaveChangesAsync();
 
-        return GenerateAuthResponse(user, roleName, refreshTokenString);
+        return await GenerateAuthResponseAsync(user, roleName, refreshTokenString);
     }
 
     /// <summary>Generates AuthResponse with access token</summary>
-    private AuthResponse GenerateAuthResponse(User user, string roleName, string refreshToken)
+    private async Task<AuthResponse> GenerateAuthResponseAsync(User user, string roleName, string refreshToken)
     {
         var jwtSettings = _configuration.GetSection("Jwt");
         var expiryMinutes = int.Parse(jwtSettings["ExpiryInMinutes"] ?? "60");
@@ -341,12 +341,19 @@ public class AuthService : IAuthService
 
         var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt);
 
+        // Load MarketStaffInfo if user is SupplierStaff
+        MarketStaffInfoDto? marketStaffInfo = null;
+        if (user.RoleId == (int)RoleUser.SupplierStaff)
+        {
+            marketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+        }
+
         return new AuthResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
-            User = MapToUserResponse(user, roleName)
+            User = MapToUserResponse(user, roleName, marketStaffInfo)
         };
     }
 
@@ -399,7 +406,7 @@ public class AuthService : IAuthService
     }
 
     /// <summary>Maps User entity to UserResponseDto</summary>
-    private static UserResponseDto MapToUserResponse(User user, string roleName) => new()
+    private static UserResponseDto MapToUserResponse(User user, string roleName, MarketStaffInfoDto? marketStaffInfo = null) => new()
     {
         UserId = user.UserId,
         FullName = user.FullName,
@@ -409,8 +416,35 @@ public class AuthService : IAuthService
         RoleId = user.RoleId,
         Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Unverified,
         CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdateAt
+        UpdatedAt = user.UpdateAt,
+        MarketStaffInfo = marketStaffInfo
     };
+
+    /// <summary>Gets MarketStaff info with Supermarket details for a user</summary>
+    private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
+    {
+        var marketStaff = await _unitOfWork.Repository<MarketStaff>()
+            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+
+        if (marketStaff == null) return null;
+
+        var supermarket = await _unitOfWork.Repository<Supermarket>()
+            .FirstOrDefaultAsync(s => s.SupermarketId == marketStaff.SupermarketId);
+
+        return new MarketStaffInfoDto
+        {
+            MarketStaffId = marketStaff.MarketStaffId,
+            Position = marketStaff.Position ?? "Nhân viên",
+            JoinedAt = marketStaff.CreatedAt,
+            Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto
+            {
+                SupermarketId = supermarket.SupermarketId,
+                Name = supermarket.Name,
+                Address = supermarket.Address,
+                ContactPhone = supermarket.ContactPhone
+            }
+        };
+    }
 
     #endregion
 
