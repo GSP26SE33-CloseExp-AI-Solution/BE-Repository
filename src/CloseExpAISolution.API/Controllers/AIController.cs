@@ -224,6 +224,91 @@ public class AIController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Smart scan that automatically determines the appropriate AI endpoint based on image content.
+    /// Supports both packaged products (with barcode) and fresh produce (vegetables, fruits, meat, seafood).
+    /// Includes special support for Vietnamese products (barcode starting with 893).
+    /// </summary>
+    [HttpPost("smart-scan")]
+    [ProducesResponseType(typeof(SmartScanResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> SmartScan(
+        [FromBody] SmartScanRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(request.ImageUrl) && string.IsNullOrEmpty(request.ImageBase64))
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = "Either ImageUrl or ImageBase64 must be provided",
+                Code = "INVALID_REQUEST"
+            });
+        }
+
+        var imageSource = !string.IsNullOrEmpty(request.ImageUrl) 
+            ? request.ImageUrl 
+            : $"data:image/jpeg;base64,{request.ImageBase64}";
+
+        var result = await _aiProductService.SmartScanAsync(
+            imageSource,
+            request.ProductTypeHint,
+            request.LookupBarcode,
+            cancellationToken);
+
+        if (!result.Success)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorResponse
+            {
+                Error = result.ErrorMessage ?? "AI Service unavailable",
+                Code = "AI_SERVICE_ERROR"
+            });
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Identify fresh produce from image (vegetables, fruits, meat, seafood)
+    /// Returns Vietnamese names, shelf life, storage recommendations
+    /// </summary>
+    [HttpPost("fresh-produce")]
+    [ProducesResponseType(typeof(FreshProduceResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> IdentifyFreshProduce(
+        [FromBody] FreshProduceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(request.ImageUrl) && string.IsNullOrEmpty(request.ImageBase64))
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = "Either ImageUrl or ImageBase64 must be provided",
+                Code = "INVALID_REQUEST"
+            });
+        }
+
+        var imageSource = !string.IsNullOrEmpty(request.ImageUrl) 
+            ? request.ImageUrl 
+            : $"data:image/jpeg;base64,{request.ImageBase64}";
+
+        var result = await _aiProductService.IdentifyFreshProduceAsync(
+            imageSource,
+            cancellationToken);
+
+        if (!result.Success)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorResponse
+            {
+                Error = result.ErrorMessage ?? "AI Service unavailable",
+                Code = "AI_SERVICE_ERROR"
+            });
+        }
+
+        return Ok(result);
+    }
 }
 
 #region Request/Response Models
@@ -267,6 +352,227 @@ public class ProcessProductRequest
     public Guid ProductId { get; set; }
     public string? ImageUrl { get; set; }
     public string? ImageBase64 { get; set; }
+}
+
+public class SmartScanRequest
+{
+    public string? ImageUrl { get; set; }
+    public string? ImageBase64 { get; set; }
+    
+    /// <summary>
+    /// Hint about the product type to improve accuracy
+    /// Options: "auto", "packaged", "fresh_produce", "barcode"
+    /// Default is "auto" which will analyze the image to determine type
+    /// </summary>
+    public string ProductTypeHint { get; set; } = "auto";
+    
+    /// <summary>
+    /// If true, will lookup barcode info from external databases
+    /// </summary>
+    public bool LookupBarcode { get; set; } = true;
+}
+
+public class FreshProduceRequest
+{
+    public string? ImageUrl { get; set; }
+    public string? ImageBase64 { get; set; }
+}
+
+public class SmartScanResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    
+    /// <summary>
+    /// The detected type of scan performed: "packaged", "fresh_produce", "mixed"
+    /// </summary>
+    public string ScanType { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Indicates if this is a Vietnamese product (based on barcode starting with 893)
+    /// </summary>
+    public bool IsVietnameseProduct { get; set; }
+    
+    /// <summary>
+    /// Vietnamese company info (if barcode starts with 893)
+    /// </summary>
+    public VietnameseBarcodeInfo? VietnameseBarcodeInfo { get; set; }
+    
+    /// <summary>
+    /// Extracted product name
+    /// </summary>
+    public string? ProductName { get; set; }
+    
+    /// <summary>
+    /// Extracted brand name
+    /// </summary>
+    public string? Brand { get; set; }
+    
+    /// <summary>
+    /// Extracted barcode
+    /// </summary>
+    public string? Barcode { get; set; }
+    
+    /// <summary>
+    /// Expiry date (if detected)
+    /// </summary>
+    public DateTime? ExpiryDate { get; set; }
+    
+    /// <summary>
+    /// Manufacturing date (if detected)
+    /// </summary>
+    public DateTime? ManufacturedDate { get; set; }
+    
+    /// <summary>
+    /// Suggested product category
+    /// </summary>
+    public string? SuggestedCategory { get; set; }
+    
+    /// <summary>
+    /// Suggested shelf life in days
+    /// </summary>
+    public int? SuggestedShelfLifeDays { get; set; }
+    
+    /// <summary>
+    /// Storage recommendations
+    /// </summary>
+    public string? StorageRecommendation { get; set; }
+    
+    /// <summary>
+    /// Usage instructions (Hướng dẫn sử dụng)
+    /// </summary>
+    public string? UsageInstructions { get; set; }
+    
+    /// <summary>
+    /// Extracted ingredients
+    /// </summary>
+    public List<string>? Ingredients { get; set; }
+    
+    /// <summary>
+    /// Nutrition facts (Giá trị dinh dưỡng)
+    /// </summary>
+    public Dictionary<string, object>? NutritionFacts { get; set; }
+    
+    /// <summary>
+    /// Product weight
+    /// </summary>
+    public string? Weight { get; set; }
+    
+    /// <summary>
+    /// Origin/country of origin
+    /// </summary>
+    public string? Origin { get; set; }
+    
+    /// <summary>
+    /// Certifications (HACCP, ISO, VietGAP, etc.)
+    /// </summary>
+    public List<string>? Certifications { get; set; }
+    
+    /// <summary>
+    /// Quality standards (Chỉ tiêu chất lượng - TCVN, QCVN, etc.)
+    /// </summary>
+    public List<string>? QualityStandards { get; set; }
+    
+    /// <summary>
+    /// Product warnings and notes (Cảnh báo)
+    /// </summary>
+    public List<string>? Warnings { get; set; }
+    
+    /// <summary>
+    /// Manufacturer/Distributor information (Nhà sản xuất/Phân phối)
+    /// </summary>
+    public ManufacturerInfoResult? ManufacturerInfo { get; set; }
+    
+    /// <summary>
+    /// Product codes (SKU, Batch, MSKTVSTY)
+    /// </summary>
+    public ProductCodesResult? ProductCodes { get; set; }
+    
+    /// <summary>
+    /// Fresh produce detections (for vegetables, fruits, meat, seafood)
+    /// </summary>
+    public List<FreshProduceDetection>? FreshProduceItems { get; set; }
+    
+    /// <summary>
+    /// Overall confidence score
+    /// </summary>
+    public float Confidence { get; set; }
+    
+    /// <summary>
+    /// Processing time in milliseconds
+    /// </summary>
+    public float ProcessingTimeMs { get; set; }
+}
+
+public class ManufacturerInfoResult
+{
+    /// <summary>
+    /// Manufacturer name (Nhà sản xuất)
+    /// </summary>
+    public string? Name { get; set; }
+    
+    /// <summary>
+    /// Distributor name (Nhà phân phối)
+    /// </summary>
+    public string? Distributor { get; set; }
+    
+    /// <summary>
+    /// Address (Địa chỉ)
+    /// </summary>
+    public string? Address { get; set; }
+    
+    /// <summary>
+    /// Contact information (Hotline, website, email)
+    /// </summary>
+    public List<string>? Contact { get; set; }
+}
+
+public class ProductCodesResult
+{
+    /// <summary>
+    /// SKU/Product code
+    /// </summary>
+    public string? Sku { get; set; }
+    
+    /// <summary>
+    /// Batch/Lot number (Số lô)
+    /// </summary>
+    public string? Batch { get; set; }
+    
+    /// <summary>
+    /// Veterinary hygiene code (Mã số kinh tế vệ sinh thú y)
+    /// </summary>
+    public string? Msktvsty { get; set; }
+}
+
+public class VietnameseBarcodeInfo
+{
+    public string Barcode { get; set; } = string.Empty;
+    public bool IsVietnamese { get; set; }
+    public string? Company { get; set; }
+    public string? Category { get; set; }
+    public string? Prefix { get; set; }
+    public string? Note { get; set; }
+}
+
+public class FreshProduceDetection
+{
+    public string Category { get; set; } = string.Empty;
+    public string? NameVi { get; set; }
+    public string? NameEn { get; set; }
+    public int? TypicalShelfLifeDays { get; set; }
+    public string? StorageRecommendation { get; set; }
+    public List<string>? FreshnessIndicators { get; set; }
+    public float Confidence { get; set; }
+}
+
+public class FreshProduceResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public List<FreshProduceDetection> DetectedItems { get; set; } = new();
+    public float ProcessingTimeMs { get; set; }
+    public List<string>? Warnings { get; set; }
 }
 
 public class ErrorResponse

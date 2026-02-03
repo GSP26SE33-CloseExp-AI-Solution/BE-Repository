@@ -107,6 +107,57 @@ public interface IAIServiceClient
     Task<byte[]?> GetAnnotatedImageAsync(string imageUrl, CancellationToken cancellationToken = default);
 
     #endregion
+
+    #region Fresh Produce Operations
+
+    /// <summary>
+    /// Identify fresh produce from image (vegetables, fruits, meat, seafood)
+    /// </summary>
+    /// <param name="request">Fresh produce identification request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Fresh produce identification result</returns>
+    Task<FreshProduceResponse?> IdentifyFreshProduceAsync(FreshProduceRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Identify fresh produce from image URL
+    /// </summary>
+    /// <param name="imageUrl">URL of the image</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Fresh produce identification result</returns>
+    Task<FreshProduceResponse?> IdentifyFreshProduceFromUrlAsync(string imageUrl, CancellationToken cancellationToken = default);
+
+    #endregion
+
+    #region Smart Scan Operations
+
+    /// <summary>
+    /// Smart scan that automatically determines the appropriate AI endpoint based on image content
+    /// - Detects if image contains barcode/packaging or fresh produce
+    /// - Calls appropriate AI endpoint (OCR or Fresh Produce)
+    /// - Returns unified response with Vietnamese product support
+    /// </summary>
+    /// <param name="request">Smart scan request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Unified smart scan response</returns>
+    Task<SmartScanResponse> SmartScanAsync(SmartScanRequest request, CancellationToken cancellationToken = default);
+
+    #endregion
+
+    #region Market Price Operations
+
+    /// <summary>
+    /// Crawl market prices from various sources (BachHoaXanh, WinMart, Google)
+    /// </summary>
+    /// <param name="barcode">Product barcode</param>
+    /// <param name="productName">Optional product name for search</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Crawled market prices</returns>
+    Task<MarketPriceCrawlResponse?> CrawlMarketPricesAsync(
+        string barcode, 
+        string? productName = null, 
+        CancellationToken cancellationToken = default);
+
+    #endregion
 }
 
 /// <summary>

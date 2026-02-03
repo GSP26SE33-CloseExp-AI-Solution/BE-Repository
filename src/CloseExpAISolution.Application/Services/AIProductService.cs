@@ -192,6 +192,12 @@ public class AIProductService : IAIProductService
                 MaxPrice = response.MaxSuggestedPrice,
                 DiscountPercent = response.DiscountPercent,
                 Confidence = response.Confidence,
+                // New fields
+                ExpectedSellRate = response.ExpectedSellRate,
+                EstimatedTimeToSell = response.EstimatedTimeToSell,
+                Competitiveness = response.Competitiveness,
+                Reasons = response.Reasons ?? new List<string>(),
+                // Existing fields
                 UrgencyLevel = response.UrgencyLevel,
                 RecommendedAction = response.RecommendedAction,
                 DaysToExpire = daysToExpire,
@@ -380,6 +386,286 @@ public class AIProductService : IAIProductService
         catch
         {
             return false;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<SmartScanResult> SmartScanAsync(
+        string imageUrl,
+        string productTypeHint = "auto",
+        bool lookupBarcode = true,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Smart scanning image with hint: {Hint}", productTypeHint);
+
+        var startTime = DateTime.UtcNow;
+        var result = new SmartScanResult();
+
+        try
+        {
+            // Prepare image data
+            string? imageBase64 = null;
+            string? imageUrlToUse = imageUrl;
+
+            // Check if it's already base64
+            if (imageUrl.StartsWith("data:image"))
+            {
+                imageBase64 = imageUrl;
+                imageUrlToUse = null;
+            }
+            else
+            {
+                // Download image to avoid CDN issues
+                try
+                {
+                    imageBase64 = await DownloadImageAsBase64Async(imageUrl, cancellationToken);
+                    imageUrlToUse = null;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to download image, using URL directly");
+                }
+            }
+
+            // Create smart scan request for AI service
+            var smartScanRequest = new AIService.Models.SmartScanRequest
+            {
+                ImageUrl = imageUrlToUse,
+                ImageB64 = imageBase64,
+                ProductTypeHint = productTypeHint,
+                LookupBarcode = lookupBarcode
+            };
+
+            var aiResponse = await _aiServiceClient.SmartScanAsync(smartScanRequest, cancellationToken);
+
+            if (!aiResponse.Success)
+            {
+                return new SmartScanResult
+                {
+                    Success = false,
+                    ErrorMessage = aiResponse.ErrorMessage,
+                    ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds
+                };
+            }
+
+            // Map AI response to result
+            result.Success = true;
+            result.ScanType = aiResponse.ScanType;
+            result.IsVietnameseProduct = aiResponse.IsVietnameseProduct;
+            result.Confidence = aiResponse.Confidence;
+
+            // Map Vietnamese barcode info
+            if (aiResponse.VietnameseBarcodeInfo != null)
+            {
+                result.VietnameseBarcodeInfo = new VietnameseBarcodeResult
+                {
+                    Barcode = aiResponse.VietnameseBarcodeInfo.Barcode,
+                    IsVietnamese = aiResponse.VietnameseBarcodeInfo.IsVietnamese,
+                    Company = aiResponse.VietnameseBarcodeInfo.Company,
+                    Category = aiResponse.VietnameseBarcodeInfo.Category,
+                    Prefix = aiResponse.VietnameseBarcodeInfo.Prefix,
+                    Note = aiResponse.VietnameseBarcodeInfo.Note
+                };
+            }
+
+            // Extract data from OCR result
+            if (aiResponse.OcrResult != null)
+            {
+                var productInfo = aiResponse.OcrResult.ProductInfo;
+                
+                result.ProductName = productInfo?.Name ?? aiResponse.OcrResult.Name;
+                result.Brand = productInfo?.Brand ?? aiResponse.OcrResult.Brand;
+                result.Barcode = productInfo?.Barcode ?? aiResponse.OcrResult.Barcode;
+                result.ExpiryDate = aiResponse.OcrResult.ExpiryDate?.Value;
+                result.ManufacturedDate = aiResponse.OcrResult.ManufacturedDate?.Value;
+                result.Ingredients = productInfo?.Ingredients;
+                result.Weight = productInfo?.Weight;
+                result.Origin = productInfo?.Origin;
+                result.Certifications = productInfo?.Certifications;
+                result.StorageRecommendation = productInfo?.StorageInstructions;
+                
+                // New fields from enhanced OCR
+                result.UsageInstructions = productInfo?.UsageInstructions;
+                result.QualityStandards = productInfo?.QualityStandards;
+                result.Warnings = productInfo?.Warnings;
+                result.NutritionFacts = productInfo?.NutritionFacts;
+                result.SuggestedShelfLifeDays ??= productInfo?.ShelfLifeDays;
+                
+                // Map manufacturer info
+                if (productInfo?.Manufacturer != null)
+                {
+                    result.ManufacturerInfo = new ManufacturerInfoResult
+                    {
+                        Name = productInfo.Manufacturer.Name,
+                        Distributor = productInfo.Manufacturer.Distributor,
+                        Address = productInfo.Manufacturer.Address,
+                        Contact = productInfo.Manufacturer.Contact
+                    };
+                }
+                
+                // Map product codes
+                if (productInfo?.ProductCodes != null)
+                {
+                    result.ProductCodes = new ProductCodesResult
+                    {
+                        Sku = productInfo.ProductCodes.Sku,
+                        Batch = productInfo.ProductCodes.Batch,
+                        Msktvsty = productInfo.ProductCodes.Msktvsty
+                    };
+                }
+            }
+
+            // Set category and shelf life
+            result.SuggestedCategory = aiResponse.SuggestedCategory;
+            result.SuggestedShelfLifeDays = aiResponse.SuggestedShelfLifeDays;
+            result.StorageRecommendation ??= aiResponse.StorageRecommendation;
+
+            // Map fresh produce items
+            if (aiResponse.FreshProduceResult?.DetectedItems?.Any() == true)
+            {
+                result.FreshProduceItems = aiResponse.FreshProduceResult.DetectedItems
+                    .Select(item => new FreshProduceDetection
+                    {
+                        Category = item.Category,
+                        NameVi = item.NameVi,
+                        NameEn = item.NameEn,
+                        TypicalShelfLifeDays = item.TypicalShelfLifeDays,
+                        StorageRecommendation = item.StorageRecommendation,
+                        FreshnessIndicators = item.FreshnessIndicators,
+                        Confidence = item.Confidence
+                    })
+                    .ToList();
+            }
+
+            // Enrich with external barcode lookup if enabled
+            if (lookupBarcode && !string.IsNullOrEmpty(result.Barcode) && result.ProductName == null)
+            {
+                try
+                {
+                    var barcodeInfo = await _barcodeLookupService.LookupAsync(result.Barcode, cancellationToken);
+                    if (barcodeInfo != null)
+                    {
+                        result.ProductName ??= barcodeInfo.ProductName;
+                        result.Brand ??= barcodeInfo.Brand;
+                        result.SuggestedCategory ??= barcodeInfo.Category;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to lookup barcode externally");
+                }
+            }
+
+            result.ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds;
+
+            _logger.LogInformation(
+                "Smart scan completed. Type: {ScanType}, Vietnamese: {IsVn}, Confidence: {Confidence}",
+                result.ScanType, result.IsVietnameseProduct, result.Confidence);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during smart scan");
+            return new SmartScanResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds
+            };
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<FreshProduceResult> IdentifyFreshProduceAsync(
+        string imageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Identifying fresh produce from image");
+
+        var startTime = DateTime.UtcNow;
+
+        try
+        {
+            // Prepare image data
+            string? imageBase64 = null;
+            string? imageUrlToUse = imageUrl;
+
+            if (imageUrl.StartsWith("data:image"))
+            {
+                imageBase64 = imageUrl;
+                imageUrlToUse = null;
+            }
+            else
+            {
+                try
+                {
+                    imageBase64 = await DownloadImageAsBase64Async(imageUrl, cancellationToken);
+                    imageUrlToUse = null;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to download image, using URL directly");
+                }
+            }
+
+            var request = new AIService.Models.FreshProduceRequest
+            {
+                ImageUrl = imageUrlToUse,
+                ImageB64 = imageBase64
+            };
+
+            var response = await _aiServiceClient.IdentifyFreshProduceAsync(request, cancellationToken);
+
+            if (response == null)
+            {
+                return new FreshProduceResult
+                {
+                    Success = false,
+                    ErrorMessage = "No response from AI service",
+                    ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds
+                };
+            }
+
+            var result = new FreshProduceResult
+            {
+                Success = true,
+                ProcessingTimeMs = response.ProcessingTimeMs,
+                Warnings = response.Warnings
+            };
+
+            // Map detected items
+            if (response.DetectedItems?.Any() == true)
+            {
+                result.DetectedItems = response.DetectedItems
+                    .Select(item => new FreshProduceDetection
+                    {
+                        Category = item.Category,
+                        NameVi = item.NameVi,
+                        NameEn = item.NameEn,
+                        TypicalShelfLifeDays = item.TypicalShelfLifeDays,
+                        StorageRecommendation = item.StorageRecommendation,
+                        FreshnessIndicators = item.FreshnessIndicators,
+                        Confidence = item.Confidence
+                    })
+                    .ToList();
+            }
+
+            _logger.LogInformation(
+                "Fresh produce identification completed. Found {Count} items in {Time}ms",
+                result.DetectedItems.Count, result.ProcessingTimeMs);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error identifying fresh produce");
+            return new FreshProduceResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds
+            };
         }
     }
 

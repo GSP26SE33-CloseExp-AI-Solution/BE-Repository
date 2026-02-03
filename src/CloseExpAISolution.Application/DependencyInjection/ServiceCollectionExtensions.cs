@@ -6,6 +6,7 @@ using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.Mappings;
 using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Application.Services;
+using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
@@ -45,10 +46,19 @@ public static class ServiceCollectionExtensions
         });
 
         // Register Barcode Lookup Service
-        services.AddSingleton<IBarcodeLookupService, BarcodeLookupService>();
+        services.AddScoped<IBarcodeLookupService, BarcodeLookupService>();
 
         // Register AI Product Service
         services.AddScoped<IAIProductService, AIProductService>();
+
+        // Register Market Price Service
+        services.AddScoped<IMarketPriceService, MarketPriceService>();
+
+        // Register R2 Storage Service (needed for ProductWorkflowService)
+        services.AddScoped<IR2StorageService, R2StorageService>();
+
+        // Register Product Workflow Service
+        services.AddScoped<IProductWorkflowService, ProductWorkflowService>();
 
         return services;
     }
