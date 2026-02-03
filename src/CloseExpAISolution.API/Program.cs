@@ -11,48 +11,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services
     .AddSwaggerServices()
+    .AddCorsServices(builder.Configuration)
     .AddAuthenticationServices(builder.Configuration)
     .AddApplicationServices(builder.Configuration)
     .AddInfrastructureServices(builder.Configuration);
 
-// Add CORS for AI Service integration
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAIService", policy =>
-    {
-        var aiServiceUrl = builder.Configuration["AIService:BaseUrl"];
-        if (!string.IsNullOrEmpty(aiServiceUrl))
-        {
-            policy.WithOrigins(aiServiceUrl)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        }
-    });
-});
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "CloseExpAISolution API v1");
-        options.RoutePrefix = "swagger";
-    });
-}
-
-app.UseHttpsRedirection();
-app.UseCors("AllowAIService");
-if (!app.Environment.IsDevelopment())
-    app.UseHttpsRedirection();
-
-// Authentication & Authorization middleware - order matters!
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllers();
 // Apply migrations and seed data on startup
 using (var scope = app.Services.CreateScope())
 {

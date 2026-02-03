@@ -16,12 +16,12 @@ public enum RoleUser
     Staff = 2,
 
     /// <summary>
-    /// Supermarket staff - Works at physical supermarket locations
+    /// Marketing staff - Manages promotions and campaigns
     /// </summary>
     MarketStaff = 3,
 
     /// <summary>
-    /// Supplier staff - Works for large vendor/supplier companies
+    /// Supplier staff - Works for large vendor/supplier companies, supermarkets
     /// </summary>
     SupplierStaff = 4,
 
