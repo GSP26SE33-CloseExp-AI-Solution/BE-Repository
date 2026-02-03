@@ -75,7 +75,7 @@ public static class DataSeeder
             {
                 UserId = StaffUserId1,
                 FullName = "Vũ Văn A - Nhân viên kho",
-                Email = "staff.warehouse@gmail.com",
+                Email = "staff.1@gmail.com",
                 Phone = "0912111111",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
@@ -88,7 +88,7 @@ public static class DataSeeder
             {
                 UserId = StaffUserId2,
                 FullName = "Tô Thị B - Nhân viên kiểm kho",
-                Email = "staff.inventory@gmail.com",
+                Email = "staff.2@gmail.com",
                 Phone = "0912222222",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
@@ -102,8 +102,8 @@ public static class DataSeeder
             new()
             {
                 UserId = MarketStaffUserId1,
-                FullName = "Nguyễn Văn C - Nhân viên CoopMart",
-                Email = "market.staff.1@gmail.com",
+                FullName = "Nguyễn Văn C - Nhân viên Marketing",
+                Email = "market.1@gmail.com",
                 Phone = "0913333333",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
@@ -115,8 +115,8 @@ public static class DataSeeder
             new()
             {
                 UserId = MarketStaffUserId2,
-                FullName = "Trần Thị D - Nhân viên Big C",
-                Email = "market.staff.2@gmail.com",
+                FullName = "Trần Thị D - Nhân viên Marketing",
+                Email = "market.2@gmail.com",
                 Phone = "0913444444",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
@@ -131,7 +131,7 @@ public static class DataSeeder
             {
                 UserId = SupplierStaffUserId1,
                 FullName = "Lê Văn E - Nhà cung cấp rau",
-                Email = "supplier.vegetables@gmail.com",
+                Email = "supplier.1@gmail.com",
                 Phone = "0914555555",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
@@ -144,7 +144,7 @@ public static class DataSeeder
             {
                 UserId = SupplierStaffUserId2,
                 FullName = "Phạm Thị F - Nhà cung cấp thịt",
-                Email = "supplier.meat@gmail.com",
+                Email = "supplier.2@gmail.com",
                 Phone = "0914666666",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
@@ -187,7 +187,7 @@ public static class DataSeeder
             {
                 UserId = VendorUserId1,
                 FullName = "Cửa hàng Tạp hóa Ngõ 5",
-                Email = "vendor.shop1@gmail.com",
+                Email = "vendor.1@gmail.com",
                 Phone = "0916999999",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
@@ -200,7 +200,7 @@ public static class DataSeeder
             {
                 UserId = VendorUserId2,
                 FullName = "Quán cơm Cô Hòa",
-                Email = "vendor.shop2@gmail.com",
+                Email = "vendor.2@gmail.com",
                 Phone = "0917888888",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
