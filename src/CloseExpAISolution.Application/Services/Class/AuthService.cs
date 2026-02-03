@@ -71,10 +71,38 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
+        // Nếu đăng ký là SupplierStaff thì phải chọn siêu thị
+        if (roleId == (int)RoleUser.SupplierStaff)
+        {
+            if (!request.SupermarketId.HasValue)
+                return Error("Vui lòng chọn siêu thị bạn làm việc");
+
+            // Validate supermarket exists
+            var supermarket = await _unitOfWork.Repository<Supermarket>()
+                .FirstOrDefaultAsync(s => s.SupermarketId == request.SupermarketId.Value);
+            if (supermarket == null)
+                return Error("Siêu thị không tồn tại");
+        }
+
         // Create user
         var user = CreateNewUser(request, roleId);
         await userRepository.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
+
+        // Nếu là SupplierStaff, tạo record MarketStaff để liên kết với Supermarket
+        if (roleId == (int)RoleUser.SupplierStaff && request.SupermarketId.HasValue)
+        {
+            var marketStaff = new MarketStaff
+            {
+                MarketStaffId = Guid.NewGuid(),
+                UserId = user.UserId,
+                SupermarketId = request.SupermarketId.Value,
+                Position = request.Position ?? "Nhân viên",
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<MarketStaff>().AddAsync(marketStaff);
+            await _unitOfWork.SaveChangesAsync();
+        }
 
         return ApiResponse<AuthResponse>.SuccessWithMessage(
             "Đăng ký thành công. Vui lòng chờ Admin xác minh tài khoản của bạn trước khi đăng nhập");
@@ -122,7 +150,7 @@ public class AuthService : IAuthService
 
         // Generate new access token
         var roleName = await GetRoleName(user.RoleId);
-        var authResponse = GenerateAuthResponse(user, roleName, newRefreshToken);
+        var authResponse = await GenerateAuthResponseAsync(user, roleName, newRefreshToken);
 
         return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Làm mới token thành công");
     }
@@ -256,7 +284,7 @@ public class AuthService : IAuthService
         return existingUser != null;
     }
 
-    /// <summary>Validates role is allowed for public registration (Vendor/MarketStaff only)</summary>
+    /// <summary>Validates role is allowed for public registration (Vendor/SupplierStaff only)</summary>
     private async Task<ApiResponse<AuthResponse>?> ValidatePublicRegistrationRole(int roleId)
     {
         var roleRepository = _unitOfWork.Repository<Role>();
@@ -265,9 +293,9 @@ public class AuthService : IAuthService
         if (role == null)
             return Error("Loại đăng ký không hợp lệ");
 
-        // Only Vendor and MarketStaff can register publicly
-        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.MarketStaff)
-            return Error("Loại đăng ký này không được phép. Chỉ Vendor và MarketStaff mới có thể đăng ký công khai.");
+        // Only Vendor and SupplierStaff can register publicly
+        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.SupplierStaff)
+            return Error("Loại đăng ký này không được phép. Chỉ Vendor và SupplierStaff (nhân viên siêu thị) mới có thể đăng ký công khai.");
 
         return null;
     }
@@ -301,11 +329,11 @@ public class AuthService : IAuthService
         await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken);
         await _unitOfWork.SaveChangesAsync();
 
-        return GenerateAuthResponse(user, roleName, refreshTokenString);
+        return await GenerateAuthResponseAsync(user, roleName, refreshTokenString);
     }
 
     /// <summary>Generates AuthResponse with access token</summary>
-    private AuthResponse GenerateAuthResponse(User user, string roleName, string refreshToken)
+    private async Task<AuthResponse> GenerateAuthResponseAsync(User user, string roleName, string refreshToken)
     {
         var jwtSettings = _configuration.GetSection("Jwt");
         var expiryMinutes = int.Parse(jwtSettings["ExpiryInMinutes"] ?? "60");
@@ -313,12 +341,19 @@ public class AuthService : IAuthService
 
         var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt);
 
+        // Load MarketStaffInfo if user is SupplierStaff
+        MarketStaffInfoDto? marketStaffInfo = null;
+        if (user.RoleId == (int)RoleUser.SupplierStaff)
+        {
+            marketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+        }
+
         return new AuthResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
-            User = MapToUserResponse(user, roleName)
+            User = MapToUserResponse(user, roleName, marketStaffInfo)
         };
     }
 
@@ -371,7 +406,7 @@ public class AuthService : IAuthService
     }
 
     /// <summary>Maps User entity to UserResponseDto</summary>
-    private static UserResponseDto MapToUserResponse(User user, string roleName) => new()
+    private static UserResponseDto MapToUserResponse(User user, string roleName, MarketStaffInfoDto? marketStaffInfo = null) => new()
     {
         UserId = user.UserId,
         FullName = user.FullName,
@@ -381,8 +416,35 @@ public class AuthService : IAuthService
         RoleId = user.RoleId,
         Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Unverified,
         CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdateAt
+        UpdatedAt = user.UpdateAt,
+        MarketStaffInfo = marketStaffInfo
     };
+
+    /// <summary>Gets MarketStaff info with Supermarket details for a user</summary>
+    private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
+    {
+        var marketStaff = await _unitOfWork.Repository<MarketStaff>()
+            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+
+        if (marketStaff == null) return null;
+
+        var supermarket = await _unitOfWork.Repository<Supermarket>()
+            .FirstOrDefaultAsync(s => s.SupermarketId == marketStaff.SupermarketId);
+
+        return new MarketStaffInfoDto
+        {
+            MarketStaffId = marketStaff.MarketStaffId,
+            Position = marketStaff.Position ?? "Nhân viên",
+            JoinedAt = marketStaff.CreatedAt,
+            Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto
+            {
+                SupermarketId = supermarket.SupermarketId,
+                Name = supermarket.Name,
+                Address = supermarket.Address,
+                ContactPhone = supermarket.ContactPhone
+            }
+        };
+    }
 
     #endregion
 

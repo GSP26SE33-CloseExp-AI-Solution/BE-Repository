@@ -217,6 +217,232 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
 
     #endregion
 
+    #region Fresh Produce Operations
+
+    public Task<FreshProduceResponse?> IdentifyFreshProduceFromUrlAsync(string imageUrl, CancellationToken cancellationToken = default)
+    {
+        return IdentifyFreshProduceAsync(new FreshProduceRequest { ImageUrl = imageUrl }, cancellationToken);
+    }
+
+    public async Task<FreshProduceResponse?> IdentifyFreshProduceAsync(FreshProduceRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(request.ImageUrl) && string.IsNullOrEmpty(request.ImageB64))
+            throw new ArgumentException("Either ImageUrl or ImageB64 must be provided");
+
+        return await ExecuteWithResilienceAsync<FreshProduceResponse>(
+            "/v1/fresh-produce/identify",
+            request,
+            cancellationToken);
+    }
+
+    #endregion
+
+    #region Smart Scan Operations
+
+    public async Task<SmartScanResponse> SmartScanAsync(SmartScanRequest request, CancellationToken cancellationToken = default)
+    {
+        var startTime = DateTime.UtcNow;
+        var response = new SmartScanResponse { Success = true };
+
+        try
+        {
+            if (string.IsNullOrEmpty(request.ImageUrl) && string.IsNullOrEmpty(request.ImageB64))
+            {
+                return new SmartScanResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Either ImageUrl or ImageB64 must be provided"
+                };
+            }
+
+            // Step 1: Run Vision analysis to understand image content
+            var visionRequest = new VisionRequest
+            {
+                ImageUrl = request.ImageUrl,
+                ImageB64 = request.ImageB64,
+                AssessQuality = true,
+                AssessFreshness = true
+            };
+
+            var visionResult = await AnalyzeImageAsync(visionRequest, cancellationToken);
+            response.VisionResult = visionResult;
+
+            // Step 2: Determine scan type based on hint or detected content
+            var scanType = DetermineScanType(request.ProductTypeHint, visionResult);
+            response.ScanType = scanType;
+
+            // Step 3: Call appropriate endpoint based on scan type
+            if (scanType == "fresh_produce" || scanType == "mixed")
+            {
+                var freshProduceRequest = new FreshProduceRequest
+                {
+                    ImageUrl = request.ImageUrl,
+                    ImageB64 = request.ImageB64
+                };
+                response.FreshProduceResult = await IdentifyFreshProduceAsync(freshProduceRequest, cancellationToken);
+
+                // Set suggested info from fresh produce
+                if (response.FreshProduceResult?.DetectedItems?.Any() == true)
+                {
+                    var firstItem = response.FreshProduceResult.DetectedItems.First();
+                    response.SuggestedCategory = firstItem.Category;
+                    response.SuggestedShelfLifeDays = firstItem.TypicalShelfLifeDays;
+                    response.StorageRecommendation = firstItem.StorageRecommendation;
+                    response.Confidence = firstItem.Confidence;
+                }
+            }
+
+            if (scanType == "packaged" || scanType == "barcode" || scanType == "mixed")
+            {
+                var ocrRequest = new OcrRequest
+                {
+                    ImageUrl = request.ImageUrl,
+                    ImageB64 = request.ImageB64,
+                    ExtractDates = true,
+                    ExtractBarcode = true
+                };
+                response.OcrResult = await ExtractAsync(ocrRequest, cancellationToken);
+
+                // Check if Vietnamese product (barcode starts with 893)
+                var barcode = response.OcrResult?.ProductInfo?.Barcode ?? response.OcrResult?.Barcode;
+                if (!string.IsNullOrEmpty(barcode))
+                {
+                    response.IsVietnameseProduct = IsVietnameseBarcode(barcode);
+                    response.VietnameseBarcodeInfo = response.OcrResult?.ProductInfo?.BarcodeInfo;
+
+                    // Set suggested info from OCR
+                    if (response.OcrResult?.ProductInfo?.DetectedCategory != null)
+                    {
+                        response.SuggestedCategory = response.OcrResult.ProductInfo.DetectedCategory.Name;
+                        response.Confidence = Math.Max(response.Confidence, response.OcrResult.ProductInfo.DetectedCategory.Confidence);
+                    }
+
+                    // Calculate shelf life from expiry date
+                    if (response.OcrResult?.ExpiryDate?.Value != null)
+                    {
+                        var daysRemaining = (response.OcrResult.ExpiryDate.Value.Value - DateTime.UtcNow).Days;
+                        response.SuggestedShelfLifeDays = Math.Max(0, daysRemaining);
+                    }
+
+                    // Storage from OCR
+                    response.StorageRecommendation ??= response.OcrResult?.ProductInfo?.StorageInstructions;
+                }
+
+                // Update confidence from OCR if higher
+                if (response.OcrResult?.Confidence > response.Confidence)
+                {
+                    response.Confidence = response.OcrResult.Confidence;
+                }
+            }
+
+            response.ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds;
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Smart scan failed");
+            return new SmartScanResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds
+            };
+        }
+    }
+
+    /// <summary>
+    /// Determine scan type based on hint and vision results
+    /// </summary>
+    private static string DetermineScanType(string hint, VisionResponse? visionResult)
+    {
+        // If explicit hint, use it
+        if (hint != "auto" && !string.IsNullOrEmpty(hint))
+        {
+            return hint;
+        }
+
+        if (visionResult?.ProductTypeSummary == null || !visionResult.ProductTypeSummary.Any())
+        {
+            return "packaged"; // Default to packaged if no detections
+        }
+
+        var hasPackaged = visionResult.ProductTypeSummary.ContainsKey("packaged") ||
+                         visionResult.ProductTypeSummary.ContainsKey("beverage");
+        var hasFresh = visionResult.ProductTypeSummary.ContainsKey("fruit") ||
+                      visionResult.ProductTypeSummary.ContainsKey("vegetable") ||
+                      visionResult.ProductTypeSummary.ContainsKey("meat") ||
+                      visionResult.ProductTypeSummary.ContainsKey("fish");
+
+        if (hasPackaged && hasFresh) return "mixed";
+        if (hasFresh) return "fresh_produce";
+        return "packaged";
+    }
+
+    /// <summary>
+    /// Check if barcode is Vietnamese (GS1 prefix 893)
+    /// </summary>
+    private static bool IsVietnameseBarcode(string barcode)
+    {
+        if (string.IsNullOrEmpty(barcode)) return false;
+        var cleaned = new string(barcode.Where(char.IsDigit).ToArray());
+        return cleaned.StartsWith("893");
+    }
+
+    #endregion
+
+    #region Market Price Operations
+
+    /// <inheritdoc />
+    public async Task<MarketPriceCrawlResponse?> CrawlMarketPricesAsync(
+        string barcode,
+        string? productName = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Crawling market prices for barcode: {Barcode}, name: {ProductName}", barcode, productName);
+
+        try
+        {
+            var request = new MarketPriceCrawlRequest
+            {
+                Barcode = barcode,
+                ProductName = productName
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/v1/pricing/crawl",
+                request,
+                _jsonOptions,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<MarketPriceCrawlResponse>(
+                    _jsonOptions,
+                    cancellationToken);
+            }
+
+            _logger.LogWarning("Market price crawl failed: {StatusCode}", response.StatusCode);
+            return new MarketPriceCrawlResponse
+            {
+                Success = false,
+                Barcode = barcode,
+                Error = $"API returned {response.StatusCode}"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error crawling market prices for barcode: {Barcode}", barcode);
+            return new MarketPriceCrawlResponse
+            {
+                Success = false,
+                Barcode = barcode,
+                Error = ex.Message
+            };
+        }
+    }
+
+    #endregion
+
     #region Batch Operations
 
     public async Task<IEnumerable<OcrResponse?>> ExtractBatchAsync(

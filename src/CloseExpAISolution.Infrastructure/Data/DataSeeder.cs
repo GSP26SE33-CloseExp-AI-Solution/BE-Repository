@@ -35,6 +35,7 @@ public static class DataSeeder
         await SeedRolesAsync(context);
         await SeedUsersAsync(context);
         await SeedSupermarketsAsync(context);
+        await SeedMarketStaffAsync(context);  // Liên kết SupplierStaff với Supermarket
         await SeedProductsAsync(context);
     }
 
@@ -46,7 +47,7 @@ public static class DataSeeder
         await context.Database.ExecuteSqlRawAsync(@"INSERT INTO ""Roles"" (""RoleId"", ""RoleName"") VALUES 
             (1, 'Admin'),
             (2, 'Staff'),
-            (3, 'MarketStaff'),
+            (3, 'MarketingStaff'),
             (4, 'SupplierStaff'),
             (5, 'DeliveryStaff'),
             (6, 'Vendor')
@@ -338,6 +339,49 @@ public static class DataSeeder
         };
 
         await context.Supermarkets.AddRangeAsync(supermarkets);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seed MarketStaff - Liên kết SupplierStaff users với Supermarkets
+    /// </summary>
+    private static async Task SeedMarketStaffAsync(ApplicationDbContext context)
+    {
+        if (await context.MarketStaff.AnyAsync())
+            return;
+
+        var marketStaffRecords = new List<MarketStaff>
+        {
+            // SupplierStaff 1 - Làm việc tại CoopMart
+            new()
+            {
+                MarketStaffId = Guid.NewGuid(),
+                UserId = SupplierStaffUserId1,
+                SupermarketId = SupermarketCoopMartId,
+                Position = "Nhân viên kho",
+                CreatedAt = DateTime.UtcNow
+            },
+            // SupplierStaff 2 - Làm việc tại Big C
+            new()
+            {
+                MarketStaffId = Guid.NewGuid(),
+                UserId = SupplierStaffUserId2,
+                SupermarketId = SupermarketBigCId,
+                Position = "Nhân viên quầy thịt",
+                CreatedAt = DateTime.UtcNow
+            },
+            // SupplierStaff 3 - Làm việc tại VinMart
+            new()
+            {
+                MarketStaffId = Guid.NewGuid(),
+                UserId = SupplierStaffUserId3,
+                SupermarketId = SupermarketVinMartId,
+                Position = "Quản lý kho",
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+
+        await context.MarketStaff.AddRangeAsync(marketStaffRecords);
         await context.SaveChangesAsync();
     }
 

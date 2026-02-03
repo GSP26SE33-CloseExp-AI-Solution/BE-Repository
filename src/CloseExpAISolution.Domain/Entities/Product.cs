@@ -11,9 +11,34 @@ public class Product
     public string Category { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
-    public ProductType Type { get; set; }
+
+    // Pricing fields
+    public decimal OriginalPrice { get; set; }
+    public decimal SuggestedPrice { get; set; }
+    public decimal FinalPrice { get; set; }
+
+    // Expiry information (extracted from OCR)
+    public DateTime? ExpiryDate { get; set; }
+    public DateTime? ManufactureDate { get; set; }
+    public int? ShelfLifeDays { get; set; }
+
+    // OCR extracted data (stored as JSON for reference)
+    public string? OcrExtractedData { get; set; }
+
+    // AI confidence scores
+    public float OcrConfidence { get; set; }
+    public float PricingConfidence { get; set; }
+    public string? PricingReasons { get; set; }
+
+    // Workflow tracking
     public string CreatedBy { get; set; } = string.Empty;
-    public string Sku { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public string? VerifiedBy { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+    public string? PricedBy { get; set; }
+    public DateTime? PricedAt { get; set; }
+    public string? PublishedBy { get; set; }
+    public DateTime? PublishedAt { get; set; }
     public string Status { get; set; } = string.Empty;
     //Product Deatails
     public string Ingredients { get; set; } = string.Empty;
