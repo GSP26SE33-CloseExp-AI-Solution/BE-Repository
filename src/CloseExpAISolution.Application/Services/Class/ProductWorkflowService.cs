@@ -20,6 +20,7 @@ public class ProductWorkflowService : IProductWorkflowService
     private readonly IAIServiceClient _aiClient;
     private readonly IR2StorageService _r2Storage;
     private readonly IMarketPriceService _marketPriceService;
+    private readonly IBarcodeLookupService _barcodeLookupService;
     private readonly ILogger<ProductWorkflowService> _logger;
 
     public ProductWorkflowService(
@@ -27,12 +28,14 @@ public class ProductWorkflowService : IProductWorkflowService
         IAIServiceClient aiClient,
         IR2StorageService r2Storage,
         IMarketPriceService marketPriceService,
+        IBarcodeLookupService barcodeLookupService,
         ILogger<ProductWorkflowService> logger)
     {
         _unitOfWork = unitOfWork;
         _aiClient = aiClient;
         _r2Storage = r2Storage;
         _marketPriceService = marketPriceService;
+        _barcodeLookupService = barcodeLookupService;
         _logger = logger;
     }
 
@@ -47,6 +50,13 @@ public class ProductWorkflowService : IProductWorkflowService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting upload and extract for supermarket {SupermarketId}", supermarketId);
+
+        // 0. Validate supermarket exists
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
+        if (supermarket == null)
+        {
+            throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
+        }
 
         // 1. Create product record first to get ProductId
         var product = new Product
@@ -83,6 +93,7 @@ public class ProductWorkflowService : IProductWorkflowService
         }
 
         // 3. Call AI OCR to extract product info
+        BarcodeProductInfo? barcodeLookupInfo = null;
         try
         {
             var ocrResult = await _aiClient.ExtractFromUrlAsync(imageUrl, cancellationToken);
@@ -102,6 +113,37 @@ public class ProductWorkflowService : IProductWorkflowService
 
                 // Determine if fresh food based on category
                 product.IsFreshFood = IsFreshFoodCategory(product.Category);
+
+                // 4. Barcode lookup for additional info
+                if (!string.IsNullOrEmpty(product.Barcode))
+                {
+                    _logger.LogInformation("Looking up barcode {Barcode} for additional info", product.Barcode);
+                    barcodeLookupInfo = await _barcodeLookupService.LookupAsync(product.Barcode, cancellationToken);
+
+                    if (barcodeLookupInfo != null)
+                    {
+                        _logger.LogInformation("Barcode lookup found: {ProductName} from {Source}", 
+                            barcodeLookupInfo.ProductName, barcodeLookupInfo.Source);
+
+                        // Fill in missing info from barcode lookup (OCR data takes priority)
+                        if (string.IsNullOrEmpty(product.Name) || product.Name == "Unknown Product")
+                            product.Name = barcodeLookupInfo.ProductName ?? product.Name;
+                        if (string.IsNullOrEmpty(product.Brand))
+                            product.Brand = barcodeLookupInfo.Brand ?? "";
+                        if (string.IsNullOrEmpty(product.Category))
+                            product.Category = barcodeLookupInfo.Category ?? "";
+                        if (string.IsNullOrEmpty(product.Ingredients))
+                            product.Ingredients = barcodeLookupInfo.Ingredients;
+                        if (string.IsNullOrEmpty(product.NutritionFactsJson) && barcodeLookupInfo.NutritionFacts != null)
+                            product.NutritionFactsJson = JsonSerializer.Serialize(barcodeLookupInfo.NutritionFacts);
+                        if (string.IsNullOrEmpty(product.Weight))
+                            product.Weight = barcodeLookupInfo.Weight;
+                        if (string.IsNullOrEmpty(product.Manufacturer))
+                            product.Manufacturer = barcodeLookupInfo.Manufacturer;
+                        if (string.IsNullOrEmpty(product.Country))
+                            product.Country = barcodeLookupInfo.Country;
+                    }
+                }
 
                 _unitOfWork.ProductRepository.Update(product);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -129,14 +171,14 @@ public class ProductWorkflowService : IProductWorkflowService
             await _unitOfWork.SaveChangesAsync(CancellationToken.None);
         }
 
-        return MapToResponseDto(product);
+        return MapToResponseDto(product, barcodeLookupInfo);
     }
 
     #endregion
 
     #region Step 2: Verify Product
 
-    public async Task<PricingSuggestionResponseDto> VerifyProductAsync(
+    public async Task<ProductResponseDto> VerifyProductAsync(
         Guid productId,
         VerifyProductRequestDto request,
         CancellationToken cancellationToken = default)
@@ -167,9 +209,8 @@ public class ProductWorkflowService : IProductWorkflowService
             product.ExpiryDate = request.ExpiryDate.Value;
         if (request.ManufactureDate.HasValue)
             product.ManufactureDate = request.ManufactureDate.Value;
-
-        // Set original price
-        product.OriginalPrice = request.OriginalPrice;
+        if (request.IsFreshFood.HasValue)
+            product.IsFreshFood = request.IsFreshFood.Value;
 
         // Update verification info
         product.VerifiedBy = request.VerifiedBy;
@@ -179,18 +220,8 @@ public class ProductWorkflowService : IProductWorkflowService
         _unitOfWork.ProductRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Get pricing suggestion
-        var pricingSuggestion = await GetPricingSuggestionInternalAsync(product, cancellationToken);
-
-        // Save suggested price to product
-        product.SuggestedPrice = (decimal)pricingSuggestion.SuggestedPrice;
-        product.PricingConfidence = pricingSuggestion.Confidence;
-        product.PricingReasons = JsonSerializer.Serialize(pricingSuggestion.Reasons);
-
-        _unitOfWork.ProductRepository.Update(product);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return pricingSuggestion;
+        // Return verified product info
+        return MapToResponseDto(product);
     }
 
     #endregion
@@ -199,6 +230,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
     public async Task<PricingSuggestionResponseDto> GetPricingSuggestionAsync(
         Guid productId,
+        GetPricingSuggestionRequestDto request,
         CancellationToken cancellationToken = default)
     {
         var product = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(p => p.ProductId == productId);
@@ -212,7 +244,23 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new InvalidOperationException("Product must be verified before getting pricing suggestion");
         }
 
-        return await GetPricingSuggestionInternalAsync(product, cancellationToken);
+        // Set original price from request
+        product.OriginalPrice = request.OriginalPrice;
+        _unitOfWork.ProductRepository.Update(product);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Get pricing suggestion
+        var pricingSuggestion = await GetPricingSuggestionInternalAsync(product, cancellationToken);
+
+        // Save suggested price to product
+        product.SuggestedPrice = pricingSuggestion.SuggestedPrice;
+        product.PricingConfidence = pricingSuggestion.Confidence;
+        product.PricingReasons = JsonSerializer.Serialize(pricingSuggestion.Reasons);
+
+        _unitOfWork.ProductRepository.Update(product);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return pricingSuggestion;
     }
 
     private async Task<PricingSuggestionResponseDto> GetPricingSuggestionInternalAsync(
@@ -499,7 +547,7 @@ public class ProductWorkflowService : IProductWorkflowService
         var products = await _unitOfWork.ProductRepository.FindAsync(
             p => p.SupermarketId == supermarketId && p.Status == status.ToString());
 
-        return products.Select(MapToResponseDto);
+        return products.Select(p => MapToResponseDto(p));
     }
 
     public async Task<WorkflowSummaryDto> GetWorkflowSummaryAsync(
@@ -572,7 +620,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
     #region Helper Methods
 
-    private ProductResponseDto MapToResponseDto(Product product)
+    private ProductResponseDto MapToResponseDto(Product product, BarcodeProductInfo? barcodeLookupInfo = null)
     {
         int? daysToExpiry = null;
         if (product.ExpiryDate.HasValue)
@@ -580,7 +628,7 @@ public class ProductWorkflowService : IProductWorkflowService
             daysToExpiry = (int)(product.ExpiryDate.Value - DateTime.UtcNow).TotalDays;
         }
 
-        return new ProductResponseDto
+        var response = new ProductResponseDto
         {
             ProductId = product.ProductId,
             SupermarketId = product.SupermarketId,
@@ -606,6 +654,33 @@ public class ProductWorkflowService : IProductWorkflowService
             PricedBy = product.PricedBy,
             PricedAt = product.PricedAt
         };
+
+        // Add barcode lookup info if available
+        if (barcodeLookupInfo != null)
+        {
+            response.BarcodeLookupInfo = new BarcodeLookupInfoDto
+            {
+                Barcode = barcodeLookupInfo.Barcode,
+                ProductName = barcodeLookupInfo.ProductName,
+                Brand = barcodeLookupInfo.Brand,
+                Category = barcodeLookupInfo.Category,
+                Description = barcodeLookupInfo.Description,
+                ImageUrl = barcodeLookupInfo.ImageUrl,
+                Manufacturer = barcodeLookupInfo.Manufacturer,
+                Weight = barcodeLookupInfo.Weight,
+                Ingredients = barcodeLookupInfo.Ingredients,
+                NutritionFacts = barcodeLookupInfo.NutritionFacts,
+                Country = barcodeLookupInfo.Country,
+                Source = barcodeLookupInfo.Source,
+                Confidence = barcodeLookupInfo.Confidence,
+                IsVietnameseProduct = barcodeLookupInfo.IsVietnameseProduct,
+                Gs1Prefix = barcodeLookupInfo.Gs1Prefix,
+                ScanCount = barcodeLookupInfo.ScanCount,
+                IsVerified = barcodeLookupInfo.IsVerified
+            };
+        }
+
+        return response;
     }
 
     private bool IsFreshFoodCategory(string? category)

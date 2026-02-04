@@ -52,6 +52,11 @@ public class Product
     public string? Origin { get; set; }
 
     /// <summary>
+    /// Quốc gia sản xuất (từ barcode lookup - GS1)
+    /// </summary>
+    public string? Country { get; set; }
+
+    /// <summary>
     /// Mô tả sản phẩm
     /// </summary>
     public string? Description { get; set; }
