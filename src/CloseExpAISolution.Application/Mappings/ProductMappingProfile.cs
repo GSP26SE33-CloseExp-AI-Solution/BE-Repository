@@ -12,9 +12,23 @@ public class ProductMappingProfile : Profile
 {
     public ProductMappingProfile()
     {
+        // ProductImage -> ProductImageDto
+        CreateMap<ProductImage, ProductImageDto>();
+
         // Product -> ProductResponseDto
         CreateMap<Product, ProductResponseDto>()
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => ParseProductState(src.Status)));
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => ParseProductState(src.Status)))
+            .ForMember(dest => dest.WeightTypeName, opt => opt.MapFrom(src => GetWeightTypeName(src.WeightType)))
+            .ForMember(dest => dest.MainImageUrl, opt => opt.MapFrom(src =>
+                src.ProductImages != null && src.ProductImages.Any()
+                    ? src.ProductImages.OrderBy(i => i.UploadedAt).First().ImageUrl
+                    : null))
+            .ForMember(dest => dest.TotalImages, opt => opt.MapFrom(src =>
+                src.ProductImages != null ? src.ProductImages.Count : 0))
+            .ForMember(dest => dest.ProductImages, opt => opt.MapFrom(src =>
+                src.ProductImages != null
+                    ? src.ProductImages.OrderBy(i => i.UploadedAt).ToList()
+                    : new List<ProductImage>()));
 
         // Product -> ProductDto
         CreateMap<Product, ProductDto>();
@@ -47,5 +61,15 @@ public class ProductMappingProfile : Profile
     private static ProductState ParseProductState(string status)
     {
         return Enum.TryParse<ProductState>(status, out var result) ? result : ProductState.Hidden;
+    }
+
+    private static string GetWeightTypeName(int weightType)
+    {
+        return weightType switch
+        {
+            1 => "Định lượng cố định",
+            2 => "Bán theo cân",
+            _ => "Định lượng cố định"
+        };
     }
 }

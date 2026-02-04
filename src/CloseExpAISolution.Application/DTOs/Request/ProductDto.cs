@@ -59,24 +59,24 @@ public class VerifyProductRequestDto
     public string? Brand { get; set; }
     public string? Category { get; set; }
     public string? Barcode { get; set; }
-    
+
     /// <summary>
     /// Original price of the product (required for pricing calculation)
     /// </summary>
     [Required(ErrorMessage = "OriginalPrice is required")]
     [Range(0.01, double.MaxValue, ErrorMessage = "OriginalPrice must be greater than 0")]
     public decimal OriginalPrice { get; set; }
-    
+
     /// <summary>
     /// Expiry date - can be corrected if OCR was incorrect
     /// </summary>
     public DateTime? ExpiryDate { get; set; }
-    
+
     /// <summary>
     /// Manufacture date - optional
     /// </summary>
     public DateTime? ManufactureDate { get; set; }
-    
+
     /// <summary>
     /// Staff ID who verified
     /// </summary>
@@ -94,17 +94,17 @@ public class ConfirmPriceRequestDto
     /// If not provided, use the AI suggested price.
     /// </summary>
     public decimal? FinalPrice { get; set; }
-    
+
     /// <summary>
     /// Staff feedback on the suggested price (for AI improvement)
     /// </summary>
     public string? PriceFeedback { get; set; }
-    
+
     /// <summary>
     /// Whether the suggested price was accepted without changes
     /// </summary>
     public bool AcceptedSuggestion { get; set; }
-    
+
     /// <summary>
     /// Staff ID who confirmed the price
     /// </summary>
@@ -124,6 +124,17 @@ public class PublishProductRequestDto
     public string PublishedBy { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// DTO cho thông tin ảnh sản phẩm
+/// </summary>
+public class ProductImageDto
+{
+    public Guid ProductImageId { get; set; }
+    public Guid ProductId { get; set; }
+    public string ImageUrl { get; set; } = string.Empty;
+    public DateTime UploadedAt { get; set; }
+}
+
 public class ProductResponseDto
 {
     public Guid ProductId { get; set; }
@@ -134,17 +145,22 @@ public class ProductResponseDto
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
     public ProductState Status { get; set; }
-    
+
+    // Weight Type info (for variable weight products)
+    public int WeightType { get; set; }
+    public string WeightTypeName { get; set; } = string.Empty;
+    public decimal? DefaultPricePerKg { get; set; }
+
     // Pricing info
     public decimal OriginalPrice { get; set; }
     public decimal SuggestedPrice { get; set; }
     public decimal FinalPrice { get; set; }
-    
+
     // Expiry info
     public DateTime? ExpiryDate { get; set; }
     public DateTime? ManufactureDate { get; set; }
     public int? DaysToExpiry { get; set; }
-    
+
     // AI info
     public float OcrConfidence { get; set; }
     public float PricingConfidence { get; set; }
@@ -157,8 +173,22 @@ public class ProductResponseDto
     public DateTime? VerifiedAt { get; set; }
     public string? PricedBy { get; set; }
     public DateTime? PricedAt { get; set; }
-    
-    public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
+
+    // Image info
+    /// <summary>
+    /// Ảnh đại diện chính (ảnh đầu tiên trong danh sách)
+    /// </summary>
+    public string? MainImageUrl { get; set; }
+
+    /// <summary>
+    /// Tổng số ảnh của sản phẩm
+    /// </summary>
+    public int TotalImages { get; set; }
+
+    /// <summary>
+    /// Danh sách tất cả ảnh sản phẩm
+    /// </summary>
+    public ICollection<ProductImageDto> ProductImages { get; set; } = new List<ProductImageDto>();
 }
 
 /// <summary>
@@ -175,7 +205,7 @@ public class PricingSuggestionResponseDto
     public DateTime? ExpiryDate { get; set; }
     public int? DaysToExpiry { get; set; }
     public List<string> Reasons { get; set; } = new();
-    
+
     // Market comparison
     public decimal? MinMarketPrice { get; set; }
     public decimal? AvgMarketPrice { get; set; }
