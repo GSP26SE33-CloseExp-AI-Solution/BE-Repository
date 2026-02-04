@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Domain.Entities;
@@ -28,7 +29,9 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.ProductImages, opt => opt.MapFrom(src =>
                 src.ProductImages != null
                     ? src.ProductImages.OrderBy(i => i.UploadedAt).ToList()
-                    : new List<ProductImage>()));
+                    : new List<ProductImage>()))
+            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.Ingredients))
+            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => ParseNutritionFacts(src.NutritionFactsJson)));
 
         // Product -> ProductDto
         CreateMap<Product, ProductDto>();
@@ -71,5 +74,23 @@ public class ProductMappingProfile : Profile
             2 => "Bán theo cân",
             _ => "Định lượng cố định"
         };
+    }
+
+    /// <summary>
+    /// Parse chuỗi JSON thành Dictionary chứa thông tin dinh dưỡng
+    /// </summary>
+    private static Dictionary<string, string>? ParseNutritionFacts(string? nutritionFactsJson)
+    {
+        if (string.IsNullOrEmpty(nutritionFactsJson))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(nutritionFactsJson);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.Json;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
@@ -214,6 +215,9 @@ public class ProductService : IProductService
                 MainImageUrl = productImages.FirstOrDefault()?.ImageUrl,
                 TotalImages = productImages.Count,
                 ProductImages = productImages,
+                // Thông tin thành phần & dinh dưỡng
+                Ingredients = pl.Product?.Ingredients,
+                NutritionFacts = ParseNutritionFacts(pl.Product?.NutritionFactsJson),
                 CreatedAt = pl.CreatedAt
             };
 
@@ -333,6 +337,25 @@ public class ProductService : IProductService
             2 => "Bán theo cân",
             _ => "Định lượng cố định"
         };
+    }
+
+    /// <summary>
+    /// Parse chuỗi JSON thành Dictionary chứa thông tin dinh dưỡng
+    /// </summary>
+    private static Dictionary<string, string>? ParseNutritionFacts(string? nutritionFactsJson)
+    {
+        if (string.IsNullOrEmpty(nutritionFactsJson))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(nutritionFactsJson);
+        }
+        catch
+        {
+            // Nếu parse lỗi, trả về null
+            return null;
+        }
     }
 }
 

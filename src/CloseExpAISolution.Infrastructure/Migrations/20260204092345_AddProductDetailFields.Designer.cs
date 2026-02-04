@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Domain.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260204092345_AddProductDetailFields")]
+    partial class AddProductDetailFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -673,9 +676,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
-                    b.Property<string>("Distributor")
-                        .HasColumnType("text");
-
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -696,6 +696,9 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NetWeight")
                         .HasColumnType("text");
 
                     b.Property<string>("NutritionFactsJson")
@@ -731,7 +734,10 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<string>("PublishedBy")
                         .HasColumnType("text");
 
-                    b.Property<string>("SafetyWarning")
+                    b.Property<string>("ResponsibleOrganization")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SafetyWarnings")
                         .HasColumnType("text");
 
                     b.Property<int?>("ShelfLifeDays")
@@ -757,9 +763,6 @@ namespace CloseExpAISolution.Domain.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("VerifiedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Weight")
                         .HasColumnType("text");
 
                     b.Property<int>("WeightType")
@@ -818,26 +821,8 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<decimal>("OriginalUnitPrice")
                         .HasColumnType("numeric");
 
-                    b.Property<DateTime?>("PricedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PricedBy")
-                        .HasColumnType("text");
-
-                    b.Property<float>("PricingConfidence")
-                        .HasColumnType("real");
-
-                    b.Property<string>("PricingReasons")
-                        .HasColumnType("text");
-
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("PublishedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PublishedBy")
-                        .HasColumnType("text");
 
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric");

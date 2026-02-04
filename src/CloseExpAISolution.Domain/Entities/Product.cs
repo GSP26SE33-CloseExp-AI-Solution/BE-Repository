@@ -34,6 +34,58 @@ public class Product
     // OCR extracted data (stored as JSON for reference)
     public string? OcrExtractedData { get; set; }
 
+    /// <summary>
+    /// Thành phần nguyên liệu (VD: "Sữa tươi, đường, vitamin D3...")
+    /// </summary>
+    public string? Ingredients { get; set; }
+
+    /// <summary>
+    /// Thông tin dinh dưỡng lưu dạng JSON
+    /// VD: {"calories": "120 kcal", "protein": "6g", "fat": "4g"}
+    /// </summary>
+    public string? NutritionFactsJson { get; set; }
+
+    // Thông tin chi tiết sản phẩm (Product Detail)
+    /// <summary>
+    /// Xuất xứ (VD: "Việt Nam", "Nhật Bản")
+    /// </summary>
+    public string? Origin { get; set; }
+
+    /// <summary>
+    /// Mô tả sản phẩm
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Cách sử dụng
+    /// </summary>
+    public string? UsageInstructions { get; set; }
+
+    /// <summary>
+    /// Cách bảo quản
+    /// </summary>
+    public string? StorageInstructions { get; set; }
+
+    /// <summary>
+    /// Cảnh báo an toàn
+    /// </summary>
+    public string? SafetyWarning { get; set; }
+
+    /// <summary>
+    /// Đơn vị sản xuất/chịu trách nhiệm
+    /// </summary>
+    public string? Manufacturer { get; set; }
+
+    /// <summary>
+    /// Đơn vị phân phối
+    /// </summary>
+    public string? Distributor { get; set; }
+
+    /// <summary>
+    /// Trọng lượng/Khối lượng (VD: "500g", "1L")
+    /// </summary>
+    public string? Weight { get; set; }
+
     // AI confidence scores
     public float OcrConfidence { get; set; }
     public float PricingConfidence { get; set; }

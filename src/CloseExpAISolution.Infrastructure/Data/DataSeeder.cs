@@ -30,13 +30,41 @@ public static class DataSeeder
     private static readonly Guid VendorUserId2 = Guid.Parse("11111111-1111-1111-0000-000000000001");
     private static readonly Guid VendorUserId3 = Guid.Parse("22222222-2222-2222-0000-000000000002");
 
+    // Unit GUIDs
+    private static readonly Guid UnitKgId = Guid.Parse("aaaa0001-0001-0001-0001-000000000001");
+    private static readonly Guid UnitGramId = Guid.Parse("aaaa0002-0002-0002-0002-000000000002");
+    private static readonly Guid UnitLiterId = Guid.Parse("aaaa0003-0003-0003-0003-000000000003");
+    private static readonly Guid UnitMlId = Guid.Parse("aaaa0004-0004-0004-0004-000000000004");
+    private static readonly Guid UnitBoxId = Guid.Parse("aaaa0005-0005-0005-0005-000000000005");
+    private static readonly Guid UnitBottleId = Guid.Parse("aaaa0006-0006-0006-0006-000000000006");
+    private static readonly Guid UnitPackId = Guid.Parse("aaaa0007-0007-0007-0007-000000000007");
+    private static readonly Guid UnitPieceId = Guid.Parse("aaaa0008-0008-0008-0008-000000000008");
+    private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
+    private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
+
+    // Product GUIDs (để có thể tạo ProductLots)
+    private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
+    private static readonly Guid Product2Id = Guid.Parse("bbbb0002-0002-0002-0002-000000000002");
+    private static readonly Guid Product3Id = Guid.Parse("bbbb0003-0003-0003-0003-000000000003");
+    private static readonly Guid Product4Id = Guid.Parse("bbbb0004-0004-0004-0004-000000000004");
+    private static readonly Guid Product5Id = Guid.Parse("bbbb0005-0005-0005-0005-000000000005");
+    private static readonly Guid Product6Id = Guid.Parse("bbbb0006-0006-0006-0006-000000000006");
+    private static readonly Guid Product7Id = Guid.Parse("bbbb0007-0007-0007-0007-000000000007");
+    private static readonly Guid Product8Id = Guid.Parse("bbbb0008-0008-0008-0008-000000000008");
+    private static readonly Guid Product9Id = Guid.Parse("bbbb0009-0009-0009-0009-000000000009");
+    private static readonly Guid Product10Id = Guid.Parse("bbbb000a-000a-000a-000a-00000000000a");
+    private static readonly Guid Product11Id = Guid.Parse("bbbb000b-000b-000b-000b-00000000000b");
+    private static readonly Guid Product12Id = Guid.Parse("bbbb000c-000c-000c-000c-00000000000c");
+
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         await SeedRolesAsync(context);
         await SeedUsersAsync(context);
         await SeedSupermarketsAsync(context);
         await SeedMarketStaffAsync(context);  // Liên kết SupplierStaff với Supermarket
+        await SeedUnitsAsync(context);        // Seed đơn vị tính
         await SeedProductsAsync(context);
+        await SeedProductLotsAsync(context);  // Seed lô hàng
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -385,6 +413,87 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Seed Units - Đơn vị tính cho sản phẩm
+    /// </summary>
+    private static async Task SeedUnitsAsync(ApplicationDbContext context)
+    {
+        if (await context.Units.AnyAsync())
+            return;
+
+        var units = new List<Unit>
+        {
+            // Weight units - Đơn vị khối lượng
+            new()
+            {
+                UnitId = UnitKgId,
+                Name = "Kg",
+                Type = "Weight"
+            },
+            new()
+            {
+                UnitId = UnitGramId,
+                Name = "Gram",
+                Type = "Weight"
+            },
+
+            // Volume units - Đơn vị thể tích
+            new()
+            {
+                UnitId = UnitLiterId,
+                Name = "Lít",
+                Type = "Volume"
+            },
+            new()
+            {
+                UnitId = UnitMlId,
+                Name = "ml",
+                Type = "Volume"
+            },
+
+            // Count units - Đơn vị đếm
+            new()
+            {
+                UnitId = UnitBoxId,
+                Name = "Hộp",
+                Type = "Count"
+            },
+            new()
+            {
+                UnitId = UnitBottleId,
+                Name = "Chai",
+                Type = "Count"
+            },
+            new()
+            {
+                UnitId = UnitPackId,
+                Name = "Gói",
+                Type = "Count"
+            },
+            new()
+            {
+                UnitId = UnitPieceId,
+                Name = "Cái",
+                Type = "Count"
+            },
+            new()
+            {
+                UnitId = UnitCanId,
+                Name = "Lon",
+                Type = "Count"
+            },
+            new()
+            {
+                UnitId = UnitBagId,
+                Name = "Túi",
+                Type = "Count"
+            }
+        };
+
+        await context.Units.AddRangeAsync(units);
+        await context.SaveChangesAsync();
+    }
+
     private static async Task SeedProductsAsync(ApplicationDbContext context)
     {
         if (await context.Products.AnyAsync())
@@ -395,67 +504,105 @@ public static class DataSeeder
             // Dairy Products - CoopMart
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product1Id,
                 SupermarketId = SupermarketCoopMartId,
                 Name = "Sữa tươi Vinamilk 1L",
                 Brand = "Vinamilk",
                 Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673111119",
                 IsFreshFood = true,
+                WeightType = 1, // Fixed - Định lượng cố định
+                // Thông tin chi tiết
+                Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất",
+                Origin = "Việt Nam",
+                Weight = "1 Lít",
+                Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3",
+                NutritionFactsJson = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""",
+                UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.",
+                StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.",
+                SafetyWarning = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.",
+                Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
+                Distributor = "Vinamilk",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
             },
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product2Id,
                 SupermarketId = SupermarketCoopMartId,
                 Name = "Sữa chua Vinamilk có đường",
                 Brand = "Vinamilk",
                 Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673222226",
                 IsFreshFood = true,
+                WeightType = 1, // Fixed
+                Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng",
+                Origin = "Việt Nam",
+                Weight = "100g x 4 hộp",
+                Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus",
+                NutritionFactsJson = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""",
+                UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.",
+                StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.",
+                SafetyWarning = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.",
+                Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
+                Distributor = "Vinamilk",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
             },
-            // Meat - CoopMart
+            // Meat - CoopMart (Bán theo cân)
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product3Id,
                 SupermarketId = SupermarketCoopMartId,
                 Name = "Thịt heo ba chỉ",
                 Brand = "Meat Deli",
                 Category = "Thịt & Hải sản",
                 Barcode = "8934673333333",
                 IsFreshFood = true,
+                WeightType = 2, // Variable - Bán theo cân
+                DefaultPricePerKg = 150000m, // 150,000 VND/kg
+                Description = "Thịt heo ba chỉ tươi ngon từ trang trại",
+                Origin = "Việt Nam",
+                Weight = "Đang cập nhật",
+                Ingredients = "Thịt heo tươi 100%",
+                UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.",
+                StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.",
+                SafetyWarning = "Nấu chín kỹ trước khi ăn.",
+                Manufacturer = "Công ty TNHH Meat Deli",
+                Distributor = "Meat Deli",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
             },
-            // Vegetables - BigC
+            // Vegetables - BigC (Bán theo cân)
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product4Id,
                 SupermarketId = SupermarketBigCId,
-                Name = "Rau cải xanh hữu cơ 500g",
+                Name = "Rau cải xanh hữu cơ",
                 Brand = "Dalat Garden",
                 Category = "Rau củ quả",
                 Barcode = "8934673444440",
                 IsFreshFood = true,
+                WeightType = 2, // Variable - Bán theo cân
+                DefaultPricePerKg = 35000m, // 35,000 VND/kg
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
             },
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product5Id,
                 SupermarketId = SupermarketBigCId,
-                Name = "Cà chua Đà Lạt 1kg",
+                Name = "Cà chua Đà Lạt",
                 Brand = "Dalat Garden",
                 Category = "Rau củ quả",
                 Barcode = "8934673555557",
                 IsFreshFood = true,
+                WeightType = 2, // Variable - Bán theo cân
+                DefaultPricePerKg = 25000m, // 25,000 VND/kg
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -463,13 +610,16 @@ public static class DataSeeder
             // Bakery - BigC
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product6Id,
                 SupermarketId = SupermarketBigCId,
                 Name = "Bánh mì sandwich Kinh Đô",
                 Brand = "Kinh Đô",
                 Category = "Bánh & Đồ nướng",
                 Barcode = "8934673666664",
                 IsFreshFood = true,
+                WeightType = 1, // Fixed
+                Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản",
+                NutritionFactsJson = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -477,13 +627,16 @@ public static class DataSeeder
             // Beverages - VinMart
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product7Id,
                 SupermarketId = SupermarketVinMartId,
                 Name = "Nước cam ép Tropicana 1L",
                 Brand = "Tropicana",
                 Category = "Đồ uống",
                 Barcode = "8934673777771",
                 IsFreshFood = true,
+                WeightType = 1, // Fixed
+                Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C",
+                NutritionFactsJson = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -491,13 +644,16 @@ public static class DataSeeder
             // Snacks - VinMart (Non-fresh)
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product8Id,
                 SupermarketId = SupermarketVinMartId,
                 Name = "Bánh quy Oreo 264g",
                 Brand = "Oreo",
                 Category = "Bánh kẹo",
                 Barcode = "8934673888888",
                 IsFreshFood = false,
+                WeightType = 1, // Fixed
+                Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani",
+                NutritionFactsJson = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -505,27 +661,66 @@ public static class DataSeeder
             // Instant Noodles - VinMart (Non-fresh)
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product9Id,
                 SupermarketId = SupermarketVinMartId,
                 Name = "Mì Hảo Hảo tôm chua cay",
                 Brand = "Acecook",
                 Category = "Thực phẩm khô",
                 Barcode = "8934673999995",
                 IsFreshFood = false,
+                WeightType = 1, // Fixed
+                Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị",
+                NutritionFactsJson = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
             },
-            // Seafood - CoopMart
+            // Seafood - CoopMart (Bán theo cân)
             new()
             {
-                ProductId = Guid.NewGuid(),
+                ProductId = Product10Id,
                 SupermarketId = SupermarketCoopMartId,
-                Name = "Cá hồi phi lê đông lạnh 500g",
+                Name = "Cá hồi phi lê đông lạnh",
                 Brand = "Seafood King",
                 Category = "Thịt & Hải sản",
                 Barcode = "8934673101010",
                 IsFreshFood = true,
+                WeightType = 2, // Variable - Bán theo cân
+                DefaultPricePerKg = 450000m, // 450,000 VND/kg
+                CreatedBy = AdminUserId.ToString(),
+                CreatedAt = DateTime.UtcNow,
+                Status = ProductState.Verified.ToString()
+            },
+            // Đồ hộp - CoopMart
+            new()
+            {
+                ProductId = Product11Id,
+                SupermarketId = SupermarketCoopMartId,
+                Name = "Cá ngừ đóng hộp Vissan 170g",
+                Brand = "Vissan",
+                Category = "Đồ hộp",
+                Barcode = "8934673121212",
+                IsFreshFood = false,
+                WeightType = 1, // Fixed
+                Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt",
+                NutritionFactsJson = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""",
+                CreatedBy = AdminUserId.ToString(),
+                CreatedAt = DateTime.UtcNow,
+                Status = ProductState.Verified.ToString()
+            },
+            // Đồ hộp - BigC
+            new()
+            {
+                ProductId = Product12Id,
+                SupermarketId = SupermarketBigCId,
+                Name = "Đậu đỏ hầm đường lon 380g",
+                Brand = "Nếp Mới",
+                Category = "Đồ hộp",
+                Barcode = "8934673131313",
+                IsFreshFood = false,
+                WeightType = 1, // Fixed
+                Ingredients = "Đậu đỏ 50%, đường, nước, muối",
+                NutritionFactsJson = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -535,5 +730,319 @@ public static class DataSeeder
         await context.Products.AddRangeAsync(products);
         await context.SaveChangesAsync();
     }
-}
 
+    /// <summary>
+    /// Seed ProductLots - Lô hàng với các mức hạn sử dụng khác nhau
+    /// </summary>
+    private static async Task SeedProductLotsAsync(ApplicationDbContext context)
+    {
+        if (await context.ProductLots.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+
+        var productLots = new List<ProductLot>
+        {
+            // === COOPMART LOTS ===
+            // Sữa tươi Vinamilk - Hết hạn trong ngày (Today)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product1Id,
+                UnitId = UnitBottleId, // Chai
+                ExpiryDate = now.AddHours(8), // Còn 8 giờ
+                ManufactureDate = now.AddDays(-7),
+                Quantity = 50,
+                Weight = 50, // 50 chai * 1L
+                OriginalUnitPrice = 32000m,
+                SuggestedUnitPrice = 22000m, // Giảm mạnh vì sắp hết hạn
+                FinalUnitPrice = 24000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Sữa tươi Vinamilk - Sắp hết hạn (ExpiringSoon - 1-2 ngày)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product1Id,
+                UnitId = UnitBottleId,
+                ExpiryDate = now.AddDays(2),
+                ManufactureDate = now.AddDays(-5),
+                Quantity = 100,
+                Weight = 100,
+                OriginalUnitPrice = 32000m,
+                SuggestedUnitPrice = 26000m,
+                FinalUnitPrice = 27000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Sữa chua - Còn ngắn hạn (ShortTerm - 3-7 ngày)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product2Id,
+                UnitId = UnitBoxId, // Hộp
+                ExpiryDate = now.AddDays(5),
+                ManufactureDate = now.AddDays(-10),
+                Quantity = 200,
+                Weight = 40, // 200 hộp * 200g = 40kg
+                OriginalUnitPrice = 8000m,
+                SuggestedUnitPrice = 6500m,
+                FinalUnitPrice = 6800m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Thịt heo ba chỉ - Hết hạn trong ngày (bán theo cân)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product3Id,
+                UnitId = UnitKgId, // Kg
+                ExpiryDate = now.AddHours(12),
+                ManufactureDate = now.AddDays(-2),
+                Quantity = 1, // 1 lot
+                Weight = 15.5m, // 15.5 kg
+                OriginalUnitPrice = 150000m, // 150k/kg
+                SuggestedUnitPrice = 95000m, // Giảm mạnh
+                FinalUnitPrice = 99000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Cá hồi - Sắp hết hạn (bán theo cân)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product10Id,
+                UnitId = UnitKgId,
+                ExpiryDate = now.AddDays(1),
+                ManufactureDate = now.AddDays(-3),
+                Quantity = 1,
+                Weight = 8.2m, // 8.2 kg
+                OriginalUnitPrice = 450000m, // 450k/kg
+                SuggestedUnitPrice = 320000m,
+                FinalUnitPrice = 330000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+
+            // === BIGC LOTS ===
+            // Rau cải xanh - Hết hạn trong ngày (bán theo cân)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product4Id,
+                UnitId = UnitKgId,
+                ExpiryDate = now.AddHours(6),
+                ManufactureDate = now.AddDays(-1),
+                Quantity = 1,
+                Weight = 25m, // 25 kg
+                OriginalUnitPrice = 35000m,
+                SuggestedUnitPrice = 15000m, // Giảm mạnh
+                FinalUnitPrice = 18000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Cà chua - Còn ngắn hạn (bán theo cân)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product5Id,
+                UnitId = UnitKgId,
+                ExpiryDate = now.AddDays(4),
+                ManufactureDate = now.AddDays(-2),
+                Quantity = 1,
+                Weight = 30m, // 30 kg
+                OriginalUnitPrice = 25000m,
+                SuggestedUnitPrice = 18000m,
+                FinalUnitPrice = 19000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Bánh mì - Hết hạn trong ngày
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product6Id,
+                UnitId = UnitPackId, // Gói
+                ExpiryDate = now.AddHours(10),
+                ManufactureDate = now.AddDays(-1),
+                Quantity = 80,
+                Weight = 40, // 80 gói * 500g
+                OriginalUnitPrice = 25000m,
+                SuggestedUnitPrice = 12000m,
+                FinalUnitPrice = 15000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+
+            // === VINMART LOTS ===
+            // Nước cam - Còn dài hạn (LongTerm - 8+ ngày)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product7Id,
+                UnitId = UnitBottleId,
+                ExpiryDate = now.AddDays(15),
+                ManufactureDate = now.AddDays(-5),
+                Quantity = 150,
+                Weight = 150, // 150 chai * 1L
+                OriginalUnitPrice = 45000m,
+                SuggestedUnitPrice = 40000m,
+                FinalUnitPrice = 42000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Bánh quy Oreo - Còn dài hạn (non-fresh)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product8Id,
+                UnitId = UnitBoxId,
+                ExpiryDate = now.AddDays(30),
+                ManufactureDate = now.AddDays(-60),
+                Quantity = 200,
+                Weight = 53, // 200 hộp * 264g
+                OriginalUnitPrice = 35000m,
+                SuggestedUnitPrice = 32000m,
+                FinalUnitPrice = 33000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Mì Hảo Hảo - Còn dài hạn (non-fresh)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product9Id,
+                UnitId = UnitPackId,
+                ExpiryDate = now.AddDays(60),
+                ManufactureDate = now.AddDays(-30),
+                Quantity = 500,
+                Weight = 37.5m, // 500 gói * 75g
+                OriginalUnitPrice = 5500m,
+                SuggestedUnitPrice = 5000m,
+                FinalUnitPrice = 5200m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Nước cam - Sắp hết hạn
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product7Id,
+                UnitId = UnitBottleId,
+                ExpiryDate = now.AddDays(2),
+                ManufactureDate = now.AddDays(-18),
+                Quantity = 30,
+                Weight = 30,
+                OriginalUnitPrice = 45000m,
+                SuggestedUnitPrice = 28000m,
+                FinalUnitPrice = 30000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+
+            // === EXPIRED LOTS (để test filter Expired) ===
+            // Sữa chua đã hết hạn
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product2Id,
+                UnitId = UnitBoxId,
+                ExpiryDate = now.AddDays(-2), // Đã hết hạn 2 ngày
+                ManufactureDate = now.AddDays(-17),
+                Quantity = 50,
+                Weight = 10,
+                OriginalUnitPrice = 8000m,
+                SuggestedUnitPrice = 0m,
+                FinalUnitPrice = 0m,
+                Status = "Expired",
+                CreatedAt = now.AddDays(-10)
+            },
+            // Rau cải đã hết hạn
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product4Id,
+                UnitId = UnitKgId,
+                ExpiryDate = now.AddDays(-1), // Đã hết hạn 1 ngày
+                ManufactureDate = now.AddDays(-3),
+                Quantity = 1,
+                Weight = 10m,
+                OriginalUnitPrice = 35000m,
+                SuggestedUnitPrice = 0m,
+                FinalUnitPrice = 0m,
+                Status = "Expired",
+                CreatedAt = now.AddDays(-3)
+            },
+
+            // === ĐỒ HỘP LOTS ===
+            // Cá ngừ đóng hộp - Còn dài hạn (đồ hộp thường có hạn dài)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product11Id,
+                UnitId = UnitCanId, // Lon
+                ExpiryDate = now.AddDays(180), // 6 tháng
+                ManufactureDate = now.AddDays(-90),
+                Quantity = 100,
+                Weight = 17, // 100 lon * 170g
+                OriginalUnitPrice = 28000m,
+                SuggestedUnitPrice = 26000m,
+                FinalUnitPrice = 27000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Cá ngừ - Sắp hết hạn (lô cũ)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product11Id,
+                UnitId = UnitCanId,
+                ExpiryDate = now.AddDays(3),
+                ManufactureDate = now.AddDays(-360),
+                Quantity = 30,
+                Weight = 5.1m,
+                OriginalUnitPrice = 28000m,
+                SuggestedUnitPrice = 18000m,
+                FinalUnitPrice = 20000m,
+                Status = "Active",
+                CreatedAt = now.AddDays(-30)
+            },
+            // Đậu đỏ hầm đường - Còn dài hạn
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product12Id,
+                UnitId = UnitCanId,
+                ExpiryDate = now.AddDays(365), // 1 năm
+                ManufactureDate = now.AddDays(-30),
+                Quantity = 80,
+                Weight = 30.4m, // 80 lon * 380g
+                OriginalUnitPrice = 22000m,
+                SuggestedUnitPrice = 20000m,
+                FinalUnitPrice = 21000m,
+                Status = "Active",
+                CreatedAt = now
+            },
+            // Đậu đỏ - Còn ngắn hạn (lô cũ sắp hết)
+            new()
+            {
+                LotId = Guid.NewGuid(),
+                ProductId = Product12Id,
+                UnitId = UnitCanId,
+                ExpiryDate = now.AddDays(5),
+                ManufactureDate = now.AddDays(-360),
+                Quantity = 20,
+                Weight = 7.6m,
+                OriginalUnitPrice = 22000m,
+                SuggestedUnitPrice = 15000m,
+                FinalUnitPrice = 16000m,
+                Status = "Active",
+                CreatedAt = now.AddDays(-60)
+            }
+        };
+
+        await context.ProductLots.AddRangeAsync(productLots);
+        await context.SaveChangesAsync();
+    }
+}

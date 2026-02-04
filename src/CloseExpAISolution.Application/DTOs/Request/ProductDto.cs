@@ -189,6 +189,18 @@ public class ProductResponseDto
     /// Danh sách tất cả ảnh sản phẩm
     /// </summary>
     public ICollection<ProductImageDto> ProductImages { get; set; } = new List<ProductImageDto>();
+
+    // Nutrition info
+    /// <summary>
+    /// Thành phần nguyên liệu (VD: "Sữa tươi, đường, vitamin D3...")
+    /// </summary>
+    public string? Ingredients { get; set; }
+
+    /// <summary>
+    /// Thông tin dinh dưỡng (parsed từ JSON)
+    /// VD: {"calories": "120 kcal", "protein": "6g", "fat": "4g"}
+    /// </summary>
+    public Dictionary<string, string>? NutritionFacts { get; set; }
 }
 
 /// <summary>

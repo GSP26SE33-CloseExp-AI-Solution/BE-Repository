@@ -76,6 +76,17 @@ public class ProductLotDetailDto
     /// </summary>
     public string ExpiryStatusText { get; set; } = string.Empty;
 
+    // Thông tin thành phần & dinh dưỡng
+    /// <summary>
+    /// Thành phần nguyên liệu của sản phẩm
+    /// </summary>
+    public string? Ingredients { get; set; }
+
+    /// <summary>
+    /// Thông tin dinh dưỡng (parsed từ JSON)
+    /// </summary>
+    public Dictionary<string, string>? NutritionFacts { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }
 
