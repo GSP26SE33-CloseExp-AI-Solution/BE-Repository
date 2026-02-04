@@ -34,14 +34,14 @@ public interface IProductWorkflowService
     #region Step 2: Verify Product
     
     /// <summary>
-    /// Verify a draft product and set original price.
-    /// This triggers AI pricing calculation.
+    /// Verify a draft product - confirm/correct OCR extracted info.
+    /// Changes status from Draft to Verified.
     /// </summary>
     /// <param name="productId">Product ID</param>
-    /// <param name="request">Verification data with original price</param>
+    /// <param name="request">Verification data with corrections</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Pricing suggestion for the verified product</returns>
-    Task<PricingSuggestionResponseDto> VerifyProductAsync(
+    /// <returns>Verified product info</returns>
+    Task<ProductResponseDto> VerifyProductAsync(
         Guid productId,
         VerifyProductRequestDto request,
         CancellationToken cancellationToken = default);
@@ -52,12 +52,15 @@ public interface IProductWorkflowService
     
     /// <summary>
     /// Get AI pricing suggestion for a verified product.
+    /// Sets the original price and returns pricing recommendation.
     /// </summary>
     /// <param name="productId">Product ID</param>
+    /// <param name="request">Request with original price</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Pricing suggestion with market comparison</returns>
     Task<PricingSuggestionResponseDto> GetPricingSuggestionAsync(
         Guid productId,
+        GetPricingSuggestionRequestDto request,
         CancellationToken cancellationToken = default);
     
     #endregion

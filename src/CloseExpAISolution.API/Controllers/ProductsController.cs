@@ -512,6 +512,11 @@ public class ProductsController : ControllerBase
                 new { id = result.ProductId },
                 ApiResponse<ProductResponseDto>.SuccessResponse(result, "Product draft created successfully"));
         }
+        catch (ArgumentException ex) when (ex.ParamName == "supermarketId")
+        {
+            _logger.LogWarning("Supermarket not found: {SupermarketId}", supermarketId);
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading and extracting product");
@@ -520,14 +525,13 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Verify a draft product and set original price.
+    /// Verify a draft product - confirm/correct OCR extracted info.
     /// - Allows staff to correct OCR-extracted info if needed
-    /// - Sets the original price (required for pricing calculation)
     /// - Changes status from DRAFT to VERIFIED
-    /// - Returns AI pricing suggestion
+    /// - Does NOT calculate pricing (use pricing-suggestion endpoint next)
     /// </summary>
     [HttpPost("{id:guid}/verify")]
-    public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> Verify(
+    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Verify(
         Guid id,
         [FromBody] VerifyProductRequestDto request,
         CancellationToken cancellationToken)
@@ -535,9 +539,9 @@ public class ProductsController : ControllerBase
         try
         {
             var result = await _workflowService.VerifyProductAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(
+            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
                 result,
-                "Product verified successfully. Please review the suggested price."));
+                "Product verified successfully. Use pricing-suggestion endpoint to get price recommendation."));
         }
         catch (KeyNotFoundException)
         {
@@ -556,17 +560,22 @@ public class ProductsController : ControllerBase
 
     /// <summary>
     /// Get AI pricing suggestion for a verified product.
-    /// Returns recommended price based on expiry date, category, market prices, etc.
+    /// - Sets the original price (required for pricing calculation)
+    /// - Returns recommended price based on expiry date, category, market prices, etc.
+    /// - Saves suggested price to product
     /// </summary>
-    [HttpGet("{id:guid}/pricing-suggestion")]
+    [HttpPost("{id:guid}/pricing-suggestion")]
     public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> GetPricingSuggestion(
         Guid id,
+        [FromBody] GetPricingSuggestionRequestDto request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _workflowService.GetPricingSuggestionAsync(id, cancellationToken);
-            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(result));
+            var result = await _workflowService.GetPricingSuggestionAsync(id, request, cancellationToken);
+            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(
+                result,
+                "Pricing suggestion calculated. Use confirm-price endpoint to accept or modify."));
         }
         catch (KeyNotFoundException)
         {
