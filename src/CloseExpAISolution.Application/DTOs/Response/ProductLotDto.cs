@@ -1,4 +1,5 @@
 using CloseExpAISolution.Domain.Enums;
+using CloseExpAISolution.Application.DTOs.Request;
 
 namespace CloseExpAISolution.Application.DTOs.Response;
 
@@ -33,11 +34,28 @@ public class ProductLotDetailDto
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
     public ProductWeightType WeightType { get; set; }
+    public string WeightTypeName { get; set; } = string.Empty;
     public decimal? DefaultPricePerKg { get; set; }
 
     // Thông tin siêu thị
     public Guid SupermarketId { get; set; }
     public string SupermarketName { get; set; } = string.Empty;
+
+    // Thông tin ảnh sản phẩm
+    /// <summary>
+    /// Ảnh đại diện chính của sản phẩm
+    /// </summary>
+    public string? MainImageUrl { get; set; }
+
+    /// <summary>
+    /// Tổng số ảnh của sản phẩm
+    /// </summary>
+    public int TotalImages { get; set; }
+
+    /// <summary>
+    /// Danh sách tất cả ảnh sản phẩm
+    /// </summary>
+    public List<ProductImageDto> ProductImages { get; set; } = new();
 
     // Thông tin hạn sử dụng (tính toán)
     public ExpiryStatus ExpiryStatus { get; set; }

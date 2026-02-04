@@ -125,7 +125,9 @@ public class ProductService : IProductService
     {
         var query = _context.ProductLots
             .Include(pl => pl.Product)
-                .ThenInclude(p => p.Supermarket)
+                .ThenInclude(p => p!.Supermarket)
+            .Include(pl => pl.Product)
+                .ThenInclude(p => p!.ProductImages)
             .Include(pl => pl.Unit)
             .AsQueryable();
 
@@ -171,6 +173,18 @@ public class ProductService : IProductService
         // Map và tính toán expiry status
         var lotDtos = lots.Select(pl =>
         {
+            // Lấy danh sách ảnh và sắp xếp theo thời gian upload
+            var productImages = pl.Product?.ProductImages?
+                .OrderBy(img => img.UploadedAt)
+                .Select(img => new ProductImageDto
+                {
+                    ProductImageId = img.ProductImageId,
+                    ProductId = img.ProductId,
+                    ImageUrl = img.ImageUrl,
+                    UploadedAt = img.UploadedAt
+                })
+                .ToList() ?? new List<ProductImageDto>();
+
             var dto = new ProductLotDetailDto
             {
                 LotId = pl.LotId,
@@ -192,9 +206,14 @@ public class ProductService : IProductService
                 Barcode = pl.Product?.Barcode ?? "",
                 IsFreshFood = pl.Product?.IsFreshFood ?? false,
                 WeightType = (ProductWeightType)(pl.Product?.WeightType ?? 1),
+                WeightTypeName = GetWeightTypeName(pl.Product?.WeightType ?? 1),
                 DefaultPricePerKg = pl.Product?.DefaultPricePerKg,
                 SupermarketId = pl.Product?.SupermarketId ?? Guid.Empty,
                 SupermarketName = pl.Product?.Supermarket?.Name ?? "",
+                // Thông tin ảnh
+                MainImageUrl = productImages.FirstOrDefault()?.ImageUrl,
+                TotalImages = productImages.Count,
+                ProductImages = productImages,
                 CreatedAt = pl.CreatedAt
             };
 
@@ -304,6 +323,16 @@ public class ProductService : IProductService
         var productDtos = _mapper.Map<IEnumerable<ProductResponseDto>>(products);
 
         return (productDtos, totalCount);
+    }
+
+    private static string GetWeightTypeName(int weightType)
+    {
+        return weightType switch
+        {
+            1 => "Định lượng cố định",
+            2 => "Bán theo cân",
+            _ => "Định lượng cố định"
+        };
     }
 }
 
