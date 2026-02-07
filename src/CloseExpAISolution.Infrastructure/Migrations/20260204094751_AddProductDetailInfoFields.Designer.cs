@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Domain.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260204094751_AddProductDetailInfoFields")]
+    partial class AddProductDetailInfoFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -657,9 +660,6 @@ namespace CloseExpAISolution.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Country")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -845,9 +845,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("RemainingWeight")
-                        .HasColumnType("numeric");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -855,11 +852,11 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<decimal>("SuggestedUnitPrice")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TotalWeight")
-                        .HasColumnType("numeric");
-
                     b.Property<Guid>("UnitId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("Weight")
+                        .HasColumnType("numeric");
 
                     b.HasKey("LotId");
 
@@ -1324,17 +1321,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Pricing", b =>
-                {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.Product", "Product")
-                        .WithOne("Pricing")
-                        .HasForeignKey("CloseExpAISolution.Domain.Entities.Pricing", "ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.User", "CreatedByUser")
@@ -1446,8 +1432,6 @@ namespace CloseExpAISolution.Domain.Migrations
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
                 {
                     b.Navigation("AIVerificationLogs");
-
-                    b.Navigation("Pricing");
 
                     b.Navigation("ProductImages");
 

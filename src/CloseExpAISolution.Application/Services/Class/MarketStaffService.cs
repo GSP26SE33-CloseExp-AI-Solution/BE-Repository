@@ -105,5 +105,11 @@ public class MarketStaffService : IMarketStaffService
 
         await DeleteAsync(marketStaff, cancellationToken);
     }
+
+    public async Task<Guid?> GetSupermarketIdByUserIdAsync(Guid userId)
+    {
+        var marketStaff = await _unitOfWork.MarketStaffRepository.FirstOrDefaultAsync(ms => ms.UserId == userId);
+        return marketStaff?.SupermarketId;
+    }
 }
 

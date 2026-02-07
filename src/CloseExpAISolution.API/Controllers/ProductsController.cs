@@ -3,7 +3,9 @@ using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CloseExpAISolution.API.Controllers;
 
@@ -32,7 +34,7 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResult<ProductResponseDto>>>> GetAll(
-        [FromQuery] int pageNumber = 1, 
+        [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
         if (pageNumber < 1) pageNumber = 1;
@@ -65,11 +67,35 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
+    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm trong siêu thị)
+    /// </summary>
+    /// <remarks>
+    /// Trả về thông tin chi tiết bao gồm:
+    /// - Thông tin cơ bản: tên, mô tả, thương hiệu
+    /// - Thông tin sản phẩm: xuất xứ, khối lượng, thành phần nguyên liệu
+    /// - Hướng dẫn sử dụng, cách bảo quản
+    /// - Thông tin nhà sản xuất, nhà phân phối
+    /// - Thông tin dinh dưỡng (nutrition facts)
+    /// - Giá bán, giảm giá, trạng thái hạn sử dụng
+    /// </remarks>
+    [HttpGet("{id:guid}/details")]
+    [ProducesResponseType(typeof(ApiResponse<ProductDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ProductDetailDto>>> GetProductDetail(Guid id)
+    {
+        var detail = await _services.ProductService.GetProductDetailAsync(id);
+        if (detail == null)
+            return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
+
+        return Ok(ApiResponse<ProductDetailDto>.SuccessResponse(detail, "Lấy thông tin chi tiết sản phẩm thành công"));
+    }
+
+    /// <summary>
     /// Create a product
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Create(
-        [FromBody] CreateProductRequestDto request, 
+        [FromBody] CreateProductRequestDto request,
         CancellationToken cancellationToken)
     {
         var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
@@ -126,8 +152,8 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(
-        Guid id, 
-        [FromBody] UpdateProductRequestDto request, 
+        Guid id,
+        [FromBody] UpdateProductRequestDto request,
         CancellationToken cancellationToken)
     {
         try
@@ -156,6 +182,266 @@ public class ProductsController : ControllerBase
         {
             return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
         }
+    }
+
+    #endregion
+
+    #region Lookup APIs
+
+    /// <summary>
+    /// Lấy danh sách các phân loại hạn sử dụng
+    /// </summary>
+    /// <remarks>
+    /// Trả về danh sách các trạng thái hạn sử dụng để sử dụng cho dropdown/filter
+    /// 
+    /// | Value | Name | Mô tả |
+    /// |-------|------|-------|
+    /// | 1 | Today | Trong ngày (dưới 24 giờ) - đếm giờ |
+    /// | 2 | ExpiringSoon | Sắp hết hạn (1-2 ngày) |
+    /// | 3 | ShortTerm | Còn ngắn hạn (3-7 ngày) |
+    /// | 4 | LongTerm | Còn dài hạn (8+ ngày) |
+    /// | 5 | Expired | Đã hết hạn |
+    /// </remarks>
+    [HttpGet("expiry-statuses")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<object>>), StatusCodes.Status200OK)]
+    public ActionResult<ApiResponse<IEnumerable<object>>> GetExpiryStatuses()
+    {
+        var statuses = Enum.GetValues<ExpiryStatus>()
+            .Select(e => new
+            {
+                Value = (int)e,
+                Name = e.ToString(),
+                Description = e switch
+                {
+                    ExpiryStatus.Today => "Trong ngày (dưới 24 giờ)",
+                    ExpiryStatus.ExpiringSoon => "Sắp hết hạn (1-2 ngày)",
+                    ExpiryStatus.ShortTerm => "Còn ngắn hạn (3-7 ngày)",
+                    ExpiryStatus.LongTerm => "Còn dài hạn (8+ ngày)",
+                    ExpiryStatus.Expired => "Đã hết hạn",
+                    _ => ""
+                }
+            })
+            .ToList();
+
+        return Ok(ApiResponse<IEnumerable<object>>.SuccessResponse(statuses, "Danh sách phân loại hạn sử dụng"));
+    }
+
+    /// <summary>
+    /// Lấy danh sách các loại định lượng sản phẩm
+    /// </summary>
+    /// <remarks>
+    /// Trả về danh sách các loại định lượng để sử dụng cho dropdown/filter
+    /// 
+    /// | Value | Name | Mô tả |
+    /// |-------|------|-------|
+    /// | 1 | Fixed | Định lượng cố định (VD: chai 500ml, gói 200g) |
+    /// | 2 | Variable | Không cố định - bán theo cân (VD: rau củ quả, thịt cá) |
+    /// </remarks>
+    [HttpGet("weight-types")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<object>>), StatusCodes.Status200OK)]
+    public ActionResult<ApiResponse<IEnumerable<object>>> GetWeightTypes()
+    {
+        var types = Enum.GetValues<ProductWeightType>()
+            .Select(e => new
+            {
+                Value = (int)e,
+                Name = e.ToString(),
+                Description = e switch
+                {
+                    ProductWeightType.Fixed => "Định lượng cố định (VD: chai 500ml, gói 200g)",
+                    ProductWeightType.Variable => "Không cố định - bán theo cân (VD: rau củ quả, thịt cá)",
+                    _ => ""
+                }
+            })
+            .ToList();
+
+        return Ok(ApiResponse<IEnumerable<object>>.SuccessResponse(types, "Danh sách loại định lượng"));
+    }
+
+    #endregion
+
+    #region Product Lots by Supermarket
+
+    /// <summary>
+    /// Lấy danh sách ProductLot theo siêu thị với filter và phân loại hạn sử dụng
+    /// </summary>
+    /// <remarks>
+    /// API này dùng để hiển thị danh sách sản phẩm theo lô cho nhân viên siêu thị.
+    /// 
+    /// Các nhóm trạng thái hạn sử dụng:
+    /// - Today (1): Trong ngày (dưới 24 giờ) - đếm giờ
+    /// - ExpiringSoon (2): Sắp hết hạn (1-2 ngày)
+    /// - ShortTerm (3): Còn ngắn hạn (3-7 ngày)
+    /// - LongTerm (4): Còn dài hạn (8+ ngày)
+    /// - Expired (5): Đã hết hạn
+    /// 
+    /// Loại định lượng:
+    /// - Fixed (1): Định lượng cố định (VD: chai 500ml, gói 200g)
+    /// - Variable (2): Không cố định - bán theo cân (VD: rau củ quả, thịt cá)
+    /// 
+    /// Kết quả được sắp xếp theo thứ tự ưu tiên: Today → ExpiringSoon → ShortTerm → LongTerm → Expired (cuối cùng)
+    /// </remarks>
+    [HttpGet("lots/supermarket/{supermarketId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductLotDetailDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductLotDetailDto>>>> GetProductLotsBySupermarket(
+        Guid supermarketId,
+        [FromQuery] ExpiryStatus? expiryStatus = null,
+        [FromQuery] ProductWeightType? weightType = null,
+        [FromQuery] bool? isFreshFood = null,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? category = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var filter = new ProductLotFilterDto
+        {
+            SupermarketId = supermarketId,
+            ExpiryStatus = expiryStatus,
+            WeightType = weightType,
+            IsFreshFood = isFreshFood,
+            SearchTerm = searchTerm,
+            Category = category,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var (items, totalCount) = await _services.ProductService.GetProductLotsBySupermarketAsync(filter);
+
+        var result = new PaginatedResult<ProductLotDetailDto>
+        {
+            Items = items,
+            TotalResult = totalCount,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+
+        return Ok(ApiResponse<PaginatedResult<ProductLotDetailDto>>.SuccessResponse(
+            result,
+            $"Tìm thấy {totalCount} lô sản phẩm"));
+    }
+
+    /// <summary>
+    /// [Dành cho nhân viên siêu thị] Lấy danh sách ProductLot của siêu thị mà nhân viên đang làm việc
+    /// </summary>
+    /// <remarks>
+    /// API này tự động lấy supermarketId từ token của nhân viên siêu thị (SupplierStaff).
+    /// Chỉ nhân viên siêu thị (SupplierStaff) mới có thể sử dụng API này.
+    /// 
+    /// **Yêu cầu Authorization:** Bearer Token của SupplierStaff
+    /// 
+    /// Các nhóm trạng thái hạn sử dụng:
+    /// - Today (1): Trong ngày (dưới 24 giờ) - đếm giờ
+    /// - ExpiringSoon (2): Sắp hết hạn (1-2 ngày)
+    /// - ShortTerm (3): Còn ngắn hạn (3-7 ngày)
+    /// - LongTerm (4): Còn dài hạn (8+ ngày)
+    /// - Expired (5): Đã hết hạn
+    /// 
+    /// Kết quả được sắp xếp theo thứ tự ưu tiên: Today → ExpiringSoon → ShortTerm → LongTerm → Expired (cuối cùng)
+    /// </remarks>
+    [Authorize(Roles = "SupplierStaff")]
+    [HttpGet("my-supermarket/lots")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductLotDetailDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductLotDetailDto>>>> GetMySupplierProductLots(
+        [FromQuery] ExpiryStatus? expiryStatus = null,
+        [FromQuery] ProductWeightType? weightType = null,
+        [FromQuery] bool? isFreshFood = null,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? category = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        // Lấy UserId từ token
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
+        }
+
+        // Lấy SupermarketId từ MarketStaff
+        var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
+        if (supermarketId == null)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào"));
+        }
+
+        var filter = new ProductLotFilterDto
+        {
+            SupermarketId = supermarketId.Value,
+            ExpiryStatus = expiryStatus,
+            WeightType = weightType,
+            IsFreshFood = isFreshFood,
+            SearchTerm = searchTerm,
+            Category = category,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var (items, totalCount) = await _services.ProductService.GetProductLotsBySupermarketAsync(filter);
+
+        var result = new PaginatedResult<ProductLotDetailDto>
+        {
+            Items = items,
+            TotalResult = totalCount,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+
+        return Ok(ApiResponse<PaginatedResult<ProductLotDetailDto>>.SuccessResponse(
+            result,
+            $"Tìm thấy {totalCount} lô sản phẩm"));
+    }
+
+    /// <summary>
+    /// Lấy danh sách sản phẩm của siêu thị mà nhân viên đang làm việc
+    /// </summary>
+    /// <remarks>
+    /// API dành cho SupplierStaff (nhân viên siêu thị) để lấy danh sách sản phẩm của siêu thị họ đang làm việc.
+    /// </remarks>
+    [Authorize(Roles = "SupplierStaff")]
+    [HttpGet("my-supermarket")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductResponseDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductResponseDto>>>> GetMySupplierProducts(
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? category = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        // Lấy UserId từ token
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
+        }
+
+        // Lấy SupermarketId từ MarketStaff
+        var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
+        if (supermarketId == null)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào"));
+        }
+
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var (items, totalCount) = await _services.ProductService.GetProductsBySupermarketAsync(
+            supermarketId.Value, searchTerm, category, pageNumber, pageSize);
+
+        var result = new PaginatedResult<ProductResponseDto>
+        {
+            Items = items,
+            TotalResult = totalCount,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+
+        return Ok(ApiResponse<PaginatedResult<ProductResponseDto>>.SuccessResponse(
+            result,
+            $"Tìm thấy {totalCount} sản phẩm"));
     }
 
     #endregion
@@ -226,6 +512,11 @@ public class ProductsController : ControllerBase
                 new { id = result.ProductId },
                 ApiResponse<ProductResponseDto>.SuccessResponse(result, "Product draft created successfully"));
         }
+        catch (ArgumentException ex) when (ex.ParamName == "supermarketId")
+        {
+            _logger.LogWarning("Supermarket not found: {SupermarketId}", supermarketId);
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading and extracting product");
@@ -234,14 +525,13 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Verify a draft product and set original price.
+    /// Verify a draft product - confirm/correct OCR extracted info.
     /// - Allows staff to correct OCR-extracted info if needed
-    /// - Sets the original price (required for pricing calculation)
     /// - Changes status from DRAFT to VERIFIED
-    /// - Returns AI pricing suggestion
+    /// - Does NOT calculate pricing (use pricing-suggestion endpoint next)
     /// </summary>
     [HttpPost("{id:guid}/verify")]
-    public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> Verify(
+    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Verify(
         Guid id,
         [FromBody] VerifyProductRequestDto request,
         CancellationToken cancellationToken)
@@ -249,9 +539,9 @@ public class ProductsController : ControllerBase
         try
         {
             var result = await _workflowService.VerifyProductAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(
+            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
                 result,
-                "Product verified successfully. Please review the suggested price."));
+                "Product verified successfully. Use pricing-suggestion endpoint to get price recommendation."));
         }
         catch (KeyNotFoundException)
         {
@@ -270,17 +560,22 @@ public class ProductsController : ControllerBase
 
     /// <summary>
     /// Get AI pricing suggestion for a verified product.
-    /// Returns recommended price based on expiry date, category, market prices, etc.
+    /// - Sets the original price (required for pricing calculation)
+    /// - Returns recommended price based on expiry date, category, market prices, etc.
+    /// - Saves suggested price to product
     /// </summary>
-    [HttpGet("{id:guid}/pricing-suggestion")]
+    [HttpPost("{id:guid}/pricing-suggestion")]
     public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> GetPricingSuggestion(
         Guid id,
+        [FromBody] GetPricingSuggestionRequestDto request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _workflowService.GetPricingSuggestionAsync(id, cancellationToken);
-            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(result));
+            var result = await _workflowService.GetPricingSuggestionAsync(id, request, cancellationToken);
+            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(
+                result,
+                "Pricing suggestion calculated. Use confirm-price endpoint to accept or modify."));
         }
         catch (KeyNotFoundException)
         {

@@ -18,11 +18,16 @@ public interface IMarketStaffService
     Task DeleteRangeAsync(IEnumerable<MarketStaff> entities, CancellationToken cancellationToken = default);
     Task<int> CountAsync(Expression<Func<MarketStaff, bool>>? predicate = null);
     Task<bool> ExistsAsync(Expression<Func<MarketStaff, bool>> predicate);
-    
+
     Task<MarketStaffResponseDto?> GetByIdWithDtoAsync(Guid id);
     Task<IEnumerable<MarketStaffResponseDto>> GetAllWithDtoAsync();
     Task<MarketStaffResponseDto> CreateMarketStaffAsync(CreateMarketStaffRequestDto request, CancellationToken cancellationToken = default);
     Task UpdateMarketStaffAsync(Guid id, UpdateMarketStaffRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteMarketStaffAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy SupermarketId từ UserId (thông qua bảng MarketStaff)
+    /// </summary>
+    Task<Guid?> GetSupermarketIdByUserIdAsync(Guid userId);
 }
 
