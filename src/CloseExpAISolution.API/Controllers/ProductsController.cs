@@ -67,6 +67,30 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
+    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm trong siêu thị)
+    /// </summary>
+    /// <remarks>
+    /// Trả về thông tin chi tiết bao gồm:
+    /// - Thông tin cơ bản: tên, mô tả, thương hiệu
+    /// - Thông tin sản phẩm: xuất xứ, khối lượng, thành phần nguyên liệu
+    /// - Hướng dẫn sử dụng, cách bảo quản
+    /// - Thông tin nhà sản xuất, nhà phân phối
+    /// - Thông tin dinh dưỡng (nutrition facts)
+    /// - Giá bán, giảm giá, trạng thái hạn sử dụng
+    /// </remarks>
+    [HttpGet("{id:guid}/details")]
+    [ProducesResponseType(typeof(ApiResponse<ProductDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ProductDetailDto>>> GetProductDetail(Guid id)
+    {
+        var detail = await _services.ProductService.GetProductDetailAsync(id);
+        if (detail == null)
+            return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
+
+        return Ok(ApiResponse<ProductDetailDto>.SuccessResponse(detail, "Lấy thông tin chi tiết sản phẩm thành công"));
+    }
+
+    /// <summary>
     /// Create a product
     /// </summary>
     [HttpPost]

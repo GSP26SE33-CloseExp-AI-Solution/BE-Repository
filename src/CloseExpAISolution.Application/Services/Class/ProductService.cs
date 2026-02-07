@@ -171,69 +171,22 @@ public class ProductService : IProductService
         var lots = await query.ToListAsync();
         var now = DateTime.UtcNow;
 
-        // Map và tính toán expiry status
-        var lotDtos = lots.Select(pl =>
+        // Map using AutoMapper
+        var lotDtos = _mapper.Map<List<ProductLotDetailDto>>(lots);
+
+        // Calculate expiry status for each lot
+        foreach (var dto in lotDtos)
         {
-            // Lấy danh sách ảnh và sắp xếp theo thời gian upload
-            var productImages = pl.Product?.ProductImages?
-                .OrderBy(img => img.UploadedAt)
-                .Select(img => new ProductImageDto
-                {
-                    ProductImageId = img.ProductImageId,
-                    ProductId = img.ProductId,
-                    ImageUrl = img.ImageUrl,
-                    UploadedAt = img.UploadedAt
-                })
-                .ToList() ?? new List<ProductImageDto>();
-
-            var dto = new ProductLotDetailDto
-            {
-                LotId = pl.LotId,
-                ProductId = pl.ProductId,
-                ExpiryDate = pl.ExpiryDate,
-                ManufactureDate = pl.ManufactureDate,
-                Quantity = pl.Quantity,
-                Weight = pl.Weight,
-                Status = pl.Status,
-                UnitId = pl.UnitId,
-                UnitName = pl.Unit?.Name ?? "",
-                UnitType = pl.Unit?.Type ?? "",
-                OriginalUnitPrice = pl.OriginalUnitPrice,
-                SuggestedUnitPrice = pl.SuggestedUnitPrice,
-                FinalUnitPrice = pl.FinalUnitPrice,
-                ProductName = pl.Product?.Name ?? "",
-                Brand = pl.Product?.Brand ?? "",
-                Category = pl.Product?.Category ?? "",
-                Barcode = pl.Product?.Barcode ?? "",
-                IsFreshFood = pl.Product?.IsFreshFood ?? false,
-                WeightType = (ProductWeightType)(pl.Product?.WeightType ?? 1),
-                WeightTypeName = GetWeightTypeName(pl.Product?.WeightType ?? 1),
-                DefaultPricePerKg = pl.Product?.DefaultPricePerKg,
-                SupermarketId = pl.Product?.SupermarketId ?? Guid.Empty,
-                SupermarketName = pl.Product?.Supermarket?.Name ?? "",
-                // Thông tin ảnh
-                MainImageUrl = productImages.FirstOrDefault()?.ImageUrl,
-                TotalImages = productImages.Count,
-                ProductImages = productImages,
-                // Thông tin thành phần & dinh dưỡng
-                Ingredients = pl.Product?.Ingredients,
-                NutritionFacts = ParseNutritionFacts(pl.Product?.NutritionFactsJson),
-                CreatedAt = pl.CreatedAt
-            };
-
-            // Tính toán trạng thái hạn sử dụng
-            var timeRemaining = pl.ExpiryDate - now;
+            var timeRemaining = dto.ExpiryDate - now;
             dto.DaysRemaining = (int)Math.Floor(timeRemaining.TotalDays);
 
             if (timeRemaining.TotalDays < 0)
             {
-                // Đã hết hạn
                 dto.ExpiryStatus = ExpiryStatus.Expired;
                 dto.ExpiryStatusText = $"Quá hạn {Math.Abs(dto.DaysRemaining)} ngày";
             }
             else if (timeRemaining.TotalDays < 1)
             {
-                // Trong ngày - đếm giờ
                 dto.ExpiryStatus = ExpiryStatus.Today;
                 dto.HoursRemaining = (int)Math.Floor(timeRemaining.TotalHours);
                 dto.ExpiryStatusText = dto.HoursRemaining > 0
@@ -242,25 +195,20 @@ public class ProductService : IProductService
             }
             else if (timeRemaining.TotalDays <= 2)
             {
-                // Sắp hết hạn (1-2 ngày)
                 dto.ExpiryStatus = ExpiryStatus.ExpiringSoon;
                 dto.ExpiryStatusText = $"Sắp hết hạn ({dto.DaysRemaining} ngày)";
             }
             else if (timeRemaining.TotalDays <= 7)
             {
-                // Còn ngắn hạn (3-7 ngày)
                 dto.ExpiryStatus = ExpiryStatus.ShortTerm;
                 dto.ExpiryStatusText = $"Còn ngắn hạn ({dto.DaysRemaining} ngày)";
             }
             else
             {
-                // Còn dài hạn (8+ ngày)
                 dto.ExpiryStatus = ExpiryStatus.LongTerm;
                 dto.ExpiryStatusText = $"Còn dài hạn ({dto.DaysRemaining} ngày)";
             }
-
-            return dto;
-        }).ToList();
+        }
 
         // Filter theo ExpiryStatus (sau khi tính toán)
         if (filter.ExpiryStatus.HasValue)
@@ -329,33 +277,75 @@ public class ProductService : IProductService
         return (productDtos, totalCount);
     }
 
-    private static string GetWeightTypeName(int weightType)
-    {
-        return weightType switch
-        {
-            1 => "Định lượng cố định",
-            2 => "Bán theo cân",
-            _ => "Định lượng cố định"
-        };
-    }
-
     /// <summary>
-    /// Parse chuỗi JSON thành Dictionary chứa thông tin dinh dưỡng
+    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm)
     /// </summary>
-    private static Dictionary<string, string>? ParseNutritionFacts(string? nutritionFactsJson)
+    public async Task<ProductDetailDto?> GetProductDetailAsync(Guid productId)
     {
-        if (string.IsNullOrEmpty(nutritionFactsJson))
+        var product = await _context.Products
+            .Include(p => p.ProductImages)
+            .Include(p => p.Supermarket)
+            .FirstOrDefaultAsync(p => p.ProductId == productId);
+
+        if (product == null)
             return null;
 
-        try
+        // Map using AutoMapper
+        var detail = _mapper.Map<ProductDetailDto>(product);
+
+        // Tính số lượng tồn kho từ các lots
+        detail.Quantity = await _context.ProductLots
+            .Where(pl => pl.ProductId == productId)
+            .SumAsync(pl => pl.Quantity);
+
+        // Lấy unit name từ lot đầu tiên (nếu có)
+        var firstLot = await _context.ProductLots
+            .Include(pl => pl.Unit)
+            .Where(pl => pl.ProductId == productId)
+            .FirstOrDefaultAsync();
+
+        detail.UnitName = firstLot?.Unit?.Name ?? "Đang cập nhật";
+
+        // Tính discount percent
+        if (product.OriginalPrice > 0 && product.FinalPrice > 0)
         {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(nutritionFactsJson);
+            detail.DiscountPercent = Math.Round((1 - product.FinalPrice / product.OriginalPrice) * 100, 1);
         }
-        catch
+
+        // Tính DaysToExpiry và ExpiryStatus
+        if (product.ExpiryDate.HasValue)
         {
-            // Nếu parse lỗi, trả về null
-            return null;
+            var today = DateTime.UtcNow.Date;
+            detail.DaysToExpiry = (product.ExpiryDate.Value.Date - today).Days;
+
+            if (detail.DaysToExpiry < 0)
+            {
+                detail.ExpiryStatus = ExpiryStatus.Expired;
+                detail.ExpiryStatusText = $"Quá hạn {Math.Abs(detail.DaysToExpiry.Value)} ngày";
+            }
+            else if (detail.DaysToExpiry == 0)
+            {
+                detail.ExpiryStatus = ExpiryStatus.Today;
+                detail.ExpiryStatusText = "Hết hạn trong ngày";
+            }
+            else if (detail.DaysToExpiry <= 2)
+            {
+                detail.ExpiryStatus = ExpiryStatus.ExpiringSoon;
+                detail.ExpiryStatusText = $"Sắp hết hạn (còn {detail.DaysToExpiry} ngày)";
+            }
+            else if (detail.DaysToExpiry <= 7)
+            {
+                detail.ExpiryStatus = ExpiryStatus.ShortTerm;
+                detail.ExpiryStatusText = $"Còn {detail.DaysToExpiry} ngày";
+            }
+            else
+            {
+                detail.ExpiryStatus = ExpiryStatus.LongTerm;
+                detail.ExpiryStatusText = $"Còn {detail.DaysToExpiry} ngày";
+            }
         }
+
+        return detail;
     }
 }
 

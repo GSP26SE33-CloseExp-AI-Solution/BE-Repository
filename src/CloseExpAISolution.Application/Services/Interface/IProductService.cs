@@ -34,5 +34,11 @@ public interface IProductService
     /// Lấy danh sách Product theo SupermarketId với pagination
     /// </summary>
     Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(Guid supermarketId, string? searchTerm = null, string? category = null, int pageNumber = 1, int pageSize = 20);
+
+    /// <summary>
+    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm)
+    /// Bao gồm: thông tin dinh dưỡng, hướng dẫn sử dụng, bảo quản, xuất xứ, nhà sản xuất...
+    /// </summary>
+    Task<ProductDetailDto?> GetProductDetailAsync(Guid productId);
 }
 
