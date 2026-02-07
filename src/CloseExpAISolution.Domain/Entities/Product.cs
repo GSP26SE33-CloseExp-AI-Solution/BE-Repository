@@ -10,11 +10,14 @@ public class Product
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
 
+    // thêm entity Unit
+
     /// <summary>
     /// Loại định lượng: Fixed (cố định) hoặc Variable (theo cân - kg)
     /// </summary>
-    public int WeightType { get; set; } = 1; // Default: Fixed
+    public int QuantityType { get; set; } = 1; // Default: Fixed 
 
+    /// bỏ từ {
     /// <summary>
     /// Giá mặc định trên 1 kg (chỉ dùng cho WeightType = Variable)
     /// Dùng để tính giá thực tế dựa vào khối lượng sản phẩm không cố định
@@ -22,17 +25,18 @@ public class Product
     public decimal? DefaultPricePerKg { get; set; }
 
     // Pricing fields
-    public decimal OriginalPrice { get; set; }
-    public decimal SuggestedPrice { get; set; }
-    public decimal FinalPrice { get; set; }
+    public decimal OriginalPrice { get; set; } // x
+    public decimal SuggestedPrice { get; set; } // x
+    public decimal FinalPrice { get; set; } // x
 
     // Expiry information (extracted from OCR)
-    public DateTime? ExpiryDate { get; set; }
-    public DateTime? ManufactureDate { get; set; }
-    public int? ShelfLifeDays { get; set; }
+    public DateTime? ExpiryDate { get; set; } // x
+    public DateTime? ManufactureDate { get; set; } // x
+    public int? ShelfLifeDays { get; set; } // x
+    /// } bỏ đến đây
 
     // OCR extracted data (stored as JSON for reference)
-    public string? OcrExtractedData { get; set; }
+    public string? OcrExtractedData { get; set; } // lưu các thông về Description, Ingredients, NutritionFactsJson, UsageInstructions, StorageInstructions, SafetyWarning, Manufacturer, Distributor để user xem và nhập vào các thông tin của product
 
     /// <summary>
     /// Thành phần nguyên liệu (VD: "Sữa tươi, đường, vitamin D3...")
@@ -54,7 +58,7 @@ public class Product
     /// <summary>
     /// Quốc gia sản xuất (từ barcode lookup - GS1)
     /// </summary>
-    public string? Country { get; set; }
+    public string? Country { get; set; } // chỉnh thành MadeInCountry
 
     /// <summary>
     /// Mô tả sản phẩm
@@ -89,20 +93,20 @@ public class Product
     /// <summary>
     /// Trọng lượng/Khối lượng (VD: "500g", "1L")
     /// </summary>
-    public string? Weight { get; set; }
+    public string? Weight { get; set; } // X - product lot
 
     // AI confidence scores
     public float OcrConfidence { get; set; }
-    public float PricingConfidence { get; set; }
-    public string? PricingReasons { get; set; }
+    public float PricingConfidence { get; set; } // chuyển sang bảng đề xuất giá riêng
+    public string? PricingReasons { get; set; } // chuyển sang bảng đề xuất giá riêng
 
     // Workflow tracking
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public string? VerifiedBy { get; set; }
     public DateTime? VerifiedAt { get; set; }
-    public string? PricedBy { get; set; }
-    public DateTime? PricedAt { get; set; }
+    public string? PricedBy { get; set; } // chuyển sang bảng đề xuất giá riêng
+    public DateTime? PricedAt { get; set; } // chuyển sang bảng đề xuất giá riêng
     public string? PublishedBy { get; set; }
     public DateTime? PublishedAt { get; set; }
     public string Status { get; set; } = string.Empty;
