@@ -47,7 +47,7 @@ public class Product
     /// Thông tin dinh dưỡng lưu dạng JSON
     /// VD: {"calories": "120 kcal", "protein": "6g", "fat": "4g"}
     /// </summary>
-    public string? NutritionFactsJson { get; set; }
+    public string? NutritionFactsJson { get; set; } // format lại thành excel cho FE (giống bảng thành phần dinh dưỡng)
 
     // Thông tin chi tiết sản phẩm (Product Detail)
     /// <summary>
@@ -113,7 +113,7 @@ public class Product
 
     public User? CreatedByUser { get; set; }
     public Supermarket? Supermarket { get; set; }
-    public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
+    public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>(); // tối đa 5 images
     public ICollection<ProductLot> ProductLots { get; set; } = new List<ProductLot>();
     public ICollection<AIVerificationLog> AIVerificationLogs { get; set; } = new List<AIVerificationLog>();
 }
