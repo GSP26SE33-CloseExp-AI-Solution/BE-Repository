@@ -99,4 +99,35 @@ public class UserResponseDto
     public UserState Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Thông tin nhân viên siêu thị (chỉ có nếu RoleId = 3 - MarketStaff)
+    /// </summary>
+    public MarketStaffInfoDto? MarketStaffInfo { get; set; }
+}
+
+/// <summary>
+/// Thông tin nhân viên siêu thị gắn với user
+/// </summary>
+public class MarketStaffInfoDto
+{
+    public Guid MarketStaffId { get; set; }
+    public string Position { get; set; } = string.Empty;
+    public DateTime JoinedAt { get; set; }
+
+    /// <summary>
+    /// Thông tin siêu thị mà nhân viên làm việc
+    /// </summary>
+    public SupermarketBasicInfoDto? Supermarket { get; set; }
+}
+
+/// <summary>
+/// Thông tin cơ bản của siêu thị
+/// </summary>
+public class SupermarketBasicInfoDto
+{
+    public Guid SupermarketId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string ContactPhone { get; set; } = string.Empty;
 }

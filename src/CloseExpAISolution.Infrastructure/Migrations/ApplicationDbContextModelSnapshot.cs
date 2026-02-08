@@ -90,6 +90,98 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.ToTable("AIVerificationLogs");
                 });
 
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.BarcodeProduct", b =>
+                {
+                    b.Property<Guid>("BarcodeProductId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Barcode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Brand")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<float>("Confidence")
+                        .HasColumnType("real");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Gs1Prefix")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Ingredients")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVietnameseProduct")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Manufacturer")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NutritionFactsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("ScanCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Weight")
+                        .HasColumnType("text");
+
+                    b.HasKey("BarcodeProductId");
+
+                    b.HasIndex("Barcode")
+                        .IsUnique();
+
+                    b.ToTable("BarcodeProducts");
+                });
+
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryRecord", b =>
                 {
                     b.Property<Guid>("DeliveryId")
@@ -174,6 +266,81 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Feedbacks");
+                });
+
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.MarketPrice", b =>
+                {
+                    b.Property<Guid>("MarketPriceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Barcode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<float>("Confidence")
+                        .HasColumnType("real");
+
+                    b.Property<bool>("IsInStock")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("OriginalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ProductName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SourceUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("StoreName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Unit")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Weight")
+                        .HasColumnType("text");
+
+                    b.HasKey("MarketPriceId");
+
+                    b.HasIndex("Barcode");
+
+                    b.HasIndex("Barcode", "Source", "StoreName")
+                        .IsUnique();
+
+                    b.ToTable("MarketPrices");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.MarketStaff", b =>
@@ -397,38 +564,79 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.ToTable("PickupPoints");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Pricing", b =>
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PriceFeedback", b =>
                 {
-                    b.Property<Guid>("PricingId")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("BasePrice")
-                        .HasColumnType("numeric");
+                    b.Property<float>("ActualDiscountPercent")
+                        .HasColumnType("real");
 
-                    b.Property<string>("BaseUnit")
+                    b.Property<string>("Barcode")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
-                    b.Property<decimal?>("DiscountPercent")
-                        .HasColumnType("numeric");
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("ProductId")
+                    b.Property<int>("DaysToExpire")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("FinalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("MarketPriceRef")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("MarketPriceSource")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("OriginalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ProductName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("StaffFeedback")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("StaffId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("SuggestedPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("SupermarketId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal?>("SalePrice")
-                        .HasColumnType("numeric");
+                    b.Property<bool>("WasAccepted")
+                        .HasColumnType("boolean");
 
-                    b.HasKey("PricingId");
+                    b.HasKey("Id");
 
-                    b.HasIndex("ProductId")
-                        .IsUnique();
+                    b.HasIndex("Barcode");
 
-                    b.ToTable("Pricings");
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("PriceFeedbacks");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
@@ -449,6 +657,9 @@ namespace CloseExpAISolution.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Country")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -459,63 +670,103 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<Guid?>("CreatedByUserUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("DefaultPricePerKg")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Distributor")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FinalPrice")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Ingredients")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsFreshFood")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("ManufactureDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Manufacturer")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Nutrition")
-                        .IsRequired()
+                    b.Property<string>("NutritionFactsJson")
                         .HasColumnType("text");
 
-                    b.Property<string>("ResponsibleOrg")
-                        .IsRequired()
+                    b.Property<float>("OcrConfidence")
+                        .HasColumnType("real");
+
+                    b.Property<string>("OcrExtractedData")
                         .HasColumnType("text");
 
-                    b.Property<string>("Sku")
-                        .IsRequired()
+                    b.Property<string>("Origin")
                         .HasColumnType("text");
+
+                    b.Property<decimal>("OriginalPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime?>("PricedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PricedBy")
+                        .HasColumnType("text");
+
+                    b.Property<float>("PricingConfidence")
+                        .HasColumnType("real");
+
+                    b.Property<string>("PricingReasons")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublishedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SafetyWarning")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ShelfLifeDays")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("StorageInstructions")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("SuggestedPrice")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("SupermarketId")
                         .HasColumnType("uuid");
 
-                    b.Property<string[]>("Tags")
-                        .IsRequired()
-                        .HasColumnType("text[]");
+                    b.Property<string>("UsageInstructions")
+                        .HasColumnType("text");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
+                    b.Property<DateTime?>("VerifiedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Usage")
-                        .IsRequired()
+                    b.Property<string>("VerifiedBy")
                         .HasColumnType("text");
 
-                    b.Property<string>("Warning")
-                        .IsRequired()
+                    b.Property<string>("Weight")
                         .HasColumnType("text");
 
-                    b.Property<bool>("isActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("isFeatured")
-                        .HasColumnType("boolean");
+                    b.Property<int>("WeightType")
+                        .HasColumnType("integer");
 
                     b.HasKey("ProductId");
 
@@ -570,13 +821,28 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<decimal>("OriginalUnitPrice")
                         .HasColumnType("numeric");
 
+                    b.Property<DateTime?>("PricedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PricedBy")
+                        .HasColumnType("text");
+
+                    b.Property<float>("PricingConfidence")
+                        .HasColumnType("real");
+
+                    b.Property<string>("PricingReasons")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric");
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<decimal>("RemainingWeight")
+                    b.Property<string>("PublishedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Quantity")
                         .HasColumnType("numeric");
 
                     b.Property<string>("Status")
@@ -586,11 +852,11 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<decimal>("SuggestedUnitPrice")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("TotalWeight")
-                        .HasColumnType("numeric");
-
                     b.Property<Guid>("UnitId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("Weight")
+                        .HasColumnType("numeric");
 
                     b.HasKey("LotId");
 
@@ -1055,17 +1321,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Pricing", b =>
-                {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.Product", "Product")
-                        .WithOne("Pricing")
-                        .HasForeignKey("CloseExpAISolution.Domain.Entities.Pricing", "ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.User", "CreatedByUser")
@@ -1177,8 +1432,6 @@ namespace CloseExpAISolution.Domain.Migrations
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
                 {
                     b.Navigation("AIVerificationLogs");
-
-                    b.Navigation("Pricing");
 
                     b.Navigation("ProductImages");
 

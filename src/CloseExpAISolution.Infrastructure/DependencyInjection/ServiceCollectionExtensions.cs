@@ -1,5 +1,6 @@
 using CloseExpAISolution.Infrastructure.Base;
 using CloseExpAISolution.Infrastructure.Context;
+using CloseExpAISolution.Infrastructure.Repositories;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -22,6 +23,10 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
+        
+        // Market Price Repositories
+        services.AddScoped<IMarketPriceRepository, MarketPriceRepository>();
+        services.AddScoped<IPriceFeedbackRepository, PriceFeedbackRepository>();
 
         return services;
     }

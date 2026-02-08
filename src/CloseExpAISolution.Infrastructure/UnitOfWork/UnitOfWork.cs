@@ -1,5 +1,6 @@
 using CloseExpAISolution.Infrastructure.Base;
 using CloseExpAISolution.Infrastructure.Context;
+using CloseExpAISolution.Infrastructure.Repositories;
 using CloseExpAISolution.Infrastructure.Repositories.Class;
 using CloseExpAISolution.Infrastructure.Repositories.Interface;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -11,24 +12,30 @@ public class UnitOfWork : IUnitOfWork
     private readonly ApplicationDbContext _context;
     private readonly Dictionary<Type, object> _repositories;
     private IDbContextTransaction? _transaction;
-    //Khai b?o Interface ? ??y!
+    //Khai báo Interface ở đây!
     private IProductRepository? _productRepository;
     private IMarketStaffRepository? _marketStaffRepository;
     private ISupermarketRepository? _supermarketRepository;
     private IProductImageRepository? _productImageRepository;
     private IAIVerificationLogRepository? _aIVerificationLogRepository;
+    private IBarcodeProductRepository? _barcodeProductRepository;
+    private IMarketPriceRepository? _marketPriceRepository;
+    private IPriceFeedbackRepository? _priceFeedbackRepository;
 
     public UnitOfWork(ApplicationDbContext context)
     {
         _context = context;
         _repositories = new Dictionary<Type, object>();
     }
-    //??ng k? s? d?ng repo ? ??y!
+    //Đăng ký sử dụng repo ở đây!
     public IProductRepository ProductRepository => _productRepository ??= new ProductRepository(_context);
     public IMarketStaffRepository MarketStaffRepository => _marketStaffRepository ??= new MarketStaffRepository(_context);
     public ISupermarketRepository SupermarketRepository => _supermarketRepository ??= new SupermarketRepository(_context);
     public IProductImageRepository ProductImageRepository => _productImageRepository ??= new ProductImageRepository(_context);
     public IAIVerificationLogRepository AIVerificationLogRepository => _aIVerificationLogRepository ??= new AIVerificationLogRepository(_context);
+    public IBarcodeProductRepository BarcodeProductRepository => _barcodeProductRepository ??= new BarcodeProductRepository(_context);
+    public IMarketPriceRepository MarketPriceRepository => _marketPriceRepository ??= new MarketPriceRepository(_context);
+    public IPriceFeedbackRepository PriceFeedbackRepository => _priceFeedbackRepository ??= new PriceFeedbackRepository(_context);
 
 
 

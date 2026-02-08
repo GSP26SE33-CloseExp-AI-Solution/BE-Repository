@@ -6,7 +6,7 @@ public class ProductImage
     public Guid ProductId { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; }
-
+    // thêm primary image
     public Product? Product { get; set; }
 }
 

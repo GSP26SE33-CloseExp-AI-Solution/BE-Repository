@@ -16,9 +16,8 @@ public static class PipelineConfigurationExtensions
         app.UseHttpsRedirection();
         app.UseRouting();
 
-        // CORS - Uncomment when you need to enable CORS
-        // Ensure you also call .AddCorsServices() in Program.cs
-        // app.UseCors("CorsPolicy");
+        // CORS - Enable for frontend and AI Service integration
+        app.UseCors("CorsPolicy");
 
         // Authentication & Authorization - order matters!
         app.UseAuthentication();
