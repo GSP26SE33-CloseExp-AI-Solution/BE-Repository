@@ -511,11 +511,10 @@ public static class DataSeeder
                 Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673111119",
                 IsFreshFood = true,
-                WeightType = 1, // Fixed - Định lượng cố định
-                // Thông tin chi tiết
+                UnitId = UnitLiterId,
+                QuantityType = 1, // Fixed
                 Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất",
                 Origin = "Việt Nam",
-                Weight = "1 Lít",
                 Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3",
                 NutritionFactsJson = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""",
                 UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.",
@@ -536,10 +535,10 @@ public static class DataSeeder
                 Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673222226",
                 IsFreshFood = true,
-                WeightType = 1, // Fixed
+                UnitId = UnitBoxId,
+                QuantityType = 1,
                 Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng",
                 Origin = "Việt Nam",
-                Weight = "100g x 4 hộp",
                 Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus",
                 NutritionFactsJson = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""",
                 UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.",
@@ -561,11 +560,11 @@ public static class DataSeeder
                 Category = "Thịt & Hải sản",
                 Barcode = "8934673333333",
                 IsFreshFood = true,
-                WeightType = 2, // Variable - Bán theo cân
-                DefaultPricePerKg = 150000m, // 150,000 VND/kg
+                UnitId = UnitKgId,
+                QuantityType = 2,
+                DefaultPricePerKg = 150000m,
                 Description = "Thịt heo ba chỉ tươi ngon từ trang trại",
                 Origin = "Việt Nam",
-                Weight = "Đang cập nhật",
                 Ingredients = "Thịt heo tươi 100%",
                 UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.",
                 StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.",
@@ -586,8 +585,9 @@ public static class DataSeeder
                 Category = "Rau củ quả",
                 Barcode = "8934673444440",
                 IsFreshFood = true,
-                WeightType = 2, // Variable - Bán theo cân
-                DefaultPricePerKg = 35000m, // 35,000 VND/kg
+                UnitId = UnitKgId,
+                QuantityType = 2,
+                DefaultPricePerKg = 35000m,
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -601,8 +601,9 @@ public static class DataSeeder
                 Category = "Rau củ quả",
                 Barcode = "8934673555557",
                 IsFreshFood = true,
-                WeightType = 2, // Variable - Bán theo cân
-                DefaultPricePerKg = 25000m, // 25,000 VND/kg
+                UnitId = UnitKgId,
+                QuantityType = 2,
+                DefaultPricePerKg = 25000m,
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 Status = ProductState.Verified.ToString()
@@ -617,7 +618,8 @@ public static class DataSeeder
                 Category = "Bánh & Đồ nướng",
                 Barcode = "8934673666664",
                 IsFreshFood = true,
-                WeightType = 1, // Fixed
+                UnitId = UnitPackId,
+                QuantityType = 1,
                 Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản",
                 NutritionFactsJson = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""",
                 CreatedBy = AdminUserId.ToString(),
@@ -634,7 +636,8 @@ public static class DataSeeder
                 Category = "Đồ uống",
                 Barcode = "8934673777771",
                 IsFreshFood = true,
-                WeightType = 1, // Fixed
+                UnitId = UnitBottleId,
+                QuantityType = 1,
                 Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C",
                 NutritionFactsJson = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""",
                 CreatedBy = AdminUserId.ToString(),
@@ -651,7 +654,8 @@ public static class DataSeeder
                 Category = "Bánh kẹo",
                 Barcode = "8934673888888",
                 IsFreshFood = false,
-                WeightType = 1, // Fixed
+                UnitId = UnitBoxId,
+                QuantityType = 1,
                 Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani",
                 NutritionFactsJson = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""",
                 CreatedBy = AdminUserId.ToString(),
@@ -668,7 +672,8 @@ public static class DataSeeder
                 Category = "Thực phẩm khô",
                 Barcode = "8934673999995",
                 IsFreshFood = false,
-                WeightType = 1, // Fixed
+                UnitId = UnitPackId,
+                QuantityType = 1,
                 Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị",
                 NutritionFactsJson = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""",
                 CreatedBy = AdminUserId.ToString(),
@@ -685,7 +690,8 @@ public static class DataSeeder
                 Category = "Thịt & Hải sản",
                 Barcode = "8934673101010",
                 IsFreshFood = true,
-                WeightType = 2, // Variable - Bán theo cân
+                UnitId = UnitKgId,
+                QuantityType = 2,
                 DefaultPricePerKg = 450000m, // 450,000 VND/kg
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
@@ -701,7 +707,8 @@ public static class DataSeeder
                 Category = "Đồ hộp",
                 Barcode = "8934673121212",
                 IsFreshFood = false,
-                WeightType = 1, // Fixed
+                UnitId = UnitPackId,
+                QuantityType = 1,
                 Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt",
                 NutritionFactsJson = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""",
                 CreatedBy = AdminUserId.ToString(),
@@ -718,7 +725,8 @@ public static class DataSeeder
                 Category = "Đồ hộp",
                 Barcode = "8934673131313",
                 IsFreshFood = false,
-                WeightType = 1, // Fixed
+                UnitId = UnitPackId,
+                QuantityType = 1,
                 Ingredients = "Đậu đỏ 50%, đường, nước, muối",
                 NutritionFactsJson = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""",
                 CreatedBy = AdminUserId.ToString(),
@@ -749,14 +757,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product1Id,
-                UnitId = UnitBottleId, // Chai
-                ExpiryDate = now.AddHours(8), // Còn 8 giờ
+                ExpiryDate = now.AddHours(8),
                 ManufactureDate = now.AddDays(-7),
                 Quantity = 50,
-                Weight = 50, // 50 chai * 1L
-                OriginalUnitPrice = 32000m,
-                SuggestedUnitPrice = 22000m, // Giảm mạnh vì sắp hết hạn
-                FinalUnitPrice = 24000m,
+                Weight = 50,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -765,14 +769,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product1Id,
-                UnitId = UnitBottleId,
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 100,
                 Weight = 100,
-                OriginalUnitPrice = 32000m,
-                SuggestedUnitPrice = 26000m,
-                FinalUnitPrice = 27000m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -781,14 +781,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product2Id,
-                UnitId = UnitBoxId, // Hộp
                 ExpiryDate = now.AddDays(5),
                 ManufactureDate = now.AddDays(-10),
                 Quantity = 200,
-                Weight = 40, // 200 hộp * 200g = 40kg
-                OriginalUnitPrice = 8000m,
-                SuggestedUnitPrice = 6500m,
-                FinalUnitPrice = 6800m,
+                Weight = 40,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -797,14 +793,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product3Id,
-                UnitId = UnitKgId, // Kg
                 ExpiryDate = now.AddHours(12),
                 ManufactureDate = now.AddDays(-2),
-                Quantity = 1, // 1 lot
-                Weight = 15.5m, // 15.5 kg
-                OriginalUnitPrice = 150000m, // 150k/kg
-                SuggestedUnitPrice = 95000m, // Giảm mạnh
-                FinalUnitPrice = 99000m,
+                Quantity = 1,
+                Weight = 15.5m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -813,14 +805,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product10Id,
-                UnitId = UnitKgId,
                 ExpiryDate = now.AddDays(1),
                 ManufactureDate = now.AddDays(-3),
                 Quantity = 1,
-                Weight = 8.2m, // 8.2 kg
-                OriginalUnitPrice = 450000m, // 450k/kg
-                SuggestedUnitPrice = 320000m,
-                FinalUnitPrice = 330000m,
+                Weight = 8.2m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -831,14 +819,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product4Id,
-                UnitId = UnitKgId,
                 ExpiryDate = now.AddHours(6),
                 ManufactureDate = now.AddDays(-1),
                 Quantity = 1,
-                Weight = 25m, // 25 kg
-                OriginalUnitPrice = 35000m,
-                SuggestedUnitPrice = 15000m, // Giảm mạnh
-                FinalUnitPrice = 18000m,
+                Weight = 25m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -847,14 +831,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product5Id,
-                UnitId = UnitKgId,
                 ExpiryDate = now.AddDays(4),
                 ManufactureDate = now.AddDays(-2),
                 Quantity = 1,
-                Weight = 30m, // 30 kg
-                OriginalUnitPrice = 25000m,
-                SuggestedUnitPrice = 18000m,
-                FinalUnitPrice = 19000m,
+                Weight = 30m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -863,14 +843,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product6Id,
-                UnitId = UnitPackId, // Gói
                 ExpiryDate = now.AddHours(10),
                 ManufactureDate = now.AddDays(-1),
                 Quantity = 80,
-                Weight = 40, // 80 gói * 500g
-                OriginalUnitPrice = 25000m,
-                SuggestedUnitPrice = 12000m,
-                FinalUnitPrice = 15000m,
+                Weight = 40,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -881,14 +857,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product7Id,
-                UnitId = UnitBottleId,
                 ExpiryDate = now.AddDays(15),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 150,
-                Weight = 150, // 150 chai * 1L
-                OriginalUnitPrice = 45000m,
-                SuggestedUnitPrice = 40000m,
-                FinalUnitPrice = 42000m,
+                Weight = 150,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -897,14 +869,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product8Id,
-                UnitId = UnitBoxId,
                 ExpiryDate = now.AddDays(30),
                 ManufactureDate = now.AddDays(-60),
                 Quantity = 200,
-                Weight = 53, // 200 hộp * 264g
-                OriginalUnitPrice = 35000m,
-                SuggestedUnitPrice = 32000m,
-                FinalUnitPrice = 33000m,
+                Weight = 53,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -913,14 +881,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product9Id,
-                UnitId = UnitPackId,
                 ExpiryDate = now.AddDays(60),
                 ManufactureDate = now.AddDays(-30),
                 Quantity = 500,
-                Weight = 37.5m, // 500 gói * 75g
-                OriginalUnitPrice = 5500m,
-                SuggestedUnitPrice = 5000m,
-                FinalUnitPrice = 5200m,
+                Weight = 37.5m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -929,14 +893,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product7Id,
-                UnitId = UnitBottleId,
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-18),
                 Quantity = 30,
                 Weight = 30,
-                OriginalUnitPrice = 45000m,
-                SuggestedUnitPrice = 28000m,
-                FinalUnitPrice = 30000m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -947,14 +907,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product2Id,
-                UnitId = UnitBoxId,
-                ExpiryDate = now.AddDays(-2), // Đã hết hạn 2 ngày
+                ExpiryDate = now.AddDays(-2),
                 ManufactureDate = now.AddDays(-17),
                 Quantity = 50,
                 Weight = 10,
-                OriginalUnitPrice = 8000m,
-                SuggestedUnitPrice = 0m,
-                FinalUnitPrice = 0m,
                 Status = "Expired",
                 CreatedAt = now.AddDays(-10)
             },
@@ -963,14 +919,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product4Id,
-                UnitId = UnitKgId,
-                ExpiryDate = now.AddDays(-1), // Đã hết hạn 1 ngày
+                ExpiryDate = now.AddDays(-1),
                 ManufactureDate = now.AddDays(-3),
                 Quantity = 1,
                 Weight = 10m,
-                OriginalUnitPrice = 35000m,
-                SuggestedUnitPrice = 0m,
-                FinalUnitPrice = 0m,
                 Status = "Expired",
                 CreatedAt = now.AddDays(-3)
             },
@@ -981,14 +933,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product11Id,
-                UnitId = UnitCanId, // Lon
-                ExpiryDate = now.AddDays(180), // 6 tháng
+                ExpiryDate = now.AddDays(180),
                 ManufactureDate = now.AddDays(-90),
                 Quantity = 100,
-                Weight = 17, // 100 lon * 170g
-                OriginalUnitPrice = 28000m,
-                SuggestedUnitPrice = 26000m,
-                FinalUnitPrice = 27000m,
+                Weight = 17,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -997,14 +945,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product11Id,
-                UnitId = UnitCanId,
                 ExpiryDate = now.AddDays(3),
                 ManufactureDate = now.AddDays(-360),
                 Quantity = 30,
                 Weight = 5.1m,
-                OriginalUnitPrice = 28000m,
-                SuggestedUnitPrice = 18000m,
-                FinalUnitPrice = 20000m,
                 Status = "Active",
                 CreatedAt = now.AddDays(-30)
             },
@@ -1013,14 +957,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product12Id,
-                UnitId = UnitCanId,
-                ExpiryDate = now.AddDays(365), // 1 năm
+                ExpiryDate = now.AddDays(365),
                 ManufactureDate = now.AddDays(-30),
                 Quantity = 80,
-                Weight = 30.4m, // 80 lon * 380g
-                OriginalUnitPrice = 22000m,
-                SuggestedUnitPrice = 20000m,
-                FinalUnitPrice = 21000m,
+                Weight = 30.4m,
                 Status = "Active",
                 CreatedAt = now
             },
@@ -1029,14 +969,10 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product12Id,
-                UnitId = UnitCanId,
                 ExpiryDate = now.AddDays(5),
                 ManufactureDate = now.AddDays(-360),
                 Quantity = 20,
                 Weight = 7.6m,
-                OriginalUnitPrice = 22000m,
-                SuggestedUnitPrice = 15000m,
-                FinalUnitPrice = 16000m,
                 Status = "Active",
                 CreatedAt = now.AddDays(-60)
             }

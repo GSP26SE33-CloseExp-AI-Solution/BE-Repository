@@ -63,17 +63,17 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey<Pricing>(pr => pr.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.Unit)
+            .WithMany(u => u.Products)
+            .HasForeignKey(p => p.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<ProductLot>()
             .HasOne(pl => pl.Product)
             .WithMany(p => p.ProductLots)
             .HasForeignKey(pl => pl.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<ProductLot>()
-            .HasOne(pl => pl.Unit)
-            .WithMany(u => u.ProductLots)
-            .HasForeignKey(pl => pl.UnitId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<OverdueRecord>()
             .HasOne(or => or.ProductLot)
