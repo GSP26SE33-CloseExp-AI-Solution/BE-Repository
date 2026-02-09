@@ -9,12 +9,12 @@ public class Pricing
     public string Currency { get; set; } = "VND";
     public decimal? SalePrice { get; set; }
     public decimal? DiscountPercent { get; set; }
-    public string? PricedBy { get; set; } // chuyển sang bảng đề xuất giá riêng
-    public DateTime? PricedAt { get; set; } // chuyển sang bảng đề xuất giá riêng
-    public float PricingConfidence { get; set; } // chuyển sang bảng đề xuất giá riêng
-    public string? PricingReasons { get; set; } // chuyển sang bảng đề xuất giá riêng
+    public string? PricedBy { get; set; }
+    public DateTime? PricedAt { get; set; }
+    public float PricingConfidence { get; set; }
+    public string? PricingReasons { get; set; }
     public decimal OriginalUnitPrice { get; set; }
-    public decimal SuggestedUnitPrice { get; set; } // chuyển sang bảng đề xuất giá riêng
+    public decimal SuggestedUnitPrice { get; set; }
     public decimal FinalUnitPrice { get; set; }     
     public Product? Product { get; set; }
 }

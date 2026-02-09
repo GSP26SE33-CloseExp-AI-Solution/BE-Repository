@@ -96,7 +96,6 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(oi => oi.LotId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // BarcodeProduct configuration
         modelBuilder.Entity<BarcodeProduct>().HasKey(bp => bp.BarcodeProductId);
         modelBuilder.Entity<BarcodeProduct>().HasIndex(bp => bp.Barcode).IsUnique();
         modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Barcode).HasMaxLength(20);
@@ -108,7 +107,6 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Source).HasMaxLength(50);
         modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Status).HasMaxLength(20);
 
-        // MarketPrice configuration
         modelBuilder.Entity<MarketPrice>().HasKey(mp => mp.MarketPriceId);
         modelBuilder.Entity<MarketPrice>().HasIndex(mp => mp.Barcode);
         modelBuilder.Entity<MarketPrice>().HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName }).IsUnique();
@@ -121,7 +119,6 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MarketPrice>().Property(mp => mp.Price).HasPrecision(18, 2);
         modelBuilder.Entity<MarketPrice>().Property(mp => mp.OriginalPrice).HasPrecision(18, 2);
 
-        // PriceFeedback configuration
         modelBuilder.Entity<PriceFeedback>().HasKey(pf => pf.Id);
         modelBuilder.Entity<PriceFeedback>().HasIndex(pf => pf.Barcode);
         modelBuilder.Entity<PriceFeedback>().HasIndex(pf => pf.CreatedAt);
