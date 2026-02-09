@@ -524,6 +524,9 @@ public static class DataSeeder
                 Distributor = "Vinamilk",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             new()
@@ -548,6 +551,9 @@ public static class DataSeeder
                 Distributor = "Vinamilk",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Meat - CoopMart (Bán theo cân)
@@ -573,6 +579,9 @@ public static class DataSeeder
                 Distributor = "Meat Deli",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Vegetables - BigC (Bán theo cân)
@@ -588,8 +597,13 @@ public static class DataSeeder
                 UnitId = UnitKgId,
                 QuantityType = 2,
                 DefaultPricePerKg = 35000m,
+                Ingredients = "Rau cải xanh hữu cơ 100%",
+                Manufacturer = "Công ty TNHH Dalat Garden",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             new()
@@ -604,8 +618,13 @@ public static class DataSeeder
                 UnitId = UnitKgId,
                 QuantityType = 2,
                 DefaultPricePerKg = 25000m,
+                Ingredients = "Cà chua Đà Lạt 100%",
+                Manufacturer = "Công ty TNHH Dalat Garden",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Bakery - BigC
@@ -622,8 +641,12 @@ public static class DataSeeder
                 QuantityType = 1,
                 Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản",
                 NutritionFactsJson = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""",
+                Manufacturer = "Công ty Cổ phần Kinh Đô",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Beverages - VinMart
@@ -640,8 +663,12 @@ public static class DataSeeder
                 QuantityType = 1,
                 Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C",
                 NutritionFactsJson = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""",
+                Manufacturer = "Công ty TNHH Tropicana",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Snacks - VinMart (Non-fresh)
@@ -658,8 +685,12 @@ public static class DataSeeder
                 QuantityType = 1,
                 Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani",
                 NutritionFactsJson = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""",
+                Manufacturer = "Công ty Mondelez Vietnam",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Instant Noodles - VinMart (Non-fresh)
@@ -676,8 +707,12 @@ public static class DataSeeder
                 QuantityType = 1,
                 Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị",
                 NutritionFactsJson = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""",
+                Manufacturer = "Công ty Cổ phần Acecook Việt Nam",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Seafood - CoopMart (Bán theo cân)
@@ -693,8 +728,13 @@ public static class DataSeeder
                 UnitId = UnitKgId,
                 QuantityType = 2,
                 DefaultPricePerKg = 450000m, // 450,000 VND/kg
+                Ingredients = "Cá hồi phi lê tươi 100%",
+                Manufacturer = "Công ty TNHH Seafood King",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Đồ hộp - CoopMart
@@ -711,8 +751,12 @@ public static class DataSeeder
                 QuantityType = 1,
                 Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt",
                 NutritionFactsJson = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""",
+                Manufacturer = "Công ty Cổ phần Vissan",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             },
             // Đồ hộp - BigC
@@ -729,8 +773,12 @@ public static class DataSeeder
                 QuantityType = 1,
                 Ingredients = "Đậu đỏ 50%, đường, nước, muối",
                 NutritionFactsJson = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""",
+                Manufacturer = "Công ty TNHH Nếp Mới",
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                isActive = true,
+                isFeatured = false,
                 Status = ProductState.Verified.ToString()
             }
         };
@@ -760,9 +808,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddHours(8),
                 ManufactureDate = now.AddDays(-7),
                 Quantity = 50,
-                Weight = 50,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddHours(-2)
             },
             // Sữa tươi Vinamilk - Sắp hết hạn (ExpiringSoon - 1-2 ngày)
             new()
@@ -772,9 +821,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 100,
-                Weight = 100,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddHours(-1)
             },
             // Sữa chua - Còn ngắn hạn (ShortTerm - 3-7 ngày)
             new()
@@ -784,9 +834,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(5),
                 ManufactureDate = now.AddDays(-10),
                 Quantity = 200,
-                Weight = 40,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddHours(-3)
             },
             // Thịt heo ba chỉ - Hết hạn trong ngày (bán theo cân)
             new()
@@ -796,9 +847,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddHours(12),
                 ManufactureDate = now.AddDays(-2),
                 Quantity = 1,
-                Weight = 15.5m,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddHours(-4)
             },
             // Cá hồi - Sắp hết hạn (bán theo cân)
             new()
@@ -808,9 +860,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(1),
                 ManufactureDate = now.AddDays(-3),
                 Quantity = 1,
-                Weight = 8.2m,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddHours(-5)
             },
 
             // === BIGC LOTS ===
@@ -822,9 +875,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddHours(6),
                 ManufactureDate = now.AddDays(-1),
                 Quantity = 1,
-                Weight = 25m,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId2.ToString(),
+                PublishedAt = now.AddHours(-6)
             },
             // Cà chua - Còn ngắn hạn (bán theo cân)
             new()
@@ -834,9 +888,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(4),
                 ManufactureDate = now.AddDays(-2),
                 Quantity = 1,
-                Weight = 30m,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId2.ToString(),
+                PublishedAt = now.AddHours(-7)
             },
             // Bánh mì - Hết hạn trong ngày
             new()
@@ -846,9 +901,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddHours(10),
                 ManufactureDate = now.AddDays(-1),
                 Quantity = 80,
-                Weight = 40,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId2.ToString(),
+                PublishedAt = now.AddHours(-8)
             },
 
             // === VINMART LOTS ===
@@ -860,9 +916,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(15),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 150,
-                Weight = 150,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId3.ToString(),
+                PublishedAt = now.AddHours(-9)
             },
             // Bánh quy Oreo - Còn dài hạn (non-fresh)
             new()
@@ -872,9 +929,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(30),
                 ManufactureDate = now.AddDays(-60),
                 Quantity = 200,
-                Weight = 53,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId3.ToString(),
+                PublishedAt = now.AddHours(-10)
             },
             // Mì Hảo Hảo - Còn dài hạn (non-fresh)
             new()
@@ -884,9 +942,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(60),
                 ManufactureDate = now.AddDays(-30),
                 Quantity = 500,
-                Weight = 37.5m,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId3.ToString(),
+                PublishedAt = now.AddHours(-11)
             },
             // Nước cam - Sắp hết hạn
             new()
@@ -896,9 +955,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-18),
                 Quantity = 30,
-                Weight = 30,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId3.ToString(),
+                PublishedAt = now.AddHours(-12)
             },
 
             // === EXPIRED LOTS (để test filter Expired) ===
@@ -910,7 +970,6 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(-2),
                 ManufactureDate = now.AddDays(-17),
                 Quantity = 50,
-                Weight = 10,
                 Status = "Expired",
                 CreatedAt = now.AddDays(-10)
             },
@@ -922,7 +981,6 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(-1),
                 ManufactureDate = now.AddDays(-3),
                 Quantity = 1,
-                Weight = 10m,
                 Status = "Expired",
                 CreatedAt = now.AddDays(-3)
             },
@@ -936,9 +994,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(180),
                 ManufactureDate = now.AddDays(-90),
                 Quantity = 100,
-                Weight = 17,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddDays(-1)
             },
             // Cá ngừ - Sắp hết hạn (lô cũ)
             new()
@@ -948,9 +1007,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(3),
                 ManufactureDate = now.AddDays(-360),
                 Quantity = 30,
-                Weight = 5.1m,
                 Status = "Active",
-                CreatedAt = now.AddDays(-30)
+                CreatedAt = now.AddDays(-30),
+                PublishedBy = MarketStaffUserId1.ToString(),
+                PublishedAt = now.AddDays(-25)
             },
             // Đậu đỏ hầm đường - Còn dài hạn
             new()
@@ -960,9 +1020,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(365),
                 ManufactureDate = now.AddDays(-30),
                 Quantity = 80,
-                Weight = 30.4m,
                 Status = "Active",
-                CreatedAt = now
+                CreatedAt = now,
+                PublishedBy = MarketStaffUserId2.ToString(),
+                PublishedAt = now.AddDays(-2)
             },
             // Đậu đỏ - Còn ngắn hạn (lô cũ sắp hết)
             new()
@@ -972,9 +1033,10 @@ public static class DataSeeder
                 ExpiryDate = now.AddDays(5),
                 ManufactureDate = now.AddDays(-360),
                 Quantity = 20,
-                Weight = 7.6m,
                 Status = "Active",
-                CreatedAt = now.AddDays(-60)
+                CreatedAt = now.AddDays(-60),
+                PublishedBy = MarketStaffUserId2.ToString(),
+                PublishedAt = now.AddDays(-55)
             }
         };
 

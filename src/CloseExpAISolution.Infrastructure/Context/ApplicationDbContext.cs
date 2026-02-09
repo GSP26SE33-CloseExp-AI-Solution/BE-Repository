@@ -75,6 +75,9 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(pl => pl.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<ProductLot>()
+            .Ignore(pl => pl.Weight);
+
         modelBuilder.Entity<OverdueRecord>()
             .HasOne(or => or.ProductLot)
             .WithMany(pl => pl.OverdueRecords)
