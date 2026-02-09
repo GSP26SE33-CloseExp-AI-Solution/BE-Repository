@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -16,17 +16,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 type: "text",
                 nullable: true);
 
-            migrationBuilder.AddColumn<string>(
-                name: "Ingredients",
-                table: "Products",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "Manufacturer",
-                table: "Products",
-                type: "text",
-                nullable: true);
+            // Ingredients and Manufacturer already added by AddPricingEntity migration
 
             migrationBuilder.AddColumn<string>(
                 name: "NetWeight",
@@ -78,13 +68,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 name: "Description",
                 table: "Products");
 
-            migrationBuilder.DropColumn(
-                name: "Ingredients",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "Manufacturer",
-                table: "Products");
+            // Don't drop Ingredients and Manufacturer - they were added by AddPricingEntity
 
             migrationBuilder.DropColumn(
                 name: "NetWeight",

@@ -10,6 +10,7 @@ public class Product
     public string Category { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
+    public string Sku { get; set; } = string.Empty;
 
     public int QuantityType { get; set; } = 1; // Default: Fixed 
     public decimal? DefaultPricePerKg { get; set; }
@@ -34,11 +35,14 @@ public class Product
     // Workflow tracking
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public string? VerifiedBy { get; set; }
     public DateTime? VerifiedAt { get; set; }
     public string? PublishedBy { get; set; }
     public DateTime? PublishedAt { get; set; }
     public string Status { get; set; } = string.Empty;
+    public bool isActive { get; set; } = true;
+    public bool isFeatured { get; set; } = false;
 
     public Unit? Unit {get; set; }
     public User? CreatedByUser { get; set; }

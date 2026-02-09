@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -19,81 +19,121 @@ namespace CloseExpAISolution.Domain.Migrations
                 name: "IX_ProductLots_UnitId",
                 table: "ProductLots");
 
-            migrationBuilder.DropColumn(
-                name: "Country",
-                table: "Products");
+            // Drop columns conditionally to avoid errors if they don't exist
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN 
+                    -- Drop columns from Products that were moved to ProductLot/Pricing
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='Country') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""Country"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='ExpiryDate') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""ExpiryDate"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='FinalPrice') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""FinalPrice"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='ManufactureDate') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""ManufactureDate"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='OriginalPrice') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""OriginalPrice"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='PricedAt') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""PricedAt"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='PricedBy') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""PricedBy"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='PricingConfidence') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""PricingConfidence"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='PricingReasons') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""PricingReasons"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='ShelfLifeDays') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""ShelfLifeDays"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='SuggestedPrice') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""SuggestedPrice"";
+                    END IF;
+                    -- Drop old columns from AddPricingEntity that are replaced/removed
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='Nutrition') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""Nutrition"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='ResponsibleOrg') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""ResponsibleOrg"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='Usage') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""Usage"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='Warning') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""Warning"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='Type') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""Type"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='Tags') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""Tags"";
+                    END IF;
+                END $$;");
 
-            migrationBuilder.DropColumn(
-                name: "ExpiryDate",
-                table: "Products");
+            // Drop old columns from AddProductDetailFields that were renamed/removed (only if they exist)
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='NetWeight') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""NetWeight"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='ResponsibleOrganization') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""ResponsibleOrganization"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Products' AND column_name='SafetyWarnings') THEN
+                        ALTER TABLE ""Products"" DROP COLUMN ""SafetyWarnings"";
+                    END IF;
+                END $$;");
 
-            migrationBuilder.DropColumn(
-                name: "FinalPrice",
-                table: "Products");
+            // Drop columns from ProductLots conditionally
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='FinalUnitPrice') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""FinalUnitPrice"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='OriginalUnitPrice') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""OriginalUnitPrice"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='PricedAt') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""PricedAt"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='PricedBy') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""PricedBy"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='PricingConfidence') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""PricingConfidence"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='PricingReasons') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""PricingReasons"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='SuggestedUnitPrice') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""SuggestedUnitPrice"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='UnitId') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""UnitId"";
+                    END IF;
+                END $$;");
 
-            migrationBuilder.DropColumn(
-                name: "ManufactureDate",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "OriginalPrice",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "PricedAt",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "PricedBy",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "PricingConfidence",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "PricingReasons",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "ShelfLifeDays",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "SuggestedPrice",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "FinalUnitPrice",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "OriginalUnitPrice",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "PricedAt",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "PricedBy",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "PricingConfidence",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "PricingReasons",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "SuggestedUnitPrice",
-                table: "ProductLots");
-
-            migrationBuilder.DropColumn(
-                name: "UnitId",
-                table: "ProductLots");
+            // Drop RemainingWeight/TotalWeight if they exist (from AddPricingEntity)
+            migrationBuilder.Sql(@"
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='RemainingWeight') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""RemainingWeight"";
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ProductLots' AND column_name='TotalWeight') THEN
+                        ALTER TABLE ""ProductLots"" DROP COLUMN ""TotalWeight"";
+                    END IF;
+                END $$;");
 
             migrationBuilder.RenameColumn(
                 name: "WeightType",
@@ -119,46 +159,51 @@ namespace CloseExpAISolution.Domain.Migrations
                 nullable: false,
                 defaultValue: false);
 
-            migrationBuilder.CreateTable(
-                name: "Pricings",
-                columns: table => new
-                {
-                    PricingId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ProductId = table.Column<Guid>(type: "uuid", nullable: false),
-                    BasePrice = table.Column<decimal>(type: "numeric", nullable: false),
-                    BaseUnit = table.Column<string>(type: "text", nullable: false),
-                    Currency = table.Column<string>(type: "text", nullable: false),
-                    SalePrice = table.Column<decimal>(type: "numeric", nullable: true),
-                    DiscountPercent = table.Column<decimal>(type: "numeric", nullable: true),
-                    PricedBy = table.Column<string>(type: "text", nullable: true),
-                    PricedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    PricingConfidence = table.Column<float>(type: "real", nullable: false),
-                    PricingReasons = table.Column<string>(type: "text", nullable: true),
-                    OriginalUnitPrice = table.Column<decimal>(type: "numeric", nullable: false),
-                    SuggestedUnitPrice = table.Column<decimal>(type: "numeric", nullable: false),
-                    FinalUnitPrice = table.Column<decimal>(type: "numeric", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Pricings", x => x.PricingId);
-                    table.ForeignKey(
-                        name: "FK_Pricings_Products_ProductId",
-                        column: x => x.ProductId,
-                        principalTable: "Products",
-                        principalColumn: "ProductId",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            // Pricings table already exists from AddPricingEntity - add new columns only
+            migrationBuilder.AddColumn<string>(
+                name: "PricedBy",
+                table: "Pricings",
+                type: "text",
+                nullable: true);
+            migrationBuilder.AddColumn<DateTime>(
+                name: "PricedAt",
+                table: "Pricings",
+                type: "timestamp with time zone",
+                nullable: true);
+            migrationBuilder.AddColumn<float>(
+                name: "PricingConfidence",
+                table: "Pricings",
+                type: "real",
+                nullable: false,
+                defaultValue: 0f);
+            migrationBuilder.AddColumn<string>(
+                name: "PricingReasons",
+                table: "Pricings",
+                type: "text",
+                nullable: true);
+            migrationBuilder.AddColumn<decimal>(
+                name: "OriginalUnitPrice",
+                table: "Pricings",
+                type: "numeric",
+                nullable: false,
+                defaultValue: 0m);
+            migrationBuilder.AddColumn<decimal>(
+                name: "SuggestedUnitPrice",
+                table: "Pricings",
+                type: "numeric",
+                nullable: false,
+                defaultValue: 0m);
+            migrationBuilder.AddColumn<decimal>(
+                name: "FinalUnitPrice",
+                table: "Pricings",
+                type: "numeric",
+                nullable: false,
+                defaultValue: 0m);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Products_UnitId",
                 table: "Products",
                 column: "UnitId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Pricings_ProductId",
-                table: "Pricings",
-                column: "ProductId",
-                unique: true);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_Products_Units_UnitId",
@@ -176,8 +221,14 @@ namespace CloseExpAISolution.Domain.Migrations
                 name: "FK_Products_Units_UnitId",
                 table: "Products");
 
-            migrationBuilder.DropTable(
-                name: "Pricings");
+            // Remove columns added to Pricings (don't drop table - AddPricingEntity owns it)
+            migrationBuilder.DropColumn(name: "PricedBy", table: "Pricings");
+            migrationBuilder.DropColumn(name: "PricedAt", table: "Pricings");
+            migrationBuilder.DropColumn(name: "PricingConfidence", table: "Pricings");
+            migrationBuilder.DropColumn(name: "PricingReasons", table: "Pricings");
+            migrationBuilder.DropColumn(name: "OriginalUnitPrice", table: "Pricings");
+            migrationBuilder.DropColumn(name: "SuggestedUnitPrice", table: "Pricings");
+            migrationBuilder.DropColumn(name: "FinalUnitPrice", table: "Pricings");
 
             migrationBuilder.DropIndex(
                 name: "IX_Products_UnitId",
@@ -200,6 +251,77 @@ namespace CloseExpAISolution.Domain.Migrations
                 name: "MadeInCountry",
                 table: "Products",
                 newName: "Weight");
+
+            // Re-add RemainingWeight/TotalWeight if needed for rollback
+            migrationBuilder.AddColumn<decimal>(
+                name: "RemainingWeight",
+                table: "ProductLots",
+                type: "numeric",
+                nullable: false,
+                defaultValue: 0m);
+
+            // Re-add old columns that were dropped
+            migrationBuilder.AddColumn<string>(
+                name: "Nutrition",
+                table: "Products",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<string>(
+                name: "ResponsibleOrg",
+                table: "Products",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<string>(
+                name: "Usage",
+                table: "Products",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<string>(
+                name: "Warning",
+                table: "Products",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<int>(
+                name: "Type",
+                table: "Products",
+                type: "integer",
+                nullable: false,
+                defaultValue: 0);
+
+            // UpdatedAt, isActive, isFeatured are kept - don't re-add them
+
+            migrationBuilder.AddColumn<string[]>(
+                name: "Tags",
+                table: "Products",
+                type: "text[]",
+                nullable: false,
+                defaultValue: new string[0]);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NetWeight",
+                table: "Products",
+                type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ResponsibleOrganization",
+                table: "Products",
+                type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "SafetyWarnings",
+                table: "Products",
+                type: "text",
+                nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "Country",
