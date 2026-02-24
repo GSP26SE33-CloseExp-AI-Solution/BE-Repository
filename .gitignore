@@ -42,6 +42,9 @@ ScaffoldingReadMe.txt
 CodeCoverage/
 *.json
 
+# Allow shared VS Code / Cursor config (override *.json above)
+!.vscode/*.json
+
 # MSBuild Binary and Structured Log
 *.binlog
 
