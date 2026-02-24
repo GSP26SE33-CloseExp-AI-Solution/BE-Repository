@@ -25,6 +25,8 @@ using (var scope = app.Services.CreateScope())
     await context.Database.MigrateAsync();
     await DataSeeder.SeedAsync(context);
 }
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+app.Run($"http://0.0.0.0:{port}");
 
 // Configure the HTTP request pipeline using extension method
 app.UseApplicationPipeline();
