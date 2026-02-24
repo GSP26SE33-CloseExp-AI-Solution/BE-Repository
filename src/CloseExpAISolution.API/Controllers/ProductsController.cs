@@ -1,9 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
-using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Enums;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -104,6 +102,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>
     /// Create product with images. Used when MarketStaff creates a product and uploads images to R2.
+    /// Form fields: SupermarketId, Name, Brand, Category, Barcode, IsFreshFood. Files: one or more image files.
     /// </summary>
     [HttpPost("with-images")]
     [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB
@@ -114,8 +113,18 @@ public class ProductsController : ControllerBase
         [FromForm] string Category,
         [FromForm] string Barcode,
         [FromForm] bool IsFreshFood,
-        [FromForm] IFormFileCollection? files,
-        CancellationToken cancellationToken)
+        [FromForm] ProductType Type = ProductType.Standard,
+        [FromForm] string Sku = "",
+        [FromForm] string Ingredients = "",
+        [FromForm] string Nutrition = "",
+        [FromForm] string Usage = "",
+        [FromForm] string Manufacturer = "",
+        [FromForm] string ResponsibleOrg = "",
+        [FromForm] string Warning = "",
+        [FromForm] bool isActive = true,
+        [FromForm] bool isFeatured = false,
+        [FromForm] IFormFileCollection? files = null,
+        CancellationToken cancellationToken = default)
     {
         var request = new CreateProductRequestDto
         {
@@ -124,7 +133,18 @@ public class ProductsController : ControllerBase
             Brand = Brand,
             Category = Category,
             Barcode = Barcode,
-            IsFreshFood = IsFreshFood
+            IsFreshFood = IsFreshFood,
+            Type = Type,
+            Sku = Sku,
+            Ingredients = Ingredients,
+            Nutrition = Nutrition,
+            Usage = Usage,
+            Manufacturer = Manufacturer,
+            ResponsibleOrg = ResponsibleOrg,
+            Warning = Warning,
+            isActive = isActive,
+            isFeatured = isFeatured,
+            Tags = Array.Empty<string>()
         };
 
         var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
