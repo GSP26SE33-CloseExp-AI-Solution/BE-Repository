@@ -53,32 +53,27 @@ public static class SwaggerServiceExtensions
 
     public static IApplicationBuilder UseSwaggerPipeline(this IApplicationBuilder app)
     {
-        var env = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
+        // Enable serving static files (for custom JS)
+        app.UseStaticFiles();
 
-        if (env.IsDevelopment())
+        app.UseSwagger();
+        app.UseSwaggerUI(options =>
         {
-            // Enable serving static files (for custom JS)
-            app.UseStaticFiles();
+            options.SwaggerEndpoint("/swagger/v1/swagger.json", "CloseExpAISolution API v1");
+            options.RoutePrefix = "swagger";
 
-            app.UseSwagger();
-            app.UseSwaggerUI(options =>
-            {
-                options.SwaggerEndpoint("/swagger/v1/swagger.json", "CloseExpAISolution API v1");
-                options.RoutePrefix = "swagger";
+            // Enable search/filter box
+            options.EnableFilter();
 
-                // Enable search/filter box
-                options.EnableFilter();
+            // Collapse all endpoints by default (only show controller names)
+            options.DocExpansion(DocExpansion.None);
 
-                // Collapse all endpoints by default (only show controller names)
-                options.DocExpansion(DocExpansion.None);
+            // Optional: Show request duration
+            options.DisplayRequestDuration();
 
-                // Optional: Show request duration
-                options.DisplayRequestDuration();
-
-                // Inject custom JS for auto-fill token after login
-                options.InjectJavascript("/swagger/custom-swagger.js");
-            });
-        }
+            // Inject custom JS for auto-fill token after login
+            options.InjectJavascript("/swagger/custom-swagger.js");
+        });
 
         return app;
     }
