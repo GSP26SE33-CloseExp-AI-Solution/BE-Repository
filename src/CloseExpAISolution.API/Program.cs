@@ -26,6 +26,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        context.Database.SetCommandTimeout(TimeSpan.FromSeconds(120));
         await context.Database.MigrateAsync();
         await DataSeeder.SeedAsync(context);
     }
