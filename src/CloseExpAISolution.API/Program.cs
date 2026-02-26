@@ -18,9 +18,12 @@ builder.Services
 
 var app = builder.Build();
 
-// Apply migrations and seed data on startup
-using (var scope = app.Services.CreateScope())
+// Apply migrations and seed data on startup (Development only)
+var env = app.Services.GetRequiredService<IWebHostEnvironment>();
+
+if (env.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     try
