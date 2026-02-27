@@ -35,6 +35,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<DeliveryGroup> DeliveryGroups => Set<DeliveryGroup>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<BarcodeProduct> BarcodeProducts => Set<BarcodeProduct>();
     public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
@@ -53,7 +54,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
         modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
         modelBuilder.Entity<OverdueRecord>().HasKey(x => x.OverdueId);
-        modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
+        modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.PriceHistoryId);
         modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
         modelBuilder.Entity<Pricing>().HasKey(x => x.PricingId);
 
@@ -95,6 +96,23 @@ public class ApplicationDbContext : DbContext
             .WithMany(pl => pl.OrderItems)
             .HasForeignKey(oi => oi.LotId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<DeliveryGroup>().HasKey(dg => dg.DeliveryGroupId);
+        modelBuilder.Entity<DeliveryGroup>()
+            .HasOne(dg => dg.DeliveryStaff)
+            .WithMany()
+            .HasForeignKey(dg => dg.DeliveryStaffId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<DeliveryGroup>()
+            .HasOne(dg => dg.TimeSlot)
+            .WithMany()
+            .HasForeignKey(dg => dg.TimeSlotId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.DeliveryGroup)
+            .WithMany(dg => dg.Orders)
+            .HasForeignKey(o => o.DeliveryGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<BarcodeProduct>().HasKey(bp => bp.BarcodeProductId);
         modelBuilder.Entity<BarcodeProduct>().HasIndex(bp => bp.Barcode).IsUnique();

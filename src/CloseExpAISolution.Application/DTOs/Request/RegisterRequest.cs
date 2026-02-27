@@ -3,9 +3,6 @@ using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.DTOs.Request;
 
-/// <summary>
-/// Public registration request (for Vendor or SupplierStaff only)
-/// </summary>
 public class RegisterRequest
 {
     [Required(ErrorMessage = "Full name is required")]
@@ -26,35 +23,17 @@ public class RegisterRequest
         ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one number and one special character")]
     public string Password { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Registration type: Only Vendor or SupplierStaff allowed for public registration
-    /// </summary>
     [Required(ErrorMessage = "Registration type is required")]
     public RegistrationType RegistrationType { get; set; }
 
-    /// <summary>
-    /// Siêu thị mà nhân viên làm việc (bắt buộc nếu đăng ký là SupplierStaff)
-    /// </summary>
     public Guid? SupermarketId { get; set; }
 
-    /// <summary>
-    /// Vị trí công việc tại siêu thị (tùy chọn, mặc định: "Nhân viên")
-    /// </summary>
     public string? Position { get; set; }
 }
 
-/// <summary>
-/// Allowed registration types for public registration
-/// </summary>
 public enum RegistrationType
 {
-    /// <summary>
-    /// Register as Vendor (Small restaurant/retail seller)
-    /// </summary>
     Vendor = (int)RoleUser.Vendor,
 
-    /// <summary>
-    /// Register as SupplierStaff (Supermarket staff - nhân viên siêu thị)
-    /// </summary>
     SupplierStaff = (int)RoleUser.SupplierStaff
 }

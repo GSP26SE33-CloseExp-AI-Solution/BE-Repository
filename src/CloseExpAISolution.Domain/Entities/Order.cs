@@ -13,6 +13,11 @@ public class Order
     public DateTime OrderDate { get; set; }
     public Guid? DoorPickupId { get; set; }
     public Guid? PromotionId { get; set; }
+    public Guid? DeliveryGroupId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryNote { get; set; }
+    public decimal DeliveryFee { get; set; }
+    public DateTime? CancelDeadline { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
@@ -21,9 +26,10 @@ public class Order
     public PickupPoint? PickupPoint { get; set; }
     public DoorPickup? DoorPickup { get; set; }
     public Promotion? Promotion { get; set; }
-
+    public DeliveryGroup? DeliveryGroup { get; set; }
 
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    public ICollection<DeliveryRecord> DeliveryRecords { get; set; } = new List<DeliveryRecord>();
 }
 

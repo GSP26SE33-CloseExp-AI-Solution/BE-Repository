@@ -15,15 +15,18 @@ public class ProductsController : ControllerBase
 {
     private readonly IServiceProviders _services;
     private readonly IProductWorkflowService _workflowService;
+    private readonly IExcelImportService _excelImportService;
     private readonly ILogger<ProductsController> _logger;
 
     public ProductsController(
         IServiceProviders services,
         IProductWorkflowService workflowService,
+        IExcelImportService excelImportService,
         ILogger<ProductsController> logger)
     {
         _services = services;
         _workflowService = workflowService;
+        _excelImportService = excelImportService;
         _logger = logger;
     }
 
@@ -704,6 +707,358 @@ public class ProductsController : ControllerBase
             _logger.LogError(ex, "Error quick approving product {ProductId}", id);
             return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
+    }
+
+    #endregion
+
+    #region New Workflow - Barcode First
+
+    /// <summary>
+    /// Step 1: Scan barcode to check if product exists in database.
+    /// - If product exists: Returns product info, client should call create-lot endpoint
+    /// - If product doesn't exist: Returns barcode lookup info (if available), client should call analyze-image endpoint
+    /// </summary>
+    [HttpGet("scan/{barcode}")]
+    public async Task<ActionResult<ApiResponse<ScanBarcodeResponseDto>>> ScanBarcode(
+        string barcode,
+        [FromQuery] Guid supermarketId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _workflowService.ScanBarcodeAsync(barcode, supermarketId, cancellationToken);
+            return Ok(ApiResponse<ScanBarcodeResponseDto>.SuccessResponse(result));
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error scanning barcode {Barcode}", barcode);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Step 2a: Create ProductLot from existing Product (no OCR needed).
+    /// Use this when ScanBarcode returns ProductExists = true.
+    /// 
+    /// IMPORTANT: Product must be in Verified status.
+    /// If product is in Draft status, verify it first using POST /api/products/{productId}/verify
+    /// </summary>
+    [HttpPost("lots/from-existing")]
+    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> CreateLotFromExisting(
+        [FromBody] CreateProductLotFromExistingDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _workflowService.CreateProductLotFromExistingAsync(request, cancellationToken);
+            return CreatedAtAction(
+                nameof(GetProductLot),
+                new { lotId = result.LotId },
+                ApiResponse<ProductLotResponseDto>.SuccessResponse(result, "ProductLot created successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Product not verified yet
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating lot from existing product");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Step 2b: Upload image for OCR analysis (for new products).
+    /// Use this when ScanBarcode returns ProductExists = false.
+    /// Returns extracted info for user to verify - does NOT create product yet.
+    /// </summary>
+    [HttpPost("analyze-image")]
+    [RequestSizeLimit(20 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<OcrAnalysisResponseDto>>> AnalyzeImage(
+        [FromForm] Guid supermarketId,
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Image file is required"));
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await _workflowService.AnalyzeProductImageAsync(
+                supermarketId, stream, file.FileName, file.ContentType, cancellationToken);
+            return Ok(ApiResponse<OcrAnalysisResponseDto>.SuccessResponse(
+                result, "Image analyzed. Please verify the extracted info and create product."));
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error analyzing image");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Step 2b continued: Create new Product (Draft) after verifying OCR info.
+    /// User must then verify the product before creating ProductLot.
+    /// 
+    /// New workflow:
+    /// 1. Scan barcode → Product doesn't exist
+    /// 2. Analyze image (OCR)
+    /// 3. Create new Product (Draft) ← THIS ENDPOINT
+    /// 4. Verify Product → Product becomes Verified
+    /// 5. Create ProductLot from existing (verified) product
+    /// 6. Get pricing → Confirm price → Publish lot
+    /// </summary>
+    [HttpPost("create-new")]
+    public async Task<ActionResult<ApiResponse<CreateNewProductResponseDto>>> CreateNewProduct(
+        [FromBody] CreateNewProductRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _workflowService.CreateNewProductAsync(request, cancellationToken);
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = result.ProductId },
+                ApiResponse<CreateNewProductResponseDto>.SuccessResponse(
+                    result, 
+                    $"Product created successfully (Draft). Next: Verify product using POST /api/products/{result.ProductId}/verify"));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating new product");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Get ProductLot by ID
+    /// </summary>
+    [HttpGet("lots/{lotId:guid}")]
+    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> GetProductLot(
+        Guid lotId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _workflowService.GetProductLotAsync(lotId, cancellationToken);
+        if (result == null)
+            return NotFound(ApiResponse<object>.ErrorResponse("ProductLot not found"));
+        return Ok(ApiResponse<ProductLotResponseDto>.SuccessResponse(result));
+    }
+
+    /// <summary>
+    /// Get ProductLots by status for a supermarket
+    /// </summary>
+    [HttpGet("lots/by-status/{supermarketId:guid}")]
+    public async Task<ActionResult<ApiResponse<List<ProductLotResponseDto>>>> GetLotsByStatus(
+        Guid supermarketId,
+        [FromQuery] ProductState status,
+        CancellationToken cancellationToken)
+    {
+        var lots = await _workflowService.GetProductLotsByStatusAsync(supermarketId, status, cancellationToken);
+        return Ok(ApiResponse<List<ProductLotResponseDto>>.SuccessResponse(lots.ToList()));
+    }
+
+    /// <summary>
+    /// Get pricing suggestion for a ProductLot
+    /// </summary>
+    [HttpPost("lots/{lotId:guid}/pricing-suggestion")]
+    public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> GetLotPricingSuggestion(
+        Guid lotId,
+        [FromBody] GetPricingSuggestionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _workflowService.GetLotPricingSuggestionAsync(lotId, request, cancellationToken);
+            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(result));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting pricing for lot {LotId}", lotId);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Confirm price for a ProductLot
+    /// </summary>
+    [HttpPost("lots/{lotId:guid}/confirm-price")]
+    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> ConfirmLotPrice(
+        Guid lotId,
+        [FromBody] ConfirmPriceRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _workflowService.ConfirmLotPriceAsync(lotId, request, cancellationToken);
+            return Ok(ApiResponse<ProductLotResponseDto>.SuccessResponse(result, "Price confirmed"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error confirming price for lot {LotId}", lotId);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Publish a ProductLot
+    /// </summary>
+    [HttpPost("lots/{lotId:guid}/publish")]
+    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> PublishLot(
+        Guid lotId,
+        [FromBody] PublishProductRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _workflowService.PublishProductLotAsync(lotId, request, cancellationToken);
+            return Ok(ApiResponse<ProductLotResponseDto>.SuccessResponse(result, "ProductLot published"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing lot {LotId}", lotId);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    #endregion
+
+    #region Excel Import
+
+    /// <summary>
+    /// Preview Excel file - get columns and sample data for mapping.
+    /// Client should use this to build column mapping UI.
+    /// </summary>
+    [HttpPost("import/preview")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<ExcelPreviewResponseDto>>> PreviewExcel(
+        IFormFile file,
+        [FromQuery] int headerRow = 0,
+        [FromQuery] int previewRows = 5,
+        CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Excel file is required"));
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await _excelImportService.PreviewExcelAsync(stream, headerRow, previewRows, cancellationToken);
+            return Ok(ApiResponse<ExcelPreviewResponseDto>.SuccessResponse(result));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error previewing Excel file");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Import products from Excel using user-defined column mappings.
+    /// Products will be created with Verified status.
+    /// </summary>
+    [HttpPost("import")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<ExcelImportResponseDto>>> ImportFromExcel(
+        IFormFile file,
+        [FromForm] Guid supermarketId,
+        [FromForm] string importedBy,
+        [FromForm] string columnMappingsJson,
+        [FromQuery] int dataStartRow = 1,
+        [FromQuery] bool skipErrorRows = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Excel file is required"));
+        }
+
+        try
+        {
+            var columnMappings = System.Text.Json.JsonSerializer.Deserialize<List<ExcelColumnMappingDto>>(columnMappingsJson);
+            if (columnMappings == null || !columnMappings.Any())
+            {
+                return BadRequest(ApiResponse<object>.ErrorResponse("Column mappings are required"));
+            }
+
+            var request = new ExcelImportRequestDto
+            {
+                SupermarketId = supermarketId,
+                ImportedBy = importedBy,
+                ColumnMappings = columnMappings,
+                DataStartRow = dataStartRow,
+                SkipErrorRows = skipErrorRows
+            };
+
+            await using var stream = file.OpenReadStream();
+            var result = await _excelImportService.ImportProductsAsync(stream, request, cancellationToken);
+            return Ok(ApiResponse<ExcelImportResponseDto>.SuccessResponse(
+                result, $"Import completed: {result.SuccessCount} success, {result.ErrorCount} errors"));
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing from Excel");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Get available system fields for Excel column mapping
+    /// </summary>
+    [HttpGet("import/fields")]
+    public ActionResult<ApiResponse<string[]>> GetImportFields()
+    {
+        var fields = _excelImportService.GetAvailableFields().ToArray();
+        return Ok(ApiResponse<string[]>.SuccessResponse(fields));
     }
 
     #endregion

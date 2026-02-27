@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CloseExpAISolution.Application.DTOs;
 
-/// <summary>
-/// Response DTO for Feedback
-/// </summary>
 public class FeedbackResponseDto
 {
     public Guid FeedbackId { get; set; }
@@ -17,9 +14,6 @@ public class FeedbackResponseDto
     public DateTime? UpdatedAt { get; set; }
 }
 
-/// <summary>
-/// Request DTO for creating a new feedback
-/// </summary>
 public class CreateFeedbackRequestDto
 {
     [Required(ErrorMessage = "Mã đơn hàng không được để trống")]
@@ -33,9 +27,6 @@ public class CreateFeedbackRequestDto
     public string? Comment { get; set; }
 }
 
-/// <summary>
-/// Request DTO for updating feedback (user only)
-/// </summary>
 public class UpdateFeedbackRequestDto
 {
     [Range(1, 5, ErrorMessage = "Đánh giá phải từ 1 đến 5 sao")]

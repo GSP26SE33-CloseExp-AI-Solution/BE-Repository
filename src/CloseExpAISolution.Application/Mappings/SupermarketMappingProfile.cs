@@ -1,5 +1,6 @@
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 
