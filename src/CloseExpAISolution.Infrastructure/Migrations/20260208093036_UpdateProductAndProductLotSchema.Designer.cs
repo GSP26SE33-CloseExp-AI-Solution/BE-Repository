@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Domain.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260208093036_UpdateProductAndProductLotSchema")]
+    partial class UpdateProductAndProductLotSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -771,10 +774,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<string>("SafetyWarning")
                         .HasColumnType("text");
 
-                    b.Property<string>("Sku")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -788,9 +787,6 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.Property<Guid>("UnitId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("UsageInstructions")
                         .HasColumnType("text");
 
@@ -799,12 +795,6 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.Property<string>("VerifiedBy")
                         .HasColumnType("text");
-
-                    b.Property<bool>("isActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("isFeatured")
-                        .HasColumnType("boolean");
 
                     b.HasKey("ProductId");
 

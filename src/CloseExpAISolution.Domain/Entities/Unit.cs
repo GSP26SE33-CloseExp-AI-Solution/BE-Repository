@@ -6,5 +6,5 @@ public class Unit
     public string Name { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
 
-    public ICollection<ProductLot> ProductLots { get; set; } = new List<ProductLot>();
+    public ICollection<Product> Products { get; set; } = new List<Product>();
 }

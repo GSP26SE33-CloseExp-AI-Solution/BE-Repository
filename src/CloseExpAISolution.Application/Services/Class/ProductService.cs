@@ -132,7 +132,8 @@ public class ProductService : IProductService
                 .ThenInclude(p => p!.Supermarket)
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.ProductImages)
-            .Include(pl => pl.Unit)
+            .Include(pl => pl.Product)
+                .ThenInclude(p => p!.Unit)
             .AsQueryable();
 
         // Filter theo SupermarketId
@@ -141,10 +142,10 @@ public class ProductService : IProductService
             query = query.Where(pl => pl.Product!.SupermarketId == filter.SupermarketId.Value);
         }
 
-        // Filter theo WeightType
+        // Filter theo WeightType (maps to Product.QuantityType)
         if (filter.WeightType.HasValue)
         {
-            query = query.Where(pl => pl.Product!.WeightType == (int)filter.WeightType.Value);
+            query = query.Where(pl => pl.Product!.QuantityType == (int)filter.WeightType.Value);
         }
 
         // Filter theo IsFreshFood
@@ -287,7 +288,9 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Pricing)
             .Include(p => p.Supermarket)
+            .Include(p => p.Unit)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
 
         if (product == null)
@@ -301,25 +304,25 @@ public class ProductService : IProductService
             .Where(pl => pl.ProductId == productId)
             .SumAsync(pl => pl.Quantity);
 
-        // Lấy unit name từ lot đầu tiên (nếu có)
-        var firstLot = await _context.ProductLots
-            .Include(pl => pl.Unit)
-            .Where(pl => pl.ProductId == productId)
-            .FirstOrDefaultAsync();
+        detail.UnitName = product.Unit?.Name ?? "Đang cập nhật";
 
-        detail.UnitName = firstLot?.Unit?.Name ?? "Đang cập nhật";
-
-        // Tính discount percent
-        if (product.OriginalPrice > 0 && product.FinalPrice > 0)
+        // Tính discount percent từ Pricing
+        var pricing = product.Pricing;
+        if (pricing != null && pricing.OriginalUnitPrice > 0 && pricing.FinalUnitPrice > 0)
         {
-            detail.DiscountPercent = Math.Round((1 - product.FinalPrice / product.OriginalPrice) * 100, 1);
+            detail.DiscountPercent = Math.Round((1 - pricing.FinalUnitPrice / pricing.OriginalUnitPrice) * 100, 1);
         }
 
-        // Tính DaysToExpiry và ExpiryStatus
-        if (product.ExpiryDate.HasValue)
+        // Lấy ExpiryDate từ lot gần hết hạn nhất
+        var nearestLot = await _context.ProductLots
+            .Where(pl => pl.ProductId == productId && pl.ExpiryDate >= DateTime.UtcNow)
+            .OrderBy(pl => pl.ExpiryDate)
+            .FirstOrDefaultAsync();
+
+        if (nearestLot != null)
         {
             var today = DateTime.UtcNow.Date;
-            detail.DaysToExpiry = (product.ExpiryDate.Value.Date - today).Days;
+            detail.DaysToExpiry = (nearestLot.ExpiryDate.Date - today).Days;
 
             if (detail.DaysToExpiry < 0)
             {

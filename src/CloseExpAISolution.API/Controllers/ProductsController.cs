@@ -1,7 +1,9 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
+using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -102,7 +104,6 @@ public class ProductsController : ControllerBase
 
     /// <summary>
     /// Create product with images. Used when MarketStaff creates a product and uploads images to R2.
-    /// Form fields: SupermarketId, Name, Brand, Category, Barcode, IsFreshFood. Files: one or more image files.
     /// </summary>
     [HttpPost("with-images")]
     [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB

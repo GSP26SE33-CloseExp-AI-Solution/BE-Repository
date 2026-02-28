@@ -1,4 +1,4 @@
-﻿using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Infrastructure.Base;
 using System;
 using System.Collections.Generic;
@@ -10,5 +10,6 @@ namespace CloseExpAISolution.Infrastructure.Repositories.Interface
 {
     public interface IProductRepository : IGenericRepository<Product>
     {
+        Task<Product?> GetByIdWithWorkflowDetailsAsync(Guid productId);
     }
 }
