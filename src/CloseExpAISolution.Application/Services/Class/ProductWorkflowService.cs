@@ -2,6 +2,7 @@ using System.Text.Json;
 using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.AIService.Models;
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -106,9 +107,10 @@ public class ProductWorkflowService : IProductWorkflowService
             product.ProductId,
             cancellationToken);
 
+
         // Get pre-signed URL for AI service to access the image (valid for 1 hour)
         var imageUrl = _r2Storage.GetPreSignedUrlForImage(productImage.ImageUrl, TimeSpan.FromHours(1));
-        
+
         if (string.IsNullOrEmpty(imageUrl))
         {
             _logger.LogWarning("Could not generate pre-signed URL for image {ImageUrl}", productImage.ImageUrl);
@@ -148,7 +150,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
                     if (barcodeLookupInfo != null)
                     {
-                        _logger.LogInformation("Barcode lookup found: {ProductName} from {Source}", 
+                        _logger.LogInformation("Barcode lookup found: {ProductName} from {Source}",
                             barcodeLookupInfo.ProductName, barcodeLookupInfo.Source);
 
                         // Fill in missing info from barcode lookup (OCR data takes priority)
@@ -335,7 +337,7 @@ public class ProductWorkflowService : IProductWorkflowService
                 if (marketPriceResult == null || !marketPriceResult.Details.Any())
                 {
                     _logger.LogInformation("No market prices in DB, triggering crawl for {ProductName}", product.Name);
-                    
+
                     var crawlResult = await _marketPriceService.TriggerCrawlAsync(
                         product.Barcode ?? "",
                         product.Name,
@@ -344,14 +346,14 @@ public class ProductWorkflowService : IProductWorkflowService
                     if (crawlResult.Success && crawlResult.PricesFound > 0)
                     {
                         _logger.LogInformation("Crawl succeeded with {Count} prices, fetching from DB...", crawlResult.PricesFound);
-                        
+
                         // After crawl, fetch fresh data from DB to get detailed info
                         marketPriceResult = await _marketPriceService.GetMarketPriceAsync(
                             product.Barcode ?? "",
                             cancellationToken);
-                        
+
                         // Also try search by product name if barcode didn't return results
-                        if ((marketPriceResult == null || !marketPriceResult.Details.Any()) 
+                        if ((marketPriceResult == null || !marketPriceResult.Details.Any())
                             && !string.IsNullOrEmpty(product.Name))
                         {
                             marketPriceResult = await _marketPriceService.SearchMarketPriceAsync(
@@ -378,7 +380,7 @@ public class ProductWorkflowService : IProductWorkflowService
                         Price = p.Price,
                         Source = p.Source
                     }).ToList();
-                    
+
                     _logger.LogInformation("Using {Count} market prices for comparison", marketPriceResult.Details.Count);
                 }
             }
@@ -404,12 +406,12 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             // Map category to valid product_type enum
             var productType = MapCategoryToProductType(product.Category);
-            
+
             // Convert expiry date to date only (no time component)
-            DateTime? expiryDateOnly = expiryDate.HasValue 
-                ? expiryDate.Value.Date 
+            DateTime? expiryDateOnly = expiryDate.HasValue
+                ? expiryDate.Value.Date
                 : null;
-            
+
             var pricingRequest = new PricingRequest
             {
                 ProductType = productType,
@@ -422,7 +424,7 @@ public class ProductWorkflowService : IProductWorkflowService
                 ProductName = product.Name,
                 Barcode = product.Barcode
             };
-            
+
             var pricingResult = await _aiClient.GetPriceSuggestionAsync(pricingRequest, cancellationToken);
 
             if (pricingResult != null)
@@ -924,6 +926,636 @@ public class ProductWorkflowService : IProductWorkflowService
         }
 
         return "other";
+    }
+
+    #endregion
+
+    #region New Workflow Methods
+
+    /// <summary>
+    /// Step 1: Scan barcode and check if product exists
+    /// </summary>
+    public async Task<ScanBarcodeResponseDto> ScanBarcodeAsync(
+        string barcode,
+        Guid supermarketId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Scanning barcode {Barcode} for supermarket {SupermarketId}", barcode, supermarketId);
+
+        // Check if supermarket exists
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
+        if (supermarket == null)
+        {
+            throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
+        }
+
+        // Check if product with this barcode exists in database
+        var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+            p => p.Barcode == barcode && p.isActive);
+
+        if (existingProduct != null)
+        {
+            _logger.LogInformation("Product found in database for barcode {Barcode}: {ProductName}", barcode, existingProduct.Name);
+
+            // Get product images
+            var images = await _unitOfWork.Repository<ProductImage>().FindAsync(pi => pi.ProductId == existingProduct.ProductId);
+            var mainImage = images.OrderByDescending(i => i.UploadedAt).FirstOrDefault()?.ImageUrl;
+
+            // Get total lots sold
+            var lots = await _unitOfWork.Repository<ProductLot>().FindAsync(l => l.ProductId == existingProduct.ProductId);
+            var totalLotsSold = lots.Count(l => l.Status == ProductState.Published.ToString() || l.Status == ProductState.SoldOut.ToString());
+
+            // Get last price from Pricing
+            var pricing = await _unitOfWork.Repository<Pricing>().FirstOrDefaultAsync(pr => pr.ProductId == existingProduct.ProductId);
+
+            return new ScanBarcodeResponseDto
+            {
+                Barcode = barcode,
+                ProductExists = true,
+                ExistingProduct = new ExistingProductInfoDto
+                {
+                    ProductId = existingProduct.ProductId,
+                    Name = existingProduct.Name,
+                    Brand = existingProduct.Brand,
+                    Category = existingProduct.Category,
+                    Barcode = existingProduct.Barcode,
+                    MainImageUrl = mainImage,
+                    IsFreshFood = existingProduct.IsFreshFood,
+                    Manufacturer = existingProduct.Manufacturer,
+                    Ingredients = existingProduct.Ingredients,
+                    LastPrice = pricing?.FinalUnitPrice ?? pricing?.SuggestedUnitPrice,
+                    TotalLotsSold = totalLotsSold
+                },
+                NextAction = "CREATE_LOT",
+                RequiresOcrUpload = false
+            };
+        }
+
+        // Product not found - try barcode lookup for reference
+        _logger.LogInformation("Product not found in database for barcode {Barcode}, checking external sources", barcode);
+        BarcodeProductInfo? barcodeLookupInfo = null;
+
+        try
+        {
+            barcodeLookupInfo = await _barcodeLookupService.LookupAsync(barcode, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error looking up barcode {Barcode}", barcode);
+        }
+
+        return new ScanBarcodeResponseDto
+        {
+            Barcode = barcode,
+            ProductExists = false,
+            BarcodeLookupInfo = barcodeLookupInfo != null ? new BarcodeLookupInfoDto
+            {
+                Barcode = barcodeLookupInfo.Barcode,
+                ProductName = barcodeLookupInfo.ProductName,
+                Brand = barcodeLookupInfo.Brand,
+                Category = barcodeLookupInfo.Category,
+                Description = barcodeLookupInfo.Description,
+                ImageUrl = barcodeLookupInfo.ImageUrl,
+                Manufacturer = barcodeLookupInfo.Manufacturer,
+                Weight = barcodeLookupInfo.Weight,
+                Ingredients = barcodeLookupInfo.Ingredients,
+                NutritionFacts = barcodeLookupInfo.NutritionFacts,
+                Country = barcodeLookupInfo.Country,
+                Source = barcodeLookupInfo.Source,
+                Confidence = barcodeLookupInfo.Confidence,
+                IsVietnameseProduct = barcodeLookupInfo.IsVietnameseProduct,
+                Gs1Prefix = barcodeLookupInfo.Gs1Prefix,
+                ScanCount = barcodeLookupInfo.ScanCount,
+                IsVerified = barcodeLookupInfo.IsVerified
+            } : null,
+            NextAction = "UPLOAD_IMAGE_FOR_OCR",
+            RequiresOcrUpload = true
+        };
+    }
+
+    /// <summary>
+    /// Step 2a: Create ProductLot from existing Product (no OCR needed)
+    /// REQUIRES: Product must be in Verified status
+    /// </summary>
+    public async Task<ProductLotResponseDto> CreateProductLotFromExistingAsync(
+        CreateProductLotFromExistingDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Creating ProductLot from existing product {ProductId}", request.ProductId);
+
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(request.ProductId);
+        if (product == null)
+        {
+            throw new KeyNotFoundException($"Product {request.ProductId} not found");
+        }
+
+        // Validate Product is Verified before allowing ProductLot creation
+        if (product.Status != ProductState.Verified.ToString())
+        {
+            throw new InvalidOperationException(
+                $"Product must be in Verified status to create ProductLot. Current status: {product.Status}. " +
+                $"Please verify the product first using POST /api/products/{{productId}}/verify");
+        }
+
+        var productLot = new ProductLot
+        {
+            LotId = Guid.NewGuid(),
+            ProductId = product.ProductId,
+            ExpiryDate = request.ExpiryDate,
+            ManufactureDate = request.ManufactureDate ?? DateTime.UtcNow,
+            Quantity = request.Quantity,
+            Weight = request.Weight,
+            Status = ProductState.Draft.ToString(),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _unitOfWork.Repository<ProductLot>().AddAsync(productLot);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Created ProductLot {LotId} for product {ProductId}", productLot.LotId, product.ProductId);
+
+        return MapToLotResponseDto(productLot, product);
+    }
+
+    /// <summary>
+    /// Step 2b: Analyze product image with OCR (for new products)
+    /// Does NOT create product yet - returns extracted info for user to verify
+    /// </summary>
+    public async Task<OcrAnalysisResponseDto> AnalyzeProductImageAsync(
+        Guid supermarketId,
+        Stream imageStream,
+        string fileName,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Analyzing product image for supermarket {SupermarketId}", supermarketId);
+
+        // Validate supermarket exists
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
+        if (supermarket == null)
+        {
+            throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
+        }
+
+        // Upload image to R2 (temporary storage for OCR analysis)
+        var tempProductId = Guid.NewGuid(); // Temporary ID for image storage
+        var productImage = await _r2Storage.UploadProductImageToR2Async(
+            imageStream,
+            fileName,
+            contentType,
+            tempProductId,
+            cancellationToken);
+
+        var imageUrl = _r2Storage.GetPreSignedUrlForImage(productImage.ImageUrl, TimeSpan.FromHours(1));
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            imageUrl = productImage.ImageUrl;
+        }
+
+        // Call AI OCR
+        var response = new OcrAnalysisResponseDto
+        {
+            ImageUrl = productImage.ImageUrl,
+            ExtractedInfo = new OcrExtractedInfoDto(),
+            Confidence = 0
+        };
+
+        try
+        {
+            var ocrResult = await _aiClient.ExtractFromUrlAsync(imageUrl, cancellationToken);
+
+            if (ocrResult != null)
+            {
+                response.Confidence = ocrResult.Confidence;
+                response.RawOcrData = JsonSerializer.Serialize(ocrResult);
+
+                // Parse ingredients list to string
+                var ingredientsStr = ocrResult.ProductInfo?.Ingredients != null
+                    ? string.Join(", ", ocrResult.ProductInfo.Ingredients)
+                    : null;
+
+                // Parse manufacturer info to string
+                var manufacturerStr = ocrResult.ProductInfo?.Manufacturer?.Name;
+
+                // Parse nutrition facts to dictionary
+                Dictionary<string, string>? nutritionFacts = null;
+                if (ocrResult.ProductInfo?.NutritionFacts != null)
+                {
+                    nutritionFacts = new Dictionary<string, string>();
+                    foreach (var kvp in ocrResult.ProductInfo.NutritionFacts)
+                    {
+                        nutritionFacts[kvp.Key] = kvp.Value?.ToString() ?? "";
+                    }
+                }
+
+                response.ExtractedInfo = new OcrExtractedInfoDto
+                {
+                    Name = ocrResult.ProductInfo?.Name ?? ocrResult.Name,
+                    Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand,
+                    Barcode = ocrResult.ProductInfo?.Barcode ?? ocrResult.Barcode,
+                    Category = ocrResult.ProductInfo?.DetectedCategory?.Name,
+                    ExpiryDate = ocrResult.ExpiryDate?.Value,
+                    ManufactureDate = ocrResult.ManufacturedDate?.Value,
+                    Weight = ocrResult.ProductInfo?.Weight ?? ocrResult.ProductInfo?.WeightInfo?.Raw,
+                    Ingredients = ingredientsStr,
+                    Manufacturer = manufacturerStr,
+                    Origin = ocrResult.ProductInfo?.Origin,
+                    NutritionFacts = nutritionFacts
+                };
+
+                // Try barcode lookup if barcode was extracted
+                if (!string.IsNullOrEmpty(response.ExtractedInfo.Barcode))
+                {
+                    try
+                    {
+                        var barcodeLookupInfo = await _barcodeLookupService.LookupAsync(response.ExtractedInfo.Barcode, cancellationToken);
+                        if (barcodeLookupInfo != null)
+                        {
+                            response.BarcodeLookupInfo = new BarcodeLookupInfoDto
+                            {
+                                Barcode = barcodeLookupInfo.Barcode,
+                                ProductName = barcodeLookupInfo.ProductName,
+                                Brand = barcodeLookupInfo.Brand,
+                                Category = barcodeLookupInfo.Category,
+                                Description = barcodeLookupInfo.Description,
+                                ImageUrl = barcodeLookupInfo.ImageUrl,
+                                Manufacturer = barcodeLookupInfo.Manufacturer,
+                                Weight = barcodeLookupInfo.Weight,
+                                Ingredients = barcodeLookupInfo.Ingredients,
+                                NutritionFacts = barcodeLookupInfo.NutritionFacts,
+                                Country = barcodeLookupInfo.Country,
+                                Source = barcodeLookupInfo.Source,
+                                Confidence = barcodeLookupInfo.Confidence,
+                                IsVietnameseProduct = barcodeLookupInfo.IsVietnameseProduct,
+                                Gs1Prefix = barcodeLookupInfo.Gs1Prefix
+                            };
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error looking up barcode {Barcode}", response.ExtractedInfo.Barcode);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calling AI OCR");
+            response.ExtractedInfo.Name = "OCR Error - Manual Entry Required";
+        }
+
+        return response;
+    }
+
+    /// <summary>
+    /// Step 2b (new): Create new Product (Draft) - does NOT create ProductLot
+    /// User must verify Product first, then create ProductLot separately
+    /// </summary>
+    public async Task<CreateNewProductResponseDto> CreateNewProductAsync(
+        CreateNewProductRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Creating new product (Draft) for supermarket {SupermarketId}", request.SupermarketId);
+
+        // Validate supermarket exists
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(s => s.SupermarketId == request.SupermarketId);
+        if (supermarket == null)
+        {
+            throw new ArgumentException($"Supermarket with ID {request.SupermarketId} not found.", nameof(request.SupermarketId));
+        }
+
+        // Get default unit
+        var units = await _unitOfWork.Repository<Unit>().GetAllAsync();
+        var defaultUnit = units.FirstOrDefault();
+        if (defaultUnit == null)
+        {
+            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
+        }
+
+        // Check if product with this barcode already exists
+        if (!string.IsNullOrEmpty(request.Barcode))
+        {
+            var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(p => p.Barcode == request.Barcode);
+            if (existingProduct != null)
+            {
+                throw new InvalidOperationException($"Product with barcode {request.Barcode} already exists (ProductId: {existingProduct.ProductId}). Use CreateProductLotFromExisting instead.");
+            }
+        }
+
+        // Create new Product with Draft status (NOT Verified yet)
+        var product = new Product
+        {
+            ProductId = Guid.NewGuid(),
+            SupermarketId = request.SupermarketId,
+            UnitId = defaultUnit.UnitId,
+            Name = request.Name,
+            Brand = request.Brand,
+            Category = request.Category,
+            Barcode = request.Barcode,
+            IsFreshFood = request.IsFreshFood,
+            Ingredients = request.Ingredients,
+            NutritionFactsJson = request.NutritionFactsJson,
+            Manufacturer = request.Manufacturer,
+            Origin = request.Origin,
+            Description = request.Description,
+            StorageInstructions = request.StorageInstructions,
+            UsageInstructions = request.UsageInstructions,
+            OcrExtractedData = request.OcrExtractedData,
+            OcrConfidence = request.OcrConfidence,
+            CreatedBy = request.CreatedBy,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Status = ProductState.Draft.ToString(), // Draft - needs verification
+            isActive = false // Not active until verified
+        };
+
+        await _unitOfWork.ProductRepository.AddAsync(product);
+
+        // Link OCR image to product if provided
+        string? mainImageUrl = null;
+        if (!string.IsNullOrEmpty(request.OcrImageUrl))
+        {
+            var productImage = new ProductImage
+            {
+                ProductImageId = Guid.NewGuid(),
+                ProductId = product.ProductId,
+                ImageUrl = request.OcrImageUrl,
+                UploadedAt = DateTime.UtcNow,
+                isPrimary = true
+            };
+            await _unitOfWork.Repository<ProductImage>().AddAsync(productImage);
+            mainImageUrl = request.OcrImageUrl;
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Created new product {ProductId} (Draft status, awaiting verification)", product.ProductId);
+
+        return new CreateNewProductResponseDto
+        {
+            ProductId = product.ProductId,
+            SupermarketId = product.SupermarketId,
+            Name = product.Name,
+            Brand = product.Brand,
+            Category = product.Category,
+            Barcode = product.Barcode,
+            IsFreshFood = product.IsFreshFood,
+            Manufacturer = product.Manufacturer,
+            Ingredients = product.Ingredients,
+            MainImageUrl = mainImageUrl,
+            Status = ProductState.Draft,
+            OcrConfidence = product.OcrConfidence,
+            CreatedBy = product.CreatedBy,
+            CreatedAt = product.CreatedAt,
+            NextAction = "VERIFY_PRODUCT",
+            NextActionDescription = $"Xác nhận thông tin sản phẩm: POST /api/products/{product.ProductId}/verify"
+        };
+    }
+
+    /// <summary>
+    /// [DEPRECATED] Step 2b (continued): Create new Product and ProductLot after user verifies OCR info
+    /// Use CreateNewProductAsync + VerifyProductAsync + CreateProductLotFromExistingAsync instead
+    /// </summary>
+    [Obsolete("Use CreateNewProductAsync + VerifyProductAsync + CreateProductLotFromExistingAsync instead")]
+    public async Task<ProductLotResponseDto> CreateNewProductAndLotAsync(
+        CreateNewProductRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning("Using deprecated CreateNewProductAndLotAsync. Consider using CreateNewProductAsync + VerifyProductAsync + CreateProductLotFromExistingAsync instead.");
+
+        // Create product first using new method
+        var createResult = await CreateNewProductAsync(request, cancellationToken);
+
+        // Auto-verify it (for backward compatibility)
+        var verifyRequest = new VerifyProductRequestDto
+        {
+            VerifiedBy = request.CreatedBy,
+            OriginalPrice = 0 // Will be set when getting pricing
+        };
+        await VerifyProductAsync(createResult.ProductId, verifyRequest, cancellationToken);
+
+        // This method no longer creates ProductLot automatically
+        // Return a response indicating the product was created but no lot
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(createResult.ProductId);
+
+        // Create a dummy lot response (no actual lot created)
+        return new ProductLotResponseDto
+        {
+            LotId = Guid.Empty,
+            ProductId = createResult.ProductId,
+            ProductName = product?.Name ?? request.Name,
+            ProductBarcode = product?.Barcode ?? request.Barcode,
+            ProductBrand = product?.Brand ?? request.Brand,
+            Status = ProductState.Verified,
+            CreatedAt = DateTime.UtcNow,
+            DaysToExpiry = 0,
+            Quantity = 0,
+            Weight = 0
+        };
+    }
+
+    /// <summary>
+    /// Get pricing suggestion for a ProductLot
+    /// </summary>
+    public async Task<PricingSuggestionResponseDto> GetLotPricingSuggestionAsync(
+        Guid lotId,
+        GetPricingSuggestionRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _unitOfWork.Repository<ProductLot>().FirstOrDefaultAsync(l => l.LotId == lotId);
+        if (lot == null)
+        {
+            throw new KeyNotFoundException($"ProductLot {lotId} not found");
+        }
+
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(lot.ProductId);
+        if (product == null)
+        {
+            throw new KeyNotFoundException($"Product {lot.ProductId} not found");
+        }
+
+        // Create or update AIPriceHistory for this lot
+        var priceHistory = await _unitOfWork.Repository<AIPriceHistory>().FirstOrDefaultAsync(
+            h => h.LotId == lotId);
+
+        if (priceHistory == null)
+        {
+            priceHistory = new AIPriceHistory
+            {
+                PriceHistoryId = Guid.NewGuid(),
+                LotId = lotId,
+                OriginalPrice = request.OriginalPrice,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<AIPriceHistory>().AddAsync(priceHistory);
+        }
+        else
+        {
+            priceHistory.OriginalPrice = request.OriginalPrice;
+            _unitOfWork.Repository<AIPriceHistory>().Update(priceHistory);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Get pricing suggestion using existing internal method
+        // We temporarily set product lot for the calculation
+        product.ProductLots = new List<ProductLot> { lot };
+        var suggestion = await GetPricingSuggestionInternalAsync(product, request.OriginalPrice, cancellationToken);
+
+        // Update price history with suggestion
+        priceHistory.SuggestedPrice = suggestion.SuggestedPrice;
+        priceHistory.AIConfidence = suggestion.Confidence;
+        priceHistory.Reason = string.Join("; ", suggestion.Reasons);
+        _unitOfWork.Repository<AIPriceHistory>().Update(priceHistory);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return suggestion;
+    }
+
+    /// <summary>
+    /// Confirm price for a ProductLot
+    /// </summary>
+    public async Task<ProductLotResponseDto> ConfirmLotPriceAsync(
+        Guid lotId,
+        ConfirmPriceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _unitOfWork.Repository<ProductLot>().FirstOrDefaultAsync(l => l.LotId == lotId);
+        if (lot == null)
+        {
+            throw new KeyNotFoundException($"ProductLot {lotId} not found");
+        }
+
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(lot.ProductId);
+        if (product == null)
+        {
+            throw new KeyNotFoundException($"Product {lot.ProductId} not found");
+        }
+
+        // Get or create price history
+        var priceHistory = await _unitOfWork.Repository<AIPriceHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
+        if (priceHistory == null)
+        {
+            throw new InvalidOperationException("Please get pricing suggestion first.");
+        }
+
+        var finalPrice = request.FinalPrice ?? priceHistory.SuggestedPrice;
+        priceHistory.FinalPrice = finalPrice;
+        priceHistory.AcceptedSuggestion = request.AcceptedSuggestion;
+        priceHistory.StaffFeedback = request.PriceFeedback;
+        priceHistory.ConfirmedBy = request.ConfirmedBy;
+        priceHistory.ConfirmedAt = DateTime.UtcNow;
+
+        _unitOfWork.Repository<AIPriceHistory>().Update(priceHistory);
+
+        // Update lot status
+        lot.Status = ProductState.Priced.ToString();
+        _unitOfWork.Repository<ProductLot>().Update(lot);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return MapToLotResponseDto(lot, product, priceHistory);
+    }
+
+    /// <summary>
+    /// Publish a ProductLot
+    /// </summary>
+    public async Task<ProductLotResponseDto> PublishProductLotAsync(
+        Guid lotId,
+        PublishProductRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _unitOfWork.Repository<ProductLot>().FirstOrDefaultAsync(l => l.LotId == lotId);
+        if (lot == null)
+        {
+            throw new KeyNotFoundException($"ProductLot {lotId} not found");
+        }
+
+        if (lot.Status != ProductState.Priced.ToString())
+        {
+            throw new InvalidOperationException($"ProductLot must be in Priced status to publish. Current: {lot.Status}");
+        }
+
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(lot.ProductId);
+
+        lot.PublishedBy = request.PublishedBy;
+        lot.PublishedAt = DateTime.UtcNow;
+        lot.Status = ProductState.Published.ToString();
+
+        _unitOfWork.Repository<ProductLot>().Update(lot);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var priceHistory = await _unitOfWork.Repository<AIPriceHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
+        return MapToLotResponseDto(lot, product, priceHistory);
+    }
+
+    /// <summary>
+    /// Get ProductLot by ID
+    /// </summary>
+    public async Task<ProductLotResponseDto?> GetProductLotAsync(
+        Guid lotId,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _unitOfWork.Repository<ProductLot>().FirstOrDefaultAsync(l => l.LotId == lotId);
+        if (lot == null) return null;
+
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(lot.ProductId);
+        var priceHistory = await _unitOfWork.Repository<AIPriceHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
+
+        return MapToLotResponseDto(lot, product, priceHistory);
+    }
+
+    /// <summary>
+    /// Get ProductLots by status for a supermarket
+    /// </summary>
+    public async Task<IEnumerable<ProductLotResponseDto>> GetProductLotsByStatusAsync(
+        Guid supermarketId,
+        ProductState status,
+        CancellationToken cancellationToken = default)
+    {
+        var products = await _unitOfWork.ProductRepository.FindAsync(p => p.SupermarketId == supermarketId);
+        var productIds = products.Select(p => p.ProductId).ToList();
+
+        var lots = await _unitOfWork.Repository<ProductLot>().FindAsync(
+            l => productIds.Contains(l.ProductId) && l.Status == status.ToString());
+
+        var result = new List<ProductLotResponseDto>();
+        foreach (var lot in lots)
+        {
+            var product = products.FirstOrDefault(p => p.ProductId == lot.ProductId);
+            var priceHistory = await _unitOfWork.Repository<AIPriceHistory>().FirstOrDefaultAsync(h => h.LotId == lot.LotId);
+            result.Add(MapToLotResponseDto(lot, product, priceHistory));
+        }
+
+        return result;
+    }
+
+    private ProductLotResponseDto MapToLotResponseDto(ProductLot lot, Product? product, AIPriceHistory? priceHistory = null)
+    {
+        var images = product?.ProductImages?.OrderByDescending(i => i.UploadedAt).FirstOrDefault();
+
+        return new ProductLotResponseDto
+        {
+            LotId = lot.LotId,
+            ProductId = lot.ProductId,
+            ProductName = product?.Name ?? "",
+            ProductBarcode = product?.Barcode ?? "",
+            ProductBrand = product?.Brand,
+            ProductImageUrl = images?.ImageUrl,
+            ExpiryDate = lot.ExpiryDate,
+            ManufactureDate = lot.ManufactureDate,
+            DaysToExpiry = (int)(lot.ExpiryDate - DateTime.UtcNow).TotalDays,
+            Quantity = lot.Quantity,
+            Weight = lot.Weight,
+            Status = Enum.TryParse<ProductState>(lot.Status, out var state) ? state : ProductState.Draft,
+            CreatedAt = lot.CreatedAt,
+            PublishedBy = lot.PublishedBy,
+            PublishedAt = lot.PublishedAt,
+            OriginalPrice = priceHistory?.OriginalPrice,
+            SuggestedPrice = priceHistory?.SuggestedPrice,
+            FinalPrice = priceHistory?.FinalPrice,
+            PricingConfidence = priceHistory?.AIConfidence
+        };
     }
 
     #endregion

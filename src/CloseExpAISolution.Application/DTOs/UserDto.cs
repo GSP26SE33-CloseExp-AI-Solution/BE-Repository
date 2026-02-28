@@ -3,9 +3,6 @@ using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.DTOs;
 
-/// <summary>
-/// Main User DTO for transferring user data between layers
-/// </summary>
 public class UserDto
 {
     public Guid UserId { get; set; }
@@ -20,9 +17,6 @@ public class UserDto
     public DateTime UpdatedAt { get; set; }
 }
 
-/// <summary>
-/// Request DTO for creating a new user (Admin only)
-/// </summary>
 public class CreateUserRequestDto
 {
     [Required(ErrorMessage = "Full name is required")]
@@ -45,9 +39,6 @@ public class CreateUserRequestDto
     public int RoleId { get; set; }
 }
 
-/// <summary>
-/// Request DTO for updating user information (Admin only)
-/// </summary>
 public class UpdateUserRequestDto
 {
     [StringLength(100, ErrorMessage = "Full name cannot exceed 100 characters")]
@@ -63,9 +54,6 @@ public class UpdateUserRequestDto
     public int? RoleId { get; set; }
 }
 
-/// <summary>
-/// Request DTO for user to update their own profile (without status/role)
-/// </summary>
 public class UpdateProfileRequestDto
 {
     [StringLength(100, ErrorMessage = "Họ tên không được vượt quá 100 ký tự")]
@@ -75,19 +63,12 @@ public class UpdateProfileRequestDto
     public string? Phone { get; set; }
 }
 
-/// <summary>
-/// Request DTO for updating user status only (Admin only)
-/// Used for verifying/banning user accounts
-/// </summary>
 public class UpdateUserStatusRequestDto
 {
     [Required(ErrorMessage = "Trạng thái là bắt buộc")]
     public UserState Status { get; set; }
 }
 
-/// <summary>
-/// Response DTO for user API output
-/// </summary>
 public class UserResponseDto
 {
     public Guid UserId { get; set; }
@@ -100,30 +81,18 @@ public class UserResponseDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    /// <summary>
-    /// Thông tin nhân viên siêu thị (chỉ có nếu RoleId = 3 - MarketStaff)
-    /// </summary>
     public MarketStaffInfoDto? MarketStaffInfo { get; set; }
 }
 
-/// <summary>
-/// Thông tin nhân viên siêu thị gắn với user
-/// </summary>
 public class MarketStaffInfoDto
 {
     public Guid MarketStaffId { get; set; }
     public string Position { get; set; } = string.Empty;
     public DateTime JoinedAt { get; set; }
 
-    /// <summary>
-    /// Thông tin siêu thị mà nhân viên làm việc
-    /// </summary>
     public SupermarketBasicInfoDto? Supermarket { get; set; }
 }
 
-/// <summary>
-/// Thông tin cơ bản của siêu thị
-/// </summary>
 public class SupermarketBasicInfoDto
 {
     public Guid SupermarketId { get; set; }

@@ -16,7 +16,6 @@ public class Product
     public decimal? DefaultPricePerKg { get; set; }
 
     public string? OcrExtractedData { get; set; }
-
     public string? Ingredients { get; set; }
     public string? NutritionFactsJson { get; set; }
     public string? Origin { get; set; }

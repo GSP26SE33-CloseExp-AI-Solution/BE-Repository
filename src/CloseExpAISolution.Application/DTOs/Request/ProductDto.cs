@@ -79,120 +79,81 @@ public class UpdateProductRequestDto
     public string[] Tags { get; set; } = Array.Empty<string>();
 }
 
-/// <summary>
-/// Request to verify a draft product - confirm/correct OCR extracted info
-/// </summary>
 public class VerifyProductRequestDto
 {
-    /// <summary>
-    /// Staff can update product info if OCR was incorrect
-    /// </summary>
     public string? Name { get; set; }
     public string? Brand { get; set; }
     public string? Category { get; set; }
     public string? Barcode { get; set; }
 
-    /// <summary>
-    /// Original price of the product (required for pricing calculation)
-    /// </summary>
     [Required(ErrorMessage = "OriginalPrice is required")]
     [Range(0.01, double.MaxValue, ErrorMessage = "OriginalPrice must be greater than 0")]
     public decimal OriginalPrice { get; set; }
 
-    /// <summary>
-    /// Expiry date - can be corrected if OCR was incorrect
-    /// </summary>
     public DateTime? ExpiryDate { get; set; }
-
-    /// <summary>
-    /// Manufacture date - optional
-    /// </summary>
     public DateTime? ManufactureDate { get; set; }
-
-    /// <summary>
-    /// Whether the product is fresh food
-    /// </summary>
     public bool? IsFreshFood { get; set; }
 
-    /// <summary>
-    /// Staff ID who verified
-    /// </summary>
     [Required(ErrorMessage = "VerifiedBy is required")]
     public string VerifiedBy { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Request to get pricing suggestion for a verified product
-/// </summary>
 public class GetPricingSuggestionRequestDto
 {
-    /// <summary>
-    /// Original price of the product (required for pricing calculation)
-    /// </summary>
     [Required(ErrorMessage = "OriginalPrice is required")]
     [Range(0.01, double.MaxValue, ErrorMessage = "OriginalPrice must be greater than 0")]
     public decimal OriginalPrice { get; set; }
 }
 
-/// <summary>
-/// Request to confirm the final price and publish product
-/// </summary>
 public class ConfirmPriceRequestDto
 {
-    /// <summary>
-    /// Final price after staff review. 
-    /// If not provided, use the AI suggested price.
-    /// </summary>
     public decimal? FinalPrice { get; set; }
-
-    /// <summary>
-    /// Staff feedback on the suggested price (for AI improvement)
-    /// </summary>
     public string? PriceFeedback { get; set; }
-
-    /// <summary>
-    /// Whether the suggested price was accepted without changes
-    /// </summary>
     public bool AcceptedSuggestion { get; set; }
 
-    /// <summary>
-    /// Staff ID who confirmed the price
-    /// </summary>
     [Required(ErrorMessage = "ConfirmedBy is required")]
     public string ConfirmedBy { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Request to publish a priced product
-/// </summary>
 public class PublishProductRequestDto
 {
-    /// <summary>
-    /// Staff ID who published
-    /// </summary>
     [Required(ErrorMessage = "PublishedBy is required")]
     public string PublishedBy { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// DTO cho thông tin ảnh sản phẩm
-/// </summary>
-public class ProductImageDto
+public class CreateProductLotFromExistingDto
 {
-    public Guid ProductImageId { get; set; }
+    [Required]
     public Guid ProductId { get; set; }
-    public string ImageUrl { get; set; } = string.Empty;
-    public DateTime UploadedAt { get; set; }
+
+    [Required]
+    public DateTime ExpiryDate { get; set; }
+
+    public DateTime? ManufactureDate { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public decimal Quantity { get; set; } = 1;
+
+    public decimal Weight { get; set; } = 0;
+
+    [Required]
+    public string CreatedBy { get; set; } = string.Empty;
 }
 
-public class ProductResponseDto
+public class CreateNewProductRequestDto
 {
-    public Guid ProductId { get; set; }
+    [Required]
     public Guid SupermarketId { get; set; }
+
+    [Required]
     public string Name { get; set; } = string.Empty;
+
     public string Brand { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
+
+    [Required]
     public string Barcode { get; set; } = string.Empty;
+
     public bool IsFreshFood { get; set; }
     public ProductType Type { get; set; }
     public string Sku { get; set; } = string.Empty;
@@ -247,136 +208,85 @@ public class ProductResponseDto
     /// Thành phần nguyên liệu (VD: "Sữa tươi, đường, vitamin D3...")
     /// </summary>
     public string? Ingredients { get; set; }
-
-    /// <summary>
-    /// Thông tin dinh dưỡng (parsed từ JSON)
-    /// VD: {"calories": "120 kcal", "protein": "6g", "fat": "4g"}
-    /// </summary>
-    public Dictionary<string, string>? NutritionFacts { get; set; }
-
-    /// <summary>
-    /// Thông tin bổ sung từ barcode lookup (nếu có)
-    /// User có thể dùng thông tin này để điền vào product khi verify
-    /// </summary>
-    public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
-}
-
-/// <summary>
-/// Thông tin từ barcode lookup để user tham khảo khi verify
-/// </summary>
-public class BarcodeLookupInfoDto
-{
-    /// <summary>
-    /// Barcode đã tra cứu
-    /// </summary>
-    public string Barcode { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// Tên sản phẩm từ database/API
-    /// </summary>
-    public string? ProductName { get; set; }
-    
-    /// <summary>
-    /// Thương hiệu
-    /// </summary>
-    public string? Brand { get; set; }
-    
-    /// <summary>
-    /// Danh mục sản phẩm
-    /// </summary>
-    public string? Category { get; set; }
-    
-    /// <summary>
-    /// Mô tả sản phẩm
-    /// </summary>
-    public string? Description { get; set; }
-    
-    /// <summary>
-    /// URL ảnh sản phẩm từ database
-    /// </summary>
-    public string? ImageUrl { get; set; }
-    
-    /// <summary>
-    /// Nhà sản xuất
-    /// </summary>
+    public string? NutritionFactsJson { get; set; }
     public string? Manufacturer { get; set; }
-    
-    /// <summary>
-    /// Trọng lượng/Khối lượng
-    /// </summary>
-    public string? Weight { get; set; }
-    
-    /// <summary>
-    /// Thành phần nguyên liệu
-    /// </summary>
-    public string? Ingredients { get; set; }
-    
-    /// <summary>
-    /// Thông tin dinh dưỡng
-    /// </summary>
-    public Dictionary<string, string>? NutritionFacts { get; set; }
-    
-    /// <summary>
-    /// Quốc gia xuất xứ
-    /// </summary>
-    public string? Country { get; set; }
-    
-    /// <summary>
-    /// Nguồn dữ liệu: "database", "openfoodfacts", "manual", "ai-ocr"
-    /// </summary>
-    public string Source { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// Độ tin cậy của dữ liệu (0-1)
-    /// </summary>
-    public float Confidence { get; set; }
-    
-    /// <summary>
-    /// Có phải sản phẩm Việt Nam (barcode 893)
-    /// </summary>
-    public bool IsVietnameseProduct { get; set; }
-    
-    /// <summary>
-    /// Mã GS1 prefix
-    /// </summary>
-    public string? Gs1Prefix { get; set; }
-    
-    /// <summary>
-    /// Số lần barcode này được quét
-    /// </summary>
-    public int ScanCount { get; set; }
-    
-    /// <summary>
-    /// Sản phẩm đã được verify chưa
-    /// </summary>
-    public bool IsVerified { get; set; }
+    public string? Origin { get; set; }
+    public string? Description { get; set; }
+    public string? StorageInstructions { get; set; }
+    public string? UsageInstructions { get; set; }
+    public string? OcrImageUrl { get; set; }
+    public string? OcrExtractedData { get; set; }
+
+    public float OcrConfidence { get; set; }
+
+    [Required]
+    public string CreatedBy { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Response after AI pricing suggestion
-/// </summary>
-public class PricingSuggestionResponseDto
+#region Excel Import DTOs
+
+public class ExcelColumnMappingDto
 {
-    public Guid ProductId { get; set; }
-    public string ProductName { get; set; } = string.Empty;
-    public decimal OriginalPrice { get; set; }
-    public decimal SuggestedPrice { get; set; }
-    public float Confidence { get; set; }
-    public decimal DiscountPercent { get; set; }
-    public DateTime? ExpiryDate { get; set; }
-    public int? DaysToExpiry { get; set; }
-    public List<string> Reasons { get; set; } = new();
-
-    // Market comparison
-    public decimal? MinMarketPrice { get; set; }
-    public decimal? AvgMarketPrice { get; set; }
-    public decimal? MaxMarketPrice { get; set; }
-    public List<MarketPriceSourceDto> MarketPriceSources { get; set; } = new();
+    public string SystemField { get; set; } = string.Empty;
+    public string ExcelColumn { get; set; } = string.Empty;
+    public string? TransformRule { get; set; }
 }
 
-public class MarketPriceSourceDto
+public class ExcelPreviewRequestDto
 {
-    public string StoreName { get; set; } = string.Empty;
-    public decimal Price { get; set; }
-    public string Source { get; set; } = string.Empty;
+    public string? FileBase64 { get; set; }
+    public int PreviewRows { get; set; } = 5;
+    public int HeaderRow { get; set; } = 0;
 }
+
+public class ExcelImportRequestDto
+{
+    [Required]
+    public Guid SupermarketId { get; set; }
+    [Required]
+    public string ImportedBy { get; set; } = string.Empty;
+    [Required]
+    public List<ExcelColumnMappingDto> ColumnMappings { get; set; } = new();
+    public int DataStartRow { get; set; } = 1;
+    public bool SkipErrorRows { get; set; } = true;
+}
+
+public static class ProductFieldNames
+{
+    public const string Name = "Name";
+    public const string Brand = "Brand";
+    public const string Barcode = "Barcode";
+    public const string Category = "Category";
+    public const string Sku = "Sku";
+    public const string Ingredients = "Ingredients";
+    public const string Manufacturer = "Manufacturer";
+    public const string Origin = "Origin";
+    public const string Description = "Description";
+    public const string StorageInstructions = "StorageInstructions";
+    public const string UsageInstructions = "UsageInstructions";
+    public const string Weight = "Weight";
+    public const string IsFreshFood = "IsFreshFood";
+
+    public static readonly string[] AllFields = new[]
+    {
+        Name, Brand, Barcode, Category, Sku, Ingredients,
+        Manufacturer, Origin, Description, StorageInstructions,
+        UsageInstructions, Weight, IsFreshFood
+    };
+
+    public static readonly Dictionary<string, string[]> CommonVietnameseNames = new()
+    {
+        { Name, new[] { "tên sản phẩm", "tên sp", "name", "product name", "tên" } },
+        { Brand, new[] { "thương hiệu", "nhãn hiệu", "brand", "hãng" } },
+        { Barcode, new[] { "mã vạch", "barcode", "mã sản phẩm", "mã sp", "ean", "upc" } },
+        { Category, new[] { "danh mục", "loại", "nhóm hàng", "category", "phân loại" } },
+        { Sku, new[] { "sku", "mã nội bộ", "mã hàng" } },
+        { Ingredients, new[] { "thành phần", "nguyên liệu", "ingredients" } },
+        { Manufacturer, new[] { "nhà sản xuất", "nsx", "manufacturer", "hãng sản xuất" } },
+        { Origin, new[] { "xuất xứ", "origin", "nơi sản xuất", "made in" } },
+        { Description, new[] { "mô tả", "description", "ghi chú" } },
+        { Weight, new[] { "trọng lượng", "khối lượng", "weight", "quy cách", "đvt" } }
+    };
+}
+
+#endregion
