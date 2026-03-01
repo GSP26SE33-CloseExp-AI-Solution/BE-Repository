@@ -179,6 +179,81 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Verify OTP code sent to email after registration
+    /// </summary>
+    [HttpPost("verify-otp")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
+    {
+        var result = await _services.AuthService.VerifyOtpAsync(request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Resend OTP verification code to email, wait 60 seconds between requests
+    /// </summary>
+    [HttpPost("resend-otp")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
+    {
+        var result = await _services.AuthService.ResendOtpAsync(request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Request password reset OTP
+    /// </summary>\
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        var result = await _services.AuthService.ForgotPasswordAsync(request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Reset password using OTP
+    /// </summary>
+    [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        var result = await _services.AuthService.ResetPasswordAsync(request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Login using Google OAuth
+    /// </summary>
+    [HttpPost("google-login")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
+    {
+        var ipAddress = GetIpAddress();
+        var deviceInfo = GetDeviceInfo();
+
+        var result = await _services.AuthService.GoogleLoginAsync(request, ipAddress, deviceInfo);
+
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        // If message indicates new registration, return 201
+        if (result.Message != null && result.Message.Contains("đăng ký"))
+        {
+            return Created(string.Empty, result);
+        }
+
+        return Ok(result);
+    }
+
     #region Private Helpers
 
     /// <summary>

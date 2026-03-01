@@ -1,4 +1,5 @@
-﻿using CloseExpAISolution.Application.Email.Settings;
+﻿using CloseExpAISolution.Application.Email.Jobs;
+using CloseExpAISolution.Application.Email.Settings;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using Quartz;
@@ -23,7 +24,19 @@ namespace CloseExpAISolution.API.Extensions
             services.AddTransient<IEmailService, EmailService>();
 
             // Cấu hình Quartz cho background jobs
-            services.AddQuartz(q => { });
+            services.AddQuartz(q =>
+            {
+                // Đăng ký CleanExpiredOtpJob - dọn dẹp OTP hết hạn mỗi 30 phút
+                var jobKey = new JobKey("CleanExpiredOtpJob");
+                q.AddJob<CleanExpiredOtpJob>(opts => opts.WithIdentity(jobKey));
+                q.AddTrigger(opts => opts
+                    .ForJob(jobKey)
+                    .WithIdentity("CleanExpiredOtpJob-trigger")
+                    .WithSimpleSchedule(x => x
+                        .WithIntervalInMinutes(30)
+                        .RepeatForever())
+                );
+            });
             services.AddQuartzHostedService(options =>
             {
                 options.WaitForJobsToComplete = true;

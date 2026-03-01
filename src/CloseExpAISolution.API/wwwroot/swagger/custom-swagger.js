@@ -1,78 +1,83 @@
-// Auto-fill JWT token after login
+// ============================================================
+// Swagger Auto-Auth Extension  [v2]
+// Intercepts login API calls and auto-fills Bearer token
+// Supports: POST /api/auth/login, POST /api/auth/google-login
+// ============================================================
 (function () {
-    const originalFetch = window.fetch;
+    const AUTH_ENDPOINTS = [
+        '/api/auth/login',
+        '/api/auth/google-login',
+    ];
 
+    // Recursively search for accessToken / token at any nesting depth
+    function extractToken(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (typeof obj.accessToken === 'string') return obj.accessToken;
+        if (typeof obj.token === 'string') return obj.token;
+        for (const val of Object.values(obj)) {
+            const found = extractToken(val);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    // Inject token into Swagger UI's Authorize modal
+    function injectTokenIntoSwagger(token) {
+        const authBtn = document.querySelector('.btn.authorize');
+        if (!authBtn) return;
+
+        authBtn.click();
+
+        setTimeout(() => {
+            const input = document.querySelector('.auth-container input[type="text"]');
+            if (!input) return;
+
+            // React-compatible value setter
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(input, token);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            setTimeout(() => {
+                const authorizeBtn = document.querySelector('.auth-btn-wrapper button.authorize');
+                if (!authorizeBtn) return;
+                authorizeBtn.click();
+
+                setTimeout(() => {
+                    const closeBtn = document.querySelector('.auth-btn-wrapper .btn-done')
+                        ?? document.querySelector('button.btn-done');
+                    closeBtn?.click();
+                }, 300);
+            }, 200);
+        }, 300);
+    }
+
+    // Intercept all fetch calls
+    const originalFetch = window.fetch;
     window.fetch = function (...args) {
         return originalFetch.apply(this, args).then(async (response) => {
-            // Clone response to read body without consuming it
-            const clonedResponse = response.clone();
-
             try {
-                const url = args[0];
+                const url = (args[0] ?? '').toString().toLowerCase();
+                const isAuthCall = AUTH_ENDPOINTS.some(ep => url.includes(ep));
 
-                // Check if this is a login request
-                if (url && (url.includes('/api/Auth/login') || url.includes('/api/auth/login'))) {
-                    const data = await clonedResponse.json();
-
-                    // Extract token from response (adjust path based on your response structure)
-                    let token = null;
-
-                    // Try different response structures
-                    if (data.data?.accessToken) {
-                        token = data.data.accessToken;
-                    } else if (data.accessToken) {
-                        token = data.accessToken;
-                    } else if (data.data?.token) {
-                        token = data.data.token;
-                    } else if (data.token) {
-                        token = data.token;
-                    }
+                if (isAuthCall) {
+                    const data = await response.clone().json();
+                    console.debug('[SwaggerAuth] Intercepted response:', data);
+                    const token = extractToken(data);
 
                     if (token) {
-                        // Set token in Swagger UI
-                        const authBtn = document.querySelector('.btn.authorize');
-                        if (authBtn) {
-                            authBtn.click();
-
-                            setTimeout(() => {
-                                const input = document.querySelector('.auth-container input[type="text"]');
-                                if (input) {
-                                    // Set the token value
-                                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                                    nativeInputValueSetter.call(input, token);
-                                    input.dispatchEvent(new Event('input', { bubbles: true }));
-
-                                    // Click Authorize button
-                                    setTimeout(() => {
-                                        const authorizeBtn = document.querySelector('.auth-btn-wrapper .btn-done') ||
-                                            document.querySelector('.auth-btn-wrapper button.authorize');
-                                        if (authorizeBtn && authorizeBtn.textContent.includes('Authorize')) {
-                                            authorizeBtn.click();
-
-                                            // Close the modal
-                                            setTimeout(() => {
-                                                const closeBtn = document.querySelector('.auth-btn-wrapper .btn-done') ||
-                                                    document.querySelector('button.btn-done');
-                                                if (closeBtn) {
-                                                    closeBtn.click();
-                                                }
-                                            }, 300);
-                                        }
-                                    }, 200);
-                                }
-                            }, 300);
-                        }
-
-                        console.log('✅ Token auto-filled successfully!');
+                        injectTokenIntoSwagger(token);
+                        console.log('✅ [SwaggerAuth] Token auto-filled from:', url);
+                    } else {
+                        console.warn('⚠️ [SwaggerAuth] No token found in response. Full data logged above.');
                     }
                 }
-            } catch (e) {
-                // Ignore JSON parse errors for non-JSON responses
+            } catch (_) {
+                // Non-JSON response or token injection error — safe to ignore
             }
 
             return response;
         });
     };
 
-    console.log('🔐 Swagger Auto-Auth Extension loaded');
+    console.log('🔐 [SwaggerAuth] Auto-Auth Extension loaded | endpoints:', AUTH_ENDPOINTS);
 })();

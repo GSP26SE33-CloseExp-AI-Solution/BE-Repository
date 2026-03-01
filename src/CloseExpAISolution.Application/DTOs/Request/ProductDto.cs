@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 
@@ -216,11 +217,6 @@ public class CreateNewProductRequestDto
     public string? UsageInstructions { get; set; }
     public string? OcrImageUrl { get; set; }
     public string? OcrExtractedData { get; set; }
-
-    public float OcrConfidence { get; set; }
-
-    [Required]
-    public string CreatedBy { get; set; } = string.Empty;
 }
 
 #region Excel Import DTOs

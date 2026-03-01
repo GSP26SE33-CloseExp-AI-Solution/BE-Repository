@@ -16,6 +16,15 @@ public class User
     public DateTime CreatedAt { get; set; }
     public DateTime UpdateAt { get; set; }
 
+    // Email verification (OTP)
+    public string? OtpCode { get; set; }
+    public DateTime? OtpExpiresAt { get; set; }
+    public int OtpFailedCount { get; set; }
+    public DateTime? EmailVerifiedAt { get; set; }
+
+    // Google OAuth
+    public string? GoogleId { get; set; }
+
     public ICollection<UserImage> UserImages { get; set; } = new List<UserImage>();
     public ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

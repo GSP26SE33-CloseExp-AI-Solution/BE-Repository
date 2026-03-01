@@ -6,35 +6,44 @@ namespace CloseExpAISolution.Domain.Enums;
 public enum UserState
 {
     /// <summary>
-    /// Tài khoản chưa được xác minh - chờ Admin phê duyệt
-    /// Account not verified - waiting for Admin approval
+    /// Tài khoản vừa đăng ký qua form - chưa xác minh email
+    /// Chờ user nhập OTP 6 số để xác minh email tồn tại
     /// </summary>
     Unverified,
 
     /// <summary>
-    /// Tài khoản đã được xác minh bởi Admin - có thể hoạt động trên nền tảng
-    /// Account verified by Admin - can operate on the platform
+    /// Email đã được xác minh (qua OTP hoặc Google OAuth)
+    /// Đang chờ Admin phê duyệt để được sử dụng hệ thống
     /// </summary>
-    Verified,
+    PendingApproval,
+
+    /// <summary>
+    /// Tài khoản đã được Admin phê duyệt - có thể đăng nhập và hoạt động
+    /// </summary>
+    Active,
+
+    /// <summary>
+    /// Admin từ chối phê duyệt tài khoản
+    /// </summary>
+    Rejected,
 
     /// <summary>
     /// Tài khoản bị khóa tạm thời do đăng nhập sai quá nhiều lần (30 phút)
-    /// Account temporarily locked due to too many failed login attempts (30 minutes)
     /// </summary>
     Locked,
 
     /// <summary>
-    /// User is permanently banned from the system by Admin
+    /// Tài khoản bị Admin cấm vĩnh viễn
     /// </summary>
     Banned,
 
     /// <summary>
-    /// User account permanently deleted
+    /// Tài khoản đã bị xóa
     /// </summary>
     Deleted,
 
     /// <summary>
-    /// User account hidden from public view
+    /// Tài khoản bị ẩn khỏi public view
     /// </summary>
     Hidden
 }

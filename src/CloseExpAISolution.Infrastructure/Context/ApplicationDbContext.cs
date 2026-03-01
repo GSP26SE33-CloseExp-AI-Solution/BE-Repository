@@ -52,6 +52,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
         modelBuilder.Entity<PackagingRecord>().HasKey(x => x.PackagingId);
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(u => u.OtpCode).HasMaxLength(100);
+            entity.Property(u => u.GoogleId).HasMaxLength(200);
+            entity.HasIndex(u => u.GoogleId).IsUnique().HasFilter("\"GoogleId\" IS NOT NULL");
+        });
         modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
         modelBuilder.Entity<OverdueRecord>().HasKey(x => x.OverdueId);
         modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.PriceHistoryId);

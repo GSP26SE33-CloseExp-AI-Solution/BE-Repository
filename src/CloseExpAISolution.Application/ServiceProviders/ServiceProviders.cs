@@ -59,8 +59,8 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
                 public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
                 public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
-                public IAuthService AuthService => _authService ??= new AuthService(_unitOfWork, _configuration);
-                public IUserService UserService => _userService ??= new UserService(_unitOfWork, _mapper);
+                public IAuthService AuthService => _authService ??= ActivatorUtilities.CreateInstance<AuthService>(_serviceProvider);
+                public IUserService UserService => _userService ??= ActivatorUtilities.CreateInstance<UserService>(_serviceProvider);
                 public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
                 public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
                 public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);

@@ -98,7 +98,7 @@ public static class DataSeeder
                 Phone = "0912345678",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 1,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -113,7 +113,7 @@ public static class DataSeeder
                 Phone = "0912111111",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -126,7 +126,7 @@ public static class DataSeeder
                 Phone = "0912222222",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -141,7 +141,7 @@ public static class DataSeeder
                 Phone = "0917123456",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -156,7 +156,7 @@ public static class DataSeeder
                 Phone = "0913333333",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -169,7 +169,7 @@ public static class DataSeeder
                 Phone = "0913444444",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -184,7 +184,7 @@ public static class DataSeeder
                 Phone = "0917234567",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -199,7 +199,7 @@ public static class DataSeeder
                 Phone = "0914555555",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -212,7 +212,7 @@ public static class DataSeeder
                 Phone = "0914666666",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -227,7 +227,7 @@ public static class DataSeeder
                 Phone = "0917345678",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -242,7 +242,7 @@ public static class DataSeeder
                 Phone = "0915777777",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 5,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -255,7 +255,7 @@ public static class DataSeeder
                 Phone = "0915888888",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 5,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -270,7 +270,7 @@ public static class DataSeeder
                 Phone = "0917456789",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 5,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -285,7 +285,7 @@ public static class DataSeeder
                 Phone = "0916999999",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -298,7 +298,7 @@ public static class DataSeeder
                 Phone = "0917888888",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -313,7 +313,7 @@ public static class DataSeeder
                 Phone = "0917567890",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow

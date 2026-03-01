@@ -5,6 +5,7 @@ using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
@@ -12,11 +13,15 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<UserService> _logger;
 
-    public UserService(IUnitOfWork unitOfWork, IMapper mapper)
+    public UserService(IUnitOfWork unitOfWork, IMapper mapper, IEmailService emailService, ILogger<UserService> logger)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     #region Public Methods
@@ -128,11 +133,12 @@ public class UserService : IUserService
         user.Status = request.Status.ToString();
 
         // Reset failed login count when verifying or unlocking
-        if (request.Status == UserState.Verified)
+        if (request.Status == UserState.Active)
             user.FailedLoginCount = 0;
 
         await SaveUserChanges(user);
-
+        // Send email notification on approve/reject
+        await SendStatusChangeEmailAsync(user, oldStatus, request.Status);
         var userResponse = await MapUserWithRoleAsync(user);
         var statusMessage = GetStatusChangeMessage(oldStatus, request.Status.ToString());
 
@@ -265,7 +271,9 @@ public class UserService : IUserService
     /// <summary>Returns Vietnamese message for status change action</summary>
     private static string GetStatusChangeMessage(string oldStatus, string newStatus) => newStatus switch
     {
-        nameof(UserState.Verified) => "Xác minh tài khoản thành công",
+        nameof(UserState.Active) => "Phê duyệt tài khoản thành công",
+        nameof(UserState.PendingApproval) => "Chuyển tài khoản sang chờ phê duyệt",
+        nameof(UserState.Rejected) => "Từ chối phê duyệt tài khoản",
         nameof(UserState.Locked) => "Khóa tạm thời tài khoản thành công (30 phút)",
         nameof(UserState.Banned) => "Khóa vĩnh viễn tài khoản thành công",
         nameof(UserState.Unverified) => "Hủy xác minh tài khoản thành công",
@@ -281,6 +289,56 @@ public class UserService : IUserService
     /// <summary>Shortcut to create error response</summary>
     private static ApiResponse<UserResponseDto> Error(string message)
         => ApiResponse<UserResponseDto>.ErrorResponse(message);
+
+    /// <summary>Sends email notification when admin changes user status (approve/reject)</summary>
+    private async Task SendStatusChangeEmailAsync(User user, string oldStatus, UserState newStatus)
+    {
+        try
+        {
+            if (oldStatus == UserState.PendingApproval.ToString() && newStatus == UserState.Active)
+            {
+                var subject = "CloseExp AI - Tài khoản đã được phê duyệt!";
+                var body = $@"
+                    <html>
+                    <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                        <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                            <h1 style='color: white; margin: 0;'>🎉 Tài Khoản Đã Được Phê Duyệt!</h1>
+                        </div>
+                        <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                            <h2>Xin chào {user.FullName}!</h2>
+                            <p>Tài khoản của bạn đã được <strong>Admin phê duyệt thành công</strong>.</p>
+                            <p>Bạn có thể đăng nhập vào hệ thống CloseExp AI ngay bây giờ!</p>
+                            <p style='color: #999; font-size: 12px;'>Cảm ơn bạn đã sử dụng CloseExp AI!</p>
+                        </div>
+                    </body>
+                    </html>";
+                await _emailService.SendEmailAsync(user.Email, subject, body);
+            }
+            else if (oldStatus == UserState.PendingApproval.ToString() && newStatus == UserState.Rejected)
+            {
+                var subject = "CloseExp AI - Tài khoản không được phê duyệt";
+                var body = $@"
+                    <html>
+                    <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                            <h1 style='color: white; margin: 0;'>Thông Báo Về Tài Khoản</h1>
+                        </div>
+                        <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                            <h2>Xin chào {user.FullName},</h2>
+                            <p>Rất tiếc, tài khoản của bạn <strong>không được phê duyệt</strong> bởi Admin.</p>
+                            <p>Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ với đội ngũ hỗ trợ.</p>
+                            <p style='color: #999; font-size: 12px;'>CloseExp AI Team</p>
+                        </div>
+                    </body>
+                    </html>";
+                await _emailService.SendEmailAsync(user.Email, subject, body);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send status change email to {Email}", user.Email);
+        }
+    }
 
     #endregion
 }

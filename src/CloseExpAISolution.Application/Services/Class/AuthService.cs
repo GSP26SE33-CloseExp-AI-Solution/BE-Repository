@@ -9,7 +9,9 @@ using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -18,15 +20,22 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<AuthService> _logger;
 
     private const int MaxFailedLoginAttempts = 5;
     private const int LockoutDurationMinutes = 30;
     private const int RefreshTokenExpiryDays = 7;
+    private const int OtpExpiryMinutes = 5;
+    private const int OtpResendCooldownSeconds = 60;
+    private const int MaxOtpFailedAttempts = 5;
 
-    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration)
+    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger)
     {
         _unitOfWork = unitOfWork;
         _configuration = configuration;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     #region Public Methods
@@ -86,6 +95,12 @@ public class AuthService : IAuthService
 
         // Create user
         var user = CreateNewUser(request, roleId);
+
+        // Generate OTP for email verification
+        var otp = GenerateOtp();
+        user.OtpCode = HashOtp(otp);
+        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+
         await userRepository.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
 
@@ -104,8 +119,11 @@ public class AuthService : IAuthService
             await _unitOfWork.SaveChangesAsync();
         }
 
+        // Send OTP email
+        await SendOtpEmailAsync(user.Email, otp, user.FullName);
+
         return ApiResponse<AuthResponse>.SuccessWithMessage(
-            "Đăng ký thành công. Vui lòng chờ Admin xác minh tài khoản của bạn trước khi đăng nhập");
+            "Đăng ký thành công. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
     }
 
     public async Task<ApiResponse<AuthResponse>> RefreshTokenAsync(string refreshToken, string? ipAddress = null)
@@ -134,7 +152,7 @@ public class AuthService : IAuthService
             return Error("Người dùng không tồn tại");
 
         // Check user status
-        if (user.Status != UserState.Verified.ToString())
+        if (user.Status != UserState.Active.ToString())
             return Error("Tài khoản không còn hoạt động");
 
         // Rotate token: revoke old, create new
@@ -189,6 +207,237 @@ public class AuthService : IAuthService
         return ApiResponse<bool>.SuccessResponse(true, "Đã thu hồi tất cả phiên đăng nhập");
     }
 
+    public async Task<ApiResponse<bool>> VerifyOtpAsync(VerifyOtpRequest request)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+        if (user == null)
+            return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
+
+        if (user.Status != UserState.Unverified.ToString())
+            return ApiResponse<bool>.ErrorResponse("Tài khoản không cần xác minh email");
+
+        // Check OTP failed attempts lockout
+        if (user.OtpFailedCount >= MaxOtpFailedAttempts)
+            return ApiResponse<bool>.ErrorResponse("Nhập sai OTP quá nhiều lần. Vui lòng yêu cầu gửi lại mã OTP mới");
+
+        // Check OTP exists and not expired
+        if (string.IsNullOrEmpty(user.OtpCode) || user.OtpExpiresAt == null || user.OtpExpiresAt < DateTime.UtcNow)
+            return ApiResponse<bool>.ErrorResponse("Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới");
+
+        // Verify OTP hash
+        if (user.OtpCode != HashOtp(request.OtpCode))
+        {
+            user.OtpFailedCount++;
+            userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync();
+            var attemptsLeft = MaxOtpFailedAttempts - user.OtpFailedCount;
+            return ApiResponse<bool>.ErrorResponse($"Mã OTP không đúng. Còn {attemptsLeft} lần thử");
+        }
+
+        // OTP verified successfully
+        user.Status = UserState.PendingApproval.ToString();
+        user.EmailVerifiedAt = DateTime.UtcNow;
+        user.OtpCode = null;
+        user.OtpExpiresAt = null;
+        user.OtpFailedCount = 0;
+        user.UpdateAt = DateTime.UtcNow;
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        // Send confirmation email
+        await SendEmailVerifiedNotificationAsync(user.Email, user.FullName);
+
+        return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Tài khoản đang chờ Admin phê duyệt");
+    }
+
+    public async Task<ApiResponse<bool>> ResendOtpAsync(ResendOtpRequest request)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+        if (user == null)
+            return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
+
+        if (user.Status != UserState.Unverified.ToString())
+            return ApiResponse<bool>.ErrorResponse("Tài khoản không cần xác minh email");
+
+        // Rate limit: must wait 60 seconds between OTP sends
+        if (user.OtpExpiresAt != null)
+        {
+            var otpCreatedAt = user.OtpExpiresAt.Value.AddMinutes(-OtpExpiryMinutes);
+            var timeSinceLastOtp = (DateTime.UtcNow - otpCreatedAt).TotalSeconds;
+            if (timeSinceLastOtp < OtpResendCooldownSeconds)
+            {
+                var waitSeconds = (int)Math.Ceiling(OtpResendCooldownSeconds - timeSinceLastOtp);
+                return ApiResponse<bool>.ErrorResponse($"Vui lòng đợi {waitSeconds} giây trước khi gửi lại mã OTP");
+            }
+        }
+
+        // Generate new OTP
+        var otp = GenerateOtp();
+        user.OtpCode = HashOtp(otp);
+        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+        user.OtpFailedCount = 0;
+        user.UpdateAt = DateTime.UtcNow;
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        await SendOtpEmailAsync(user.Email, otp, user.FullName);
+
+        return ApiResponse<bool>.SuccessResponse(true, "Đã gửi lại mã OTP. Vui lòng kiểm tra email");
+    }
+
+    public async Task<ApiResponse<bool>> ForgotPasswordAsync(ForgotPasswordRequest request)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+        if (user == null)
+            return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
+
+        // Only allow password reset for Active, PendingApproval accounts
+        if (user.Status != UserState.Active.ToString() && user.Status != UserState.PendingApproval.ToString())
+            return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
+
+        // Rate limit
+        if (user.OtpExpiresAt != null)
+        {
+            var otpCreatedAt = user.OtpExpiresAt.Value.AddMinutes(-OtpExpiryMinutes);
+            var timeSinceLastOtp = (DateTime.UtcNow - otpCreatedAt).TotalSeconds;
+            if (timeSinceLastOtp < OtpResendCooldownSeconds)
+                return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
+        }
+
+        var otp = GenerateOtp();
+        user.OtpCode = HashOtp(otp);
+        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+        user.OtpFailedCount = 0;
+        user.UpdateAt = DateTime.UtcNow;
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        await SendPasswordResetOtpEmailAsync(user.Email, otp, user.FullName);
+
+        return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
+    }
+
+    public async Task<ApiResponse<bool>> ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+        if (user == null)
+            return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
+
+        // Check OTP failed attempts
+        if (user.OtpFailedCount >= MaxOtpFailedAttempts)
+            return ApiResponse<bool>.ErrorResponse("Nhập sai OTP quá nhiều lần. Vui lòng yêu cầu mã OTP mới");
+
+        // Check OTP exists and not expired
+        if (string.IsNullOrEmpty(user.OtpCode) || user.OtpExpiresAt == null || user.OtpExpiresAt < DateTime.UtcNow)
+            return ApiResponse<bool>.ErrorResponse("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới");
+
+        // Verify OTP
+        if (user.OtpCode != HashOtp(request.OtpCode))
+        {
+            user.OtpFailedCount++;
+            userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync();
+            var attemptsLeft = MaxOtpFailedAttempts - user.OtpFailedCount;
+            return ApiResponse<bool>.ErrorResponse($"Mã OTP không đúng. Còn {attemptsLeft} lần thử");
+        }
+
+        // Reset password
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.OtpCode = null;
+        user.OtpExpiresAt = null;
+        user.OtpFailedCount = 0;
+        user.UpdateAt = DateTime.UtcNow;
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResponse<bool>.SuccessResponse(true, "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập với mật khẩu mới");
+    }
+
+    public async Task<ApiResponse<AuthResponse>> GoogleLoginAsync(GoogleLoginRequest request, string? ipAddress = null, string? deviceInfo = null)
+    {
+        // Verify Google IdToken
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var googleClientId = _configuration["GoogleAuth:ClientId"];
+            var settings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { googleClientId }
+            };
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch (InvalidJwtException ex)
+        {
+            _logger.LogWarning(ex, "Invalid Google IdToken");
+            return Error("Google token không hợp lệ hoặc đã hết hạn");
+        }
+
+        var email = payload.Email;
+        var fullName = payload.Name ?? payload.Email;
+        var googleId = payload.Subject;
+
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.Email == email);
+
+        if (user != null)
+        {
+            // Existing user — link Google ID if not yet linked
+            if (string.IsNullOrEmpty(user.GoogleId))
+            {
+                user.GoogleId = googleId;
+                user.UpdateAt = DateTime.UtcNow;
+                userRepository.Update(user);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            // Check if user can login
+            if (user.Status == UserState.Unverified.ToString())
+            {
+                // Auto-verify email since Google already verified it
+                user.Status = UserState.PendingApproval.ToString();
+                user.EmailVerifiedAt = DateTime.UtcNow;
+                user.OtpCode = null;
+                user.OtpExpiresAt = null;
+                user.UpdateAt = DateTime.UtcNow;
+                userRepository.Update(user);
+                await _unitOfWork.SaveChangesAsync();
+
+                await SendEmailVerifiedNotificationAsync(user.Email, user.FullName);
+                return ApiResponse<AuthResponse>.SuccessWithMessage("Email đã xác minh thành công qua Google! Tài khoản đang chờ Admin phê duyệt");
+            }
+
+            if (user.Status == UserState.PendingApproval.ToString())
+                return Error("Tài khoản đang chờ Admin phê duyệt. Vui lòng đợi thông báo qua email");
+            if (user.Status == UserState.Rejected.ToString())
+                return Error("Tài khoản đã bị từ chối phê duyệt. Vui lòng liên hệ Admin");
+            if (user.Status == UserState.Banned.ToString())
+                return Error("Tài khoản đã bị khóa vĩnh viễn bởi Admin");
+            if (user.Status == UserState.Deleted.ToString())
+                return Error("Tài khoản đã bị xóa");
+
+            if (user.Status == UserState.Active.ToString())
+            {
+                var roleName = await GetRoleName(user.RoleId);
+                var authResponse = await GenerateTokensAsync(user, roleName, ipAddress, deviceInfo);
+                return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập Google thành công");
+            }
+
+            return Error("Tài khoản không thể đăng nhập");
+        }
+
+        // Email chưa được đăng ký — chặn, không tự tạo tài khoản
+        _logger.LogWarning("Google login attempt with unregistered email: {Email}", email);
+        return Error("Email này chưa được đăng ký trong hệ thống. Vui lòng đăng ký tài khoản trước");
+    }
+
     #endregion
 
     #region Login Helpers
@@ -199,7 +448,13 @@ public class AuthService : IAuthService
         var status = user.Status;
 
         if (status == UserState.Unverified.ToString())
-            return Error("Tài khoản chưa được xác minh. Vui lòng chờ Admin phê duyệt");
+            return Error("Tài khoản chưa xác minh email. Vui lòng kiểm tra email để nhập mã OTP");
+
+        if (status == UserState.PendingApproval.ToString())
+            return Error("Tài khoản đang chờ Admin phê duyệt. Vui lòng đợi thông báo qua email");
+
+        if (status == UserState.Rejected.ToString())
+            return Error("Tài khoản đã bị từ chối phê duyệt. Vui lòng liên hệ Admin");
 
         if (status == UserState.Locked.ToString())
         {
@@ -231,7 +486,7 @@ public class AuthService : IAuthService
             return (false, (int)Math.Ceiling(remainingTime.TotalMinutes));
 
         // Auto-unlock
-        user.Status = UserState.Verified.ToString();
+        user.Status = UserState.Active.ToString();
         user.FailedLoginCount = 0;
         user.UpdateAt = DateTime.UtcNow;
         return (true, 0);
@@ -461,6 +716,103 @@ public class AuthService : IAuthService
     /// <summary>Shortcut to create error response</summary>
     private static ApiResponse<AuthResponse> Error(string message)
         => ApiResponse<AuthResponse>.ErrorResponse(message);
+
+    #endregion
+
+    #region OTP Helpers
+
+    /// <summary>Generates a random 6-digit OTP</summary>
+    private static string GenerateOtp()
+    {
+        using var rng = RandomNumberGenerator.Create();
+        var bytes = new byte[4];
+        rng.GetBytes(bytes);
+        var number = Math.Abs(BitConverter.ToInt32(bytes, 0)) % 900000 + 100000;
+        return number.ToString();
+    }
+
+    /// <summary>Hashes OTP using SHA256 for secure storage</summary>
+    private static string HashOtp(string otp)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(otp));
+        return Convert.ToBase64String(bytes);
+    }
+
+    #endregion
+
+    #region Email Templates
+
+    private async Task SendOtpEmailAsync(string email, string otp, string fullName)
+    {
+        var subject = "CloseExp AI - Xác minh email của bạn";
+        var body = $@"
+            <html>
+            <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                    <h1 style='color: white; margin: 0;'>CloseExp AI</h1>
+                </div>
+                <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                    <h2>Xin chào {fullName}!</h2>
+                    <p>Cảm ơn bạn đã đăng ký tài khoản. Vui lòng sử dụng mã OTP bên dưới để xác minh email:</p>
+                    <div style='text-align: center; margin: 30px 0;'>
+                        <span style='font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #4CAF50; color: white; padding: 15px 30px; border-radius: 8px;'>{otp}</span>
+                    </div>
+                    <p style='color: #666;'>Mã OTP có hiệu lực trong <strong>{OtpExpiryMinutes} phút</strong>.</p>
+                    <p style='color: #999; font-size: 12px;'>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+                </div>
+            </body>
+            </html>";
+
+        try { await _emailService.SendEmailAsync(email, subject, body); }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send OTP email to {Email}", email); }
+    }
+
+    private async Task SendPasswordResetOtpEmailAsync(string email, string otp, string fullName)
+    {
+        var subject = "CloseExp AI - Đặt lại mật khẩu";
+        var body = $@"
+            <html>
+            <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                    <h1 style='color: white; margin: 0;'>CloseExp AI</h1>
+                </div>
+                <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                    <h2>Xin chào {fullName}!</h2>
+                    <p>Bạn đã yêu cầu đặt lại mật khẩu. Sử dụng mã OTP bên dưới:</p>
+                    <div style='text-align: center; margin: 30px 0;'>
+                        <span style='font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #FF5722; color: white; padding: 15px 30px; border-radius: 8px;'>{otp}</span>
+                    </div>
+                    <p style='color: #666;'>Mã OTP có hiệu lực trong <strong>{OtpExpiryMinutes} phút</strong>.</p>
+                    <p style='color: #999; font-size: 12px;'>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+                </div>
+            </body>
+            </html>";
+
+        try { await _emailService.SendEmailAsync(email, subject, body); }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send password reset email to {Email}", email); }
+    }
+
+    private async Task SendEmailVerifiedNotificationAsync(string email, string fullName)
+    {
+        var subject = "CloseExp AI - Email đã được xác minh!";
+        var body = $@"
+            <html>
+            <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                    <h1 style='color: white; margin: 0;'>✓ Email Đã Xác Minh</h1>
+                </div>
+                <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                    <h2>Xin chào {fullName}!</h2>
+                    <p>Email của bạn đã được xác minh thành công! 🎉</p>
+                    <p>Tài khoản của bạn hiện đang <strong>chờ Admin phê duyệt</strong>. Bạn sẽ nhận được thông báo qua email khi tài khoản được phê duyệt.</p>
+                    <p style='color: #999; font-size: 12px;'>Cảm ơn bạn đã sử dụng CloseExp AI!</p>
+                </div>
+            </body>
+            </html>";
+
+        try { await _emailService.SendEmailAsync(email, subject, body); }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send email verified notification to {Email}", email); }
+    }
 
     #endregion
 }

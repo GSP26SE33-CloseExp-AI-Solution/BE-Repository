@@ -23,7 +23,7 @@ public class SupermarketMappingProfile : Profile
         // CreateSupermarketRequestDto -> Supermarket
         CreateMap<CreateSupermarketRequestDto, Supermarket>()
             .ForMember(dest => dest.SupermarketId, opt => opt.MapFrom(_ => Guid.NewGuid()))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => UserState.Verified.ToString()))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => UserState.Active.ToString()))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.Products, opt => opt.Ignore())
             .ForMember(dest => dest.MarketStaff, opt => opt.Ignore());
@@ -39,6 +39,6 @@ public class SupermarketMappingProfile : Profile
 
     private static UserState ParseUserState(string status)
     {
-        return Enum.TryParse<UserState>(status, out var result) ? result : UserState.Verified;
+        return Enum.TryParse<UserState>(status, out var result) ? result : UserState.Active;
     }
 }
