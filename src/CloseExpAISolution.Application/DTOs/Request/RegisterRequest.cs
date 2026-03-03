@@ -28,9 +28,46 @@ public class RegisterRequest
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public RegistrationType RegistrationType { get; set; }
 
+    /// <summary>
+    /// ID của siêu thị có sẵn (nếu chọn từ danh sách).
+    /// NULL nếu muốn tạo siêu thị mới.
+    /// </summary>
     public Guid? SupermarketId { get; set; }
 
+    /// <summary>
+    /// Thông tin siêu thị mới (chỉ dùng khi SupermarketId = null).
+    /// Frontend sẽ gửi object này nếu user chọn "Tạo cơ sở mới".
+    /// </summary>
+    public NewSupermarketRequest? NewSupermarket { get; set; }
+
     public string? Position { get; set; }
+}
+
+/// <summary>
+/// DTO để tạo siêu thị mới khi đăng ký SupplierStaff
+/// </summary>
+public class NewSupermarketRequest
+{
+    [Required(ErrorMessage = "Tên siêu thị không được để trống")]
+    [StringLength(200, ErrorMessage = "Tên siêu thị không được quá 200 ký tự")]
+    public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Địa chỉ không được để trống")]
+    [StringLength(500, ErrorMessage = "Địa chỉ không được quá 500 ký tự")]
+    public string Address { get; set; } = string.Empty;
+
+    [Range(-90, 90, ErrorMessage = "Latitude phải trong khoảng -90 đến 90")]
+    public decimal Latitude { get; set; }
+
+    [Range(-180, 180, ErrorMessage = "Longitude phải trong khoảng -180 đến 180")]
+    public decimal Longitude { get; set; }
+
+    [Required(ErrorMessage = "Số điện thoại không được để trống")]
+    [Phone(ErrorMessage = "Số điện thoại không hợp lệ")]
+    public string ContactPhone { get; set; } = string.Empty;
+
+    [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    public string? ContactEmail { get; set; }
 }
 
 /// <summary>

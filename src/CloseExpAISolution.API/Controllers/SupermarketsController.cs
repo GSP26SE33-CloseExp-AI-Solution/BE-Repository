@@ -37,6 +37,22 @@ public class SupermarketsController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<SupermarketResponseDto>>.SuccessResponse(result));
     }
 
+    [HttpGet("available")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<SupermarketResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAvailableSupermarkets()
+    {
+        var availableSupermarkets = await _services.SupermarketService.GetAvailableWithDtoAsync();
+        return Ok(ApiResponse<IEnumerable<SupermarketResponseDto>>.SuccessResponse(availableSupermarkets));
+    }
+
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<SupermarketResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Search([FromQuery] string query)
+    {
+        var searchResults = await _services.SupermarketService.SearchAsync(query);
+        return Ok(ApiResponse<IEnumerable<SupermarketResponseDto>>.SuccessResponse(searchResults));
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<SupermarketResponseDto>>> GetById(Guid id)
     {

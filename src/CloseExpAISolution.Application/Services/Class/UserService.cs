@@ -158,6 +158,48 @@ public class UserService : IUserService
         return ApiResponse<bool>.SuccessResponse(true, "Xóa người dùng thành công");
     }
 
+    public async Task<ApiResponse<bool>> DeleteOwnAccountAsync(Guid userId)
+    {
+        var user = await FindUserById(userId);
+        if (user == null)
+            return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
+
+        // Nhân viên siêu thị không thể tự xóa tài khoản
+        if (user.RoleId == (int)RoleUser.SupplierStaff)
+            return ApiResponse<bool>.ErrorResponse("Nhân viên siêu thị không thể tự xóa tài khoản. Vui lòng liên hệ Admin");
+
+        if (user.Status == UserState.Deleted.ToString())
+            return ApiResponse<bool>.ErrorResponse("Tài khoản đã bị xóa trước đó");
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            // Soft delete user
+            user.Status = UserState.Deleted.ToString();
+            user.UpdateAt = DateTime.UtcNow;
+            _unitOfWork.Repository<User>().Update(user);
+
+            // Revoke tất cả refresh token
+            var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+            var activeTokens = await refreshTokenRepo.FindAsync(t => t.UserId == userId && t.RevokedAt == null);
+            foreach (var token in activeTokens)
+            {
+                token.RevokedAt = DateTime.UtcNow;
+                refreshTokenRepo.Update(token);
+            }
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to delete own account for user {UserId}", userId);
+            return ApiResponse<bool>.ErrorResponse("Xóa tài khoản thất bại. Vui lòng thử lại sau");
+        }
+
+        return ApiResponse<bool>.SuccessResponse(true, "Xóa tài khoản thành công");
+    }
+
     #endregion
 
     #region Private Helpers

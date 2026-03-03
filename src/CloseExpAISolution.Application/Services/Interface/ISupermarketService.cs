@@ -22,6 +22,8 @@ public interface ISupermarketService
 
     Task<SupermarketResponseDto?> GetByIdWithDtoAsync(Guid id);
     Task<IEnumerable<SupermarketResponseDto>> GetAllWithDtoAsync();
+    Task<IEnumerable<SupermarketResponseDto>> GetAvailableWithDtoAsync();
+    Task<IEnumerable<SupermarketResponseDto>> SearchAsync(string query);
     Task<SupermarketResponseDto> CreateSupermarketAsync(CreateSupermarketRequestDto request, CancellationToken cancellationToken = default);
     Task UpdateSupermarketAsync(Guid id, UpdateSupermarketRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteSupermarketAsync(Guid id, CancellationToken cancellationToken = default);

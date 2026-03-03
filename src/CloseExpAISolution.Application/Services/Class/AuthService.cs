@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using AutoMapper;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
@@ -22,6 +23,7 @@ public class AuthService : IAuthService
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
+    private readonly IMapper _mapper;
 
     private const int MaxFailedLoginAttempts = 5;
     private const int LockoutDurationMinutes = 30;
@@ -30,12 +32,13 @@ public class AuthService : IAuthService
     private const int OtpResendCooldownSeconds = 60;
     private const int MaxOtpFailedAttempts = 5;
 
-    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger)
+    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
         _configuration = configuration;
         _emailService = emailService;
         _logger = logger;
+        _mapper = mapper;
     }
 
     #region Public Methods
@@ -57,13 +60,30 @@ public class AuthService : IAuthService
         if (!VerifyPassword(request.Password, user.PasswordHash))
             return await HandleFailedLogin(user, userRepository);
 
-        // Success: Reset failed attempts and generate tokens
-        await ResetFailedLoginCount(user, userRepository);
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            // Reset failed login count
+            if (user.FailedLoginCount > 0)
+            {
+                user.FailedLoginCount = 0;
+                userRepository.Update(user);
+            }
 
-        var roleName = await GetRoleName(user.RoleId);
-        var authResponse = await GenerateTokensAsync(user, roleName, ipAddress, deviceInfo);
+            // Generate and save refresh token
+            var roleName = await GetRoleName(user.RoleId);
+            var authResponse = await GenerateTokensAsync(user, roleName, ipAddress, deviceInfo);
 
-        return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập thành công");
+            await _unitOfWork.CommitTransactionAsync();
+
+            return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập thành công");
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to complete login for user {Email}", request.Email);
+            return Error("Đăng nhập thất bại. Vui lòng thử lại sau");
+        }
     }
 
     public async Task<ApiResponse<AuthResponse>> RegisterAsync(RegisterRequest request)
@@ -80,17 +100,64 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
-        // Nếu đăng ký là SupplierStaff thì phải chọn siêu thị
+        // **XỬ LÝ ĐĂNG KÝ SUPPLIERSTAFF**
+        Guid? finalSupermarketId = null;
         if (roleId == (int)RoleUser.SupplierStaff)
         {
-            if (!request.SupermarketId.HasValue)
-                return Error("Vui lòng chọn siêu thị bạn làm việc");
+            // Validate: phải có SupermarketId HOẶC NewSupermarket
+            if (!request.SupermarketId.HasValue && request.NewSupermarket == null)
+                return Error("Vui lòng chọn siêu thị có sẵn hoặc tạo cơ sở mới");
 
-            // Validate supermarket exists
-            var supermarket = await _unitOfWork.Repository<Supermarket>()
-                .FirstOrDefaultAsync(s => s.SupermarketId == request.SupermarketId.Value);
-            if (supermarket == null)
-                return Error("Siêu thị không tồn tại");
+            if (request.SupermarketId.HasValue && request.NewSupermarket != null)
+                return Error("Không thể vừa chọn siêu thị có sẵn vừa tạo mới. Vui lòng chọn 1 trong 2");
+
+            // CASE 1: Chọn siêu thị có sẵn
+            if (request.SupermarketId.HasValue)
+            {
+                var supermarket = await _unitOfWork.Repository<Supermarket>()
+                    .FirstOrDefaultAsync(s => s.SupermarketId == request.SupermarketId.Value);
+
+                if (supermarket == null)
+                    return Error("Siêu thị không tồn tại");
+
+                // Kiểm tra đã có nhân viên đăng ký chưa
+                var existingStaff = await _unitOfWork.Repository<MarketStaff>()
+                    .FirstOrDefaultAsync(ms => ms.SupermarketId == request.SupermarketId.Value);
+
+                if (existingStaff != null)
+                    return Error($"Cơ sở '{supermarket.Name} - {supermarket.Address}' đã có nhân viên đăng ký. Mỗi cơ sở chỉ được 1 tài khoản quản lý");
+
+                finalSupermarketId = request.SupermarketId.Value;
+            }
+            // CASE 2: Tạo siêu thị mới
+            else if (request.NewSupermarket != null)
+            {
+                // Kiểm tra trùng lặp theo địa chỉ (phân biệt cơ sở)
+                var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
+                    .FirstOrDefaultAsync(s =>
+                        s.Name.ToLower() == request.NewSupermarket.Name.ToLower() &&
+                        s.Address.ToLower() == request.NewSupermarket.Address.ToLower() &&
+                        s.Latitude == request.NewSupermarket.Latitude &&
+                        s.Longitude == request.NewSupermarket.Longitude);
+
+                if (existingSupermarket != null)
+                {
+                    // Nếu trùng -> kiểm tra đã có nhân viên chưa
+                    var existingStaff = await _unitOfWork.Repository<MarketStaff>()
+                        .FirstOrDefaultAsync(ms => ms.SupermarketId == existingSupermarket.SupermarketId);
+
+                    if (existingStaff != null)
+                        return Error($"Cơ sở '{existingSupermarket.Name} - {existingSupermarket.Address}' đã có nhân viên đăng ký");
+
+                    // Nếu chưa có nhân viên -> dùng luôn SupermarketId này
+                    finalSupermarketId = existingSupermarket.SupermarketId;
+                }
+                else
+                {
+                    // Tạo mới hoàn toàn
+                    finalSupermarketId = Guid.NewGuid();
+                }
+            }
         }
 
         // Create user
@@ -101,25 +168,55 @@ public class AuthService : IAuthService
         user.OtpCode = HashOtp(otp);
         user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
 
-        await userRepository.AddAsync(user);
-        await _unitOfWork.SaveChangesAsync();
-
-        // Nếu là SupplierStaff, tạo record MarketStaff để liên kết với Supermarket
-        if (roleId == (int)RoleUser.SupplierStaff && request.SupermarketId.HasValue)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            var marketStaff = new MarketStaff
+            await userRepository.AddAsync(user);
+
+            // TẠO SUPERMARKET MỚI NẾU CẦN
+            if (roleId == (int)RoleUser.SupplierStaff &&
+                request.NewSupermarket != null &&
+                finalSupermarketId.HasValue)
             {
-                MarketStaffId = Guid.NewGuid(),
-                UserId = user.UserId,
-                SupermarketId = request.SupermarketId.Value,
-                Position = request.Position ?? "Nhân viên",
-                CreatedAt = DateTime.UtcNow
-            };
-            await _unitOfWork.Repository<MarketStaff>().AddAsync(marketStaff);
-            await _unitOfWork.SaveChangesAsync();
+                var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
+                    .FirstOrDefaultAsync(s => s.SupermarketId == finalSupermarketId.Value);
+
+                if (existingSupermarket == null)
+                {
+                    // Use AutoMapper to create Supermarket from NewSupermarketRequest
+                    var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
+                    newSupermarket.SupermarketId = finalSupermarketId.Value;
+                    newSupermarket.Status = UserState.Active.ToString();
+                    newSupermarket.CreatedAt = DateTime.UtcNow;
+                    
+                    await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
+                }
+            }
+
+            // TẠO MARKETSTAFF LINK
+            if (roleId == (int)RoleUser.SupplierStaff && finalSupermarketId.HasValue)
+            {
+                var marketStaff = new MarketStaff
+                {
+                    MarketStaffId = Guid.NewGuid(),
+                    UserId = user.UserId,
+                    SupermarketId = finalSupermarketId.Value,
+                    Position = request.Position ?? "Nhân viên",
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _unitOfWork.Repository<MarketStaff>().AddAsync(marketStaff);
+            }
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to register user {Email}", request.Email);
+            return Error("Đăng ký thất bại. Vui lòng thử lại sau");
         }
 
-        // Send OTP email
+        // Send OTP email (outside transaction - không rollback được email)
         await SendOtpEmailAsync(user.Email, otp, user.FullName);
 
         return ApiResponse<AuthResponse>.SuccessWithMessage(
@@ -159,12 +256,24 @@ public class AuthService : IAuthService
         var newRefreshToken = GenerateRefreshTokenString();
         storedToken.RevokedAt = DateTime.UtcNow;
         storedToken.ReplacedByToken = newRefreshToken;
-        refreshTokenRepo.Update(storedToken);
 
-        // Create new refresh token
-        var newToken = CreateRefreshTokenEntity(user.UserId, newRefreshToken, ipAddress, storedToken.DeviceInfo);
-        await refreshTokenRepo.AddAsync(newToken);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            refreshTokenRepo.Update(storedToken);
+
+            // Create new refresh token
+            var newToken = CreateRefreshTokenEntity(user.UserId, newRefreshToken, ipAddress, storedToken.DeviceInfo);
+            await refreshTokenRepo.AddAsync(newToken);
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to refresh token for user {UserId}", user.UserId);
+            return Error("Làm mới token thất bại. Vui lòng thử lại");
+        }
 
         // Generate new access token
         var roleName = await GetRoleName(user.RoleId);
@@ -184,12 +293,22 @@ public class AuthService : IAuthService
         if (storedToken.IsRevoked)
             return ApiResponse<bool>.SuccessResponse(true, "Đã đăng xuất");
 
-        // Revoke token
-        storedToken.RevokedAt = DateTime.UtcNow;
-        refreshTokenRepo.Update(storedToken);
-        await _unitOfWork.SaveChangesAsync();
+        // Revoke token atomically
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            storedToken.RevokedAt = DateTime.UtcNow;
+            refreshTokenRepo.Update(storedToken);
+            await _unitOfWork.CommitTransactionAsync();
 
-        return ApiResponse<bool>.SuccessResponse(true, "Đăng xuất thành công");
+            return ApiResponse<bool>.SuccessResponse(true, "Đăng xuất thành công");
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to logout token");
+            return ApiResponse<bool>.ErrorResponse("Đăng xuất thất bại. Vui lòng thử lại");
+        }
     }
 
     public async Task<ApiResponse<bool>> RevokeAllUserTokensAsync(Guid userId)
@@ -197,14 +316,24 @@ public class AuthService : IAuthService
         var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
         var activeTokens = await refreshTokenRepo.FindAsync(t => t.UserId == userId && t.RevokedAt == null);
 
-        foreach (var token in activeTokens)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            token.RevokedAt = DateTime.UtcNow;
-            refreshTokenRepo.Update(token);
-        }
+            foreach (var token in activeTokens)
+            {
+                token.RevokedAt = DateTime.UtcNow;
+                refreshTokenRepo.Update(token);
+            }
 
-        await _unitOfWork.SaveChangesAsync();
-        return ApiResponse<bool>.SuccessResponse(true, "Đã thu hồi tất cả phiên đăng nhập");
+            await _unitOfWork.CommitTransactionAsync();
+            return ApiResponse<bool>.SuccessResponse(true, "Đã thu hồi tất cả phiên đăng nhập");
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to revoke all tokens for user {UserId}", userId);
+            return ApiResponse<bool>.ErrorResponse("Thu hồi phiên đăng nhập thất bại. Vui lòng thử lại");
+        }
     }
 
     public async Task<ApiResponse<bool>> VerifyOtpAsync(VerifyOtpRequest request)
@@ -389,48 +518,74 @@ public class AuthService : IAuthService
 
         if (user != null)
         {
-            // Existing user — link Google ID if not yet linked
-            if (string.IsNullOrEmpty(user.GoogleId))
+            await _unitOfWork.BeginTransactionAsync();
+            try
             {
-                user.GoogleId = googleId;
-                user.UpdateAt = DateTime.UtcNow;
-                userRepository.Update(user);
-                await _unitOfWork.SaveChangesAsync();
-            }
+                // Existing user — link Google ID if not yet linked
+                if (string.IsNullOrEmpty(user.GoogleId))
+                {
+                    user.GoogleId = googleId;
+                    user.UpdateAt = DateTime.UtcNow;
+                    userRepository.Update(user);
+                }
 
-            // Check if user can login
-            if (user.Status == UserState.Unverified.ToString())
+                // Check if user can login
+                if (user.Status == UserState.Unverified.ToString())
+                {
+                    // Auto-verify email since Google already verified it
+                    user.Status = UserState.PendingApproval.ToString();
+                    user.EmailVerifiedAt = DateTime.UtcNow;
+                    user.OtpCode = null;
+                    user.OtpExpiresAt = null;
+                    user.UpdateAt = DateTime.UtcNow;
+                    userRepository.Update(user);
+
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    await SendEmailVerifiedNotificationAsync(user.Email, user.FullName);
+                    return ApiResponse<AuthResponse>.SuccessWithMessage("Email đã xác minh thành công qua Google! Tài khoản đang chờ Admin phê duyệt");
+                }
+
+                if (user.Status == UserState.PendingApproval.ToString())
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return Error("Tài khoản đang chờ Admin phê duyệt. Vui lòng đợi thông báo qua email");
+                }
+                if (user.Status == UserState.Rejected.ToString())
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return Error("Tài khoản đã bị từ chối phê duyệt. Vui lòng liên hệ Admin");
+                }
+                if (user.Status == UserState.Banned.ToString())
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return Error("Tài khoản đã bị khóa vĩnh viễn bởi Admin");
+                }
+                if (user.Status == UserState.Deleted.ToString())
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return Error("Tài khoản đã bị xóa");
+                }
+
+                if (user.Status == UserState.Active.ToString())
+                {
+                    var roleName = await GetRoleName(user.RoleId);
+                    var authResponse = await GenerateTokensAsync(user, roleName, ipAddress, deviceInfo);
+
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập Google thành công");
+                }
+
+                await _unitOfWork.RollbackTransactionAsync();
+                return Error("Tài khoản không thể đăng nhập");
+            }
+            catch (Exception ex)
             {
-                // Auto-verify email since Google already verified it
-                user.Status = UserState.PendingApproval.ToString();
-                user.EmailVerifiedAt = DateTime.UtcNow;
-                user.OtpCode = null;
-                user.OtpExpiresAt = null;
-                user.UpdateAt = DateTime.UtcNow;
-                userRepository.Update(user);
-                await _unitOfWork.SaveChangesAsync();
-
-                await SendEmailVerifiedNotificationAsync(user.Email, user.FullName);
-                return ApiResponse<AuthResponse>.SuccessWithMessage("Email đã xác minh thành công qua Google! Tài khoản đang chờ Admin phê duyệt");
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Failed to complete Google login for user {Email}", email);
+                return Error("Đăng nhập Google thất bại. Vui lòng thử lại sau");
             }
-
-            if (user.Status == UserState.PendingApproval.ToString())
-                return Error("Tài khoản đang chờ Admin phê duyệt. Vui lòng đợi thông báo qua email");
-            if (user.Status == UserState.Rejected.ToString())
-                return Error("Tài khoản đã bị từ chối phê duyệt. Vui lòng liên hệ Admin");
-            if (user.Status == UserState.Banned.ToString())
-                return Error("Tài khoản đã bị khóa vĩnh viễn bởi Admin");
-            if (user.Status == UserState.Deleted.ToString())
-                return Error("Tài khoản đã bị xóa");
-
-            if (user.Status == UserState.Active.ToString())
-            {
-                var roleName = await GetRoleName(user.RoleId);
-                var authResponse = await GenerateTokensAsync(user, roleName, ipAddress, deviceInfo);
-                return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Đăng nhập Google thành công");
-            }
-
-            return Error("Tài khoản không thể đăng nhập");
         }
 
         // Email chưa được đăng ký — chặn, không tự tạo tài khoản
@@ -495,33 +650,43 @@ public class AuthService : IAuthService
     /// <summary>Increments failed count and locks account after 5 attempts</summary>
     private async Task<ApiResponse<AuthResponse>> HandleFailedLogin(User user, dynamic userRepository)
     {
-        user.FailedLoginCount++;
-        user.UpdateAt = DateTime.UtcNow;
-
-        if (user.FailedLoginCount >= MaxFailedLoginAttempts)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            user.Status = UserState.Locked.ToString();
+            user.FailedLoginCount++;
+            user.UpdateAt = DateTime.UtcNow;
+
+            if (user.FailedLoginCount >= MaxFailedLoginAttempts)
+            {
+                user.Status = UserState.Locked.ToString();
+                userRepository.Update(user);
+                await _unitOfWork.CommitTransactionAsync();
+                return Error($"Tài khoản đã bị khóa tạm thời do đăng nhập sai quá {MaxFailedLoginAttempts} lần. Vui lòng thử lại sau {LockoutDurationMinutes} phút");
+            }
+
             userRepository.Update(user);
-            await _unitOfWork.SaveChangesAsync();
-            return Error($"Tài khoản đã bị khóa tạm thời do đăng nhập sai quá {MaxFailedLoginAttempts} lần. Vui lòng thử lại sau {LockoutDurationMinutes} phút");
+            await _unitOfWork.CommitTransactionAsync();
+
+            var attemptsLeft = MaxFailedLoginAttempts - user.FailedLoginCount;
+            return Error($"Email hoặc mật khẩu không hợp lệ. Còn {attemptsLeft} lần thử");
         }
-
-        userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync();
-
-        var attemptsLeft = MaxFailedLoginAttempts - user.FailedLoginCount;
-        return Error($"Email hoặc mật khẩu không hợp lệ. Còn {attemptsLeft} lần thử");
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to handle failed login for user {UserId}", user.UserId);
+            return Error("Đăng nhập thất bại. Vui lòng thử lại sau");
+        }
     }
 
-    /// <summary>Resets failed login counter after successful login</summary>
-    private async Task ResetFailedLoginCount(User user, dynamic userRepository)
-    {
-        if (user.FailedLoginCount == 0) return;
+    // /// <summary>Resets failed login counter after successful login</summary>
+    // private async Task ResetFailedLoginCount(User user, dynamic userRepository)
+    // {
+    //     if (user.FailedLoginCount == 0) return;
 
-        user.FailedLoginCount = 0;
-        userRepository.Update(user);
-        await _unitOfWork.SaveChangesAsync();
-    }
+    //     user.FailedLoginCount = 0;
+    //     userRepository.Update(user);
+    //     await _unitOfWork.SaveChangesAsync();
+    // }
 
     /// <summary>Verifies password against BCrypt hash</summary>
     private static bool VerifyPassword(string password, string passwordHash)

@@ -12,4 +12,5 @@ public interface IUserService
     Task<ApiResponse<UserResponseDto>> UpdateUserStatusAsync(Guid id, UpdateUserStatusRequestDto request);
     Task<ApiResponse<UserResponseDto>> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request);
     Task<ApiResponse<bool>> DeleteUserAsync(Guid id);
+    Task<ApiResponse<bool>> DeleteOwnAccountAsync(Guid userId);
 }

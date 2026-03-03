@@ -28,6 +28,14 @@ public class SupermarketMappingProfile : Profile
             .ForMember(dest => dest.Products, opt => opt.Ignore())
             .ForMember(dest => dest.MarketStaff, opt => opt.Ignore());
 
+        // NewSupermarketRequest -> Supermarket (used in registration)
+        CreateMap<NewSupermarketRequest, Supermarket>()
+            .ForMember(dest => dest.SupermarketId, opt => opt.Ignore()) // Will be set manually
+            .ForMember(dest => dest.Status, opt => opt.Ignore()) // Will be set manually
+            .ForMember(dest => dest.CreatedAt, opt => opt.Ignore()) // Will be set manually
+            .ForMember(dest => dest.Products, opt => opt.Ignore())
+            .ForMember(dest => dest.MarketStaff, opt => opt.Ignore());
+
         // UpdateSupermarketRequestDto -> Supermarket
         CreateMap<UpdateSupermarketRequestDto, Supermarket>()
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))

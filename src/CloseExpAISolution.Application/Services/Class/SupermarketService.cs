@@ -79,6 +79,59 @@ public class SupermarketService : ISupermarketService
         return _mapper.Map<IEnumerable<SupermarketResponseDto>>(items);
     }
 
+    public async Task<IEnumerable<SupermarketResponseDto>> GetAvailableWithDtoAsync()
+    {
+        var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
+
+        // Lấy danh sách SupermarketId đã có nhân viên đăng ký
+        var registeredSupermarketIds = (await _unitOfWork.Repository<MarketStaff>()
+            .GetAllAsync())
+            .Select(ms => ms.SupermarketId)
+            .ToHashSet();
+
+        // Filter: chỉ trả về siêu thị chưa có nhân viên
+        var availableSupermarkets = allSupermarkets
+            .Where(s => !registeredSupermarketIds.Contains(s.SupermarketId));
+
+        return _mapper.Map<IEnumerable<SupermarketResponseDto>>(availableSupermarkets);
+    }
+
+    public async Task<IEnumerable<SupermarketResponseDto>> SearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return await GetAllWithDtoAsync();
+
+        var queryLower = query.Trim().ToLower();
+        
+        var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
+        
+        // Lấy danh sách SupermarketId đã có nhân viên
+        var registeredSupermarketIds = (await _unitOfWork.Repository<MarketStaff>()
+            .GetAllAsync())
+            .Select(ms => ms.SupermarketId)
+            .ToHashSet();
+
+        // Filter: tìm theo tên hoặc địa chỉ (case-insensitive)
+        var searchResults = allSupermarkets
+            .Where(s => 
+                s.Name.ToLower().Contains(queryLower) || 
+                s.Address.ToLower().Contains(queryLower))
+            .Select(s => new
+            {
+                Supermarket = s,
+                HasStaff = registeredSupermarketIds.Contains(s.SupermarketId)
+            })
+            .ToList();
+
+        var dtos = _mapper.Map<List<SupermarketResponseDto>>(searchResults.Select(x => x.Supermarket));
+        
+        // Gắn thêm thông tin HasStaff vào response nếu cần
+        // Hiện SupermarketResponseDto không có field HasStaff
+        // Nếu cần, có thể extend DTO hoặc trả về trong metadata
+        
+        return dtos;
+    }
+
     public async Task<SupermarketResponseDto> CreateSupermarketAsync(CreateSupermarketRequestDto request, CancellationToken cancellationToken = default)
     {
         var supermarket = _mapper.Map<Supermarket>(request);
