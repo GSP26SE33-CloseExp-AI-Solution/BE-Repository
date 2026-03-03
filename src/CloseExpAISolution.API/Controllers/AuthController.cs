@@ -48,24 +48,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Register a new user account (Public registration for Vendor or MarketStaff only)
     /// </summary>
-    /// <remarks>
-    /// Sample request:
-    /// 
-    ///     POST /api/auth/register
-    ///     {
-    ///         "fullName": "John Doe",
-    ///         "email": "john@example.com",
-    ///         "phone": "+84901234567",
-    ///         "password": "SecureP@ssw0rd",
-    ///         "registrationType": 1  // 1 = Vendor, 2 = MarketStaff
-    ///     }
-    /// 
-    /// Registration Types:
-    /// - 1 (Vendor): Small restaurant/retail seller
-    /// - 2 (MarketStaff): Supermarket staff
-    /// 
-    /// Other roles (Admin, Staff, SupplierStaff, DeliveryStaff) can only be created by Admin via /api/users endpoint
-    /// </remarks>
     [HttpPost("register")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]

@@ -100,64 +100,26 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
-        // **XỬ LÝ ĐĂNG KÝ SUPPLIERSTAFF**
+        // XỬ LÝ ĐĂNG KÝ SUPPLIERSTAFF
         Guid? finalSupermarketId = null;
         if (roleId == (int)RoleUser.SupplierStaff)
         {
-            // Validate: phải có SupermarketId HOẶC NewSupermarket
-            if (!request.SupermarketId.HasValue && request.NewSupermarket == null)
-                return Error("Vui lòng chọn siêu thị có sẵn hoặc tạo cơ sở mới");
+            if (request.NewSupermarket == null)
+                return Error("Vui lòng nhập thông tin siêu thị/cơ sở");
 
-            if (request.SupermarketId.HasValue && request.NewSupermarket != null)
-                return Error("Không thể vừa chọn siêu thị có sẵn vừa tạo mới. Vui lòng chọn 1 trong 2");
+            // Kiểm tra trùng lặp theo tên + địa chỉ + tọa độ (phân biệt cơ sở)
+            var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
+                .FirstOrDefaultAsync(s =>
+                    s.Name.ToLower() == request.NewSupermarket.Name.ToLower() &&
+                    s.Address.ToLower() == request.NewSupermarket.Address.ToLower() &&
+                    s.Latitude == request.NewSupermarket.Latitude &&
+                    s.Longitude == request.NewSupermarket.Longitude);
 
-            // CASE 1: Chọn siêu thị có sẵn
-            if (request.SupermarketId.HasValue)
-            {
-                var supermarket = await _unitOfWork.Repository<Supermarket>()
-                    .FirstOrDefaultAsync(s => s.SupermarketId == request.SupermarketId.Value);
+            if (existingSupermarket != null)
+                return Error($"Cơ sở '{existingSupermarket.Name} - {existingSupermarket.Address}' đã tồn tại trong hệ thống");
 
-                if (supermarket == null)
-                    return Error("Siêu thị không tồn tại");
-
-                // Kiểm tra đã có nhân viên đăng ký chưa
-                var existingStaff = await _unitOfWork.Repository<MarketStaff>()
-                    .FirstOrDefaultAsync(ms => ms.SupermarketId == request.SupermarketId.Value);
-
-                if (existingStaff != null)
-                    return Error($"Cơ sở '{supermarket.Name} - {supermarket.Address}' đã có nhân viên đăng ký. Mỗi cơ sở chỉ được 1 tài khoản quản lý");
-
-                finalSupermarketId = request.SupermarketId.Value;
-            }
-            // CASE 2: Tạo siêu thị mới
-            else if (request.NewSupermarket != null)
-            {
-                // Kiểm tra trùng lặp theo địa chỉ (phân biệt cơ sở)
-                var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
-                    .FirstOrDefaultAsync(s =>
-                        s.Name.ToLower() == request.NewSupermarket.Name.ToLower() &&
-                        s.Address.ToLower() == request.NewSupermarket.Address.ToLower() &&
-                        s.Latitude == request.NewSupermarket.Latitude &&
-                        s.Longitude == request.NewSupermarket.Longitude);
-
-                if (existingSupermarket != null)
-                {
-                    // Nếu trùng -> kiểm tra đã có nhân viên chưa
-                    var existingStaff = await _unitOfWork.Repository<MarketStaff>()
-                        .FirstOrDefaultAsync(ms => ms.SupermarketId == existingSupermarket.SupermarketId);
-
-                    if (existingStaff != null)
-                        return Error($"Cơ sở '{existingSupermarket.Name} - {existingSupermarket.Address}' đã có nhân viên đăng ký");
-
-                    // Nếu chưa có nhân viên -> dùng luôn SupermarketId này
-                    finalSupermarketId = existingSupermarket.SupermarketId;
-                }
-                else
-                {
-                    // Tạo mới hoàn toàn
-                    finalSupermarketId = Guid.NewGuid();
-                }
-            }
+            // Tạo mới
+            finalSupermarketId = Guid.NewGuid();
         }
 
         // Create user
@@ -173,29 +135,17 @@ public class AuthService : IAuthService
         {
             await userRepository.AddAsync(user);
 
-            // TẠO SUPERMARKET MỚI NẾU CẦN
-            if (roleId == (int)RoleUser.SupplierStaff &&
-                request.NewSupermarket != null &&
-                finalSupermarketId.HasValue)
-            {
-                var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
-                    .FirstOrDefaultAsync(s => s.SupermarketId == finalSupermarketId.Value);
-
-                if (existingSupermarket == null)
-                {
-                    // Use AutoMapper to create Supermarket from NewSupermarketRequest
-                    var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
-                    newSupermarket.SupermarketId = finalSupermarketId.Value;
-                    newSupermarket.Status = UserState.Active.ToString();
-                    newSupermarket.CreatedAt = DateTime.UtcNow;
-                    
-                    await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
-                }
-            }
-
-            // TẠO MARKETSTAFF LINK
+            // TẠO SUPERMARKET MỚI + MARKETSTAFF LINK
             if (roleId == (int)RoleUser.SupplierStaff && finalSupermarketId.HasValue)
             {
+                // Tạo Supermarket
+                var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
+                newSupermarket.SupermarketId = finalSupermarketId.Value;
+                newSupermarket.Status = UserState.Active.ToString();
+                newSupermarket.CreatedAt = DateTime.UtcNow;
+                await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
+
+                // Tạo MarketStaff link
                 var marketStaff = new MarketStaff
                 {
                     MarketStaffId = Guid.NewGuid(),

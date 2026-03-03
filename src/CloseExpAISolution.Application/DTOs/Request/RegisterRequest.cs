@@ -29,14 +29,7 @@ public class RegisterRequest
     public RegistrationType RegistrationType { get; set; }
 
     /// <summary>
-    /// ID của siêu thị có sẵn (nếu chọn từ danh sách).
-    /// NULL nếu muốn tạo siêu thị mới.
-    /// </summary>
-    public Guid? SupermarketId { get; set; }
-
-    /// <summary>
-    /// Thông tin siêu thị mới (chỉ dùng khi SupermarketId = null).
-    /// Frontend sẽ gửi object này nếu user chọn "Tạo cơ sở mới".
+    /// Thông tin siêu thị mới (bắt buộc khi đăng ký SupplierStaff).
     /// </summary>
     public NewSupermarketRequest? NewSupermarket { get; set; }
 
