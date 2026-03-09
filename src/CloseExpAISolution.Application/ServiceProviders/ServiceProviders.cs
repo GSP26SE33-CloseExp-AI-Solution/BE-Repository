@@ -26,6 +26,8 @@ namespace CloseExpAISolution.Application.ServiceProviders
         private IR2StorageService? _r2StorageService;
         private IFeedbackService? _feedbackService;
         private IUserImageService? _userImageService;
+        private IOrderService? _orderService;
+        private IOrderItemService? _orderItemService;
 
         public ServiceProviders(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, ApplicationDbContext context, IConfiguration configuration, IMapper mapper)
         {
@@ -45,5 +47,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
         public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
         public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);
+        public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper);
+        public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
     }
 }

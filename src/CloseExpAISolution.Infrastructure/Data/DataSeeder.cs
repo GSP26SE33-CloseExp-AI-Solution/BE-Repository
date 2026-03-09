@@ -56,6 +56,19 @@ public static class DataSeeder
     private static readonly Guid Product11Id = Guid.Parse("bbbb000b-000b-000b-000b-00000000000b");
     private static readonly Guid Product12Id = Guid.Parse("bbbb000c-000c-000c-000c-00000000000c");
 
+    // TimeSlot, PickupPoint, DoorPickup, Promotion GUIDs (for Orders)
+    private static readonly Guid TimeSlotMorningId = Guid.Parse("cccc0001-0001-0001-0001-000000000001");
+    private static readonly Guid TimeSlotAfternoonId = Guid.Parse("cccc0002-0002-0002-0002-000000000002");
+    private static readonly Guid TimeSlotEveningId = Guid.Parse("cccc0003-0003-0003-0003-000000000003");
+    private static readonly Guid PickupPointMainId = Guid.Parse("dddd0001-0001-0001-0001-000000000001");
+    private static readonly Guid PickupPointBranch2Id = Guid.Parse("dddd0002-0002-0002-0002-000000000002");
+    private static readonly Guid DoorPickupMainId = Guid.Parse("eeee0001-0001-0001-0001-000000000001");
+    private static readonly Guid Promotion10PercentId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
+    // Order GUIDs (for testing)
+    private static readonly Guid Order1Id = Guid.Parse("a1a10001-0001-0001-0001-000000000001");
+    private static readonly Guid Order2Id = Guid.Parse("a1a10002-0002-0002-0002-000000000002");
+    private static readonly Guid Order3Id = Guid.Parse("a1a10003-0003-0003-0003-000000000003");
+
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         await SeedRolesAsync(context);
@@ -65,6 +78,11 @@ public static class DataSeeder
         await SeedUnitsAsync(context);        // Seed đơn vị tính
         await SeedProductsAsync(context);
         await SeedProductLotsAsync(context);  // Seed lô hàng
+        await SeedTimeSlotsAsync(context);
+        await SeedPickupPointsAsync(context);
+        await SeedDoorPickupsAsync(context);
+        await SeedPromotionsAsync(context);
+        await SeedOrdersAndOrderItemsAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -1041,6 +1059,166 @@ public static class DataSeeder
         };
 
         await context.ProductLots.AddRangeAsync(productLots);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedTimeSlotsAsync(ApplicationDbContext context)
+    {
+        if (await context.TimeSlots.AnyAsync())
+            return;
+
+        var timeSlots = new List<TimeSlot>
+        {
+            new() { TimeSlotId = TimeSlotMorningId, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(12, 0, 0) },
+            new() { TimeSlotId = TimeSlotAfternoonId, StartTime = new TimeSpan(12, 0, 0), EndTime = new TimeSpan(17, 0, 0) },
+            new() { TimeSlotId = TimeSlotEveningId, StartTime = new TimeSpan(17, 0, 0), EndTime = new TimeSpan(21, 0, 0) }
+        };
+        await context.TimeSlots.AddRangeAsync(timeSlots);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedPickupPointsAsync(ApplicationDbContext context)
+    {
+        if (await context.PickupPoints.AnyAsync())
+            return;
+
+        var pickupPoints = new List<PickupPoint>
+        {
+            new() { PickupPointId = PickupPointMainId, Name = "Điểm lấy hàng chính", Address = "123 Nguyễn Huệ, Q1, TP.HCM", Latitude = 10.7769m, Longitude = 106.7009m },
+            new() { PickupPointId = PickupPointBranch2Id, Name = "Điểm lấy hàng chi nhánh 2", Address = "456 Lê Lợi, Q3, TP.HCM", Latitude = 10.7821m, Longitude = 106.6954m }
+        };
+        await context.PickupPoints.AddRangeAsync(pickupPoints);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedDoorPickupsAsync(ApplicationDbContext context)
+    {
+        if (await context.DoorPickups.AnyAsync())
+            return;
+
+        var doorPickups = new List<DoorPickup>
+        {
+            new() { DoorPickupId = DoorPickupMainId, Name = "Giao tận cửa - Khu vực trung tâm", Address = "Giao trong bán kính 5km", Latitude = 10.7769m, Longitude = 106.7009m }
+        };
+        await context.DoorPickups.AddRangeAsync(doorPickups);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedPromotionsAsync(ApplicationDbContext context)
+    {
+        if (await context.Promotions.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+        var promotions = new List<Promotion>
+        {
+            new()
+            {
+                PromotionId = Promotion10PercentId,
+                Name = "Giảm 10% đơn đầu",
+                DiscountType = "Percent",
+                DiscountValue = 10,
+                StartDate = now.AddDays(-30),
+                EndDate = now.AddDays(30),
+                Status = "Active"
+            }
+        };
+        await context.Promotions.AddRangeAsync(promotions);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seed Orders and OrderItems for testing. Uses existing Users, TimeSlots, PickupPoints, and ProductLots.
+    /// </summary>
+    private static async Task SeedOrdersAndOrderItemsAsync(ApplicationDbContext context)
+    {
+        if (await context.Orders.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+
+        // Get some active ProductLot IDs to use for order items
+        var lotIds = await context.ProductLots
+            .Where(pl => pl.Status == "Active")
+            .OrderBy(pl => pl.LotId)
+            .Take(12)
+            .Select(pl => pl.LotId)
+            .ToListAsync();
+
+        if (lotIds.Count < 2)
+            return; // Need at least 2 lots to create order items
+
+        var orders = new List<Order>
+        {
+            new()
+            {
+                OrderId = Order1Id,
+                OrderCode = "ORD-SEED-001",
+                UserId = VendorUserId1,
+                TimeSlotId = TimeSlotMorningId,
+                PickupPointId = PickupPointMainId,
+                DeliveryType = "Pickup",
+                TotalAmount = 125000,
+                Status = "Confirmed",
+                OrderDate = now.AddDays(-2),
+                DoorPickupId = null,
+                PromotionId = Promotion10PercentId,
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddDays(-2)
+            },
+            new()
+            {
+                OrderId = Order2Id,
+                OrderCode = "ORD-SEED-002",
+                UserId = VendorUserId2,
+                TimeSlotId = TimeSlotAfternoonId,
+                PickupPointId = PickupPointBranch2Id,
+                DeliveryType = "Pickup",
+                TotalAmount = 89000,
+                Status = "Pending",
+                OrderDate = now.AddDays(-1),
+                DoorPickupId = null,
+                PromotionId = null,
+                CreatedAt = now.AddDays(-1),
+                UpdatedAt = now.AddDays(-1)
+            },
+            new()
+            {
+                OrderId = Order3Id,
+                OrderCode = "ORD-SEED-003",
+                UserId = VendorUserId3,
+                TimeSlotId = TimeSlotEveningId,
+                PickupPointId = null,
+                DeliveryType = "DoorPickup",
+                TotalAmount = 210000,
+                Status = "Delivered",
+                OrderDate = now.AddDays(-3),
+                DoorPickupId = DoorPickupMainId,
+                PromotionId = Promotion10PercentId,
+                CreatedAt = now.AddDays(-3),
+                UpdatedAt = now
+            }
+        };
+
+        await context.Orders.AddRangeAsync(orders);
+        await context.SaveChangesAsync();
+
+        // Seed order items: 2–3 items per order using seeded lots
+        var orderItems = new List<OrderItem>
+        {
+            // Order 1
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order1Id, LotId = lotIds[0], Quantity = 2, UnitPrice = 25000 },
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order1Id, LotId = lotIds[1], Quantity = 1, UnitPrice = 45000 },
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order1Id, LotId = lotIds[2], Quantity = 3, UnitPrice = 15000 },
+            // Order 2
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order2Id, LotId = lotIds[3], Quantity = 1, UnitPrice = 39000 },
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order2Id, LotId = lotIds[4], Quantity = 2, UnitPrice = 25000 },
+            // Order 3
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order3Id, LotId = lotIds[5], Quantity = 4, UnitPrice = 22000 },
+            new() { OrderItemId = Guid.NewGuid(), OrderId = Order3Id, LotId = lotIds[6], Quantity = 2, UnitPrice = 61000 }
+        };
+
+        await context.OrderItems.AddRangeAsync(orderItems);
         await context.SaveChangesAsync();
     }
 }

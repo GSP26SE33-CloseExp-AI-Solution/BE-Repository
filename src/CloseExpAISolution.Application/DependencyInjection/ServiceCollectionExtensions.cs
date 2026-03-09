@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
             cfg.AddProfile<ProductMappingProfile>();
             cfg.AddProfile<SupermarketMappingProfile>();
             cfg.AddProfile<MarketStaffMappingProfile>();
+            cfg.AddProfile<OrderMappingProfile>();
         });
 
         // only register the aggregate service provider; it will new-up inner services

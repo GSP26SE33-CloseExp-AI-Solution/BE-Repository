@@ -15,6 +15,8 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IBarcodeProductRepository BarcodeProductRepository { get; }
     IMarketPriceRepository MarketPriceRepository { get; }
     IPriceFeedbackRepository PriceFeedbackRepository { get; }
+    IOrderRepository OrderRepository { get; }
+    IOrderItemRepository OrderItemRepository { get; }
 
     //Bên dưới đừng dụng vào
     IGenericRepository<T> Repository<T>() where T : class;
