@@ -19,18 +19,20 @@ public class ApplicationDbContext : DbContext
     public DbSet<Supermarket> Supermarkets => Set<Supermarket>();
     public DbSet<MarketStaff> MarketStaff => Set<MarketStaff>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductDetail> ProductDetails => Set<ProductDetail>();
     public DbSet<Pricing> Pricings => Set<Pricing>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductLot> ProductLots => Set<ProductLot>();
     public DbSet<Unit> Units => Set<Unit>();
-    public DbSet<OverdueRecord> OverdueRecords => Set<OverdueRecord>();
+    public DbSet<InventoryDisposal> InventoryDisposals => Set<InventoryDisposal>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<AIPriceHistory> AIPriceHistories => Set<AIPriceHistory>();
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
     public DbSet<PackagingRecord> PackagingRecords => Set<PackagingRecord>();
     public DbSet<TimeSlot> TimeSlots => Set<TimeSlot>();
     public DbSet<PickupPoint> PickupPoints => Set<PickupPoint>();
-    public DbSet<DoorPickup> DoorPickups => Set<DoorPickup>();
+    public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
@@ -52,21 +54,34 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<PackagingRecord>().HasKey(x => x.PackagingId);
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
         modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
-        modelBuilder.Entity<OverdueRecord>().HasKey(x => x.OverdueId);
+        modelBuilder.Entity<InventoryDisposal>().HasKey(x => x.DestroyId);
+        modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
         modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
         modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
         modelBuilder.Entity<Pricing>().HasKey(x => x.PricingId);
 
         modelBuilder.Entity<Pricing>()
             .HasOne(pr => pr.Product)
-            .WithOne(p => p.Pricing)
-            .HasForeignKey<Pricing>(pr => pr.ProductId)
+            .WithMany()
+            .HasForeignKey(pr => pr.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Product>()
-            .HasOne(p => p.Unit)
+            .HasOne(p => p.UnitOfMeasure)
             .WithMany(u => u.Products)
-            .HasForeignKey(p => p.UnitId)
+            .HasForeignKey(p => p.UnitOfMeasureId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.ProductDetail)
+            .WithOne(pd => pd.Product)
+            .HasForeignKey<ProductDetail>(pd => pd.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.CategoryRef)
+            .WithMany(c => c.Products)
+            .HasForeignKey(p => p.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<ProductLot>()
@@ -78,11 +93,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProductLot>()
             .Ignore(pl => pl.Weight);
 
-        modelBuilder.Entity<OverdueRecord>()
-            .HasOne(or => or.ProductLot)
-            .WithMany(pl => pl.OverdueRecords)
-            .HasForeignKey(or => or.LotId)
+        modelBuilder.Entity<InventoryDisposal>()
+            .HasOne(id => id.ProductLot)
+            .WithMany(pl => pl.InventoryDisposals)
+            .HasForeignKey(id => id.LotId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Category>()
+            .HasOne(c => c.ParentCategory)
+            .WithMany(c => c.ChildCategories)
+            .HasForeignKey(c => c.ParentCatId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<AIPriceHistory>()
             .HasOne(aph => aph.ProductLot)
@@ -94,6 +115,18 @@ public class ApplicationDbContext : DbContext
             .HasOne(oi => oi.ProductLot)
             .WithMany(pl => pl.OrderItems)
             .HasForeignKey(oi => oi.LotId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.CustomerAddress)
+            .WithMany()
+            .HasForeignKey(o => o.CustomerAddressId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CustomerAddress>()
+            .HasOne(c => c.User)
+            .WithMany()
+            .HasForeignKey(c => c.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<BarcodeProduct>().HasKey(bp => bp.BarcodeProductId);

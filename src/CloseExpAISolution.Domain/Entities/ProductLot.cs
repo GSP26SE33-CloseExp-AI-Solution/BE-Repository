@@ -14,7 +14,7 @@ public class ProductLot
     public DateTime? PublishedAt { get; set; }
 
     public Product? Product { get; set; }
-    public ICollection<OverdueRecord> OverdueRecords { get; set; } = new List<OverdueRecord>();
+    public ICollection<InventoryDisposal> InventoryDisposals { get; set; } = new List<InventoryDisposal>();
     public ICollection<AIPriceHistory> AIPriceHistories { get; set; } = new List<AIPriceHistory>();
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 }

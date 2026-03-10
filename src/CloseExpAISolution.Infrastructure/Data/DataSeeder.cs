@@ -499,291 +499,210 @@ public static class DataSeeder
         if (await context.Products.AnyAsync())
             return;
 
+        var now = DateTime.UtcNow;
         var products = new List<Product>
         {
-            // Dairy Products - CoopMart
             new()
             {
                 ProductId = Product1Id,
                 SupermarketId = SupermarketCoopMartId,
+                UnitOfMeasureId = UnitLiterId,
                 Name = "Sữa tươi Vinamilk 1L",
-                Brand = "Vinamilk",
-                Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673111119",
-                IsFreshFood = true,
-                UnitId = UnitLiterId,
-                QuantityType = 1, // Fixed
-                Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất",
-                Origin = "Việt Nam",
-                Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3",
-                NutritionFactsJson = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""",
-                UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.",
-                StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.",
-                SafetyWarning = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.",
-                Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
-                Distributor = "Vinamilk",
+                Sku = "8934673111119",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
             new()
             {
                 ProductId = Product2Id,
                 SupermarketId = SupermarketCoopMartId,
+                UnitOfMeasureId = UnitBoxId,
                 Name = "Sữa chua Vinamilk có đường",
-                Brand = "Vinamilk",
-                Category = "Sữa & Sản phẩm từ sữa",
                 Barcode = "8934673222226",
-                IsFreshFood = true,
-                UnitId = UnitBoxId,
-                QuantityType = 1,
-                Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng",
-                Origin = "Việt Nam",
-                Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus",
-                NutritionFactsJson = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""",
-                UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.",
-                StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.",
-                SafetyWarning = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.",
-                Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
-                Distributor = "Vinamilk",
+                Sku = "8934673222226",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Meat - CoopMart (Bán theo cân)
             new()
             {
                 ProductId = Product3Id,
                 SupermarketId = SupermarketCoopMartId,
+                UnitOfMeasureId = UnitKgId,
                 Name = "Thịt heo ba chỉ",
-                Brand = "Meat Deli",
-                Category = "Thịt & Hải sản",
                 Barcode = "8934673333333",
-                IsFreshFood = true,
-                UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 150000m,
-                Description = "Thịt heo ba chỉ tươi ngon từ trang trại",
-                Origin = "Việt Nam",
-                Ingredients = "Thịt heo tươi 100%",
-                UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.",
-                StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.",
-                SafetyWarning = "Nấu chín kỹ trước khi ăn.",
-                Manufacturer = "Công ty TNHH Meat Deli",
-                Distributor = "Meat Deli",
+                Sku = "8934673333333",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Vegetables - BigC (Bán theo cân)
             new()
             {
                 ProductId = Product4Id,
                 SupermarketId = SupermarketBigCId,
+                UnitOfMeasureId = UnitKgId,
                 Name = "Rau cải xanh hữu cơ",
-                Brand = "Dalat Garden",
-                Category = "Rau củ quả",
                 Barcode = "8934673444440",
-                IsFreshFood = true,
-                UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 35000m,
-                Ingredients = "Rau cải xanh hữu cơ 100%",
-                Manufacturer = "Công ty TNHH Dalat Garden",
+                Sku = "8934673444440",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
             new()
             {
                 ProductId = Product5Id,
                 SupermarketId = SupermarketBigCId,
+                UnitOfMeasureId = UnitKgId,
                 Name = "Cà chua Đà Lạt",
-                Brand = "Dalat Garden",
-                Category = "Rau củ quả",
                 Barcode = "8934673555557",
-                IsFreshFood = true,
-                UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 25000m,
-                Ingredients = "Cà chua Đà Lạt 100%",
-                Manufacturer = "Công ty TNHH Dalat Garden",
+                Sku = "8934673555557",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Bakery - BigC
             new()
             {
                 ProductId = Product6Id,
                 SupermarketId = SupermarketBigCId,
+                UnitOfMeasureId = UnitPackId,
                 Name = "Bánh mì sandwich Kinh Đô",
-                Brand = "Kinh Đô",
-                Category = "Bánh & Đồ nướng",
                 Barcode = "8934673666664",
-                IsFreshFood = true,
-                UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản",
-                NutritionFactsJson = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""",
-                Manufacturer = "Công ty Cổ phần Kinh Đô",
+                Sku = "8934673666664",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Beverages - VinMart
             new()
             {
                 ProductId = Product7Id,
                 SupermarketId = SupermarketVinMartId,
+                UnitOfMeasureId = UnitBottleId,
                 Name = "Nước cam ép Tropicana 1L",
-                Brand = "Tropicana",
-                Category = "Đồ uống",
                 Barcode = "8934673777771",
-                IsFreshFood = true,
-                UnitId = UnitBottleId,
-                QuantityType = 1,
-                Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C",
-                NutritionFactsJson = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""",
-                Manufacturer = "Công ty TNHH Tropicana",
+                Sku = "8934673777771",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Snacks - VinMart (Non-fresh)
             new()
             {
                 ProductId = Product8Id,
                 SupermarketId = SupermarketVinMartId,
+                UnitOfMeasureId = UnitBoxId,
                 Name = "Bánh quy Oreo 264g",
-                Brand = "Oreo",
-                Category = "Bánh kẹo",
                 Barcode = "8934673888888",
-                IsFreshFood = false,
-                UnitId = UnitBoxId,
-                QuantityType = 1,
-                Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani",
-                NutritionFactsJson = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""",
-                Manufacturer = "Công ty Mondelez Vietnam",
+                Sku = "8934673888888",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Instant Noodles - VinMart (Non-fresh)
             new()
             {
                 ProductId = Product9Id,
                 SupermarketId = SupermarketVinMartId,
+                UnitOfMeasureId = UnitPackId,
                 Name = "Mì Hảo Hảo tôm chua cay",
-                Brand = "Acecook",
-                Category = "Thực phẩm khô",
                 Barcode = "8934673999995",
-                IsFreshFood = false,
-                UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị",
-                NutritionFactsJson = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""",
-                Manufacturer = "Công ty Cổ phần Acecook Việt Nam",
+                Sku = "8934673999995",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Seafood - CoopMart (Bán theo cân)
             new()
             {
                 ProductId = Product10Id,
                 SupermarketId = SupermarketCoopMartId,
+                UnitOfMeasureId = UnitKgId,
                 Name = "Cá hồi phi lê đông lạnh",
-                Brand = "Seafood King",
-                Category = "Thịt & Hải sản",
                 Barcode = "8934673101010",
-                IsFreshFood = true,
-                UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 450000m, // 450,000 VND/kg
-                Ingredients = "Cá hồi phi lê tươi 100%",
-                Manufacturer = "Công ty TNHH Seafood King",
+                Sku = "8934673101010",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Đồ hộp - CoopMart
             new()
             {
                 ProductId = Product11Id,
                 SupermarketId = SupermarketCoopMartId,
+                UnitOfMeasureId = UnitPackId,
                 Name = "Cá ngừ đóng hộp Vissan 170g",
-                Brand = "Vissan",
-                Category = "Đồ hộp",
                 Barcode = "8934673121212",
-                IsFreshFood = false,
-                UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt",
-                NutritionFactsJson = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""",
-                Manufacturer = "Công ty Cổ phần Vissan",
+                Sku = "8934673121212",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             },
-            // Đồ hộp - BigC
             new()
             {
                 ProductId = Product12Id,
                 SupermarketId = SupermarketBigCId,
+                UnitOfMeasureId = UnitPackId,
                 Name = "Đậu đỏ hầm đường lon 380g",
-                Brand = "Nếp Mới",
-                Category = "Đồ hộp",
                 Barcode = "8934673131313",
-                IsFreshFood = false,
-                UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Đậu đỏ 50%, đường, nước, muối",
-                NutritionFactsJson = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""",
-                Manufacturer = "Công ty TNHH Nếp Mới",
+                Sku = "8934673131313",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdateBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                isFeatured = false
             }
         };
 
         await context.Products.AddRangeAsync(products);
+        await context.SaveChangesAsync();
+
+        var productDetails = new List<ProductDetail>
+        {
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product1Id, Brand = "Vinamilk", Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất", Origin = "Việt Nam", Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3", NutritionFacts = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""", UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.", StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.", SafetyWarning = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product2Id, Brand = "Vinamilk", Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng", Origin = "Việt Nam", Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus", NutritionFacts = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""", UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.", StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.", SafetyWarning = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product3Id, Brand = "Meat Deli", Description = "Thịt heo ba chỉ tươi ngon từ trang trại", Origin = "Việt Nam", Ingredients = "Thịt heo tươi 100%", UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.", StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.", SafetyWarning = "Nấu chín kỹ trước khi ăn.", Manufacturer = "Công ty TNHH Meat Deli", Distributor = "Meat Deli" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product4Id, Brand = "Dalat Garden", Ingredients = "Rau cải xanh hữu cơ 100%", Manufacturer = "Công ty TNHH Dalat Garden" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product5Id, Brand = "Dalat Garden", Ingredients = "Cà chua Đà Lạt 100%", Manufacturer = "Công ty TNHH Dalat Garden" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product6Id, Brand = "Kinh Đô", Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản", NutritionFacts = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""", Manufacturer = "Công ty Cổ phần Kinh Đô" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product7Id, Brand = "Tropicana", Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C", NutritionFacts = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""", Manufacturer = "Công ty TNHH Tropicana" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product8Id, Brand = "Oreo", Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani", NutritionFacts = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""", Manufacturer = "Công ty Mondelez Vietnam" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product9Id, Brand = "Acecook", Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị", NutritionFacts = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""", Manufacturer = "Công ty Cổ phần Acecook Việt Nam" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product10Id, Brand = "Seafood King", Ingredients = "Cá hồi phi lê tươi 100%", Manufacturer = "Công ty TNHH Seafood King" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product11Id, Brand = "Vissan", Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt", NutritionFacts = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""", Manufacturer = "Công ty Cổ phần Vissan" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product12Id, Brand = "Nếp Mới", Ingredients = "Đậu đỏ 50%, đường, nước, muối", NutritionFacts = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""", Manufacturer = "Công ty TNHH Nếp Mới" }
+        };
+        await context.ProductDetails.AddRangeAsync(productDetails);
         await context.SaveChangesAsync();
     }
 
