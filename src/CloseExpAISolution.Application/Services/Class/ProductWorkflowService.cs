@@ -125,6 +125,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
             if (ocrResult != null)
             {
+                var productDetail = product.ProductDetail;
                 // Update product with OCR extracted data
                 product.Name = ocrResult.ProductInfo?.Name ?? ocrResult.Name ?? "Unknown Product";
                 product.Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand ?? "";
@@ -132,6 +133,12 @@ public class ProductWorkflowService : IProductWorkflowService
                 product.Category = ocrResult.ProductInfo?.DetectedCategory?.Name ?? "";
                 product.OcrConfidence = ocrResult.Confidence;
                 product.OcrExtractedData = JsonSerializer.Serialize(ocrResult);
+
+                if (productDetail != null)
+                {
+                    productDetail.Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand ?? "";
+                    _unitOfWork.Repository<ProductDetail>().Update(productDetail);
+                }
 
                 // Update ProductLot with OCR dates and weight
                 productLot.ExpiryDate = ocrResult.ExpiryDate?.Value ?? DateTime.UtcNow.AddDays(30);
