@@ -74,7 +74,7 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == id);
@@ -108,7 +108,7 @@ public class ProductService : IProductService
     {
         var products = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .ToListAsync();
@@ -154,7 +154,7 @@ public class ProductService : IProductService
         var defaultUnit = await _context.Units.FirstOrDefaultAsync(cancellationToken);
         if (defaultUnit == null)
             throw new InvalidOperationException("Không tìm thấy đơn vị đo mặc định. Vui lòng seed bảng Units trước.");
-        product.UnitOfMeasureId = defaultUnit.UnitId;
+        product.UnitId = defaultUnit.UnitId;
 
         var added = await _unitOfWork.ProductRepository.AddAsync(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -175,7 +175,7 @@ public class ProductService : IProductService
 
         var withDetail = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == added.ProductId, cancellationToken);
@@ -244,7 +244,7 @@ public class ProductService : IProductService
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.ProductDetail)
             .Include(pl => pl.Product)
-                .ThenInclude(p => p!.UnitOfMeasure)
+                .ThenInclude(p => p!.Unit)
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.CategoryRef)
             .AsQueryable();
@@ -381,7 +381,7 @@ public class ProductService : IProductService
     {
         var query = _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .Where(p => p.SupermarketId == supermarketId)
@@ -454,7 +454,7 @@ public class ProductService : IProductService
         var product = await _context.Products
             .Include(p => p.ProductDetail)
             .Include(p => p.ProductLots)
-            .Include(p => p.UnitOfMeasure)
+            .Include(p => p.Unit)
             .Include(p => p.Supermarket)
             .Include(p => p.CategoryRef)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
@@ -470,7 +470,7 @@ public class ProductService : IProductService
             .FirstOrDefaultAsync(x => x.ProductId == productId);
 
         var detail = _mapper.Map<ProductDetailDto>(product);
-        detail.UnitName = product.UnitOfMeasure?.Name ?? "Đang cập nhật";
+        detail.UnitName = product.Unit?.Name ?? "Đang cập nhật";
         detail.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
         detail.TotalImages = images.Count;
         detail.ProductImages = _mapper.Map<List<ProductImageDto>>(images);

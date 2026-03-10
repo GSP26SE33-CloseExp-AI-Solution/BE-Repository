@@ -8,7 +8,7 @@ public class Product
     public Guid ProductId { get; set; }
     public Guid? CategoryId { get; set; }
     public Guid SupermarketId { get; set; }
-    public Guid UnitOfMeasureId { get; set; }
+    public Guid UnitId { get; set; }
 
     public string Name { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
@@ -22,7 +22,7 @@ public class Product
     public DateTime? PublishedAt { get; set; }
     public bool isFeatured { get; set; }
 
-    public Unit? UnitOfMeasure { get; set; }
+    public Unit? Unit { get; set; }
     public ProductDetail? ProductDetail { get; set; }
     public Category? CategoryRef { get; set; }
     public Supermarket? Supermarket { get; set; }

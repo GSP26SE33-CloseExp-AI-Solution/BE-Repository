@@ -77,8 +77,6 @@ public class ProductWorkflowService : IProductWorkflowService
             CreatedAt = DateTime.UtcNow,
             Status = ProductState.Draft.ToString(),
             Name = "Processing...",
-            Brand = "",
-            Category = "",
             Barcode = ""
         };
 
@@ -125,29 +123,27 @@ public class ProductWorkflowService : IProductWorkflowService
 
             if (ocrResult != null)
             {
-                var productDetail = product.ProductDetail;
                 // Update product with OCR extracted data
                 product.Name = ocrResult.ProductInfo?.Name ?? ocrResult.Name ?? "Unknown Product";
-                product.Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand ?? "";
                 product.Barcode = ocrResult.ProductInfo?.Barcode ?? ocrResult.Barcode ?? "";
-                product.Category = ocrResult.ProductInfo?.DetectedCategory?.Name ?? "";
-                product.OcrConfidence = ocrResult.Confidence;
-                product.OcrExtractedData = JsonSerializer.Serialize(ocrResult);
 
-                if (productDetail != null)
+                // Update / create ProductDetail with OCR fields
+                var productDetail = product.ProductDetail ?? new ProductDetail
                 {
-                    productDetail.Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand ?? "";
+                    ProductDetailId = Guid.NewGuid(),
+                    ProductId = product.ProductId
+                };
+                productDetail.Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand ?? "";
+                if (product.ProductDetail == null)
+                    await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
+                else
                     _unitOfWork.Repository<ProductDetail>().Update(productDetail);
-                }
 
                 // Update ProductLot with OCR dates and weight
                 productLot.ExpiryDate = ocrResult.ExpiryDate?.Value ?? DateTime.UtcNow.AddDays(30);
                 productLot.ManufactureDate = ocrResult.ManufacturedDate?.Value ?? DateTime.UtcNow;
                 productLot.Weight = ParseWeightToDecimal(ocrResult.ProductInfo?.Weight ?? ocrResult.ProductInfo?.WeightInfo?.Raw)
                     ?? (decimal)(ocrResult.ProductInfo?.WeightInfo?.Value ?? 0);
-
-                // Determine if fresh food based on category
-                product.IsFreshFood = IsFreshFoodCategory(product.Category);
 
                 // 4. Barcode lookup for additional info
                 if (!string.IsNullOrEmpty(product.Barcode))
@@ -163,20 +159,19 @@ public class ProductWorkflowService : IProductWorkflowService
                         // Fill in missing info from barcode lookup (OCR data takes priority)
                         if (string.IsNullOrEmpty(product.Name) || product.Name == "Unknown Product")
                             product.Name = barcodeLookupInfo.ProductName ?? product.Name;
-                        if (string.IsNullOrEmpty(product.Brand))
-                            product.Brand = barcodeLookupInfo.Brand ?? "";
-                        if (string.IsNullOrEmpty(product.Category))
-                            product.Category = barcodeLookupInfo.Category ?? "";
-                        if (string.IsNullOrEmpty(product.Ingredients))
-                            product.Ingredients = barcodeLookupInfo.Ingredients;
-                        if (string.IsNullOrEmpty(product.NutritionFactsJson) && barcodeLookupInfo.NutritionFacts != null)
-                            product.NutritionFactsJson = JsonSerializer.Serialize(barcodeLookupInfo.NutritionFacts);
+                        if (string.IsNullOrEmpty(productDetail.Brand))
+                            productDetail.Brand = barcodeLookupInfo.Brand ?? "";
+                        if (string.IsNullOrEmpty(productDetail.Ingredients))
+                            productDetail.Ingredients = barcodeLookupInfo.Ingredients;
+                        if (string.IsNullOrEmpty(productDetail.NutritionFacts) && barcodeLookupInfo.NutritionFacts != null)
+                            productDetail.NutritionFacts = JsonSerializer.Serialize(barcodeLookupInfo.NutritionFacts);
                         if (productLot.Weight == 0 && ParseWeightToDecimal(barcodeLookupInfo.Weight) is { } parsed)
                             productLot.Weight = parsed;
-                        if (string.IsNullOrEmpty(product.Manufacturer))
-                            product.Manufacturer = barcodeLookupInfo.Manufacturer;
-                        if (string.IsNullOrEmpty(product.MadeInCountry))
-                            product.MadeInCountry = barcodeLookupInfo.Country;
+                        if (string.IsNullOrEmpty(productDetail.Manufacturer))
+                            productDetail.Manufacturer = barcodeLookupInfo.Manufacturer;
+                        if (string.IsNullOrEmpty(productDetail.CountryOfOrigin))
+                            productDetail.CountryOfOrigin = barcodeLookupInfo.Country;
+                        _unitOfWork.Repository<ProductDetail>().Update(productDetail);
                     }
                 }
 
@@ -192,7 +187,6 @@ public class ProductWorkflowService : IProductWorkflowService
                 _logger.LogWarning("OCR extraction returned null for product {ProductId}", product.ProductId);
 
                 product.Name = "Manual Entry Required";
-                product.OcrConfidence = 0;
                 _unitOfWork.ProductRepository.Update(product);
                 await _unitOfWork.SaveChangesAsync(CancellationToken.None); // Don't use request token here
             }
@@ -201,14 +195,13 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             _logger.LogError(ex, "Error calling AI OCR for product {ProductId}", product.ProductId);
             product.Name = "OCR Error - Manual Entry Required";
-            product.OcrConfidence = 0;
             _unitOfWork.ProductRepository.Update(product);
             // Use CancellationToken.None to ensure we save even if original request was cancelled
             await _unitOfWork.SaveChangesAsync(CancellationToken.None);
         }
 
         var productWithDetails = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(product.ProductId);
-        return MapToResponseDto(productWithDetails ?? product, barcodeLookupInfo);
+        return MapToResponseDto(productWithDetails ?? product, barcodeLookupInfo: barcodeLookupInfo);
     }
 
     #endregion
@@ -236,14 +229,17 @@ public class ProductWorkflowService : IProductWorkflowService
         // Update product info if provided (corrections to OCR)
         if (!string.IsNullOrEmpty(request.Name))
             product.Name = request.Name;
-        if (!string.IsNullOrEmpty(request.Brand))
-            product.Brand = request.Brand;
-        if (!string.IsNullOrEmpty(request.Category))
-            product.Category = request.Category;
         if (!string.IsNullOrEmpty(request.Barcode))
             product.Barcode = request.Barcode;
-        if (request.IsFreshFood.HasValue)
-            product.IsFreshFood = request.IsFreshFood.Value;
+
+        // Update ProductDetail fields if provided
+        var detail = product.ProductDetail ?? new ProductDetail { ProductDetailId = Guid.NewGuid(), ProductId = product.ProductId };
+        if (!string.IsNullOrEmpty(request.Brand))
+            detail.Brand = request.Brand;
+        if (product.ProductDetail == null)
+            await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
+        else
+            _unitOfWork.Repository<ProductDetail>().Update(detail);
 
         // Update ProductLot dates if provided
         var lot = product.ProductLots?.FirstOrDefault();
@@ -254,9 +250,6 @@ public class ProductWorkflowService : IProductWorkflowService
             _unitOfWork.Repository<ProductLot>().Update(lot);
         }
 
-        // Update verification info
-        product.VerifiedBy = request.VerifiedBy;
-        product.VerifiedAt = DateTime.UtcNow;
         product.Status = ProductState.Verified.ToString();
 
         _unitOfWork.ProductRepository.Update(product);
@@ -286,7 +279,8 @@ public class ProductWorkflowService : IProductWorkflowService
         }
 
         // Create or update Pricing with original price from request
-        var pricing = product.Pricing ?? new Pricing
+        var existingPricing = await _unitOfWork.Repository<Pricing>().FirstOrDefaultAsync(p => p.ProductId == product.ProductId);
+        var pricing = existingPricing ?? new Pricing
         {
             PricingId = Guid.NewGuid(),
             ProductId = product.ProductId,
@@ -295,7 +289,7 @@ public class ProductWorkflowService : IProductWorkflowService
         };
         pricing.OriginalUnitPrice = request.OriginalPrice;
         pricing.BasePrice = request.OriginalPrice;
-        if (product.Pricing == null)
+        if (existingPricing == null)
         {
             await _unitOfWork.Repository<Pricing>().AddAsync(pricing);
         }
@@ -412,7 +406,7 @@ public class ProductWorkflowService : IProductWorkflowService
         try
         {
             // Map category to valid product_type enum
-            var productType = MapCategoryToProductType(product.Category);
+            var productType = MapCategoryToProductType(product.CategoryRef?.Name);
 
             // Convert expiry date to date only (no time component)
             DateTime? expiryDateOnly = expiryDate.HasValue
@@ -425,7 +419,7 @@ public class ProductWorkflowService : IProductWorkflowService
                 DaysToExpire = daysToExpiry ?? 30,
                 BasePrice = originalPrice,
                 ExpiryDate = expiryDateOnly,
-                Brand = product.Brand,
+                Brand = product.ProductDetail?.Brand,
                 MinMarketPrice = minMarketPrice,
                 AvgMarketPrice = avgMarketPrice,
                 ProductName = product.Name,
@@ -522,7 +516,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
         _logger.LogInformation("Confirming price for product {ProductId}", productId);
 
-        var pricing = product.Pricing;
+        var pricing = await _unitOfWork.Repository<Pricing>().FirstOrDefaultAsync(p => p.ProductId == product.ProductId);
         if (pricing == null)
         {
             throw new InvalidOperationException("Pricing not found. Please get pricing suggestion first.");
@@ -561,7 +555,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return MapToResponseDto(product);
+        return MapToResponseDto(product, pricing);
     }
 
     #endregion
@@ -656,14 +650,12 @@ public class ProductWorkflowService : IProductWorkflowService
 
         _logger.LogInformation("Quick approving product {ProductId}", productId);
 
-        product.VerifiedBy = request.StaffId;
-        product.VerifiedAt = DateTime.UtcNow;
-
         // Get pricing suggestion
         var pricingSuggestion = await GetPricingSuggestionInternalAsync(product, request.OriginalPrice, cancellationToken);
 
         // Create or update Pricing
-        var pricing = product.Pricing ?? new Pricing
+        var existingPricingQA = await _unitOfWork.Repository<Pricing>().FirstOrDefaultAsync(p => p.ProductId == product.ProductId);
+        var pricing = existingPricingQA ?? new Pricing
         {
             PricingId = Guid.NewGuid(),
             ProductId = product.ProductId,
@@ -681,7 +673,7 @@ public class ProductWorkflowService : IProductWorkflowService
         pricing.PricedBy = request.StaffId;
         pricing.PricedAt = DateTime.UtcNow;
 
-        if (product.Pricing == null)
+        if (existingPricingQA == null)
         {
             await _unitOfWork.Repository<Pricing>().AddAsync(pricing);
         }
@@ -697,17 +689,16 @@ public class ProductWorkflowService : IProductWorkflowService
         _unitOfWork.ProductRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return MapToResponseDto(product);
+        return MapToResponseDto(product, pricing);
     }
 
     #endregion
 
     #region Helper Methods
 
-    private ProductResponseDto MapToResponseDto(Product product, BarcodeProductInfo? barcodeLookupInfo = null)
+    private ProductResponseDto MapToResponseDto(Product product, Pricing? pricing = null, BarcodeProductInfo? barcodeLookupInfo = null)
     {
         var lot = product.ProductLots?.FirstOrDefault();
-        var pricing = product.Pricing;
         var expiryDate = lot != null ? (DateTime?)lot.ExpiryDate : null;
         var manufactureDate = lot != null ? (DateTime?)lot.ManufactureDate : null;
 
@@ -722,12 +713,12 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductId = product.ProductId,
             SupermarketId = product.SupermarketId,
             Name = product.Name,
-            Brand = product.Brand,
-            Category = product.Category,
+            Brand = product.ProductDetail?.Brand ?? "",
+            Category = product.CategoryRef?.Name ?? "",
             Barcode = product.Barcode,
-            IsFreshFood = product.IsFreshFood,
-            WeightType = product.QuantityType,
-            DefaultPricePerKg = product.DefaultPricePerKg,
+            IsFreshFood = product.CategoryRef?.IsFreshFood ?? false,
+            WeightType = 1,
+            DefaultPricePerKg = null,
             Status = Enum.TryParse<ProductState>(product.Status, out var state) ? state : ProductState.Draft,
             OriginalPrice = pricing?.OriginalUnitPrice ?? 0,
             SuggestedPrice = pricing?.SuggestedUnitPrice ?? 0,
@@ -735,13 +726,13 @@ public class ProductWorkflowService : IProductWorkflowService
             ExpiryDate = expiryDate,
             ManufactureDate = manufactureDate,
             DaysToExpiry = daysToExpiry,
-            OcrConfidence = product.OcrConfidence,
+            OcrConfidence = 0,
             PricingConfidence = pricing?.PricingConfidence ?? 0,
             PricingReasons = pricing?.PricingReasons,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
-            VerifiedBy = product.VerifiedBy,
-            VerifiedAt = product.VerifiedAt,
+            VerifiedBy = null,
+            VerifiedAt = null,
             PricedBy = pricing?.PricedBy,
             PricedAt = pricing?.PricedAt
         };
@@ -957,8 +948,11 @@ public class ProductWorkflowService : IProductWorkflowService
         }
 
         // Check if product with this barcode exists in database
-        var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
-            p => p.Barcode == barcode && p.isActive);
+        var productByBarcode = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+            p => p.Barcode == barcode);
+        var existingProduct = productByBarcode != null
+            ? await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(productByBarcode.ProductId)
+            : null;
 
         if (existingProduct != null)
         {
@@ -983,13 +977,13 @@ public class ProductWorkflowService : IProductWorkflowService
                 {
                     ProductId = existingProduct.ProductId,
                     Name = existingProduct.Name,
-                    Brand = existingProduct.Brand,
-                    Category = existingProduct.Category,
+                    Brand = existingProduct.ProductDetail?.Brand ?? "",
+                    Category = existingProduct.CategoryRef?.Name ?? "",
                     Barcode = existingProduct.Barcode,
                     MainImageUrl = mainImage,
-                    IsFreshFood = existingProduct.IsFreshFood,
-                    Manufacturer = existingProduct.Manufacturer,
-                    Ingredients = existingProduct.Ingredients,
+                    IsFreshFood = existingProduct.CategoryRef?.IsFreshFood ?? false,
+                    Manufacturer = existingProduct.ProductDetail?.Manufacturer,
+                    Ingredients = existingProduct.ProductDetail?.Ingredients,
                     LastPrice = pricing?.FinalUnitPrice ?? pricing?.SuggestedUnitPrice,
                     TotalLotsSold = totalLotsSold
                 },
@@ -1256,27 +1250,30 @@ public class ProductWorkflowService : IProductWorkflowService
             SupermarketId = request.SupermarketId,
             UnitId = defaultUnit.UnitId,
             Name = request.Name,
-            Brand = request.Brand,
-            Category = request.Category,
             Barcode = request.Barcode,
-            IsFreshFood = request.IsFreshFood,
+            Sku = request.Sku,
+            CreatedBy = request.CreatedBy,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Status = ProductState.Draft.ToString()
+        };
+
+        await _unitOfWork.ProductRepository.AddAsync(product);
+
+        var productDetail = new ProductDetail
+        {
+            ProductDetailId = Guid.NewGuid(),
+            ProductId = product.ProductId,
+            Brand = request.Brand,
             Ingredients = request.Ingredients,
-            NutritionFactsJson = request.NutritionFactsJson,
+            NutritionFacts = request.NutritionFactsJson,
             Manufacturer = request.Manufacturer,
             Origin = request.Origin,
             Description = request.Description,
             StorageInstructions = request.StorageInstructions,
-            UsageInstructions = request.UsageInstructions,
-            OcrExtractedData = request.OcrExtractedData,
-            OcrConfidence = request.OcrConfidence,
-            CreatedBy = request.CreatedBy,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            Status = ProductState.Draft.ToString(), // Draft - needs verification
-            isActive = false // Not active until verified
+            UsageInstructions = request.UsageInstructions
         };
-
-        await _unitOfWork.ProductRepository.AddAsync(product);
+        await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
 
         // Link OCR image to product if provided
         string? mainImageUrl = null;
@@ -1303,15 +1300,15 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductId = product.ProductId,
             SupermarketId = product.SupermarketId,
             Name = product.Name,
-            Brand = product.Brand,
-            Category = product.Category,
+            Brand = productDetail.Brand ?? "",
+            Category = request.Category,
             Barcode = product.Barcode,
-            IsFreshFood = product.IsFreshFood,
-            Manufacturer = product.Manufacturer,
-            Ingredients = product.Ingredients,
+            IsFreshFood = request.IsFreshFood,
+            Manufacturer = productDetail.Manufacturer,
+            Ingredients = productDetail.Ingredients,
             MainImageUrl = mainImageUrl,
             Status = ProductState.Draft,
-            OcrConfidence = product.OcrConfidence,
+            OcrConfidence = request.OcrConfidence,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
             NextAction = "VERIFY_PRODUCT",
@@ -1352,7 +1349,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductId = createResult.ProductId,
             ProductName = product?.Name ?? request.Name,
             ProductBarcode = product?.Barcode ?? request.Barcode,
-            ProductBrand = product?.Brand ?? request.Brand,
+            ProductBrand = product?.ProductDetail?.Brand ?? request.Brand,
             Status = ProductState.Verified,
             CreatedAt = DateTime.UtcNow,
             DaysToExpiry = 0,
@@ -1539,7 +1536,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
     private ProductLotResponseDto MapToLotResponseDto(ProductLot lot, Product? product, AIPriceHistory? priceHistory = null)
     {
-        var images = product?.ProductImages?.OrderByDescending(i => i.UploadedAt).FirstOrDefault();
+        ProductImage? images = null; // Product has no ProductImages nav prop; fetched separately when needed
 
         return new ProductLotResponseDto
         {
@@ -1547,7 +1544,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductId = lot.ProductId,
             ProductName = product?.Name ?? "",
             ProductBarcode = product?.Barcode ?? "",
-            ProductBrand = product?.Brand,
+            ProductBrand = product?.ProductDetail?.Brand,
             ProductImageUrl = images?.ImageUrl,
             ExpiryDate = lot.ExpiryDate,
             ManufactureDate = lot.ManufactureDate,

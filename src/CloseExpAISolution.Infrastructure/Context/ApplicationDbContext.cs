@@ -63,7 +63,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
         modelBuilder.Entity<InventoryDisposal>().HasKey(x => x.DestroyId);
         modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
-        modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
+        modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.PriceHistoryId);
         modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
         modelBuilder.Entity<Pricing>().HasKey(x => x.PricingId);
 
@@ -74,9 +74,9 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Product>()
-            .HasOne(p => p.UnitOfMeasure)
+            .HasOne(p => p.Unit)
             .WithMany(u => u.Products)
-            .HasForeignKey(p => p.UnitOfMeasureId)
+            .HasForeignKey(p => p.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Product>()

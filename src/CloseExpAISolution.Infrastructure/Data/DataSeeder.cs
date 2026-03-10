@@ -506,7 +506,7 @@ public static class DataSeeder
             {
                 ProductId = Product1Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitLiterId,
+                UnitId = UnitLiterId,
                 Name = "Sữa tươi Vinamilk 1L",
                 Barcode = "8934673111119",
                 Sku = "8934673111119",
@@ -521,7 +521,7 @@ public static class DataSeeder
             {
                 ProductId = Product2Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitBoxId,
+                UnitId = UnitBoxId,
                 Name = "Sữa chua Vinamilk có đường",
                 Barcode = "8934673222226",
                 Sku = "8934673222226",
@@ -536,7 +536,7 @@ public static class DataSeeder
             {
                 ProductId = Product3Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Thịt heo ba chỉ",
                 Barcode = "8934673333333",
                 Sku = "8934673333333",
@@ -551,7 +551,7 @@ public static class DataSeeder
             {
                 ProductId = Product4Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Rau cải xanh hữu cơ",
                 Barcode = "8934673444440",
                 Sku = "8934673444440",
@@ -566,7 +566,7 @@ public static class DataSeeder
             {
                 ProductId = Product5Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Cà chua Đà Lạt",
                 Barcode = "8934673555557",
                 Sku = "8934673555557",
@@ -581,7 +581,7 @@ public static class DataSeeder
             {
                 ProductId = Product6Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Bánh mì sandwich Kinh Đô",
                 Barcode = "8934673666664",
                 Sku = "8934673666664",
@@ -596,7 +596,7 @@ public static class DataSeeder
             {
                 ProductId = Product7Id,
                 SupermarketId = SupermarketVinMartId,
-                UnitOfMeasureId = UnitBottleId,
+                UnitId = UnitBottleId,
                 Name = "Nước cam ép Tropicana 1L",
                 Barcode = "8934673777771",
                 Sku = "8934673777771",
@@ -611,7 +611,7 @@ public static class DataSeeder
             {
                 ProductId = Product8Id,
                 SupermarketId = SupermarketVinMartId,
-                UnitOfMeasureId = UnitBoxId,
+                UnitId = UnitBoxId,
                 Name = "Bánh quy Oreo 264g",
                 Barcode = "8934673888888",
                 Sku = "8934673888888",
@@ -626,7 +626,7 @@ public static class DataSeeder
             {
                 ProductId = Product9Id,
                 SupermarketId = SupermarketVinMartId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Mì Hảo Hảo tôm chua cay",
                 Barcode = "8934673999995",
                 Sku = "8934673999995",
@@ -641,7 +641,7 @@ public static class DataSeeder
             {
                 ProductId = Product10Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Cá hồi phi lê đông lạnh",
                 Barcode = "8934673101010",
                 Sku = "8934673101010",
@@ -656,7 +656,7 @@ public static class DataSeeder
             {
                 ProductId = Product11Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Cá ngừ đóng hộp Vissan 170g",
                 Barcode = "8934673121212",
                 Sku = "8934673121212",
@@ -671,7 +671,7 @@ public static class DataSeeder
             {
                 ProductId = Product12Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Đậu đỏ hầm đường lon 380g",
                 Barcode = "8934673131313",
                 Sku = "8934673131313",

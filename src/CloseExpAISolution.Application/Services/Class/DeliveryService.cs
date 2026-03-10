@@ -606,13 +606,6 @@ public class DeliveryService : IDeliveryService
             pickupPointName = pickupPoint?.Name;
             pickupPointAddress = pickupPoint?.Address;
         }
-        else if (order.DoorPickupId.HasValue)
-        {
-            var doorPickup = await _unitOfWork.Repository<DoorPickup>()
-                .FirstOrDefaultAsync(dp => dp.DoorPickupId == order.DoorPickupId.Value);
-            pickupPointName = doorPickup?.Name;
-            pickupPointAddress = doorPickup?.Address;
-        }
 
         // Get order items
         var orderItems = await _unitOfWork.Repository<OrderItem>()

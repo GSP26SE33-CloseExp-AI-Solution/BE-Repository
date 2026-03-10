@@ -183,27 +183,30 @@ public class ExcelImportService : IExcelImportService
                     SupermarketId = request.SupermarketId,
                     UnitId = defaultUnit.UnitId,
                     Name = name,
-                    Brand = GetValueOrDefault(rowData, ProductFieldNames.Brand),
                     Barcode = barcode ?? "",
-                    Category = GetValueOrDefault(rowData, ProductFieldNames.Category),
                     Sku = GetValueOrDefault(rowData, ProductFieldNames.Sku),
+                    CreatedBy = request.ImportedBy,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    Status = ProductState.Verified.ToString()
+                };
+
+                await _unitOfWork.ProductRepository.AddAsync(product);
+
+                // Create ProductDetail with extra fields
+                var productDetail = new ProductDetail
+                {
+                    ProductDetailId = Guid.NewGuid(),
+                    ProductId = product.ProductId,
+                    Brand = GetValueOrDefault(rowData, ProductFieldNames.Brand),
                     Ingredients = GetValueOrDefault(rowData, ProductFieldNames.Ingredients),
                     Manufacturer = GetValueOrDefault(rowData, ProductFieldNames.Manufacturer),
                     Origin = GetValueOrDefault(rowData, ProductFieldNames.Origin),
                     Description = GetValueOrDefault(rowData, ProductFieldNames.Description),
                     StorageInstructions = GetValueOrDefault(rowData, ProductFieldNames.StorageInstructions),
-                    UsageInstructions = GetValueOrDefault(rowData, ProductFieldNames.UsageInstructions),
-                    IsFreshFood = ParseBool(GetValueOrDefault(rowData, ProductFieldNames.IsFreshFood)),
-                    CreatedBy = request.ImportedBy,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    Status = ProductState.Verified.ToString(),
-                    VerifiedBy = request.ImportedBy,
-                    VerifiedAt = DateTime.UtcNow,
-                    isActive = true
+                    UsageInstructions = GetValueOrDefault(rowData, ProductFieldNames.UsageInstructions)
                 };
-
-                await _unitOfWork.ProductRepository.AddAsync(product);
+                await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
                 response.CreatedProductIds.Add(product.ProductId);
                 response.SuccessCount++;
             }
