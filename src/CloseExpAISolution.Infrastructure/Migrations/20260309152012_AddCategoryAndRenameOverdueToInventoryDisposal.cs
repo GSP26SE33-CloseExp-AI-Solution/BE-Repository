@@ -44,9 +44,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 name: "StorageInstructions",
                 table: "Products");
 
-            migrationBuilder.DropColumn(
-                name: "Weight",
-                table: "ProductLots");
+            migrationBuilder.Sql(@"ALTER TABLE ""ProductLots"" ADD COLUMN IF NOT EXISTS ""Weight"" numeric NOT NULL DEFAULT 0;");
 
             migrationBuilder.RenameColumn(
                 name: "UsageInstructions",
@@ -231,12 +229,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 type: "text",
                 nullable: true);
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "Weight",
-                table: "ProductLots",
-                type: "numeric",
-                nullable: false,
-                defaultValue: 0m);
+            migrationBuilder.Sql(@"ALTER TABLE ""ProductLots"" DROP COLUMN IF EXISTS ""Weight"";");
 
             migrationBuilder.CreateTable(
                 name: "OverdueRecords",
