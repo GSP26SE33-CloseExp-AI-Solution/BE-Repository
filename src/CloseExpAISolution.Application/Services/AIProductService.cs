@@ -137,6 +137,7 @@ public class AIProductService : IAIProductService
         Guid productId,
         CancellationToken cancellationToken = default)
     {
+        await Task.CompletedTask;
         _logger.LogInformation("Getting price suggestion for Product {ProductId}", productId);
 
         // In a real implementation, you would fetch product details from repository

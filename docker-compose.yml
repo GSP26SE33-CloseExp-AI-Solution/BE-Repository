@@ -1,0 +1,55 @@
+services:
+  # Định nghĩa service cho API
+  api:
+    container_name: closeexpai-api
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: src/CloseExpAISolution.API/Dockerfile
+    ports:
+      # - "8080:8080" # Ánh xạ port 8080 của máy thật vào port 8080 của container
+      - "5168:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Chỉ dùng HTTP trong container (không có certificate cho HTTPS)
+      - ASPNETCORE_URLS=http://+:8080
+      # Kết nối tới Postgres trong container (mật khẩu phải khớp với db bên dưới)
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=CloseExpAIDb;Username=postgres;Password=password;
+    volumes:
+      - ~/.vsdbg:/remote_debugger:rw
+    depends_on:
+      db:
+        condition: service_healthy # Chỉ khởi động API khi DB đã sẵn sàng
+    networks:
+      - closeexpai-network
+
+  # Định nghĩa service cho PostgreSQL Database (chạy local)
+  db:
+    container_name: closeexpai-db
+    restart: unless-stopped
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432" # Ánh xạ port 5433 của máy thật vào port 5432 của container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password # <<-- MẬT KHẨU PHẢI KHỚP VỚI ConnectionStrings trong api
+      POSTGRES_DB: CloseExpAIDb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Lưu dữ liệu DB ra ngoài container để không bị mất khi restart
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - closeexpai-network
+
+# Định nghĩa volume để lưu trữ dữ liệu DB
+volumes:
+  postgres_data:
+    driver: local
+
+# Định nghĩa network để các container có thể "nói chuyện" với nhau
+networks:
+  closeexpai-network:
+    driver: bridge

@@ -5,9 +5,13 @@ public static class PipelineConfigurationExtensions
     public static IApplicationBuilder UseApplicationPipeline(this IApplicationBuilder app)
     {
         var env = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
+        var enableSwaggerInProd = string.Equals(
+            Environment.GetEnvironmentVariable("ENABLE_SWAGGER"),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
 
-        // Apply Swagger in development
-        if (env.IsDevelopment())
+        // Apply Swagger in development (and optionally in production if enabled)
+        if (env.IsDevelopment() || enableSwaggerInProd)
         {
             app.UseSwaggerPipeline();
         }

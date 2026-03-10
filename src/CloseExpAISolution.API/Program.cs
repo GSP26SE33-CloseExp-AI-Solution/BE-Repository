@@ -19,12 +19,25 @@ builder.Services
 
 var app = builder.Build();
 
-// Apply migrations and seed data on startup
-using (var scope = app.Services.CreateScope())
+// Apply migrations and seed data on startup (Development only)
+var env = app.Services.GetRequiredService<IWebHostEnvironment>();
+
+if (env.IsDevelopment())
 {
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await context.Database.MigrateAsync();
-    await DataSeeder.SeedAsync(context);
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        context.Database.SetCommandTimeout(TimeSpan.FromSeconds(120));
+        await context.Database.MigrateAsync();
+        await DataSeeder.SeedAsync(context);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while applying migrations or seeding the database at startup.");
+    }
 }
 
 // Configure the HTTP request pipeline using extension method
