@@ -1,5 +1,6 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Mapbox.DTOs;
 using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Mvc;
 
@@ -94,5 +95,55 @@ public class SupermarketsController : ControllerBase
         {
             return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy siêu thị"));
         }
+    }
+
+    // ────────────── MAPBOX GEOCODING ENDPOINTS ──────────────
+
+    /// <summary>
+    /// Forward geocoding: chuyển địa chỉ → tọa độ GPS
+    /// </summary>
+    [HttpGet("geocode/forward")]
+    [ProducesResponseType(typeof(ApiResponse<GeocodingResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ForwardGeocode([FromQuery] string address, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+            return BadRequest(ApiResponse<GeocodingResultDto>.ErrorResponse("Vui lòng nhập địa chỉ"));
+
+        var result = await _services.MapboxService.ForwardGeocodeAsync(address, ct);
+        if (result == null)
+            return NotFound(ApiResponse<GeocodingResultDto>.ErrorResponse("Không tìm thấy kết quả cho địa chỉ này"));
+
+        return Ok(ApiResponse<GeocodingResultDto>.SuccessResponse(result));
+    }
+
+    /// <summary>
+    /// Reverse geocoding: chuyển tọa độ GPS → địa chỉ
+    /// </summary>
+    [HttpGet("geocode/reverse")]
+    [ProducesResponseType(typeof(ApiResponse<GeocodingResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ReverseGeocode([FromQuery] double lat, [FromQuery] double lng, CancellationToken ct)
+    {
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180)
+            return BadRequest(ApiResponse<GeocodingResultDto>.ErrorResponse("Tọa độ không hợp lệ"));
+
+        var result = await _services.MapboxService.ReverseGeocodeAsync(lat, lng, ct);
+        if (result == null)
+            return NotFound(ApiResponse<GeocodingResultDto>.ErrorResponse("Không tìm thấy kết quả cho tọa độ này"));
+
+        return Ok(ApiResponse<GeocodingResultDto>.SuccessResponse(result));
+    }
+
+    /// <summary>
+    /// Gợi ý địa chỉ (autocomplete) cho frontend
+    /// </summary>
+    [HttpGet("geocode/suggest")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<GeocodingResultDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SuggestAddresses([FromQuery] string query, [FromQuery] int limit = 5, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return BadRequest(ApiResponse<IEnumerable<GeocodingResultDto>>.ErrorResponse("Vui lòng nhập từ khóa tìm kiếm"));
+
+        var results = await _services.MapboxService.SearchAddressAsync(query, limit, ct);
+        return Ok(ApiResponse<IEnumerable<GeocodingResultDto>>.SuccessResponse(results));
     }
 }

@@ -6,6 +6,8 @@ using AutoMapper;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Email.Interfaces;
+using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -24,6 +26,7 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
     private readonly IMapper _mapper;
+    private readonly IMapboxService _mapboxService;
 
     private const int MaxFailedLoginAttempts = 5;
     private const int LockoutDurationMinutes = 30;
@@ -32,13 +35,14 @@ public class AuthService : IAuthService
     private const int OtpResendCooldownSeconds = 60;
     private const int MaxOtpFailedAttempts = 5;
 
-    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger, IMapper mapper)
+    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger, IMapper mapper, IMapboxService mapboxService)
     {
         _unitOfWork = unitOfWork;
         _configuration = configuration;
         _emailService = emailService;
         _logger = logger;
         _mapper = mapper;
+        _mapboxService = mapboxService;
     }
 
     #region Public Methods
@@ -117,6 +121,31 @@ public class AuthService : IAuthService
 
             if (existingSupermarket != null)
                 return Error($"Cơ sở '{existingSupermarket.Name} - {existingSupermarket.Address}' đã tồn tại trong hệ thống");
+
+            // Auto-geocode: nếu client không gửi tọa độ → dùng Mapbox forward geocoding
+            if (request.NewSupermarket.Latitude == 0 && request.NewSupermarket.Longitude == 0
+                && !string.IsNullOrWhiteSpace(request.NewSupermarket.Address))
+            {
+                try
+                {
+                    var geocodeResult = await _mapboxService.ForwardGeocodeAsync(request.NewSupermarket.Address);
+                    if (geocodeResult != null)
+                    {
+                        request.NewSupermarket.Latitude = (decimal)geocodeResult.Latitude;
+                        request.NewSupermarket.Longitude = (decimal)geocodeResult.Longitude;
+                        _logger.LogInformation("Auto-geocoded address '{Address}' → ({Lat}, {Lng})",
+                            request.NewSupermarket.Address, geocodeResult.Latitude, geocodeResult.Longitude);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Mapbox geocoding returned no result for '{Address}'", request.NewSupermarket.Address);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Mapbox geocoding failed for '{Address}', continuing with Lat=0/Lng=0", request.NewSupermarket.Address);
+                }
+            }
 
             // Tạo mới
             finalSupermarketId = Guid.NewGuid();

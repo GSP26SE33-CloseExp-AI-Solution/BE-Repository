@@ -1,4 +1,4 @@
-namespace CloseExpAISolution.Application.Email.Settings
+namespace CloseExpAISolution.Application.Email.Configuration
 {
     public class EmailSettings
     {

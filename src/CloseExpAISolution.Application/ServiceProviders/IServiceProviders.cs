@@ -1,5 +1,7 @@
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.AIService.Interfaces;
+using CloseExpAISolution.Application.Mapbox.Interfaces;
+using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Services;
 
 namespace CloseExpAISolution.Application.ServiceProviders;
@@ -23,4 +25,5 @@ public interface IServiceProviders
     IProductWorkflowService ProductWorkflowService { get; }
     IExcelImportService ExcelImportService { get; }
     IDeliveryService DeliveryService { get; }
+    IMapboxService MapboxService { get; }
 }

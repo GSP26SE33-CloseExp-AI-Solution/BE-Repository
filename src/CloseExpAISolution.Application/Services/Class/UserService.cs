@@ -1,6 +1,7 @@
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -164,9 +165,11 @@ public class UserService : IUserService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
 
-        // Nhân viên siêu thị không thể tự xóa tài khoản
-        if (user.RoleId == (int)RoleUser.SupplierStaff)
-            return ApiResponse<bool>.ErrorResponse("Nhân viên siêu thị không thể tự xóa tài khoản. Vui lòng liên hệ Admin");
+        // // Nhân viên siêu thị không thể tự xóa tài khoản
+        // if (user.RoleId == (int)RoleUser.SupplierStaff)
+        //     return ApiResponse<bool>.ErrorResponse("Nhân viên siêu thị không thể tự xóa tài khoản. Vui lòng liên hệ Admin");
+        if (user.RoleId != (int)RoleUser.Vendor)
+            return ApiResponse<bool>.ErrorResponse("Bạn không có quyền xóa tài khoản này. Vui lòng liên hệ Admin");
 
         if (user.Status == UserState.Deleted.ToString())
             return ApiResponse<bool>.ErrorResponse("Tài khoản đã bị xóa trước đó");

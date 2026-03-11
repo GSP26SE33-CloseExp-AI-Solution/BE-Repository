@@ -8,6 +8,8 @@ using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Application.Mapbox.Extensions;
+using CloseExpAISolution.Application.Email.Extensions;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
 
@@ -31,6 +33,12 @@ public static class ServiceCollectionExtensions
 
         // Register AI Service
         services.AddAIService(configuration);
+
+        // Register Mapbox Geocoding Service
+        services.AddMapboxService(configuration);
+
+        // Register Email + Quartz background jobs
+        services.AddEmailServices(configuration);
 
         // Register HttpClient for downloading images (bypasses CDN hotlink protection)
         services.AddHttpClient("ImageDownloader", client =>
