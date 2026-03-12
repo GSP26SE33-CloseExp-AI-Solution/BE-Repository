@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CloseExpAISolution.Application.DTOs.Request;
 
-/// <summary>
-/// Xác nhận email bằng OTP 6 số
-/// </summary>
 public class VerifyOtpRequest
 {
     [Required(ErrorMessage = "Email là bắt buộc")]
@@ -17,9 +14,6 @@ public class VerifyOtpRequest
     public string OtpCode { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Gửi lại mã OTP xác nhận email
-/// </summary>
 public class ResendOtpRequest
 {
     [Required(ErrorMessage = "Email là bắt buộc")]
@@ -27,9 +21,6 @@ public class ResendOtpRequest
     public string Email { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Yêu cầu đặt lại mật khẩu - gửi OTP về email
-/// </summary>
 public class ForgotPasswordRequest
 {
     [Required(ErrorMessage = "Email là bắt buộc")]
@@ -37,9 +28,6 @@ public class ForgotPasswordRequest
     public string Email { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Đặt lại mật khẩu bằng OTP
-/// </summary>
 public class ResetPasswordRequest
 {
     [Required(ErrorMessage = "Email là bắt buộc")]
@@ -58,26 +46,11 @@ public class ResetPasswordRequest
     public string NewPassword { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Đăng nhập bằng Google OAuth IdToken
-/// </summary>
 public class GoogleLoginRequest
 {
     [Required(ErrorMessage = "Google IdToken là bắt buộc")]
     public string IdToken { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Loại đăng ký (chỉ cần khi user chưa tồn tại - tạo tài khoản mới)
-    /// </summary>
     public RegistrationType? RegistrationType { get; set; }
-
-    /// <summary>
-    /// SupermarketId (bắt buộc nếu RegistrationType = SupplierStaff)
-    /// </summary>
     public Guid? SupermarketId { get; set; }
-
-    /// <summary>
-    /// Chức vụ (optional, default "Nhân viên")
-    /// </summary>
     public string? Position { get; set; }
 }

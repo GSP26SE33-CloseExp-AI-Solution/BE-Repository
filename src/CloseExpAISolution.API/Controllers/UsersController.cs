@@ -381,7 +381,7 @@ public class UsersController : ControllerBase
             PreSignedUrl = _services.R2StorageService.GetPreSignedUrlForImage(image.ImageUrl, TimeSpan.FromHours(1)),
             ImageType = image.ImageType,
             IsPrimary = image.IsPrimary,
-            UploadedAt = image.UploadedAt
+            CreatedAt = image.UploadedAt
         };
     }
 

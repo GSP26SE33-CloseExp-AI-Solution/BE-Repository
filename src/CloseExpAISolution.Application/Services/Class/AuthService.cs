@@ -146,15 +146,15 @@ public class AuthService : IAuthService
                 await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
 
                 // Tạo MarketStaff link
-                var marketStaff = new MarketStaff
+                var marketStaff = new SupermarketStaff
                 {
-                    MarketStaffId = Guid.NewGuid(),
+                    SupermarketStaffId = Guid.NewGuid(),
                     UserId = user.UserId,
                     SupermarketId = finalSupermarketId.Value,
                     Position = request.Position ?? "Nhân viên",
                     CreatedAt = DateTime.UtcNow
                 };
-                await _unitOfWork.Repository<MarketStaff>().AddAsync(marketStaff);
+                await _unitOfWork.Repository<SupermarketStaff>().AddAsync(marketStaff);
             }
 
             await _unitOfWork.CommitTransactionAsync();
@@ -793,7 +793,7 @@ public class AuthService : IAuthService
     /// <summary>Gets MarketStaff info with Supermarket details for a user</summary>
     private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
     {
-        var marketStaff = await _unitOfWork.Repository<MarketStaff>()
+        var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
             .FirstOrDefaultAsync(ms => ms.UserId == userId);
 
         if (marketStaff == null) return null;
@@ -803,7 +803,7 @@ public class AuthService : IAuthService
 
         return new MarketStaffInfoDto
         {
-            MarketStaffId = marketStaff.MarketStaffId,
+            MarketStaffId = marketStaff.SupermarketStaffId,
             Position = marketStaff.Position ?? "Nhân viên",
             JoinedAt = marketStaff.CreatedAt,
             Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto

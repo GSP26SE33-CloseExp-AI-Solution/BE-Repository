@@ -1,6 +1,6 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-public class PackagingRecord
+public class OrderPackaging
 {
     public Guid PackagingId { get; set; }
     public Guid OrderId { get; set; }
@@ -11,4 +11,3 @@ public class PackagingRecord
     public User? User { get; set; }
     public Order? Order { get; set; }
 }
-

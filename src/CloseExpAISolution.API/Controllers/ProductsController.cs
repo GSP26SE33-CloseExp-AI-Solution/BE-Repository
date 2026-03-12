@@ -32,9 +32,6 @@ public class ProductsController : ControllerBase
 
     #region Basic CRUD
 
-    /// <summary>
-    /// Get all products with pagination
-    /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResult<ProductResponseDto>>>> GetAll(
         [FromQuery] int pageNumber = 1,
@@ -58,9 +55,6 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<ProductResponseDto>>.SuccessResponse(result));
     }
 
-    /// <summary>
-    /// Get product by ID
-    /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> GetById(Guid id)
     {
@@ -69,18 +63,6 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(item));
     }
 
-    /// <summary>
-    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm trong siêu thị)
-    /// </summary>
-    /// <remarks>
-    /// Trả về thông tin chi tiết bao gồm:
-    /// - Thông tin cơ bản: tên, mô tả, thương hiệu
-    /// - Thông tin sản phẩm: xuất xứ, khối lượng, thành phần nguyên liệu
-    /// - Hướng dẫn sử dụng, cách bảo quản
-    /// - Thông tin nhà sản xuất, nhà phân phối
-    /// - Thông tin dinh dưỡng (nutrition facts)
-    /// - Giá bán, giảm giá, trạng thái hạn sử dụng
-    /// </remarks>
     [HttpGet("{id:guid}/details")]
     [ProducesResponseType(typeof(ApiResponse<ProductDetailDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -93,9 +75,6 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<ProductDetailDto>.SuccessResponse(detail, "Lấy thông tin chi tiết sản phẩm thành công"));
     }
 
-    /// <summary>
-    /// Create a product
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Create(
         [FromBody] CreateProductRequestDto request,
@@ -105,9 +84,6 @@ public class ProductsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(created, "Tạo thành công"));
     }
 
-    /// <summary>
-    /// Create product with images. Used when MarketStaff creates a product and uploads images to R2.
-    /// </summary>
     [HttpPost("with-images")]
     [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> CreateWithImages(
@@ -134,21 +110,24 @@ public class ProductsController : ControllerBase
         {
             SupermarketId = SupermarketId,
             Name = Name,
-            Brand = Brand,
-            Category = Category,
+            CategoryName = Category,
             Barcode = Barcode,
             IsFreshFood = IsFreshFood,
             Type = Type,
             Sku = Sku,
-            Ingredients = Ingredients,
-            Nutrition = Nutrition,
-            Usage = Usage,
-            Manufacturer = Manufacturer,
             ResponsibleOrg = ResponsibleOrg,
-            Warning = Warning,
             isActive = isActive,
             isFeatured = isFeatured,
-            Tags = Array.Empty<string>()
+            Tags = Array.Empty<string>(),
+            Detail = new ProductDetailRequestDto
+            {
+                Brand = Brand,
+                Ingredients = Ingredients,
+                NutritionFactsJson = Nutrition,
+                UsageInstructions = Usage,
+                Manufacturer = Manufacturer,
+                SafetyWarnings = Warning
+            }
         };
 
         var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
@@ -171,9 +150,6 @@ public class ProductsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(result!, "Product created with images"));
     }
 
-    /// <summary>
-    /// Update a product
-    /// </summary>
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         Guid id,
@@ -191,9 +167,6 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Delete a product
-    /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
     {
@@ -212,20 +185,6 @@ public class ProductsController : ControllerBase
 
     #region Lookup APIs
 
-    /// <summary>
-    /// Lấy danh sách các phân loại hạn sử dụng
-    /// </summary>
-    /// <remarks>
-    /// Trả về danh sách các trạng thái hạn sử dụng để sử dụng cho dropdown/filter
-    /// 
-    /// | Value | Name | Mô tả |
-    /// |-------|------|-------|
-    /// | 1 | Today | Trong ngày (dưới 24 giờ) - đếm giờ |
-    /// | 2 | ExpiringSoon | Sắp hết hạn (1-2 ngày) |
-    /// | 3 | ShortTerm | Còn ngắn hạn (3-7 ngày) |
-    /// | 4 | LongTerm | Còn dài hạn (8+ ngày) |
-    /// | 5 | Expired | Đã hết hạn |
-    /// </remarks>
     [HttpGet("expiry-statuses")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<object>>), StatusCodes.Status200OK)]
     public ActionResult<ApiResponse<IEnumerable<object>>> GetExpiryStatuses()
@@ -250,17 +209,6 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<IEnumerable<object>>.SuccessResponse(statuses, "Danh sách phân loại hạn sử dụng"));
     }
 
-    /// <summary>
-    /// Lấy danh sách các loại định lượng sản phẩm
-    /// </summary>
-    /// <remarks>
-    /// Trả về danh sách các loại định lượng để sử dụng cho dropdown/filter
-    /// 
-    /// | Value | Name | Mô tả |
-    /// |-------|------|-------|
-    /// | 1 | Fixed | Định lượng cố định (VD: chai 500ml, gói 200g) |
-    /// | 2 | Variable | Không cố định - bán theo cân (VD: rau củ quả, thịt cá) |
-    /// </remarks>
     [HttpGet("weight-types")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<object>>), StatusCodes.Status200OK)]
     public ActionResult<ApiResponse<IEnumerable<object>>> GetWeightTypes()
@@ -286,28 +234,9 @@ public class ProductsController : ControllerBase
 
     #region Product Lots by Supermarket
 
-    /// <summary>
-    /// Lấy danh sách ProductLot theo siêu thị với filter và phân loại hạn sử dụng
-    /// </summary>
-    /// <remarks>
-    /// API này dùng để hiển thị danh sách sản phẩm theo lô cho nhân viên siêu thị.
-    /// 
-    /// Các nhóm trạng thái hạn sử dụng:
-    /// - Today (1): Trong ngày (dưới 24 giờ) - đếm giờ
-    /// - ExpiringSoon (2): Sắp hết hạn (1-2 ngày)
-    /// - ShortTerm (3): Còn ngắn hạn (3-7 ngày)
-    /// - LongTerm (4): Còn dài hạn (8+ ngày)
-    /// - Expired (5): Đã hết hạn
-    /// 
-    /// Loại định lượng:
-    /// - Fixed (1): Định lượng cố định (VD: chai 500ml, gói 200g)
-    /// - Variable (2): Không cố định - bán theo cân (VD: rau củ quả, thịt cá)
-    /// 
-    /// Kết quả được sắp xếp theo thứ tự ưu tiên: Today → ExpiringSoon → ShortTerm → LongTerm → Expired (cuối cùng)
-    /// </remarks>
     [HttpGet("lots/supermarket/{supermarketId:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductLotDetailDto>>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductLotDetailDto>>>> GetProductLotsBySupermarket(
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<StockLotDetailDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<StockLotDetailDto>>>> GetStockLotsBySupermarket(
         Guid supermarketId,
         [FromQuery] ExpiryStatus? expiryStatus = null,
         [FromQuery] ProductWeightType? weightType = null,
@@ -317,7 +246,7 @@ public class ProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
-        var filter = new ProductLotFilterDto
+        var filter = new StockLotFilterDto
         {
             SupermarketId = supermarketId,
             ExpiryStatus = expiryStatus,
@@ -329,9 +258,9 @@ public class ProductsController : ControllerBase
             PageSize = pageSize
         };
 
-        var (items, totalCount) = await _services.ProductService.GetProductLotsBySupermarketAsync(filter);
+        var (items, totalCount) = await _services.ProductService.GetStockLotsBySupermarketAsync(filter);
 
-        var result = new PaginatedResult<ProductLotDetailDto>
+        var result = new PaginatedResult<StockLotDetailDto>
         {
             Items = items,
             TotalResult = totalCount,
@@ -339,35 +268,17 @@ public class ProductsController : ControllerBase
             PageSize = pageSize
         };
 
-        return Ok(ApiResponse<PaginatedResult<ProductLotDetailDto>>.SuccessResponse(
+        return Ok(ApiResponse<PaginatedResult<StockLotDetailDto>>.SuccessResponse(
             result,
             $"Tìm thấy {totalCount} lô sản phẩm"));
     }
 
-    /// <summary>
-    /// [Dành cho nhân viên siêu thị] Lấy danh sách ProductLot của siêu thị mà nhân viên đang làm việc
-    /// </summary>
-    /// <remarks>
-    /// API này tự động lấy supermarketId từ token của nhân viên siêu thị (SupplierStaff).
-    /// Chỉ nhân viên siêu thị (SupplierStaff) mới có thể sử dụng API này.
-    /// 
-    /// **Yêu cầu Authorization:** Bearer Token của SupplierStaff
-    /// 
-    /// Các nhóm trạng thái hạn sử dụng:
-    /// - Today (1): Trong ngày (dưới 24 giờ) - đếm giờ
-    /// - ExpiringSoon (2): Sắp hết hạn (1-2 ngày)
-    /// - ShortTerm (3): Còn ngắn hạn (3-7 ngày)
-    /// - LongTerm (4): Còn dài hạn (8+ ngày)
-    /// - Expired (5): Đã hết hạn
-    /// 
-    /// Kết quả được sắp xếp theo thứ tự ưu tiên: Today → ExpiringSoon → ShortTerm → LongTerm → Expired (cuối cùng)
-    /// </remarks>
     [Authorize(Roles = "SupplierStaff")]
     [HttpGet("my-supermarket/lots")]
-    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductLotDetailDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<StockLotDetailDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ApiResponse<PaginatedResult<ProductLotDetailDto>>>> GetMySupplierProductLots(
+    public async Task<ActionResult<ApiResponse<PaginatedResult<StockLotDetailDto>>>> GetMySupplierStockLots(
         [FromQuery] ExpiryStatus? expiryStatus = null,
         [FromQuery] ProductWeightType? weightType = null,
         [FromQuery] bool? isFreshFood = null,
@@ -376,21 +287,19 @@ public class ProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
-        // Lấy UserId từ token
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
             return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
         }
 
-        // Lấy SupermarketId từ MarketStaff
         var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
         if (supermarketId == null)
         {
             return BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào"));
         }
 
-        var filter = new ProductLotFilterDto
+        var filter = new StockLotFilterDto
         {
             SupermarketId = supermarketId.Value,
             ExpiryStatus = expiryStatus,
@@ -402,9 +311,9 @@ public class ProductsController : ControllerBase
             PageSize = pageSize
         };
 
-        var (items, totalCount) = await _services.ProductService.GetProductLotsBySupermarketAsync(filter);
+        var (items, totalCount) = await _services.ProductService.GetStockLotsBySupermarketAsync(filter);
 
-        var result = new PaginatedResult<ProductLotDetailDto>
+        var result = new PaginatedResult<StockLotDetailDto>
         {
             Items = items,
             TotalResult = totalCount,
@@ -412,17 +321,11 @@ public class ProductsController : ControllerBase
             PageSize = pageSize
         };
 
-        return Ok(ApiResponse<PaginatedResult<ProductLotDetailDto>>.SuccessResponse(
+        return Ok(ApiResponse<PaginatedResult<StockLotDetailDto>>.SuccessResponse(
             result,
             $"Tìm thấy {totalCount} lô sản phẩm"));
     }
 
-    /// <summary>
-    /// Lấy danh sách sản phẩm của siêu thị mà nhân viên đang làm việc
-    /// </summary>
-    /// <remarks>
-    /// API dành cho SupplierStaff (nhân viên siêu thị) để lấy danh sách sản phẩm của siêu thị họ đang làm việc.
-    /// </remarks>
     [Authorize(Roles = "SupplierStaff")]
     [HttpGet("my-supermarket")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductResponseDto>>), StatusCodes.Status200OK)]
@@ -434,14 +337,12 @@ public class ProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
-        // Lấy UserId từ token
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
             return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
         }
 
-        // Lấy SupermarketId từ MarketStaff
         var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
         if (supermarketId == null)
         {
@@ -472,9 +373,6 @@ public class ProductsController : ControllerBase
 
     #region Query by Status
 
-    /// <summary>
-    /// Get products by status for a supermarket
-    /// </summary>
     [HttpGet("by-status/{supermarketId:guid}")]
     public async Task<ActionResult<ApiResponse<List<ProductResponseDto>>>> GetByStatus(
         Guid supermarketId,
@@ -485,9 +383,6 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<List<ProductResponseDto>>.SuccessResponse(products.ToList()));
     }
 
-    /// <summary>
-    /// Get workflow summary for a supermarket (count by status)
-    /// </summary>
     [HttpGet("workflow-summary/{supermarketId:guid}")]
     public async Task<ActionResult<ApiResponse<WorkflowSummaryDto>>> GetWorkflowSummary(
         Guid supermarketId,
@@ -501,59 +396,6 @@ public class ProductsController : ControllerBase
 
     #region Workflow Actions
 
-    /// <summary>
-    /// Upload product image and create draft product using AI OCR.
-    /// - Uploads image to R2 storage
-    /// - Calls AI OCR to extract product info (name, brand, expiry date, barcode)
-    /// - Creates a DRAFT product with extracted info
-    /// </summary>
-    [HttpPost("upload-ocr")]
-    [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> UploadAndOcr(
-        [FromForm] Guid supermarketId,
-        [FromForm] string createdBy,
-        IFormFile file,
-        CancellationToken cancellationToken)
-    {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse("Image file is required"));
-        }
-
-        try
-        {
-            await using var stream = file.OpenReadStream();
-            var result = await _workflowService.UploadAndExtractAsync(
-                supermarketId,
-                createdBy,
-                stream,
-                file.FileName,
-                file.ContentType,
-                cancellationToken);
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = result.ProductId },
-                ApiResponse<ProductResponseDto>.SuccessResponse(result, "Product draft created successfully"));
-        }
-        catch (ArgumentException ex) when (ex.ParamName == "supermarketId")
-        {
-            _logger.LogWarning("Supermarket not found: {SupermarketId}", supermarketId);
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading and extracting product");
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// Verify a draft product - confirm/correct OCR extracted info.
-    /// - Allows staff to correct OCR-extracted info if needed
-    /// - Changes status from DRAFT to VERIFIED
-    /// - Does NOT calculate pricing (use pricing-suggestion endpoint next)
-    /// </summary>
     [HttpPost("{id:guid}/verify")]
     public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Verify(
         Guid id,
@@ -565,7 +407,7 @@ public class ProductsController : ControllerBase
             var result = await _workflowService.VerifyProductAsync(id, request, cancellationToken);
             return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
                 result,
-                "Product verified successfully. Use pricing-suggestion endpoint to get price recommendation."));
+                "Product verified successfully. Use lots/{lotId}/pricing-suggestion endpoint to get price recommendation."));
         }
         catch (KeyNotFoundException)
         {
@@ -582,142 +424,10 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get AI pricing suggestion for a verified product.
-    /// - Sets the original price (required for pricing calculation)
-    /// - Returns recommended price based on expiry date, category, market prices, etc.
-    /// - Saves suggested price to product
-    /// </summary>
-    [HttpPost("{id:guid}/pricing-suggestion")]
-    public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> GetPricingSuggestion(
-        Guid id,
-        [FromBody] GetPricingSuggestionRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.GetPricingSuggestionAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(
-                result,
-                "Pricing suggestion calculated. Use confirm-price endpoint to accept or modify."));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting pricing suggestion for {ProductId}", id);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// Confirm the final price for a verified product.
-    /// - Accepts AI suggested price or allows staff to set custom price
-    /// - Records staff feedback for AI improvement
-    /// - Changes status from VERIFIED to PRICED
-    /// </summary>
-    [HttpPost("{id:guid}/confirm-price")]
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> ConfirmPrice(
-        Guid id,
-        [FromBody] ConfirmPriceRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.ConfirmPriceAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
-                result,
-                "Price confirmed successfully. Product is ready to publish."));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error confirming price for {ProductId}", id);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// Publish a priced product to make it visible to customers.
-    /// Changes status from PRICED to PUBLISHED.
-    /// </summary>
-    [HttpPost("{id:guid}/publish")]
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Publish(
-        Guid id,
-        [FromBody] PublishProductRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.PublishProductAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
-                result,
-                "Product published successfully."));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error publishing product {ProductId}", id);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// Quick approve: Verify, confirm price, and publish in one step (for trusted staff).
-    /// </summary>
-    [HttpPost("{id:guid}/quick-approve")]
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> QuickApprove(
-        Guid id,
-        [FromBody] QuickApproveRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.QuickApproveAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
-                result,
-                "Product approved and published successfully."));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error quick approving product {ProductId}", id);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-    }
-
     #endregion
 
     #region New Workflow - Barcode First
 
-    /// <summary>
-    /// Step 1: Scan barcode to check if product exists in database.
-    /// - If product exists: Returns product info, client should call create-lot endpoint
-    /// - If product doesn't exist: Returns barcode lookup info (if available), client should call analyze-image endpoint
-    /// </summary>
     [HttpGet("scan/{barcode}")]
     public async Task<ActionResult<ApiResponse<ScanBarcodeResponseDto>>> ScanBarcode(
         string barcode,
@@ -740,25 +450,18 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Step 2a: Create ProductLot from existing Product (no OCR needed).
-    /// Use this when ScanBarcode returns ProductExists = true.
-    /// 
-    /// IMPORTANT: Product must be in Verified status.
-    /// If product is in Draft status, verify it first using POST /api/products/{productId}/verify
-    /// </summary>
     [HttpPost("lots/from-existing")]
-    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> CreateLotFromExisting(
-        [FromBody] CreateProductLotFromExistingDto request,
+    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> CreateLotFromExisting(
+        [FromBody] CreateStockLotFromExistingDto request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _workflowService.CreateProductLotFromExistingAsync(request, cancellationToken);
+            var result = await _workflowService.CreateStockLotFromExistingAsync(request, cancellationToken);
             return CreatedAtAction(
-                nameof(GetProductLot),
+                nameof(GetStockLot),
                 new { lotId = result.LotId },
-                ApiResponse<ProductLotResponseDto>.SuccessResponse(result, "ProductLot created successfully"));
+                ApiResponse<StockLotResponseDto>.SuccessResponse(result, "StockLot created successfully"));
         }
         catch (KeyNotFoundException ex)
         {
@@ -766,7 +469,6 @@ public class ProductsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Product not verified yet
             return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
         catch (Exception ex)
@@ -776,11 +478,6 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Step 2b: Upload image for OCR analysis (for new products).
-    /// Use this when ScanBarcode returns ProductExists = false.
-    /// Returns extracted info for user to verify - does NOT create product yet.
-    /// </summary>
     [HttpPost("analyze-image")]
     [RequestSizeLimit(20 * 1024 * 1024)]
     public async Task<ActionResult<ApiResponse<OcrAnalysisResponseDto>>> AnalyzeImage(
@@ -812,18 +509,6 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Step 2b continued: Create new Product (Draft) after verifying OCR info.
-    /// User must then verify the product before creating ProductLot.
-    /// 
-    /// New workflow:
-    /// 1. Scan barcode → Product doesn't exist
-    /// 2. Analyze image (OCR)
-    /// 3. Create new Product (Draft) ← THIS ENDPOINT
-    /// 4. Verify Product → Product becomes Verified
-    /// 5. Create ProductLot from existing (verified) product
-    /// 6. Get pricing → Confirm price → Publish lot
-    /// </summary>
     [HttpPost("create-new")]
     public async Task<ActionResult<ApiResponse<CreateNewProductResponseDto>>> CreateNewProduct(
         [FromBody] CreateNewProductRequestDto request,
@@ -836,7 +521,7 @@ public class ProductsController : ControllerBase
                 nameof(GetById),
                 new { id = result.ProductId },
                 ApiResponse<CreateNewProductResponseDto>.SuccessResponse(
-                    result, 
+                    result,
                     $"Product created successfully (Draft). Next: Verify product using POST /api/products/{result.ProductId}/verify"));
         }
         catch (ArgumentException ex)
@@ -854,36 +539,27 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get ProductLot by ID
-    /// </summary>
     [HttpGet("lots/{lotId:guid}")]
-    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> GetProductLot(
+    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> GetStockLot(
         Guid lotId,
         CancellationToken cancellationToken)
     {
-        var result = await _workflowService.GetProductLotAsync(lotId, cancellationToken);
+        var result = await _workflowService.GetStockLotAsync(lotId, cancellationToken);
         if (result == null)
-            return NotFound(ApiResponse<object>.ErrorResponse("ProductLot not found"));
-        return Ok(ApiResponse<ProductLotResponseDto>.SuccessResponse(result));
+            return NotFound(ApiResponse<object>.ErrorResponse("StockLot not found"));
+        return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result));
     }
 
-    /// <summary>
-    /// Get ProductLots by status for a supermarket
-    /// </summary>
     [HttpGet("lots/by-status/{supermarketId:guid}")]
-    public async Task<ActionResult<ApiResponse<List<ProductLotResponseDto>>>> GetLotsByStatus(
+    public async Task<ActionResult<ApiResponse<List<StockLotResponseDto>>>> GetLotsByStatus(
         Guid supermarketId,
         [FromQuery] ProductState status,
         CancellationToken cancellationToken)
     {
-        var lots = await _workflowService.GetProductLotsByStatusAsync(supermarketId, status, cancellationToken);
-        return Ok(ApiResponse<List<ProductLotResponseDto>>.SuccessResponse(lots.ToList()));
+        var lots = await _workflowService.GetStockLotsByStatusAsync(supermarketId, status, cancellationToken);
+        return Ok(ApiResponse<List<StockLotResponseDto>>.SuccessResponse(lots.ToList()));
     }
 
-    /// <summary>
-    /// Get pricing suggestion for a ProductLot
-    /// </summary>
     [HttpPost("lots/{lotId:guid}/pricing-suggestion")]
     public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> GetLotPricingSuggestion(
         Guid lotId,
@@ -906,11 +582,8 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Confirm price for a ProductLot
-    /// </summary>
     [HttpPost("lots/{lotId:guid}/confirm-price")]
-    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> ConfirmLotPrice(
+    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> ConfirmLotPrice(
         Guid lotId,
         [FromBody] ConfirmPriceRequestDto request,
         CancellationToken cancellationToken)
@@ -918,7 +591,7 @@ public class ProductsController : ControllerBase
         try
         {
             var result = await _workflowService.ConfirmLotPriceAsync(lotId, request, cancellationToken);
-            return Ok(ApiResponse<ProductLotResponseDto>.SuccessResponse(result, "Price confirmed"));
+            return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result, "Price confirmed"));
         }
         catch (KeyNotFoundException ex)
         {
@@ -935,19 +608,16 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Publish a ProductLot
-    /// </summary>
     [HttpPost("lots/{lotId:guid}/publish")]
-    public async Task<ActionResult<ApiResponse<ProductLotResponseDto>>> PublishLot(
+    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> PublishLot(
         Guid lotId,
         [FromBody] PublishProductRequestDto request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _workflowService.PublishProductLotAsync(lotId, request, cancellationToken);
-            return Ok(ApiResponse<ProductLotResponseDto>.SuccessResponse(result, "ProductLot published"));
+            var result = await _workflowService.PublishStockLotAsync(lotId, request, cancellationToken);
+            return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result, "StockLot published"));
         }
         catch (KeyNotFoundException ex)
         {
@@ -968,10 +638,6 @@ public class ProductsController : ControllerBase
 
     #region Excel Import
 
-    /// <summary>
-    /// Preview Excel file - get columns and sample data for mapping.
-    /// Client should use this to build column mapping UI.
-    /// </summary>
     [HttpPost("import/preview")]
     [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<ActionResult<ApiResponse<ExcelPreviewResponseDto>>> PreviewExcel(
@@ -998,10 +664,6 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Import products from Excel using user-defined column mappings.
-    /// Products will be created with Verified status.
-    /// </summary>
     [HttpPost("import")]
     [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<ActionResult<ApiResponse<ExcelImportResponseDto>>> ImportFromExcel(
@@ -1051,9 +713,6 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get available system fields for Excel column mapping
-    /// </summary>
     [HttpGet("import/fields")]
     public ActionResult<ApiResponse<string[]>> GetImportFields()
     {

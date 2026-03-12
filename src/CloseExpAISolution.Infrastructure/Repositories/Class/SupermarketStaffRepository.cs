@@ -5,9 +5,9 @@ using CloseExpAISolution.Infrastructure.Repositories.Interface;
 
 namespace CloseExpAISolution.Infrastructure.Repositories.Class;
 
-public class MarketStaffRepository : GenericRepository<MarketStaff>, IMarketStaffRepository
+public class SupermarketStaffRepository : GenericRepository<SupermarketStaff>, ISupermarketStaffRepository
 {
-    public MarketStaffRepository(ApplicationDbContext context) : base(context)
+    public SupermarketStaffRepository(ApplicationDbContext context) : base(context)
     {
     }
 }

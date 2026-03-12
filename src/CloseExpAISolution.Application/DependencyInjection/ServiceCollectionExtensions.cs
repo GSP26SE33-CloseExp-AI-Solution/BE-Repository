@@ -17,7 +17,6 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
 
-        // Register AutoMapper với tất cả profiles
         services.AddAutoMapper(cfg =>
         {
             cfg.AddProfile<UserMappingProfile>();
@@ -26,19 +25,15 @@ public static class ServiceCollectionExtensions
             cfg.AddProfile<MarketStaffMappingProfile>();
         });
 
-        // only register the aggregate service provider; it will new-up inner services
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
 
-        // Register AI Service
         services.AddAIService(configuration);
 
-        // Register HttpClient for downloading images (bypasses CDN hotlink protection)
         services.AddHttpClient("ImageDownloader", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
-        // Register HttpClient for Barcode Lookup (Open Food Facts API)
         services.AddHttpClient("BarcodeLookup", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);

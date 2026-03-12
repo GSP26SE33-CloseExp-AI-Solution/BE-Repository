@@ -1,13 +1,11 @@
 using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.AIService.Models;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services;
 
-/// <summary>
-/// Implementation of AI-powered product service
-/// </summary>
 public class AIProductService : IAIProductService
 {
     private readonly IAIServiceClient _aiServiceClient;
@@ -27,14 +25,13 @@ public class AIProductService : IAIProductService
         _httpClient = httpClientFactory.CreateClient("ImageDownloader");
     }
 
-    /// <inheritdoc/>
     public async Task<ProductExtractionResult> ExtractProductInfoAsync(
         Guid productId,
         string imageUrl,
         bool lookupBarcode = true,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Extracting product info for Product {ProductId} from {ImageUrl}", 
+        _logger.LogInformation("Extracting product info for Product {ProductId} from {ImageUrl}",
             productId, imageUrl);
 
         try
@@ -44,7 +41,7 @@ public class AIProductService : IAIProductService
             try
             {
                 imageBase64 = await DownloadImageAsBase64Async(imageUrl, cancellationToken);
-                _logger.LogDebug("Successfully downloaded image as base64, size: {Size} bytes", 
+                _logger.LogDebug("Successfully downloaded image as base64, size: {Size} bytes",
                     imageBase64?.Length ?? 0);
             }
             catch (Exception ex)
@@ -91,11 +88,11 @@ public class AIProductService : IAIProductService
             if (lookupBarcode && !string.IsNullOrEmpty(result.Barcode))
             {
                 _logger.LogInformation("Looking up barcode {Barcode} for additional product info", result.Barcode);
-                
+
                 try
                 {
                     var barcodeInfo = await _barcodeLookupService.LookupAsync(result.Barcode, cancellationToken);
-                    
+
                     if (barcodeInfo != null)
                     {
                         result.BarcodeInfo = barcodeInfo;
@@ -116,7 +113,7 @@ public class AIProductService : IAIProductService
             }
 
             _logger.LogInformation(
-                "Product extraction completed for {ProductId}. Success: {Success}, Confidence: {Confidence}, BarcodeFound: {BarcodeFound}", 
+                "Product extraction completed for {ProductId}. Success: {Success}, Confidence: {Confidence}, BarcodeFound: {BarcodeFound}",
                 productId, result.Success, result.OverallConfidence, result.BarcodeFound);
 
             return result;
@@ -132,7 +129,6 @@ public class AIProductService : IAIProductService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<PricingSuggestionResult> GetPriceSuggestionAsync(
         Guid productId,
         CancellationToken cancellationToken = default)
@@ -146,7 +142,6 @@ public class AIProductService : IAIProductService
             "This method requires product repository integration. Use the overload with explicit parameters.");
     }
 
-    /// <inheritdoc/>
     public async Task<PricingSuggestionResult> GetPriceSuggestionAsync(
         string category,
         DateTime expiryDate,
@@ -155,13 +150,13 @@ public class AIProductService : IAIProductService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Getting price suggestion for Category: {Category}, Expiry: {ExpiryDate}, Original: {OriginalPrice}", 
+            "Getting price suggestion for Category: {Category}, Expiry: {ExpiryDate}, Original: {OriginalPrice}",
             category, expiryDate, originalPrice);
 
         try
         {
             var daysToExpire = Math.Max(0, (int)(expiryDate - DateTime.UtcNow).TotalDays);
-            
+
             var request = new PricingRequest
             {
                 ProductType = category,
@@ -193,12 +188,10 @@ public class AIProductService : IAIProductService
                 MaxPrice = response.MaxSuggestedPrice,
                 DiscountPercent = response.DiscountPercent,
                 Confidence = response.Confidence,
-                // New fields
                 ExpectedSellRate = response.ExpectedSellRate,
                 EstimatedTimeToSell = response.EstimatedTimeToSell,
                 Competitiveness = response.Competitiveness,
                 Reasons = response.Reasons ?? new List<string>(),
-                // Existing fields
                 UrgencyLevel = response.UrgencyLevel,
                 RecommendedAction = response.RecommendedAction,
                 DaysToExpire = daysToExpire,
@@ -208,7 +201,7 @@ public class AIProductService : IAIProductService
             };
 
             _logger.LogInformation(
-                "Price suggestion completed. Suggested: {SuggestedPrice}, Discount: {DiscountPercent}%", 
+                "Price suggestion completed. Suggested: {SuggestedPrice}, Discount: {DiscountPercent}%",
                 result.SuggestedPrice, result.DiscountPercent);
 
             return result;
@@ -226,7 +219,6 @@ public class AIProductService : IAIProductService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<ShelfAnalysisResult> AnalyzeShelfImageAsync(
         string imageUrl,
         CancellationToken cancellationToken = default)
@@ -284,7 +276,6 @@ public class AIProductService : IAIProductService
                         }
                     });
 
-                    // Build category summary
                     var category = detection.ProductType;
                     if (!result.CategorySummary.ContainsKey(category))
                     {
@@ -295,7 +286,7 @@ public class AIProductService : IAIProductService
             }
 
             _logger.LogInformation(
-                "Shelf analysis completed. Found {ProductCount} products in {ProcessingTime}ms", 
+                "Shelf analysis completed. Found {ProductCount} products in {ProcessingTime}ms",
                 result.TotalProducts, result.ProcessingTimeMs);
 
             return result;
@@ -311,7 +302,6 @@ public class AIProductService : IAIProductService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<ProductProcessingResult> ProcessProductAsync(
         Guid productId,
         string imageUrl,
@@ -344,7 +334,7 @@ public class AIProductService : IAIProductService
                 // Use category from barcode lookup if available
                 var category = extractionResult.Category ?? "general";
                 var brand = extractionResult.BestBrand;
-                
+
                 var pricingResult = await GetPriceSuggestionAsync(
                     category: category,
                     expiryDate: extractionResult.ExpiryDate.Value,
@@ -362,7 +352,7 @@ public class AIProductService : IAIProductService
             result.TotalProcessingTimeMs = (float)(DateTime.UtcNow - startTime).TotalMilliseconds;
 
             _logger.LogInformation(
-                "Product processing completed for {ProductId}. Overall confidence: {Confidence}", 
+                "Product processing completed for {ProductId}. Overall confidence: {Confidence}",
                 productId, result.OverallConfidence);
 
             return result;
@@ -377,7 +367,6 @@ public class AIProductService : IAIProductService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<bool> IsServiceAvailableAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -390,7 +379,6 @@ public class AIProductService : IAIProductService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<SmartScanResult> SmartScanAsync(
         string imageUrl,
         string productTypeHint = "auto",
@@ -473,7 +461,7 @@ public class AIProductService : IAIProductService
             if (aiResponse.OcrResult != null)
             {
                 var productInfo = aiResponse.OcrResult.ProductInfo;
-                
+
                 result.ProductName = productInfo?.Name ?? aiResponse.OcrResult.Name;
                 result.Brand = productInfo?.Brand ?? aiResponse.OcrResult.Brand;
                 result.Barcode = productInfo?.Barcode ?? aiResponse.OcrResult.Barcode;
@@ -484,14 +472,14 @@ public class AIProductService : IAIProductService
                 result.Origin = productInfo?.Origin;
                 result.Certifications = productInfo?.Certifications;
                 result.StorageRecommendation = productInfo?.StorageInstructions;
-                
+
                 // New fields from enhanced OCR
                 result.UsageInstructions = productInfo?.UsageInstructions;
                 result.QualityStandards = productInfo?.QualityStandards;
                 result.Warnings = productInfo?.Warnings;
                 result.NutritionFacts = productInfo?.NutritionFacts;
                 result.SuggestedShelfLifeDays ??= productInfo?.ShelfLifeDays;
-                
+
                 // Map manufacturer info
                 if (productInfo?.Manufacturer != null)
                 {
@@ -503,7 +491,7 @@ public class AIProductService : IAIProductService
                         Contact = productInfo.Manufacturer.Contact
                     };
                 }
-                
+
                 // Map product codes
                 if (productInfo?.ProductCodes != null)
                 {
@@ -577,7 +565,6 @@ public class AIProductService : IAIProductService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<FreshProduceResult> IdentifyFreshProduceAsync(
         string imageUrl,
         CancellationToken cancellationToken = default)
@@ -686,26 +673,23 @@ public class AIProductService : IAIProductService
         return confidenceScores.Average();
     }
 
-    /// <summary>
-    /// Download image from URL and convert to base64
-    /// This helps bypass CDN hotlink protection
-    /// </summary>
     private async Task<string> DownloadImageAsBase64Async(string imageUrl, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, imageUrl);
-        
+
         // Add headers to mimic browser request (bypass CDN protection)
         request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         request.Headers.Add("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
         request.Headers.Add("Accept-Language", "en-US,en;q=0.9,vi;q=0.8");
         request.Headers.Add("Referer", new Uri(imageUrl).GetLeftPart(UriPartial.Authority) + "/");
-        
+
         var response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
-        
+
         var imageBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         return Convert.ToBase64String(imageBytes);
     }
 
     #endregion
 }
+

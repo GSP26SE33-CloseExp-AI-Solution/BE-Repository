@@ -22,7 +22,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private readonly IServiceProvider _serviceProvider;
 
                 private IProductService? _productService;
-                private IMarketStaffService? _marketStaffService;
+                private ISupermarketStaffService? _marketStaffService;
                 private ISupermarketService? _supermarketService;
                 private IProductImageService? _productImageService;
                 private IAIVerificationLogService? _aIVerificationLogService;
@@ -55,7 +55,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                         _serviceProvider = serviceProvider;
                 }
                 public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context, _mapper);
-                public IMarketStaffService MarketStaffService => _marketStaffService ??= new MarketStaffService(_unitOfWork, _mapper);
+                public ISupermarketStaffService MarketStaffService => _marketStaffService ??= new SupermarketStaffService(_unitOfWork, _mapper);
                 public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
                 public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
                 public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
@@ -73,3 +73,4 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
         }
 }
+

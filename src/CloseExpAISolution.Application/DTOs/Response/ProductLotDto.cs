@@ -2,7 +2,7 @@ using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.DTOs.Response;
 
-public class ProductLotDetailDto
+public class StockLotDetailDto
 {
     public Guid LotId { get; set; }
     public Guid ProductId { get; set; }
@@ -39,7 +39,7 @@ public class ProductLotDetailDto
     public DateTime CreatedAt { get; set; }
 }
 
-public class ProductLotFilterDto
+public class StockLotFilterDto
 {
     public Guid? SupermarketId { get; set; }
     public ExpiryStatus? ExpiryStatus { get; set; }

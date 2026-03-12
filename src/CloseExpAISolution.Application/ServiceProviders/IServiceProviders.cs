@@ -7,7 +7,7 @@ namespace CloseExpAISolution.Application.ServiceProviders;
 public interface IServiceProviders
 {
     IProductService ProductService { get; }
-    IMarketStaffService MarketStaffService { get; }
+    ISupermarketStaffService MarketStaffService { get; }
     ISupermarketService SupermarketService { get; }
     IProductImageService ProductImageService { get; }
     IAIVerificationLogService AIVerificationLogService { get; }

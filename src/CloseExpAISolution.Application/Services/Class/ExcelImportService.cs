@@ -10,10 +10,6 @@ using OfficeOpenXml;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
-/// <summary>
-/// Excel Import Service using EPPlus library.
-/// Supports flexible column mapping to handle different Excel formats.
-/// </summary>
 public class ExcelImportService : IExcelImportService
 {
     private readonly IUnitOfWork _unitOfWork;
@@ -111,7 +107,7 @@ public class ExcelImportService : IExcelImportService
         }
 
         // Get default unit
-        var units = await _unitOfWork.Repository<Unit>().GetAllAsync();
+        var units = await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync();
         var defaultUnit = units.FirstOrDefault();
         if (defaultUnit == null)
         {
@@ -177,33 +173,46 @@ public class ExcelImportService : IExcelImportService
                 }
 
                 // Create product
+                var categoryName = GetValueOrDefault(rowData, ProductFieldNames.Category);
+                var category = string.IsNullOrWhiteSpace(categoryName)
+                    ? null
+                    : await _unitOfWork.Repository<Category>().FirstOrDefaultAsync(c => c.Name != null && c.Name.ToLower() == categoryName.ToLower());
+
                 var product = new Product
                 {
                     ProductId = Guid.NewGuid(),
                     SupermarketId = request.SupermarketId,
                     UnitId = defaultUnit.UnitId,
                     Name = name,
-                    Brand = GetValueOrDefault(rowData, ProductFieldNames.Brand),
                     Barcode = barcode ?? "",
-                    Category = GetValueOrDefault(rowData, ProductFieldNames.Category),
+                    CategoryId = category?.CategoryId,
                     Sku = GetValueOrDefault(rowData, ProductFieldNames.Sku),
-                    Ingredients = GetValueOrDefault(rowData, ProductFieldNames.Ingredients),
-                    Manufacturer = GetValueOrDefault(rowData, ProductFieldNames.Manufacturer),
-                    Origin = GetValueOrDefault(rowData, ProductFieldNames.Origin),
-                    Description = GetValueOrDefault(rowData, ProductFieldNames.Description),
-                    StorageInstructions = GetValueOrDefault(rowData, ProductFieldNames.StorageInstructions),
-                    UsageInstructions = GetValueOrDefault(rowData, ProductFieldNames.UsageInstructions),
-                    IsFreshFood = ParseBool(GetValueOrDefault(rowData, ProductFieldNames.IsFreshFood)),
+                    IsFreshFood = category?.IsFreshFood ?? ParseBool(GetValueOrDefault(rowData, ProductFieldNames.IsFreshFood)),
                     CreatedBy = request.ImportedBy,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     Status = ProductState.Verified.ToString(),
                     VerifiedBy = request.ImportedBy,
                     VerifiedAt = DateTime.UtcNow,
-                    isActive = true
+                    IsActive = true
                 };
 
                 await _unitOfWork.ProductRepository.AddAsync(product);
+
+                var detail = new ProductDetail
+                {
+                    ProductDetailId = Guid.NewGuid(),
+                    ProductId = product.ProductId,
+                    Brand = GetValueOrDefault(rowData, ProductFieldNames.Brand),
+                    Ingredients = GetValueOrDefault(rowData, ProductFieldNames.Ingredients),
+                    Manufacturer = GetValueOrDefault(rowData, ProductFieldNames.Manufacturer),
+                    Origin = GetValueOrDefault(rowData, ProductFieldNames.Origin),
+                    Description = GetValueOrDefault(rowData, ProductFieldNames.Description),
+                    StorageInstructions = GetValueOrDefault(rowData, ProductFieldNames.StorageInstructions),
+                    UsageInstructions = GetValueOrDefault(rowData, ProductFieldNames.UsageInstructions)
+                };
+                await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
+
                 response.CreatedProductIds.Add(product.ProductId);
                 response.SuccessCount++;
             }

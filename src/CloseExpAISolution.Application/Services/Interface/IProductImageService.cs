@@ -18,4 +18,3 @@ public interface IProductImageService
     Task<int> CountAsync(Expression<Func<ProductImage, bool>>? predicate = null);
     Task<bool> ExistsAsync(Expression<Func<ProductImage, bool>> predicate);
 }
-

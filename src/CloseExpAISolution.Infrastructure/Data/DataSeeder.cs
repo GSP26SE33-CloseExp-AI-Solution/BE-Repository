@@ -42,7 +42,7 @@ public static class DataSeeder
     private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
     private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
 
-    // Product GUIDs (để có thể tạo ProductLots)
+    // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
     private static readonly Guid Product2Id = Guid.Parse("bbbb0002-0002-0002-0002-000000000002");
     private static readonly Guid Product3Id = Guid.Parse("bbbb0003-0003-0003-0003-000000000003");
@@ -64,7 +64,7 @@ public static class DataSeeder
         await SeedMarketStaffAsync(context);  // Liên kết SupplierStaff với Supermarket
         await SeedUnitsAsync(context);        // Seed đơn vị tính
         await SeedProductsAsync(context);
-        await SeedProductLotsAsync(context);  // Seed lô hàng
+        await SeedStockLotsAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -375,15 +375,15 @@ public static class DataSeeder
     /// </summary>
     private static async Task SeedMarketStaffAsync(ApplicationDbContext context)
     {
-        if (await context.MarketStaff.AnyAsync())
+        if (await context.SupermarketStaffs.AnyAsync())
             return;
 
-        var marketStaffRecords = new List<MarketStaff>
+        var marketStaffRecords = new List<SupermarketStaff>
         {
             // SupplierStaff 1 - Làm việc tại CoopMart
             new()
             {
-                MarketStaffId = Guid.NewGuid(),
+                SupermarketStaffId = Guid.NewGuid(),
                 UserId = SupplierStaffUserId1,
                 SupermarketId = SupermarketCoopMartId,
                 Position = "Nhân viên kho",
@@ -392,7 +392,7 @@ public static class DataSeeder
             // SupplierStaff 2 - Làm việc tại Big C
             new()
             {
-                MarketStaffId = Guid.NewGuid(),
+                SupermarketStaffId = Guid.NewGuid(),
                 UserId = SupplierStaffUserId2,
                 SupermarketId = SupermarketBigCId,
                 Position = "Nhân viên quầy thịt",
@@ -401,7 +401,7 @@ public static class DataSeeder
             // SupplierStaff 3 - Làm việc tại VinMart
             new()
             {
-                MarketStaffId = Guid.NewGuid(),
+                SupermarketStaffId = Guid.NewGuid(),
                 UserId = SupplierStaffUserId3,
                 SupermarketId = SupermarketVinMartId,
                 Position = "Quản lý kho",
@@ -409,7 +409,7 @@ public static class DataSeeder
             }
         };
 
-        await context.MarketStaff.AddRangeAsync(marketStaffRecords);
+        await context.SupermarketStaffs.AddRangeAsync(marketStaffRecords);
         await context.SaveChangesAsync();
     }
 
@@ -421,7 +421,7 @@ public static class DataSeeder
         if (await context.Units.AnyAsync())
             return;
 
-        var units = new List<Unit>
+        var units = new List<UnitOfMeasure>
         {
             // Weight units - Đơn vị khối lượng
             new()
@@ -506,181 +506,181 @@ public static class DataSeeder
             {
                 ProductId = Product1Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitLiterId,
+                UnitId = UnitLiterId,
                 Name = "Sữa tươi Vinamilk 1L",
                 Barcode = "8934673111119",
                 Sku = "8934673111119",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product2Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitBoxId,
+                UnitId = UnitBoxId,
                 Name = "Sữa chua Vinamilk có đường",
                 Barcode = "8934673222226",
                 Sku = "8934673222226",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product3Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Thịt heo ba chỉ",
                 Barcode = "8934673333333",
                 Sku = "8934673333333",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product4Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Rau cải xanh hữu cơ",
                 Barcode = "8934673444440",
                 Sku = "8934673444440",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product5Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Cà chua Đà Lạt",
                 Barcode = "8934673555557",
                 Sku = "8934673555557",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product6Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Bánh mì sandwich Kinh Đô",
                 Barcode = "8934673666664",
                 Sku = "8934673666664",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product7Id,
                 SupermarketId = SupermarketVinMartId,
-                UnitOfMeasureId = UnitBottleId,
+                UnitId = UnitBottleId,
                 Name = "Nước cam ép Tropicana 1L",
                 Barcode = "8934673777771",
                 Sku = "8934673777771",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product8Id,
                 SupermarketId = SupermarketVinMartId,
-                UnitOfMeasureId = UnitBoxId,
+                UnitId = UnitBoxId,
                 Name = "Bánh quy Oreo 264g",
                 Barcode = "8934673888888",
                 Sku = "8934673888888",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product9Id,
                 SupermarketId = SupermarketVinMartId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Mì Hảo Hảo tôm chua cay",
                 Barcode = "8934673999995",
                 Sku = "8934673999995",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product10Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitKgId,
+                UnitId = UnitKgId,
                 Name = "Cá hồi phi lê đông lạnh",
                 Barcode = "8934673101010",
                 Sku = "8934673101010",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product11Id,
                 SupermarketId = SupermarketCoopMartId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Cá ngừ đóng hộp Vissan 170g",
                 Barcode = "8934673121212",
                 Sku = "8934673121212",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product12Id,
                 SupermarketId = SupermarketBigCId,
-                UnitOfMeasureId = UnitPackId,
+                UnitId = UnitPackId,
                 Name = "Đậu đỏ hầm đường lon 380g",
                 Barcode = "8934673131313",
                 Sku = "8934673131313",
                 Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
                 CreatedAt = now,
-                UpdateBy = AdminUserId.ToString(),
+                UpdatedBy = AdminUserId.ToString(),
                 UpdatedAt = now,
-                isFeatured = false
+                IsFeatured = false
             }
         };
 
@@ -689,9 +689,9 @@ public static class DataSeeder
 
         var productDetails = new List<ProductDetail>
         {
-            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product1Id, Brand = "Vinamilk", Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất", Origin = "Việt Nam", Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3", NutritionFacts = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""", UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.", StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.", SafetyWarning = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
-            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product2Id, Brand = "Vinamilk", Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng", Origin = "Việt Nam", Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus", NutritionFacts = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""", UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.", StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.", SafetyWarning = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
-            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product3Id, Brand = "Meat Deli", Description = "Thịt heo ba chỉ tươi ngon từ trang trại", Origin = "Việt Nam", Ingredients = "Thịt heo tươi 100%", UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.", StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.", SafetyWarning = "Nấu chín kỹ trước khi ăn.", Manufacturer = "Công ty TNHH Meat Deli", Distributor = "Meat Deli" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product1Id, Brand = "Vinamilk", Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất", Origin = "Việt Nam", Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3", NutritionFacts = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""", UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.", StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.", SafetyWarnings = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product2Id, Brand = "Vinamilk", Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng", Origin = "Việt Nam", Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus", NutritionFacts = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""", UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.", StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.", SafetyWarnings = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product3Id, Brand = "Meat Deli", Description = "Thịt heo ba chỉ tươi ngon từ trang trại", Origin = "Việt Nam", Ingredients = "Thịt heo tươi 100%", UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.", StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.", SafetyWarnings = "Nấu chín kỹ trước khi ăn.", Manufacturer = "Công ty TNHH Meat Deli", Distributor = "Meat Deli" },
             new() { ProductDetailId = Guid.NewGuid(), ProductId = Product4Id, Brand = "Dalat Garden", Ingredients = "Rau cải xanh hữu cơ 100%", Manufacturer = "Công ty TNHH Dalat Garden" },
             new() { ProductDetailId = Guid.NewGuid(), ProductId = Product5Id, Brand = "Dalat Garden", Ingredients = "Cà chua Đà Lạt 100%", Manufacturer = "Công ty TNHH Dalat Garden" },
             new() { ProductDetailId = Guid.NewGuid(), ProductId = Product6Id, Brand = "Kinh Đô", Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản", NutritionFacts = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""", Manufacturer = "Công ty Cổ phần Kinh Đô" },
@@ -707,16 +707,16 @@ public static class DataSeeder
     }
 
     /// <summary>
-    /// Seed ProductLots - Lô hàng với các mức hạn sử dụng khác nhau
+    /// Seed StockLots - Lô hàng với các mức hạn sử dụng khác nhau
     /// </summary>
-    private static async Task SeedProductLotsAsync(ApplicationDbContext context)
+    private static async Task SeedStockLotsAsync(ApplicationDbContext context)
     {
-        if (await context.ProductLots.AnyAsync())
+        if (await context.StockLots.AnyAsync())
             return;
 
         var now = DateTime.UtcNow;
 
-        var productLots = new List<ProductLot>
+        var stockLots = new List<StockLot>
         {
             // === COOPMART LOTS ===
             // Sữa tươi Vinamilk - Hết hạn trong ngày (Today)
@@ -959,7 +959,7 @@ public static class DataSeeder
             }
         };
 
-        await context.ProductLots.AddRangeAsync(productLots);
+        await context.StockLots.AddRangeAsync(stockLots);
         await context.SaveChangesAsync();
     }
 }

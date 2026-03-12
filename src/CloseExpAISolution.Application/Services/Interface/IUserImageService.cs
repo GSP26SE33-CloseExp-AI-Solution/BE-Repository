@@ -9,7 +9,7 @@ public interface IUserImageService
 {
     /// <summary>Upload ảnh người dùng lên R2</summary>
     Task<UserImage> UploadAsync(Stream fileStream, string fileName, string contentType, Guid userId,
-        string imageType = "avatar", bool isPrimary = false, CancellationToken cancellationToken = default);
+        string imageType = "avatar", bool IsPrimary = false, CancellationToken cancellationToken = default);
 
     /// <summary>Lấy tất cả ảnh của user</summary>
     Task<IEnumerable<UserImage>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);

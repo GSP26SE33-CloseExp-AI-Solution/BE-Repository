@@ -7,9 +7,10 @@ public class OrderItem
     public Guid LotId { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal TotalPrice { get; set; }
 
 
     public Order? Order { get; set; }
-    public ProductLot? ProductLot { get; set; }
+    public StockLot? StockLot { get; set; }
 }
 

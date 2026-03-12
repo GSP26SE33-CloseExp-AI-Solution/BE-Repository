@@ -1,13 +1,12 @@
 using CloseExpAISolution.Application.AIService.Interfaces;
+using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services;
 
-/// <summary>
-/// Service xử lý lấy và quản lý giá thị trường
-/// </summary>
 public class MarketPriceService : IMarketPriceService
 {
     private readonly IMarketPriceRepository _marketPriceRepository;
@@ -27,18 +26,16 @@ public class MarketPriceService : IMarketPriceService
         _logger = logger;
     }
 
-    /// <inheritdoc />
     public async Task<MarketPriceResult?> GetMarketPriceAsync(string barcode, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting market price for barcode: {Barcode}", barcode);
 
-        // 1. Kiểm tra trong database trước (cache)
         var stats = await _marketPriceRepository.GetPriceStatsAsync(barcode, cancellationToken);
-        
+
         if (stats != null)
         {
             var prices = await _marketPriceRepository.GetByBarcodeAsync(barcode, cancellationToken);
-            
+
             return new MarketPriceResult
             {
                 MinPrice = stats.MinPrice,
@@ -64,13 +61,12 @@ public class MarketPriceService : IMarketPriceService
         return null;
     }
 
-    /// <inheritdoc />
     public async Task<MarketPriceResult?> SearchMarketPriceAsync(string productName, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Searching market price for product: {ProductName}", productName);
 
         var prices = await _marketPriceRepository.SearchByProductNameAsync(productName, cancellationToken);
-        
+
         if (!prices.Any())
         {
             _logger.LogInformation("No prices found for product: {ProductName}", productName);
@@ -98,16 +94,14 @@ public class MarketPriceService : IMarketPriceService
         };
     }
 
-    /// <inheritdoc />
     public async Task<CrawlResult> TriggerCrawlAsync(string barcode, string? productName = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Triggering crawl for barcode: {Barcode}, name: {ProductName}", barcode, productName);
 
         try
         {
-            // Call AI service to crawl market prices
             var crawlResponse = await _aiClient.CrawlMarketPricesAsync(barcode, productName, cancellationToken);
-            
+
             if (crawlResponse == null || !crawlResponse.Prices.Any())
             {
                 return new CrawlResult
@@ -118,7 +112,6 @@ public class MarketPriceService : IMarketPriceService
                 };
             }
 
-            // Save crawled prices to database
             var marketPrices = crawlResponse.Prices.Select(p => new MarketPrice
             {
                 Barcode = barcode,
@@ -158,10 +151,9 @@ public class MarketPriceService : IMarketPriceService
         }
     }
 
-    /// <inheritdoc />
     public async Task<MarketPrice> SaveCrowdsourcePriceAsync(CrowdsourcePriceRequest request, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Saving crowdsource price for barcode: {Barcode} from staff: {StaffId}", 
+        _logger.LogInformation("Saving crowdsource price for barcode: {Barcode} from staff: {StaffId}",
             request.Barcode, request.StaffId);
 
         var marketPrice = new MarketPrice
@@ -174,7 +166,7 @@ public class MarketPriceService : IMarketPriceService
             StoreName = request.StoreName,
             Region = request.Region ?? "VN",
             IsInStock = request.IsInStock,
-            Confidence = 0.7f, // Lower confidence for manual entry
+            Confidence = 0.7f,
             Status = "active",
             Notes = $"Entered by staff {request.StaffId} at supermarket {request.SupermarketId}. {request.Note}"
         };
@@ -182,10 +174,9 @@ public class MarketPriceService : IMarketPriceService
         return await _marketPriceRepository.UpsertAsync(marketPrice, cancellationToken);
     }
 
-    /// <inheritdoc />
     public async Task<PriceFeedback> SavePriceFeedbackAsync(PriceFeedbackRequest request, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Saving price feedback for barcode: {Barcode}, accepted: {Accepted}", 
+        _logger.LogInformation("Saving price feedback for barcode: {Barcode}, accepted: {Accepted}",
             request.Barcode, request.WasAccepted);
 
         var actualDiscount = ((request.OriginalPrice - request.FinalPrice) / request.OriginalPrice) * 100;
@@ -210,13 +201,11 @@ public class MarketPriceService : IMarketPriceService
         return await _priceFeedbackRepository.AddAsync(feedback, cancellationToken);
     }
 
-    /// <inheritdoc />
     public async Task<Dictionary<string, float>> GetAIAccuracyByCategoryAsync(CancellationToken cancellationToken = default)
     {
         return await _priceFeedbackRepository.GetAcceptanceRateByCategoryAsync(cancellationToken);
     }
 
-    /// <inheritdoc />
     public async Task<int> CleanupExpiredPricesAsync(int daysOld = 30, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Cleaning up market prices older than {Days} days", daysOld);

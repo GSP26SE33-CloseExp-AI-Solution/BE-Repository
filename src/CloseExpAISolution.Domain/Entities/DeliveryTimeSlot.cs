@@ -1,8 +1,8 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-public class TimeSlot
+public class DeliveryTimeSlot
 {
-    public Guid TimeSlotId { get; set; }
+    public Guid DeliveryTimeSlotId { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
 

@@ -10,14 +10,8 @@ using Polly.Extensions.Http;
 
 namespace CloseExpAISolution.Application.AIService.Extensions;
 
-/// <summary>
-/// Extension methods for registering AI Service dependencies
-/// </summary>
 public static class AIServiceExtensions
 {
-    /// <summary>
-    /// Add AI Service client with resilience policies
-    /// </summary>
     public static IServiceCollection AddAIService(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -36,11 +30,11 @@ public static class AIServiceExtensions
         var httpClientBuilder = services.AddHttpClient<IAIServiceClient, AIServiceClient>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<AIServiceSettings>>().Value;
-            
+
             client.BaseAddress = new Uri(options.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            
+
             // Add API key if configured
             if (!string.IsNullOrEmpty(options.ApiKey))
             {
@@ -58,15 +52,12 @@ public static class AIServiceExtensions
         }
 
         // Also register as batch client interface
-        services.AddScoped<IAIServiceBatchClient>(sp => 
+        services.AddScoped<IAIServiceBatchClient>(sp =>
             (AIServiceClient)sp.GetRequiredService<IAIServiceClient>());
 
         return services;
     }
 
-    /// <summary>
-    /// Create retry policy with exponential backoff
-    /// </summary>
     private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy(AIServiceSettings settings)
     {
         return HttpPolicyExtensions
@@ -74,7 +65,7 @@ public static class AIServiceExtensions
             .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             .WaitAndRetryAsync(
                 retryCount: settings.RetryCount,
-                sleepDurationProvider: retryAttempt => 
+                sleepDurationProvider: retryAttempt =>
                     TimeSpan.FromMilliseconds(settings.RetryDelayMs * Math.Pow(2, retryAttempt - 1)),
                 onRetry: (outcome, timespan, retryAttempt, context) =>
                 {

@@ -8,7 +8,8 @@ public class AIVerificationLog
     public DateTime? ExtractedExpiryDate { get; set; }
     public string ExtractedBarcode { get; set; } = string.Empty;
     public decimal ConfidenceScore { get; set; }
-    public bool VerifiedAt { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+    public string? VerifiedBy { get; set; }
 
 
     public Product? Product { get; set; }

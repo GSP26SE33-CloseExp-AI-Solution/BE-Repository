@@ -32,60 +32,49 @@ public class ProductDto
     public User? CreatedByUser { get; set; }
     public Supermarket? Supermarket { get; set; }
     public ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
-    public ICollection<ProductLot> ProductLots { get; set; } = new List<ProductLot>();
+    public ICollection<StockLot> StockLots { get; set; } = new List<StockLot>();
     public ICollection<AIVerificationLog> AIVerificationLogs { get; set; } = new List<AIVerificationLog>();
-    public Pricing? Pricing { get; set; }
 }
 
 public class CreateProductRequestDto
 {
     public Guid SupermarketId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string Brand { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
+    public string CategoryName { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
     public ProductType Type { get; set; } = ProductType.Standard;
     public string Sku { get; set; } = string.Empty;
-    public string Ingredients { get; set; } = string.Empty;
-    public string Nutrition { get; set; } = string.Empty;
-    public string Usage { get; set; } = string.Empty;
-    public string Manufacturer { get; set; } = string.Empty;
     public string ResponsibleOrg { get; set; } = string.Empty;
-    public string Warning { get; set; } = string.Empty;
     public bool isActive { get; set; } = true;
     public bool isFeatured { get; set; } = false;
     public string[] Tags { get; set; } = Array.Empty<string>();
+    public ProductDetailRequestDto Detail { get; set; } = new();
 }
 
 public class UpdateProductRequestDto
 {
     public Guid SupermarketId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string Brand { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
+    public string CategoryName { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
     public ProductType Type { get; set; }
     public string Sku { get; set; } = string.Empty;
     public ProductState Status { get; set; }
-    public string Ingredients { get; set; } = string.Empty;
-    public string Nutrition { get; set; } = string.Empty;
-    public string Usage { get; set; } = string.Empty;
-    public string Manufacturer { get; set; } = string.Empty;
     public string ResponsibleOrg { get; set; } = string.Empty;
-    public string Warning { get; set; } = string.Empty;
     public bool isActive { get; set; }
     public bool isFeatured { get; set; }
     public string[] Tags { get; set; } = Array.Empty<string>();
+    public ProductDetailRequestDto Detail { get; set; } = new();
 }
 
 public class VerifyProductRequestDto
 {
     public string? Name { get; set; }
-    public string? Brand { get; set; }
-    public string? Category { get; set; }
+    public string? CategoryName { get; set; }
     public string? Barcode { get; set; }
+    public ProductDetailPatchRequestDto? Detail { get; set; }
 
     [Required(ErrorMessage = "OriginalPrice is required")]
     [Range(0.01, double.MaxValue, ErrorMessage = "OriginalPrice must be greater than 0")]
@@ -122,7 +111,7 @@ public class PublishProductRequestDto
     public string PublishedBy { get; set; } = string.Empty;
 }
 
-public class CreateProductLotFromExistingDto
+public class CreateStockLotFromExistingDto
 {
     [Required]
     public Guid ProductId { get; set; }
@@ -148,9 +137,7 @@ public class CreateNewProductRequestDto
 
     [Required]
     public string Name { get; set; } = string.Empty;
-
-    public string Brand { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
+    public string CategoryName { get; set; } = string.Empty;
 
     [Required]
     public string Barcode { get; set; } = string.Empty;
@@ -159,23 +146,15 @@ public class CreateNewProductRequestDto
     public ProductType Type { get; set; }
     public string Sku { get; set; } = string.Empty;
     public ProductState Status { get; set; }
-
-    // Weight Type info (for variable weight products)
     public int WeightType { get; set; }
     public string WeightTypeName { get; set; } = string.Empty;
     public decimal? DefaultPricePerKg { get; set; }
-
-    // Pricing info
     public decimal OriginalPrice { get; set; }
     public decimal SuggestedPrice { get; set; }
     public decimal FinalPrice { get; set; }
-
-    // Expiry info
     public DateTime? ExpiryDate { get; set; }
     public DateTime? ManufactureDate { get; set; }
     public int? DaysToExpiry { get; set; }
-
-    // AI info
     public float OcrConfidence { get; set; }
     public float PricingConfidence { get; set; }
     public string? PricingReasons { get; set; }
@@ -187,36 +166,39 @@ public class CreateNewProductRequestDto
     public DateTime? VerifiedAt { get; set; }
     public string? PricedBy { get; set; }
     public DateTime? PricedAt { get; set; }
-
-    // Image info
-    /// <summary>
-    /// Ảnh đại diện chính (ảnh đầu tiên trong danh sách)
-    /// </summary>
     public string? MainImageUrl { get; set; }
-
-    /// <summary>
-    /// Tổng số ảnh của sản phẩm
-    /// </summary>
     public int TotalImages { get; set; }
-
-    /// <summary>
-    /// Danh sách tất cả ảnh sản phẩm
-    /// </summary>
     public ICollection<ProductImageDto> ProductImages { get; set; } = new List<ProductImageDto>();
 
-    // Nutrition info
-    /// <summary>
-    /// Thành phần nguyên liệu (VD: "Sữa tươi, đường, vitamin D3...")
-    /// </summary>
+    public ProductDetailRequestDto Detail { get; set; } = new();
+    public string? OcrImageUrl { get; set; }
+    public string? OcrExtractedData { get; set; }
+}
+
+public class ProductDetailRequestDto
+{
+    public string? Brand { get; set; }
     public string? Ingredients { get; set; }
     public string? NutritionFactsJson { get; set; }
+    public string? UsageInstructions { get; set; }
+    public string? StorageInstructions { get; set; }
     public string? Manufacturer { get; set; }
     public string? Origin { get; set; }
     public string? Description { get; set; }
-    public string? StorageInstructions { get; set; }
+    public string? SafetyWarnings { get; set; }
+}
+
+public class ProductDetailPatchRequestDto
+{
+    public string? Brand { get; set; }
+    public string? Ingredients { get; set; }
+    public string? NutritionFactsJson { get; set; }
     public string? UsageInstructions { get; set; }
-    public string? OcrImageUrl { get; set; }
-    public string? OcrExtractedData { get; set; }
+    public string? StorageInstructions { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? Origin { get; set; }
+    public string? Description { get; set; }
+    public string? SafetyWarnings { get; set; }
 }
 
 #region Excel Import DTOs

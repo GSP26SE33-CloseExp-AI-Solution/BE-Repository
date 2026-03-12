@@ -3,6 +3,6 @@ using CloseExpAISolution.Infrastructure.Base;
 
 namespace CloseExpAISolution.Infrastructure.Repositories.Interface;
 
-public interface IMarketStaffRepository : IGenericRepository<MarketStaff>
+public interface ISupermarketStaffRepository : IGenericRepository<SupermarketStaff>
 {
 }

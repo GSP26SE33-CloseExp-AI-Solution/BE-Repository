@@ -16,7 +16,8 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
     {
         return await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.ProductLots)
+            .Include(p => p.CategoryRef)
+            .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
     }
 }

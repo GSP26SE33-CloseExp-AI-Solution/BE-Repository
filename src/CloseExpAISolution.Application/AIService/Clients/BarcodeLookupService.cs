@@ -8,34 +8,18 @@ using System.Text.Json.Serialization;
 
 namespace CloseExpAISolution.Application.AIService.Clients;
 
-/// <summary>
-/// Service for looking up product information from barcode.
-/// Implements Cache & Crowd-source mechanism:
-/// 
-/// Flow:
-/// 1. Check memory cache (hot cache)
-/// 2. Check database (persistent cache)
-/// 3. If not found, call external APIs
-/// 4. Save results to database for future lookups
-/// 5. Support manual entry and AI OCR contributions
-/// 
-/// API Sources (fallback order):
-/// - Open Food Facts Vietnam (vn.openfoodfacts.org)
-/// - Open Food Facts Global (world.openfoodfacts.org)
-/// - UPCitemdb (free tier: 100 requests/day)
-/// </summary>
 public class BarcodeLookupService : IBarcodeLookupService
 {
     private readonly HttpClient _httpClient;
     private readonly IMemoryCache _cache;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<BarcodeLookupService> _logger;
-    
+
     // API Endpoints
     private const string OPEN_FOOD_FACTS_API = "https://world.openfoodfacts.org/api/v2/product/";
     private const string OPEN_FOOD_FACTS_VN_API = "https://vn.openfoodfacts.org/api/v2/product/";
     private const string UPCITEMDB_API = "https://api.upcitemdb.com/prod/trial/lookup?upc=";
-    
+
     private const string CACHE_PREFIX = "barcode_";
     private static readonly TimeSpan MemoryCacheDuration = TimeSpan.FromHours(1); // Memory cache for hot data
     private static readonly TimeSpan NotFoundCacheDuration = TimeSpan.FromMinutes(30);
@@ -57,7 +41,7 @@ public class BarcodeLookupService : IBarcodeLookupService
         { "955", "Malaysia" },
         { "471", "Taiwan" },
         { "489", "Hong Kong" },
-        { "690", "China" }, { "691", "China" }, { "692", "China" }, { "693", "China" }, 
+        { "690", "China" }, { "691", "China" }, { "692", "China" }, { "693", "China" },
         { "694", "China" }, { "695", "China" }, { "696", "China" }, { "697", "China" },
         { "450", "Japan" }, { "451", "Japan" }, { "452", "Japan" }, { "453", "Japan" },
         { "454", "Japan" }, { "455", "Japan" }, { "456", "Japan" }, { "457", "Japan" },
@@ -83,7 +67,6 @@ public class BarcodeLookupService : IBarcodeLookupService
         _logger = logger;
     }
 
-    /// <inheritdoc/>
     public bool IsVietnameseBarcode(string barcode)
     {
         if (string.IsNullOrWhiteSpace(barcode)) return false;
@@ -91,7 +74,6 @@ public class BarcodeLookupService : IBarcodeLookupService
         return cleaned.StartsWith("893");
     }
 
-    /// <inheritdoc/>
     public async Task<BarcodeProductInfo?> LookupAsync(string barcode, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(barcode))
@@ -114,9 +96,9 @@ public class BarcodeLookupService : IBarcodeLookupService
         if (dbProduct != null)
         {
             _logger.LogInformation("Barcode {Barcode} found in database (Source: {Source})", barcode, dbProduct.Source);
-            
+
             // Increment scan count asynchronously
-            _ = Task.Run(async () => 
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -130,10 +112,10 @@ public class BarcodeLookupService : IBarcodeLookupService
 
             var result = MapToProductInfo(dbProduct);
             result.Source = "database"; // Override source to indicate from DB
-            
+
             // Cache in memory for quick access
             _cache.Set(cacheKey, result, MemoryCacheDuration);
-            
+
             return result;
         }
 
@@ -146,7 +128,7 @@ public class BarcodeLookupService : IBarcodeLookupService
         try
         {
             // Strategy: Try multiple sources in order of reliability
-            
+
             // 3a. For Vietnamese products, try VN-specific Open Food Facts first
             if (isVietnamese)
             {
@@ -170,7 +152,7 @@ public class BarcodeLookupService : IBarcodeLookupService
             {
                 apiResult.IsVietnameseProduct = isVietnamese;
                 apiResult.Gs1Prefix = GetGs1Prefix(barcode);
-                
+
                 if (string.IsNullOrEmpty(apiResult.Country))
                 {
                     apiResult.Country = GetCountryFromBarcode(barcode);
@@ -178,12 +160,12 @@ public class BarcodeLookupService : IBarcodeLookupService
 
                 // Save to database for future lookups
                 await SaveToDatabase(apiResult, cancellationToken);
-                
+
                 // Cache in memory
                 _cache.Set(cacheKey, apiResult, MemoryCacheDuration);
-                
+
                 _logger.LogInformation(
-                    "Found and saved product for barcode {Barcode}: {ProductName} (Source: {Source})", 
+                    "Found and saved product for barcode {Barcode}: {ProductName} (Source: {Source})",
                     barcode, apiResult.ProductName, apiResult.Source);
             }
             else
@@ -202,14 +184,13 @@ public class BarcodeLookupService : IBarcodeLookupService
         }
     }
 
-    /// <inheritdoc/>
     public async Task<Dictionary<string, BarcodeProductInfo?>> LookupBatchAsync(
-        IEnumerable<string> barcodes, 
+        IEnumerable<string> barcodes,
         CancellationToken cancellationToken = default)
     {
         var results = new Dictionary<string, BarcodeProductInfo?>();
         var semaphore = new SemaphoreSlim(3); // Limit concurrent requests
-        
+
         var tasks = barcodes.Select(async barcode =>
         {
             await semaphore.WaitAsync(cancellationToken);
@@ -225,7 +206,7 @@ public class BarcodeLookupService : IBarcodeLookupService
         });
 
         var lookupResults = await Task.WhenAll(tasks);
-        
+
         foreach (var (barcode, result) in lookupResults)
         {
             results[barcode] = result;
@@ -234,14 +215,13 @@ public class BarcodeLookupService : IBarcodeLookupService
         return results;
     }
 
-    /// <inheritdoc/>
     public async Task<BarcodeProductInfo> SaveProductAsync(
-        BarcodeProductInfo productInfo, 
+        BarcodeProductInfo productInfo,
         string? userId = null,
         CancellationToken cancellationToken = default)
     {
         var barcode = NormalizeBarcode(productInfo.Barcode);
-        
+
         // Check if already exists
         var existing = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
         if (existing != null)
@@ -263,8 +243,8 @@ public class BarcodeLookupService : IBarcodeLookupService
             Manufacturer = productInfo.Manufacturer,
             Weight = productInfo.Weight,
             Ingredients = productInfo.Ingredients,
-            NutritionFactsJson = productInfo.NutritionFacts != null 
-                ? JsonSerializer.Serialize(productInfo.NutritionFacts) 
+            NutritionFactsJson = productInfo.NutritionFacts != null
+                ? JsonSerializer.Serialize(productInfo.NutritionFacts)
                 : null,
             Country = productInfo.Country ?? GetCountryFromBarcode(barcode),
             Gs1Prefix = GetGs1Prefix(barcode),
@@ -275,8 +255,8 @@ public class BarcodeLookupService : IBarcodeLookupService
             IsVerified = false,
             CreatedBy = userId,
             CreatedAt = DateTime.UtcNow,
-            Status = productInfo.Source == "manual" || productInfo.Source == "ai-ocr" 
-                ? "pending_review" 
+            Status = productInfo.Source == "manual" || productInfo.Source == "ai-ocr"
+                ? "pending_review"
                 : "active"
         };
 
@@ -294,7 +274,6 @@ public class BarcodeLookupService : IBarcodeLookupService
         return MapToProductInfo(entity);
     }
 
-    /// <inheritdoc/>
     public async Task<BarcodeProductInfo?> UpdateProductAsync(
         string barcode,
         BarcodeProductInfo productInfo,
@@ -302,7 +281,7 @@ public class BarcodeLookupService : IBarcodeLookupService
         CancellationToken cancellationToken = default)
     {
         barcode = NormalizeBarcode(barcode);
-        
+
         var entity = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
         if (entity == null)
         {
@@ -334,7 +313,7 @@ public class BarcodeLookupService : IBarcodeLookupService
 
         entity.UpdatedBy = userId;
         entity.UpdatedAt = DateTime.UtcNow;
-        
+
         // If manually updated, may need re-verification
         if (userId != null)
         {
@@ -356,11 +335,10 @@ public class BarcodeLookupService : IBarcodeLookupService
         return MapToProductInfo(entity);
     }
 
-    /// <inheritdoc/>
     public async Task<bool> VerifyProductAsync(string barcode, string verifiedBy, CancellationToken cancellationToken = default)
     {
         barcode = NormalizeBarcode(barcode);
-        
+
         var entity = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
         if (entity == null)
         {
@@ -384,17 +362,15 @@ public class BarcodeLookupService : IBarcodeLookupService
         return true;
     }
 
-    /// <inheritdoc/>
     public async Task<IEnumerable<BarcodeProductInfo>> SearchAsync(
-        string searchTerm, 
-        int limit = 20, 
+        string searchTerm,
+        int limit = 20,
         CancellationToken cancellationToken = default)
     {
         var entities = await _unitOfWork.BarcodeProductRepository.SearchAsync(searchTerm, limit);
         return entities.Select(MapToProductInfo);
     }
 
-    /// <inheritdoc/>
     public async Task<IEnumerable<BarcodeProductInfo>> GetPendingReviewAsync(CancellationToken cancellationToken = default)
     {
         var entities = await _unitOfWork.BarcodeProductRepository.GetPendingReviewAsync();
@@ -403,9 +379,6 @@ public class BarcodeLookupService : IBarcodeLookupService
 
     #region Private Methods
 
-    /// <summary>
-    /// Save API result to database
-    /// </summary>
     private async Task SaveToDatabase(BarcodeProductInfo productInfo, CancellationToken cancellationToken)
     {
         try
@@ -422,8 +395,8 @@ public class BarcodeLookupService : IBarcodeLookupService
                 Manufacturer = productInfo.Manufacturer,
                 Weight = productInfo.Weight,
                 Ingredients = productInfo.Ingredients,
-                NutritionFactsJson = productInfo.NutritionFacts != null 
-                    ? JsonSerializer.Serialize(productInfo.NutritionFacts) 
+                NutritionFactsJson = productInfo.NutritionFacts != null
+                    ? JsonSerializer.Serialize(productInfo.NutritionFacts)
                     : null,
                 Country = productInfo.Country,
                 Gs1Prefix = productInfo.Gs1Prefix,
@@ -447,9 +420,6 @@ public class BarcodeLookupService : IBarcodeLookupService
         }
     }
 
-    /// <summary>
-    /// Map database entity to DTO
-    /// </summary>
     private BarcodeProductInfo MapToProductInfo(BarcodeProduct entity)
     {
         return new BarcodeProductInfo
@@ -477,11 +447,8 @@ public class BarcodeLookupService : IBarcodeLookupService
         };
     }
 
-    /// <summary>
-    /// Lookup from Vietnam-specific Open Food Facts database
-    /// </summary>
     private async Task<BarcodeProductInfo?> LookupFromOpenFoodFactsVnAsync(
-        string barcode, 
+        string barcode,
         CancellationToken cancellationToken)
     {
         try
@@ -496,11 +463,8 @@ public class BarcodeLookupService : IBarcodeLookupService
         }
     }
 
-    /// <summary>
-    /// Lookup from global Open Food Facts database
-    /// </summary>
     private async Task<BarcodeProductInfo?> LookupFromOpenFoodFactsAsync(
-        string barcode, 
+        string barcode,
         CancellationToken cancellationToken)
     {
         try
@@ -516,16 +480,16 @@ public class BarcodeLookupService : IBarcodeLookupService
     }
 
     private async Task<BarcodeProductInfo?> FetchOpenFoodFactsAsync(
-        string url, 
-        string barcode, 
+        string url,
+        string barcode,
         string source,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("User-Agent", "CloseExpAI/1.0 (Vietnamese Product Scanner)");
-        
+
         var response = await _httpClient.SendAsync(request, cancellationToken);
-        
+
         if (!response.IsSuccessStatusCode)
         {
             return null;
@@ -540,7 +504,7 @@ public class BarcodeLookupService : IBarcodeLookupService
         }
 
         var product = offResponse.Product;
-        
+
         return new BarcodeProductInfo
         {
             Barcode = barcode,
@@ -560,22 +524,19 @@ public class BarcodeLookupService : IBarcodeLookupService
         };
     }
 
-    /// <summary>
-    /// Lookup from UPCitemdb (free tier: 100 requests/day)
-    /// </summary>
     private async Task<BarcodeProductInfo?> LookupFromUpcItemDbAsync(
-        string barcode, 
+        string barcode,
         CancellationToken cancellationToken)
     {
         try
         {
             var url = $"{UPCITEMDB_API}{barcode}";
-            
+
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "CloseExpAI/1.0");
-            
+
             var response = await _httpClient.SendAsync(request, cancellationToken);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 return null;
@@ -590,7 +551,7 @@ public class BarcodeLookupService : IBarcodeLookupService
             }
 
             var item = upcResponse.Items.First();
-            
+
             return new BarcodeProductInfo
             {
                 Barcode = barcode,
@@ -650,10 +611,10 @@ public class BarcodeLookupService : IBarcodeLookupService
 
     private static string? GetBestProductName(OpenFoodFactsProduct product)
     {
-        return product.ProductNameVi 
-            ?? product.ProductName 
-            ?? product.ProductNameEn 
-            ?? product.GenericNameVi 
+        return product.ProductNameVi
+            ?? product.ProductName
+            ?? product.ProductNameEn
+            ?? product.GenericNameVi
             ?? product.GenericName;
     }
 
@@ -700,10 +661,10 @@ internal class OpenFoodFactsResponse
 {
     [JsonPropertyName("status")]
     public int Status { get; set; }
-    
+
     [JsonPropertyName("status_verbose")]
     public string? StatusVerbose { get; set; }
-    
+
     [JsonPropertyName("product")]
     public OpenFoodFactsProduct? Product { get; set; }
 }
@@ -712,61 +673,61 @@ internal class OpenFoodFactsProduct
 {
     [JsonPropertyName("code")]
     public string? Code { get; set; }
-    
+
     [JsonPropertyName("product_name")]
     public string? ProductName { get; set; }
-    
+
     [JsonPropertyName("product_name_vi")]
     public string? ProductNameVi { get; set; }
-    
+
     [JsonPropertyName("product_name_en")]
     public string? ProductNameEn { get; set; }
-    
+
     [JsonPropertyName("generic_name")]
     public string? GenericName { get; set; }
-    
+
     [JsonPropertyName("generic_name_vi")]
     public string? GenericNameVi { get; set; }
-    
+
     [JsonPropertyName("generic_name_en")]
     public string? GenericNameEn { get; set; }
-    
+
     [JsonPropertyName("brands")]
     public string? Brands { get; set; }
-    
+
     [JsonPropertyName("categories")]
     public string? Categories { get; set; }
-    
+
     [JsonPropertyName("categories_hierarchy")]
     public List<string>? CategoriesHierarchy { get; set; }
-    
+
     [JsonPropertyName("countries")]
     public string? Countries { get; set; }
-    
+
     [JsonPropertyName("countries_hierarchy")]
     public List<string>? CountriesHierarchy { get; set; }
-    
+
     [JsonPropertyName("quantity")]
     public string? Quantity { get; set; }
-    
+
     [JsonPropertyName("image_url")]
     public string? ImageUrl { get; set; }
-    
+
     [JsonPropertyName("image_front_url")]
     public string? ImageFrontUrl { get; set; }
-    
+
     [JsonPropertyName("ingredients_text")]
     public string? IngredientsText { get; set; }
-    
+
     [JsonPropertyName("ingredients_text_vi")]
     public string? IngredientsTextVi { get; set; }
-    
+
     [JsonPropertyName("ingredients_text_en")]
     public string? IngredientsTextEn { get; set; }
-    
+
     [JsonPropertyName("manufacturer")]
     public string? ManufacturerName { get; set; }
-    
+
     [JsonPropertyName("nutriments")]
     public OpenFoodFactsNutriments? Nutriments { get; set; }
 }
@@ -775,22 +736,22 @@ internal class OpenFoodFactsNutriments
 {
     [JsonPropertyName("energy-kcal_100g")]
     public float? EnergyKcal100g { get; set; }
-    
+
     [JsonPropertyName("proteins_100g")]
     public float? Proteins100g { get; set; }
-    
+
     [JsonPropertyName("fat_100g")]
     public float? Fat100g { get; set; }
-    
+
     [JsonPropertyName("carbohydrates_100g")]
     public float? Carbohydrates100g { get; set; }
-    
+
     [JsonPropertyName("sugars_100g")]
     public float? Sugars100g { get; set; }
-    
+
     [JsonPropertyName("sodium_100g")]
     public float? Sodium100g { get; set; }
-    
+
     [JsonPropertyName("fiber_100g")]
     public float? Fiber100g { get; set; }
 }
@@ -799,10 +760,10 @@ internal class UpcItemDbResponse
 {
     [JsonPropertyName("code")]
     public string? Code { get; set; }
-    
+
     [JsonPropertyName("total")]
     public int Total { get; set; }
-    
+
     [JsonPropertyName("items")]
     public List<UpcItemDbItem>? Items { get; set; }
 }
@@ -811,22 +772,22 @@ internal class UpcItemDbItem
 {
     [JsonPropertyName("ean")]
     public string? Ean { get; set; }
-    
+
     [JsonPropertyName("title")]
     public string? Title { get; set; }
-    
+
     [JsonPropertyName("description")]
     public string? Description { get; set; }
-    
+
     [JsonPropertyName("brand")]
     public string? Brand { get; set; }
-    
+
     [JsonPropertyName("category")]
     public string? Category { get; set; }
-    
+
     [JsonPropertyName("weight")]
     public string? Weight { get; set; }
-    
+
     [JsonPropertyName("images")]
     public List<string>? Images { get; set; }
 }

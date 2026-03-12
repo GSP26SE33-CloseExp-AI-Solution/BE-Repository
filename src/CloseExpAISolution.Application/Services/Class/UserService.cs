@@ -268,7 +268,7 @@ public class UserService : IUserService
     /// <summary>Lấy thông tin MarketStaff và Supermarket theo UserId</summary>
     private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
     {
-        var marketStaff = await _unitOfWork.Repository<MarketStaff>()
+        var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
             .FirstOrDefaultAsync(ms => ms.UserId == userId);
 
         if (marketStaff == null)
@@ -279,7 +279,7 @@ public class UserService : IUserService
 
         return new MarketStaffInfoDto
         {
-            MarketStaffId = marketStaff.MarketStaffId,
+            MarketStaffId = marketStaff.SupermarketStaffId,
             Position = marketStaff.Position,
             JoinedAt = marketStaff.CreatedAt,
             Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto

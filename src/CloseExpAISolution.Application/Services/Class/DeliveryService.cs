@@ -37,8 +37,8 @@ public class DeliveryService : IDeliveryService
         var result = new List<DeliveryGroupSummaryDto>();
         foreach (var group in groups.OrderBy(g => g.DeliveryDate).ThenBy(g => g.CreatedAt))
         {
-            var timeSlot = await _unitOfWork.Repository<TimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
+            var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
@@ -102,8 +102,8 @@ public class DeliveryService : IDeliveryService
         var result = new List<DeliveryGroupSummaryDto>();
         foreach (var group in pagedGroups)
         {
-            var timeSlot = await _unitOfWork.Repository<TimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
+            var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
@@ -278,24 +278,21 @@ public class DeliveryService : IDeliveryService
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            // Update order status → Delivered (Pending Confirmation)
             order.Status = OrderState.Delivered_Wait_Confirm.ToString();
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
 
-            // Create delivery record
-            var deliveryRecord = new DeliveryRecord
+            var deliveryRecord = new DeliveryLog
             {
                 DeliveryId = Guid.NewGuid(),
                 OrderId = orderId,
                 UserId = deliveryStaffId,
                 Status = DeliveryState.Delivered_Wait_Confirm.ToString(),
                 DeliveredAt = DateTime.UtcNow,
-                FailureReason = null
+                FailedReason = null
             };
-            await _unitOfWork.Repository<DeliveryRecord>().AddAsync(deliveryRecord);
+            await _unitOfWork.Repository<DeliveryLog>().AddAsync(deliveryRecord);
 
-            // Send notification to customer
             var notification = new Notification
             {
                 NotificationId = Guid.NewGuid(),
@@ -349,24 +346,21 @@ public class DeliveryService : IDeliveryService
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            // Update order status → Failed
             order.Status = OrderState.Failed.ToString();
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
 
-            // Create delivery record
-            var deliveryRecord = new DeliveryRecord
+            var deliveryRecord = new DeliveryLog
             {
                 DeliveryId = Guid.NewGuid(),
                 OrderId = orderId,
                 UserId = deliveryStaffId,
                 Status = DeliveryState.Failed.ToString(),
-                FailureReason = request.FailureReason,
+                FailedReason = request.FailureReason,
                 DeliveredAt = null
             };
-            await _unitOfWork.Repository<DeliveryRecord>().AddAsync(deliveryRecord);
+            await _unitOfWork.Repository<DeliveryLog>().AddAsync(deliveryRecord);
 
-            // Notify customer about failed delivery
             var notification = new Notification
             {
                 NotificationId = Guid.NewGuid(),
@@ -399,7 +393,7 @@ public class DeliveryService : IDeliveryService
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var records = await _unitOfWork.Repository<DeliveryRecord>()
+        var records = await _unitOfWork.Repository<DeliveryLog>()
             .FindAsync(dr => dr.UserId == deliveryStaffId);
 
         var filtered = records.AsEnumerable();
@@ -433,7 +427,7 @@ public class DeliveryService : IDeliveryService
                 UserId = record.UserId,
                 DeliveryStaffName = staff?.FullName ?? "N/A",
                 Status = record.Status,
-                FailureReason = record.FailureReason,
+                FailureReason = record.FailedReason,
                 DeliveredAt = record.DeliveredAt
             });
         }
@@ -454,7 +448,7 @@ public class DeliveryService : IDeliveryService
         var groups = await _unitOfWork.Repository<DeliveryGroup>()
             .FindAsync(g => g.DeliveryStaffId == deliveryStaffId);
 
-        var records = await _unitOfWork.Repository<DeliveryRecord>()
+        var records = await _unitOfWork.Repository<DeliveryLog>()
             .FindAsync(dr => dr.UserId == deliveryStaffId);
 
         var recordList = records.ToList();
@@ -463,7 +457,6 @@ public class DeliveryService : IDeliveryService
         var failedCount = recordList.Count(r => r.Status == DeliveryState.Failed.ToString());
         var totalOrders = recordList.Count;
 
-        // Count orders currently in transit
         var assignedGroups = groups.Where(g => g.Status == "InTransit" || g.Status == "Assigned").ToList();
         var inTransitCount = 0;
         foreach (var g in assignedGroups)
@@ -514,7 +507,6 @@ public class DeliveryService : IDeliveryService
         if (group.Status != "InTransit")
             throw new InvalidOperationException("Nhóm giao hàng phải đang trong quá trình giao để hoàn thành.");
 
-        // Check all orders in group are processed (delivered or failed)
         var orders = await _unitOfWork.Repository<Order>()
             .FindAsync(o => o.DeliveryGroupId == deliveryGroupId);
 
@@ -541,8 +533,8 @@ public class DeliveryService : IDeliveryService
 
     private async Task<DeliveryGroupResponseDto> MapToDeliveryGroupResponseAsync(DeliveryGroup group)
     {
-        var timeSlot = await _unitOfWork.Repository<TimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
+        var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
         var staff = group.DeliveryStaffId.HasValue
             ? await _unitOfWork.Repository<User>()
@@ -569,7 +561,7 @@ public class DeliveryService : IDeliveryService
             GroupCode = group.GroupCode,
             DeliveryStaffId = group.DeliveryStaffId,
             DeliveryStaffName = staff?.FullName,
-            TimeSlotId = group.TimeSlotId,
+            DeliveryTimeSlotId = group.TimeSlotId,
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
                 : "N/A",
@@ -592,36 +584,34 @@ public class DeliveryService : IDeliveryService
         var customer = await _unitOfWork.Repository<User>()
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
 
-        var timeSlot = await _unitOfWork.Repository<TimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.TimeSlotId == order.TimeSlotId);
+        var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.TimeSlotId);
 
-        // Get pickup point or door pickup info
         string? pickupPointName = null;
         string? pickupPointAddress = null;
 
         if (order.PickupPointId.HasValue)
         {
-            var pickupPoint = await _unitOfWork.Repository<PickupPoint>()
+            var pickupPoint = await _unitOfWork.Repository<CollectionPoint>()
                 .FirstOrDefaultAsync(pp => pp.PickupPointId == order.PickupPointId.Value);
             pickupPointName = pickupPoint?.Name;
             pickupPointAddress = pickupPoint?.Address;
         }
-        else if (order.DoorPickupId.HasValue)
+        else
         {
-            var doorPickup = await _unitOfWork.Repository<DoorPickup>()
-                .FirstOrDefaultAsync(dp => dp.DoorPickupId == order.DoorPickupId.Value);
-            pickupPointName = doorPickup?.Name;
-            pickupPointAddress = doorPickup?.Address;
+            var customerAddress = await _unitOfWork.Repository<CustomerAddress>()
+                .FirstOrDefaultAsync(ca => ca.CustomerAddressId == order.AddressId);
+            pickupPointName = customerAddress?.RecipientName;
+            pickupPointAddress = customerAddress?.AddressLine;
         }
 
-        // Get order items
         var orderItems = await _unitOfWork.Repository<OrderItem>()
             .FindAsync(oi => oi.OrderId == order.OrderId);
 
         var itemDtos = new List<DeliveryOrderItemDto>();
         foreach (var item in orderItems)
         {
-            var lot = await _unitOfWork.Repository<ProductLot>()
+            var lot = await _unitOfWork.Repository<StockLot>()
                 .FirstOrDefaultAsync(pl => pl.LotId == item.LotId);
 
             string productName = "N/A";

@@ -1,8 +1,5 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-/// <summary>
-/// Category entity per ER diagram. Products belong to a category.
-/// </summary>
 public class Category
 {
     public Guid CategoryId { get; set; }

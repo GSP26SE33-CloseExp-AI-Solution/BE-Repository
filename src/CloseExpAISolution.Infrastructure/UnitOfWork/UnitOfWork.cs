@@ -14,7 +14,7 @@ public class UnitOfWork : IUnitOfWork
     private IDbContextTransaction? _transaction;
     //Khai báo Interface ở đây!
     private IProductRepository? _productRepository;
-    private IMarketStaffRepository? _marketStaffRepository;
+    private ISupermarketStaffRepository? _supermarketStaffRepository;
     private ISupermarketRepository? _supermarketRepository;
     private IProductImageRepository? _productImageRepository;
     private IAIVerificationLogRepository? _aIVerificationLogRepository;
@@ -29,7 +29,7 @@ public class UnitOfWork : IUnitOfWork
     }
     //Đăng ký sử dụng repo ở đây!
     public IProductRepository ProductRepository => _productRepository ??= new ProductRepository(_context);
-    public IMarketStaffRepository MarketStaffRepository => _marketStaffRepository ??= new MarketStaffRepository(_context);
+    public ISupermarketStaffRepository SupermarketStaffRepository => _supermarketStaffRepository ??= new SupermarketStaffRepository(_context);
     public ISupermarketRepository SupermarketRepository => _supermarketRepository ??= new SupermarketRepository(_context);
     public IProductImageRepository ProductImageRepository => _productImageRepository ??= new ProductImageRepository(_context);
     public IAIVerificationLogRepository AIVerificationLogRepository => _aIVerificationLogRepository ??= new AIVerificationLogRepository(_context);

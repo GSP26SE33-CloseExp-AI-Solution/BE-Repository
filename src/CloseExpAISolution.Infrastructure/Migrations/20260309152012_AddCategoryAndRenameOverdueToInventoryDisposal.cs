@@ -44,9 +44,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 name: "StorageInstructions",
                 table: "Products");
 
-            migrationBuilder.DropColumn(
-                name: "Weight",
-                table: "ProductLots");
+            migrationBuilder.Sql("ALTER TABLE \"ProductLots\" DROP COLUMN IF EXISTS \"Weight\";");
 
             migrationBuilder.RenameColumn(
                 name: "UsageInstructions",

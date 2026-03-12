@@ -1,12 +1,12 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-public class DeliveryRecord
+public class DeliveryLog
 {
     public Guid DeliveryId { get; set; }
     public Guid OrderId { get; set; }
     public Guid UserId { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string? FailureReason { get; set; }
+    public string? FailedReason { get; set; }
     public DateTime? DeliveredAt { get; set; }
 
 

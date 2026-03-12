@@ -9,7 +9,7 @@ public class ProductImageDto
     public Guid ProductImageId { get; set; }
     public Guid ProductId { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
-    public DateTime UploadedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 }
 
 public class ProductResponseDto
@@ -140,7 +140,7 @@ public class CreateNewProductResponseDto
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public string NextAction { get; set; } = "VERIFY_PRODUCT";
-    public string NextActionDescription { get; set; } = "Xác nhận thông tin sản phẩm trước khi tạo ProductLot";
+    public string NextActionDescription { get; set; } = "Xác nhận thông tin sản phẩm trước khi tạo StockLot";
 }
 
 public class OcrAnalysisResponseDto
@@ -167,7 +167,7 @@ public class OcrExtractedInfoDto
     public Dictionary<string, string>? NutritionFacts { get; set; }
 }
 
-public class ProductLotResponseDto
+public class StockLotResponseDto
 {
     public Guid LotId { get; set; }
     public Guid ProductId { get; set; }

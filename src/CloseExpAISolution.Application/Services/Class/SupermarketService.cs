@@ -84,7 +84,7 @@ public class SupermarketService : ISupermarketService
         var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
 
         // Lấy danh sách SupermarketId đã có nhân viên đăng ký
-        var registeredSupermarketIds = (await _unitOfWork.Repository<MarketStaff>()
+        var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
             .Select(ms => ms.SupermarketId)
             .ToHashSet();
@@ -106,7 +106,7 @@ public class SupermarketService : ISupermarketService
         var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
         
         // Lấy danh sách SupermarketId đã có nhân viên
-        var registeredSupermarketIds = (await _unitOfWork.Repository<MarketStaff>()
+        var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
             .Select(ms => ms.SupermarketId)
             .ToHashSet();

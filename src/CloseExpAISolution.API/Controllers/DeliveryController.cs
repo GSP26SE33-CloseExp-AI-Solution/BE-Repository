@@ -30,10 +30,6 @@ public class DeliveryController : ControllerBase
         return userId;
     }
 
-    /// <summary>
-    /// Lấy danh sách nhóm giao hàng khả dụng (chưa có shipper nhận)
-    /// </summary>
-    /// <param name="deliveryDate">Lọc theo ngày giao (yyyy-MM-dd)</param>
     [HttpGet("groups/available")]
     public async Task<ActionResult<ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>>> GetAvailableGroups(
         [FromQuery] DateTime? deliveryDate = null)
@@ -50,13 +46,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Lấy danh sách nhóm giao hàng của tôi (đã nhận)
-    /// </summary>
-    /// <param name="status">Lọc theo trạng thái: Assigned, InTransit, Completed</param>
-    /// <param name="deliveryDate">Lọc theo ngày giao (yyyy-MM-dd)</param>
-    /// <param name="pageNumber">Số trang (mặc định: 1)</param>
-    /// <param name="pageSize">Kích thước trang (mặc định: 20)</param>
     [HttpGet("groups/my")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>>> GetMyGroups(
         [FromQuery] string? status = null,
@@ -96,9 +85,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Xem chi tiết nhóm giao hàng (bao gồm danh sách đơn hàng)
-    /// </summary>
     [HttpGet("groups/{deliveryGroupId:guid}")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> GetGroupDetail(Guid deliveryGroupId)
     {
@@ -117,9 +103,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Nhận nhóm giao hàng (shipper nhận giao)
-    /// </summary>
     [HttpPost("groups/{deliveryGroupId:guid}/accept")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> AcceptGroup(
         Guid deliveryGroupId,
@@ -152,9 +135,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Bắt đầu giao hàng (chuyển nhóm sang trạng thái InTransit)
-    /// </summary>
     [HttpPost("groups/{deliveryGroupId:guid}/start")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> StartDelivery(
         Guid deliveryGroupId,
@@ -187,9 +167,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Hoàn thành nhóm giao hàng (tất cả đơn đã xử lý)
-    /// </summary>
     [HttpPost("groups/{deliveryGroupId:guid}/complete")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> CompleteGroup(Guid deliveryGroupId)
     {
@@ -220,9 +197,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Xem chi tiết đơn hàng cần giao
-    /// </summary>
     [HttpGet("orders/{orderId:guid}")]
     public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> GetOrderDetail(Guid orderId)
     {
@@ -241,9 +215,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Xác nhận đã giao hàng thành công (chuyển sang chờ khách xác nhận)
-    /// </summary>
     [HttpPost("orders/{orderId:guid}/confirm-delivery")]
     public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ConfirmDelivery(
         Guid orderId,
@@ -275,9 +246,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Báo cáo giao hàng thất bại
-    /// </summary>
     [HttpPost("orders/{orderId:guid}/report-failure")]
     public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ReportFailure(
         Guid orderId,
@@ -309,14 +277,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Lấy lịch sử giao hàng của tôi
-    /// </summary>
-    /// <param name="fromDate">Từ ngày (yyyy-MM-dd)</param>
-    /// <param name="toDate">Đến ngày (yyyy-MM-dd)</param>
-    /// <param name="status">Lọc theo trạng thái</param>
-    /// <param name="pageNumber">Số trang (mặc định: 1)</param>
-    /// <param name="pageSize">Kích thước trang (mặc định: 20)</param>
     [HttpGet("history")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryRecordResponseDto>>>> GetDeliveryHistory(
         [FromQuery] DateTime? fromDate = null,
@@ -357,9 +317,6 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Lấy thống kê giao hàng của tôi
-    /// </summary>
     [HttpGet("stats")]
     public async Task<ActionResult<ApiResponse<DeliveryStatsResponseDto>>> GetMyStats()
     {

@@ -8,7 +8,7 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
 {
 
     IProductRepository ProductRepository { get; }
-    IMarketStaffRepository MarketStaffRepository { get; }
+    ISupermarketStaffRepository SupermarketStaffRepository { get; }
     ISupermarketRepository SupermarketRepository { get; }
     IProductImageRepository ProductImageRepository { get; }
     IAIVerificationLogRepository AIVerificationLogRepository { get; }

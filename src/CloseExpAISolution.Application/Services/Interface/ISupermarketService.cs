@@ -28,4 +28,3 @@ public interface ISupermarketService
     Task UpdateSupermarketAsync(Guid id, UpdateSupermarketRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteSupermarketAsync(Guid id, CancellationToken cancellationToken = default);
 }
-
