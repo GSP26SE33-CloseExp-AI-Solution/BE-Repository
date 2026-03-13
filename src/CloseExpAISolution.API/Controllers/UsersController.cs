@@ -231,7 +231,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserImageResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<UserImageResponseDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadMyImage(
-        IFormFile file, 
+        IFormFile file,
         [FromQuery] string imageType = "avatar",
         [FromQuery] bool setAsPrimary = true)
     {
