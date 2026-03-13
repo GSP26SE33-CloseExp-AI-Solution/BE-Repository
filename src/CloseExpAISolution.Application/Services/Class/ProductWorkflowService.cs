@@ -79,7 +79,7 @@ public class ProductWorkflowService : IProductWorkflowService
             if (!string.IsNullOrEmpty(request.Detail.Manufacturer)) detail.Manufacturer = request.Detail.Manufacturer;
             if (!string.IsNullOrEmpty(request.Detail.Origin)) detail.Origin = request.Detail.Origin;
             if (!string.IsNullOrEmpty(request.Detail.Description)) detail.Description = request.Detail.Description;
-            if (!string.IsNullOrEmpty(request.Detail.SafetyWarnings)) detail.SafetyWarnings = request.Detail.SafetyWarnings;
+            if (!string.IsNullOrEmpty(request.Detail.SafetyWarnings)) detail.SafetyWarning = request.Detail.SafetyWarnings;
         }
 
         if (!string.IsNullOrEmpty(request.CategoryName))
@@ -904,7 +904,7 @@ public class ProductWorkflowService : IProductWorkflowService
             Description = request.Detail.Description,
             StorageInstructions = request.Detail.StorageInstructions,
             UsageInstructions = request.Detail.UsageInstructions,
-            SafetyWarnings = request.Detail.SafetyWarnings
+            SafetyWarning = request.Detail.SafetyWarnings
         };
         await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
 

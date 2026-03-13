@@ -10,6 +10,6 @@ public class OrderItem
     public decimal TotalPrice { get; set; }
 
     public Order? Order { get; set; }
-    public ProductLot? ProductLot { get; set; }
+    public StockLot? StockLot { get; set; }
 }
 

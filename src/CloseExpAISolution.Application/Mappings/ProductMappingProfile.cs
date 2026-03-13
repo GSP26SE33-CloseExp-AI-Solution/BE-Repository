@@ -57,7 +57,7 @@ public class ProductMappingProfile : Profile
                 ? src.StockLots.OrderByDescending(pl => pl.ExpiryDate).First().ExpiryDate.ToString("dd/MM/yyyy")
                 : "Xem trên bao bì"))
             .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Manufacturer ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
-            .ForMember(dest => dest.SafetyWarning, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.SafetyWarnings ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
+            .ForMember(dest => dest.SafetyWarning, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.SafetyWarning ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.Distributor, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Distributor ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseNutritionFacts(src.ProductDetail.NutritionFacts) : null))
             .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.CategoryRef != null ? src.CategoryRef.Name ?? "" : ""))

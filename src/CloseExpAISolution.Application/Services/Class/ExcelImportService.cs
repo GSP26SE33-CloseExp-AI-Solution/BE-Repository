@@ -26,7 +26,7 @@ public class ExcelImportService : IExcelImportService
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
     }
 
-    public async Task<ExcelPreviewResponseDto> PreviewExcelAsync(
+    public Task<ExcelPreviewResponseDto> PreviewExcelAsync(
         Stream fileStream,
         int headerRow = 0,
         int previewRows = 5,
@@ -88,7 +88,7 @@ public class ExcelImportService : IExcelImportService
             response.PreviewData.Add(rowData);
         }
 
-        return response;
+        return Task.FromResult(response);
     }
 
     public async Task<ExcelImportResponseDto> ImportProductsAsync(

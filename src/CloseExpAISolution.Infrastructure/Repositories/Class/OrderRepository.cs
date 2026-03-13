@@ -26,10 +26,9 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.User)
             .Include(o => o.TimeSlot)
             .Include(o => o.PickupPoint)
-            .Include(o => o.DoorPickup)
             .Include(o => o.Promotion)
             .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.ProductLot)
+                .ThenInclude(oi => oi.StockLot)
                     .ThenInclude(pl => pl!.Product)
             .FirstOrDefaultAsync(o => o.OrderId == orderId, cancellationToken);
     }

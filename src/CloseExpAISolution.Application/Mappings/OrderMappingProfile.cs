@@ -10,9 +10,9 @@ public class OrderMappingProfile : Profile
     {
         CreateMap<OrderItem, OrderItemResponseDto>()
             .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src =>
-                src.ProductLot != null && src.ProductLot.Product != null ? src.ProductLot.Product.Name : null))
+                src.StockLot != null && src.StockLot.Product != null ? src.StockLot.Product.Name : null))
             .ForMember(dest => dest.ExpiryDate, opt => opt.MapFrom(src =>
-                src.ProductLot != null ? src.ProductLot.ExpiryDate : (DateTime?)null));
+                src.StockLot != null ? src.StockLot.ExpiryDate : (DateTime?)null));
 
         CreateMap<Order, OrderResponseDto>()
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? src.User.FullName ?? src.User.Email : null))

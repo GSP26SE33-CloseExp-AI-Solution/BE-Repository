@@ -59,7 +59,6 @@ public class OrderService : IOrderService
             TotalAmount = request.TotalAmount,
             Status = request.Status,
             OrderDate = DateTime.UtcNow,
-            DoorPickupId = request.DoorPickupId,
             PromotionId = request.PromotionId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -94,7 +93,6 @@ public class OrderService : IOrderService
         if (request.DeliveryType != null) order.DeliveryType = request.DeliveryType;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
         if (request.Status != null) order.Status = request.Status;
-        if (request.DoorPickupId.HasValue) order.DoorPickupId = request.DoorPickupId;
         if (request.PromotionId.HasValue) order.PromotionId = request.PromotionId;
 
         if (request.OrderItems != null && request.OrderItems.Count > 0)
