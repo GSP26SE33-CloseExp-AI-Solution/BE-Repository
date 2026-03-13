@@ -12,9 +12,6 @@ using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.AIService.Clients;
 
-/// <summary>
-/// HTTP client for AI Service communication with retry, caching, and circuit breaker
-/// </summary>
 public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
 {
     private readonly HttpClient _httpClient;
@@ -23,7 +20,6 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     private readonly ILogger<AIServiceClient> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    // Circuit breaker state
     private int _failureCount;
     private DateTime _circuitOpenTime;
     private readonly object _circuitLock = new();
@@ -142,7 +138,6 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     {
         ValidatePricingRequest(request);
 
-        // Try cache first
         string cacheKey = GeneratePricingCacheKey(request);
         if (_settings.EnableCaching && _cache.TryGetValue(cacheKey, out PricingResponse? cached))
         {
@@ -155,7 +150,6 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
             request,
             cancellationToken);
 
-        // Cache successful response
         if (response != null && _settings.EnableCaching)
         {
             var cacheOptions = new MemoryCacheEntryOptions()
@@ -350,9 +344,6 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
         }
     }
 
-    /// <summary>
-    /// Determine scan type based on hint and vision results
-    /// </summary>
     private static string DetermineScanType(string hint, VisionResponse? visionResult)
     {
         // If explicit hint, use it
@@ -378,9 +369,6 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
         return "packaged";
     }
 
-    /// <summary>
-    /// Check if barcode is Vietnamese (GS1 prefix 893)
-    /// </summary>
     private static bool IsVietnameseBarcode(string barcode)
     {
         if (string.IsNullOrEmpty(barcode)) return false;
@@ -392,7 +380,6 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
 
     #region Market Price Operations
 
-    /// <inheritdoc />
     public async Task<MarketPriceCrawlResponse?> CrawlMarketPricesAsync(
         string barcode,
         string? productName = null,
@@ -546,7 +533,7 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     private async Task<T?> SendRequestAsync<T>(string endpoint, object request, CancellationToken cancellationToken) where T : class
     {
         var json = JsonSerializer.Serialize(request, _jsonOptions);
-        
+
         if (_settings.EnableLogging)
         {
             _logger.LogDebug("AI Service Request to {Endpoint}: {Request}", endpoint, json);
@@ -559,7 +546,7 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
 
         if (_settings.EnableLogging)
         {
-            _logger.LogDebug("AI Service Response from {Endpoint} ({StatusCode}): {Response}", 
+            _logger.LogDebug("AI Service Response from {Endpoint} ({StatusCode}): {Response}",
                 endpoint, response.StatusCode, responseBody);
         }
 
@@ -567,10 +554,10 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
         {
             var error = JsonSerializer.Deserialize<AIServiceError>(responseBody, _jsonOptions);
             var errorMessage = error?.Error?.Message ?? $"AI Service returned {response.StatusCode}";
-            
-            _logger.LogError("AI Service error from {Endpoint}: {ErrorCode} - {ErrorMessage}", 
+
+            _logger.LogError("AI Service error from {Endpoint}: {ErrorCode} - {ErrorMessage}",
                 endpoint, error?.Error?.Code, errorMessage);
-            
+
             throw new HttpRequestException(errorMessage, null, response.StatusCode);
         }
 
@@ -579,7 +566,7 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
 
     private static bool IsTransientError(HttpRequestException ex)
     {
-        return ex.StatusCode is 
+        return ex.StatusCode is
             HttpStatusCode.RequestTimeout or
             HttpStatusCode.BadGateway or
             HttpStatusCode.ServiceUnavailable or
@@ -651,10 +638,10 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     {
         if (string.IsNullOrEmpty(request.ProductType))
             throw new ArgumentException("ProductType is required");
-        
+
         if (request.DaysToExpire < 0)
             throw new ArgumentException("DaysToExpire cannot be negative");
-        
+
         if (request.BasePrice <= 0)
             throw new ArgumentException("BasePrice must be positive");
     }

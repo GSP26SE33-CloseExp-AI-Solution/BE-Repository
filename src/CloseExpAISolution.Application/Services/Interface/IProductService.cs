@@ -24,21 +24,7 @@ public interface IProductService
     Task<ProductResponseDto> CreateProductAsync(CreateProductRequestDto request, CancellationToken cancellationToken = default);
     Task UpdateProductAsync(Guid id, UpdateProductRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteProductAsync(Guid id, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Lấy danh sách ProductLot theo siêu thị với filter và tính toán trạng thái hạn sử dụng
-    /// </summary>
-    Task<(IEnumerable<ProductLotDetailDto> Items, int TotalCount)> GetProductLotsBySupermarketAsync(ProductLotFilterDto filter);
-
-    /// <summary>
-    /// Lấy danh sách Product theo SupermarketId với pagination
-    /// </summary>
+    Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(StockLotFilterDto filter);
     Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(Guid supermarketId, string? searchTerm = null, string? category = null, int pageNumber = 1, int pageSize = 20);
-
-    /// <summary>
-    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm)
-    /// Bao gồm: thông tin dinh dưỡng, hướng dẫn sử dụng, bảo quản, xuất xứ, nhà sản xuất...
-    /// </summary>
     Task<ProductDetailDto?> GetProductDetailAsync(Guid productId);
 }
-

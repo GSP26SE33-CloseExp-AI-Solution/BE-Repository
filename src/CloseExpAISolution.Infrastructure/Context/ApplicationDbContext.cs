@@ -13,28 +13,30 @@ public class ApplicationDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserImage> UserImages => Set<UserImage>();
-    public DbSet<Feedback> Feedbacks => Set<Feedback>();
+    public DbSet<CustomerFeedback> Feedbacks => Set<CustomerFeedback>();
     public DbSet<Notification> Notifications => Set<Notification>();
-    public DbSet<DeliveryRecord> DeliveryRecords => Set<DeliveryRecord>();
+    public DbSet<DeliveryLog> DeliveryLogs => Set<DeliveryLog>();
     public DbSet<Supermarket> Supermarkets => Set<Supermarket>();
-    public DbSet<MarketStaff> MarketStaff => Set<MarketStaff>();
+    public DbSet<SupermarketStaff> SupermarketStaffs => Set<SupermarketStaff>();
     public DbSet<Product> Products => Set<Product>();
-    public DbSet<Pricing> Pricings => Set<Pricing>();
+    public DbSet<ProductDetail> ProductDetails => Set<ProductDetail>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
-    public DbSet<ProductLot> ProductLots => Set<ProductLot>();
-    public DbSet<Unit> Units => Set<Unit>();
-    public DbSet<OverdueRecord> OverdueRecords => Set<OverdueRecord>();
-    public DbSet<AIPriceHistory> AIPriceHistories => Set<AIPriceHistory>();
+    public DbSet<StockLot> StockLots => Set<StockLot>();
+    public DbSet<UnitOfMeasure> Units => Set<UnitOfMeasure>();
+    public DbSet<InventoryDisposal> InventoryDisposals => Set<InventoryDisposal>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<PricingHistory> AIPriceHistories => Set<PricingHistory>();
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
-    public DbSet<PackagingRecord> PackagingRecords => Set<PackagingRecord>();
-    public DbSet<TimeSlot> TimeSlots => Set<TimeSlot>();
-    public DbSet<PickupPoint> PickupPoints => Set<PickupPoint>();
-    public DbSet<DoorPickup> DoorPickups => Set<DoorPickup>();
+    public DbSet<OrderPackaging> PackagingRecords => Set<OrderPackaging>();
+    public DbSet<DeliveryTimeSlot> TimeSlots => Set<DeliveryTimeSlot>();
+    public DbSet<CollectionPoint> PickupPoints => Set<CollectionPoint>();
+    public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
-    public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+    public DbSet<DeliveryGroup> DeliveryGroups => Set<DeliveryGroup>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<BarcodeProduct> BarcodeProducts => Set<BarcodeProduct>();
     public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
@@ -47,21 +49,23 @@ public class ApplicationDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
         modelBuilder.Entity<AIVerificationLog>().HasKey(x => x.VerificationId);
-        modelBuilder.Entity<DeliveryRecord>().HasKey(x => x.DeliveryId);
+        modelBuilder.Entity<DeliveryLog>().HasKey(x => x.DeliveryId);
         modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
-        modelBuilder.Entity<PackagingRecord>().HasKey(x => x.PackagingId);
+        modelBuilder.Entity<OrderPackaging>().HasKey(x => x.PackagingId);
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
-        modelBuilder.Entity<ProductLot>().HasKey(x => x.LotId);
-        modelBuilder.Entity<OverdueRecord>().HasKey(x => x.OverdueId);
-        modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
-        modelBuilder.Entity<Unit>().HasKey(x => x.UnitId);
-        modelBuilder.Entity<Pricing>().HasKey(x => x.PricingId);
-
-        modelBuilder.Entity<Pricing>()
-            .HasOne(pr => pr.Product)
-            .WithOne(p => p.Pricing)
-            .HasForeignKey<Pricing>(pr => pr.ProductId)
-            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(u => u.OtpCode).HasMaxLength(100);
+            entity.Property(u => u.GoogleId).HasMaxLength(200);
+            entity.HasIndex(u => u.GoogleId).IsUnique().HasFilter("\"GoogleId\" IS NOT NULL");
+        });
+        modelBuilder.Entity<StockLot>().HasKey(x => x.LotId);
+        modelBuilder.Entity<PricingHistory>().HasKey(x => x.AIPriceId);
+        modelBuilder.Entity<InventoryDisposal>().HasKey(x => x.DisposalId);
+        modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
+        // modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
+        modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
+        modelBuilder.Entity<CollectionPoint>().HasKey(x => x.PickupPointId);
 
         modelBuilder.Entity<Product>()
             .HasOne(p => p.Unit)
@@ -69,31 +73,79 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(p => p.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<ProductLot>()
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.ProductDetail)
+            .WithOne(pd => pd.Product)
+            .HasForeignKey<ProductDetail>(pd => pd.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.CategoryRef)
+            .WithMany(c => c.Products)
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StockLot>()
             .HasOne(pl => pl.Product)
-            .WithMany(p => p.ProductLots)
+            .WithMany(p => p.StockLots)
             .HasForeignKey(pl => pl.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<ProductLot>()
-            .Ignore(pl => pl.Weight);
+        modelBuilder.Entity<StockLot>()
+            .HasOne(pl => pl.Unit)
+            .WithMany()
+            .HasForeignKey(pl => pl.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<OverdueRecord>()
-            .HasOne(or => or.ProductLot)
-            .WithMany(pl => pl.OverdueRecords)
-            .HasForeignKey(or => or.LotId)
+        modelBuilder.Entity<InventoryDisposal>()
+            .HasOne(id => id.StockLot)
+            .WithMany(pl => pl.InventoryDisposals)
+            .HasForeignKey(id => id.LotId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<AIPriceHistory>()
-            .HasOne(aph => aph.ProductLot)
+        modelBuilder.Entity<Category>()
+            .HasOne(c => c.ParentCategory)
+            .WithMany(c => c.ChildCategories)
+            .HasForeignKey(c => c.ParentCatId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PricingHistory>()
+            .HasOne(aph => aph.StockLot)
             .WithMany(pl => pl.AIPriceHistories)
             .HasForeignKey(aph => aph.LotId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<OrderItem>()
-            .HasOne(oi => oi.ProductLot)
+            .HasOne(oi => oi.StockLot)
             .WithMany(pl => pl.OrderItems)
             .HasForeignKey(oi => oi.LotId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<DeliveryGroup>().HasKey(dg => dg.DeliveryGroupId);
+        modelBuilder.Entity<DeliveryGroup>()
+            .HasOne(dg => dg.DeliveryStaff)
+            .WithMany()
+            .HasForeignKey(dg => dg.DeliveryStaffId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<DeliveryGroup>()
+            .HasOne(dg => dg.TimeSlot)
+            .WithMany()
+            .HasForeignKey(dg => dg.TimeSlotId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.DeliveryGroup)
+            .WithMany(dg => dg.Orders)
+            .HasForeignKey(o => o.DeliveryGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.CustomerAddress)
+            .WithMany()
+            .HasForeignKey(o => o.AddressId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CustomerAddress>()
+            .HasOne(c => c.User)
+            .WithMany()
+            .HasForeignKey(c => c.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<BarcodeProduct>().HasKey(bp => bp.BarcodeProductId);

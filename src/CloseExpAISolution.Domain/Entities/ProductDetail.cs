@@ -1,0 +1,21 @@
+namespace CloseExpAISolution.Domain.Entities;
+
+public class ProductDetail
+{
+    public Guid ProductDetailId { get; set; }
+    public Guid ProductId { get; set; }
+
+    public string? Brand { get; set; }
+    public string? Ingredients { get; set; }
+    public string? NutritionFacts { get; set; }
+    public string? Origin { get; set; }
+    public string? CountryOfOrigin { get; set; }
+    public string? Description { get; set; }
+    public string? UsageInstructions { get; set; }
+    public string? StorageInstructions { get; set; }
+    public string? SafetyWarnings { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? Distributor { get; set; }
+
+    public Product? Product { get; set; }
+}

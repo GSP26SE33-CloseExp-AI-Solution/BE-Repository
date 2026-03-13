@@ -42,7 +42,7 @@ public static class DataSeeder
     private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
     private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
 
-    // Product GUIDs (để có thể tạo ProductLots)
+    // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
     private static readonly Guid Product2Id = Guid.Parse("bbbb0002-0002-0002-0002-000000000002");
     private static readonly Guid Product3Id = Guid.Parse("bbbb0003-0003-0003-0003-000000000003");
@@ -77,12 +77,7 @@ public static class DataSeeder
         await SeedMarketStaffAsync(context);  // Liên kết SupplierStaff với Supermarket
         await SeedUnitsAsync(context);        // Seed đơn vị tính
         await SeedProductsAsync(context);
-        await SeedProductLotsAsync(context);  // Seed lô hàng
-        await SeedTimeSlotsAsync(context);
-        await SeedPickupPointsAsync(context);
-        await SeedDoorPickupsAsync(context);
-        await SeedPromotionsAsync(context);
-        await SeedOrdersAndOrderItemsAsync(context);
+        await SeedStockLotsAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -116,7 +111,7 @@ public static class DataSeeder
                 Phone = "0912345678",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 1,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -131,7 +126,7 @@ public static class DataSeeder
                 Phone = "0912111111",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -144,7 +139,7 @@ public static class DataSeeder
                 Phone = "0912222222",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -159,7 +154,7 @@ public static class DataSeeder
                 Phone = "0917123456",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 2,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -174,7 +169,7 @@ public static class DataSeeder
                 Phone = "0913333333",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -187,7 +182,7 @@ public static class DataSeeder
                 Phone = "0913444444",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -202,7 +197,7 @@ public static class DataSeeder
                 Phone = "0917234567",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 3,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -217,7 +212,7 @@ public static class DataSeeder
                 Phone = "0914555555",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -230,7 +225,7 @@ public static class DataSeeder
                 Phone = "0914666666",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -245,7 +240,7 @@ public static class DataSeeder
                 Phone = "0917345678",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 4,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -260,7 +255,7 @@ public static class DataSeeder
                 Phone = "0915777777",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 5,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -273,7 +268,7 @@ public static class DataSeeder
                 Phone = "0915888888",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 5,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -288,7 +283,7 @@ public static class DataSeeder
                 Phone = "0917456789",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 5,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -303,7 +298,7 @@ public static class DataSeeder
                 Phone = "0916999999",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -316,7 +311,7 @@ public static class DataSeeder
                 Phone = "0917888888",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -331,7 +326,7 @@ public static class DataSeeder
                 Phone = "0917567890",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
                 RoleId = 6,
-                Status = UserState.Verified.ToString(),
+                Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdateAt = DateTime.UtcNow
@@ -393,15 +388,15 @@ public static class DataSeeder
     /// </summary>
     private static async Task SeedMarketStaffAsync(ApplicationDbContext context)
     {
-        if (await context.MarketStaff.AnyAsync())
+        if (await context.SupermarketStaffs.AnyAsync())
             return;
 
-        var marketStaffRecords = new List<MarketStaff>
+        var marketStaffRecords = new List<SupermarketStaff>
         {
             // SupplierStaff 1 - Làm việc tại CoopMart
             new()
             {
-                MarketStaffId = Guid.NewGuid(),
+                SupermarketStaffId = Guid.NewGuid(),
                 UserId = SupplierStaffUserId1,
                 SupermarketId = SupermarketCoopMartId,
                 Position = "Nhân viên kho",
@@ -410,7 +405,7 @@ public static class DataSeeder
             // SupplierStaff 2 - Làm việc tại Big C
             new()
             {
-                MarketStaffId = Guid.NewGuid(),
+                SupermarketStaffId = Guid.NewGuid(),
                 UserId = SupplierStaffUserId2,
                 SupermarketId = SupermarketBigCId,
                 Position = "Nhân viên quầy thịt",
@@ -419,7 +414,7 @@ public static class DataSeeder
             // SupplierStaff 3 - Làm việc tại VinMart
             new()
             {
-                MarketStaffId = Guid.NewGuid(),
+                SupermarketStaffId = Guid.NewGuid(),
                 UserId = SupplierStaffUserId3,
                 SupermarketId = SupermarketVinMartId,
                 Position = "Quản lý kho",
@@ -427,7 +422,7 @@ public static class DataSeeder
             }
         };
 
-        await context.MarketStaff.AddRangeAsync(marketStaffRecords);
+        await context.SupermarketStaffs.AddRangeAsync(marketStaffRecords);
         await context.SaveChangesAsync();
     }
 
@@ -439,7 +434,7 @@ public static class DataSeeder
         if (await context.Units.AnyAsync())
             return;
 
-        var units = new List<Unit>
+        var units = new List<UnitOfMeasure>
         {
             // Weight units - Đơn vị khối lượng
             new()
@@ -517,305 +512,224 @@ public static class DataSeeder
         if (await context.Products.AnyAsync())
             return;
 
+        var now = DateTime.UtcNow;
         var products = new List<Product>
         {
-            // Dairy Products - CoopMart
             new()
             {
                 ProductId = Product1Id,
                 SupermarketId = SupermarketCoopMartId,
-                Name = "Sữa tươi Vinamilk 1L",
-                Brand = "Vinamilk",
-                Category = "Sữa & Sản phẩm từ sữa",
-                Barcode = "8934673111119",
-                IsFreshFood = true,
                 UnitId = UnitLiterId,
-                QuantityType = 1, // Fixed
-                Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất",
-                Origin = "Việt Nam",
-                Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3",
-                NutritionFactsJson = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""",
-                UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.",
-                StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.",
-                SafetyWarning = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.",
-                Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
-                Distributor = "Vinamilk",
+                Name = "Sữa tươi Vinamilk 1L",
+                Barcode = "8934673111119",
+                Sku = "8934673111119",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product2Id,
                 SupermarketId = SupermarketCoopMartId,
-                Name = "Sữa chua Vinamilk có đường",
-                Brand = "Vinamilk",
-                Category = "Sữa & Sản phẩm từ sữa",
-                Barcode = "8934673222226",
-                IsFreshFood = true,
                 UnitId = UnitBoxId,
-                QuantityType = 1,
-                Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng",
-                Origin = "Việt Nam",
-                Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus",
-                NutritionFactsJson = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""",
-                UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.",
-                StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.",
-                SafetyWarning = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.",
-                Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
-                Distributor = "Vinamilk",
+                Name = "Sữa chua Vinamilk có đường",
+                Barcode = "8934673222226",
+                Sku = "8934673222226",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Meat - CoopMart (Bán theo cân)
             new()
             {
                 ProductId = Product3Id,
                 SupermarketId = SupermarketCoopMartId,
-                Name = "Thịt heo ba chỉ",
-                Brand = "Meat Deli",
-                Category = "Thịt & Hải sản",
-                Barcode = "8934673333333",
-                IsFreshFood = true,
                 UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 150000m,
-                Description = "Thịt heo ba chỉ tươi ngon từ trang trại",
-                Origin = "Việt Nam",
-                Ingredients = "Thịt heo tươi 100%",
-                UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.",
-                StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.",
-                SafetyWarning = "Nấu chín kỹ trước khi ăn.",
-                Manufacturer = "Công ty TNHH Meat Deli",
-                Distributor = "Meat Deli",
+                Name = "Thịt heo ba chỉ",
+                Barcode = "8934673333333",
+                Sku = "8934673333333",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Vegetables - BigC (Bán theo cân)
             new()
             {
                 ProductId = Product4Id,
                 SupermarketId = SupermarketBigCId,
-                Name = "Rau cải xanh hữu cơ",
-                Brand = "Dalat Garden",
-                Category = "Rau củ quả",
-                Barcode = "8934673444440",
-                IsFreshFood = true,
                 UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 35000m,
-                Ingredients = "Rau cải xanh hữu cơ 100%",
-                Manufacturer = "Công ty TNHH Dalat Garden",
+                Name = "Rau cải xanh hữu cơ",
+                Barcode = "8934673444440",
+                Sku = "8934673444440",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
             new()
             {
                 ProductId = Product5Id,
                 SupermarketId = SupermarketBigCId,
-                Name = "Cà chua Đà Lạt",
-                Brand = "Dalat Garden",
-                Category = "Rau củ quả",
-                Barcode = "8934673555557",
-                IsFreshFood = true,
                 UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 25000m,
-                Ingredients = "Cà chua Đà Lạt 100%",
-                Manufacturer = "Công ty TNHH Dalat Garden",
+                Name = "Cà chua Đà Lạt",
+                Barcode = "8934673555557",
+                Sku = "8934673555557",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Bakery - BigC
             new()
             {
                 ProductId = Product6Id,
                 SupermarketId = SupermarketBigCId,
-                Name = "Bánh mì sandwich Kinh Đô",
-                Brand = "Kinh Đô",
-                Category = "Bánh & Đồ nướng",
-                Barcode = "8934673666664",
-                IsFreshFood = true,
                 UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản",
-                NutritionFactsJson = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""",
-                Manufacturer = "Công ty Cổ phần Kinh Đô",
+                Name = "Bánh mì sandwich Kinh Đô",
+                Barcode = "8934673666664",
+                Sku = "8934673666664",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Beverages - VinMart
             new()
             {
                 ProductId = Product7Id,
                 SupermarketId = SupermarketVinMartId,
-                Name = "Nước cam ép Tropicana 1L",
-                Brand = "Tropicana",
-                Category = "Đồ uống",
-                Barcode = "8934673777771",
-                IsFreshFood = true,
                 UnitId = UnitBottleId,
-                QuantityType = 1,
-                Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C",
-                NutritionFactsJson = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""",
-                Manufacturer = "Công ty TNHH Tropicana",
+                Name = "Nước cam ép Tropicana 1L",
+                Barcode = "8934673777771",
+                Sku = "8934673777771",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Snacks - VinMart (Non-fresh)
             new()
             {
                 ProductId = Product8Id,
                 SupermarketId = SupermarketVinMartId,
-                Name = "Bánh quy Oreo 264g",
-                Brand = "Oreo",
-                Category = "Bánh kẹo",
-                Barcode = "8934673888888",
-                IsFreshFood = false,
                 UnitId = UnitBoxId,
-                QuantityType = 1,
-                Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani",
-                NutritionFactsJson = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""",
-                Manufacturer = "Công ty Mondelez Vietnam",
+                Name = "Bánh quy Oreo 264g",
+                Barcode = "8934673888888",
+                Sku = "8934673888888",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Instant Noodles - VinMart (Non-fresh)
             new()
             {
                 ProductId = Product9Id,
                 SupermarketId = SupermarketVinMartId,
-                Name = "Mì Hảo Hảo tôm chua cay",
-                Brand = "Acecook",
-                Category = "Thực phẩm khô",
-                Barcode = "8934673999995",
-                IsFreshFood = false,
                 UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị",
-                NutritionFactsJson = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""",
-                Manufacturer = "Công ty Cổ phần Acecook Việt Nam",
+                Name = "Mì Hảo Hảo tôm chua cay",
+                Barcode = "8934673999995",
+                Sku = "8934673999995",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Seafood - CoopMart (Bán theo cân)
             new()
             {
                 ProductId = Product10Id,
                 SupermarketId = SupermarketCoopMartId,
-                Name = "Cá hồi phi lê đông lạnh",
-                Brand = "Seafood King",
-                Category = "Thịt & Hải sản",
-                Barcode = "8934673101010",
-                IsFreshFood = true,
                 UnitId = UnitKgId,
-                QuantityType = 2,
-                DefaultPricePerKg = 450000m, // 450,000 VND/kg
-                Ingredients = "Cá hồi phi lê tươi 100%",
-                Manufacturer = "Công ty TNHH Seafood King",
+                Name = "Cá hồi phi lê đông lạnh",
+                Barcode = "8934673101010",
+                Sku = "8934673101010",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Đồ hộp - CoopMart
             new()
             {
                 ProductId = Product11Id,
                 SupermarketId = SupermarketCoopMartId,
-                Name = "Cá ngừ đóng hộp Vissan 170g",
-                Brand = "Vissan",
-                Category = "Đồ hộp",
-                Barcode = "8934673121212",
-                IsFreshFood = false,
                 UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt",
-                NutritionFactsJson = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""",
-                Manufacturer = "Công ty Cổ phần Vissan",
+                Name = "Cá ngừ đóng hộp Vissan 170g",
+                Barcode = "8934673121212",
+                Sku = "8934673121212",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             },
-            // Đồ hộp - BigC
             new()
             {
                 ProductId = Product12Id,
                 SupermarketId = SupermarketBigCId,
-                Name = "Đậu đỏ hầm đường lon 380g",
-                Brand = "Nếp Mới",
-                Category = "Đồ hộp",
-                Barcode = "8934673131313",
-                IsFreshFood = false,
                 UnitId = UnitPackId,
-                QuantityType = 1,
-                Ingredients = "Đậu đỏ 50%, đường, nước, muối",
-                NutritionFactsJson = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""",
-                Manufacturer = "Công ty TNHH Nếp Mới",
+                Name = "Đậu đỏ hầm đường lon 380g",
+                Barcode = "8934673131313",
+                Sku = "8934673131313",
+                Status = ProductState.Verified.ToString(),
                 CreatedBy = AdminUserId.ToString(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                isActive = true,
-                isFeatured = false,
-                Status = ProductState.Verified.ToString()
+                CreatedAt = now,
+                UpdatedBy = AdminUserId.ToString(),
+                UpdatedAt = now,
+                IsFeatured = false
             }
         };
 
         await context.Products.AddRangeAsync(products);
         await context.SaveChangesAsync();
+
+        var productDetails = new List<ProductDetail>
+        {
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product1Id, Brand = "Vinamilk", Description = "Sữa tươi tiệt trùng Vinamilk 100% nguyên chất", Origin = "Việt Nam", Ingredients = "Sữa tươi nguyên chất 100%, Vitamin A, Vitamin D3", NutritionFacts = """{"calories":"120 kcal","protein":"6g","fat":"4g","carbs":"12g","calcium":"240mg"}""", UsageInstructions = "Lắc đều trước khi sử dụng. Dùng trực tiếp hoặc pha chế đồ uống.", StorageInstructions = "Bảo quản nơi khô ráo, thoáng mát. Sau khi mở nắp, bảo quản trong tủ lạnh và sử dụng trong 3 ngày.", SafetyWarnings = "Không sử dụng sản phẩm hết hạn, bao bì bị phồng hoặc có mùi lạ.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product2Id, Brand = "Vinamilk", Description = "Sữa chua ăn Vinamilk có đường thơm ngon bổ dưỡng", Origin = "Việt Nam", Ingredients = "Sữa tươi, đường, men sữa chua Lactobacillus bulgaricus, Streptococcus thermophilus", NutritionFacts = """{"calories":"95 kcal","protein":"4g","fat":"2.5g","carbs":"14g","sugar":"12g"}""", UsageInstructions = "Dùng trực tiếp sau khi mở nắp. Có thể dùng kèm trái cây hoặc granola.", StorageInstructions = "Bảo quản lạnh 2-6°C. Sử dụng trong ngày sau khi mở nắp.", SafetyWarnings = "Không sử dụng nếu nắp hộp bị phồng hoặc hở.", Manufacturer = "Công ty Cổ phần Sữa Việt Nam (Vinamilk)", Distributor = "Vinamilk" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product3Id, Brand = "Meat Deli", Description = "Thịt heo ba chỉ tươi ngon từ trang trại", Origin = "Việt Nam", Ingredients = "Thịt heo tươi 100%", UsageInstructions = "Rửa sạch trước khi chế biến. Dùng để chiên, kho, nướng.", StorageInstructions = "Bảo quản lạnh 0-4°C, sử dụng trong 3 ngày. Hoặc đông lạnh -18°C, sử dụng trong 3 tháng.", SafetyWarnings = "Nấu chín kỹ trước khi ăn.", Manufacturer = "Công ty TNHH Meat Deli", Distributor = "Meat Deli" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product4Id, Brand = "Dalat Garden", Ingredients = "Rau cải xanh hữu cơ 100%", Manufacturer = "Công ty TNHH Dalat Garden" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product5Id, Brand = "Dalat Garden", Ingredients = "Cà chua Đà Lạt 100%", Manufacturer = "Công ty TNHH Dalat Garden" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product6Id, Brand = "Kinh Đô", Ingredients = "Bột mì, đường, bơ, trứng, men nở, muối, chất bảo quản", NutritionFacts = """{"calories":"280 kcal","protein":"8g","fat":"3g","carbs":"52g","fiber":"2g"}""", Manufacturer = "Công ty Cổ phần Kinh Đô" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product7Id, Brand = "Tropicana", Ingredients = "Nước cam cô đặc 50%, nước, đường, hương cam tự nhiên, Vitamin C", NutritionFacts = """{"calories":"110 kcal","sugar":"22g","vitaminC":"120mg","carbs":"26g"}""", Manufacturer = "Công ty TNHH Tropicana" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product8Id, Brand = "Oreo", Ingredients = "Bột mì, đường, dầu thực vật, bột cacao, muối, lecithin đậu nành, vani", NutritionFacts = """{"calories":"160 kcal","fat":"7g","carbs":"25g","sugar":"14g","protein":"1g"}""", Manufacturer = "Công ty Mondelez Vietnam" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product9Id, Brand = "Acecook", Ingredients = "Bột mì, dầu ăn, muối, bột ngọt, ớt, tôm khô, hành lá khô, gia vị", NutritionFacts = """{"calories":"350 kcal","fat":"14g","carbs":"49g","protein":"7g","sodium":"1500mg"}""", Manufacturer = "Công ty Cổ phần Acecook Việt Nam" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product10Id, Brand = "Seafood King", Ingredients = "Cá hồi phi lê tươi 100%", Manufacturer = "Công ty TNHH Seafood King" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product11Id, Brand = "Vissan", Ingredients = "Cá ngừ 65%, dầu thực vật, nước, muối, bột ngọt", NutritionFacts = """{"calories":"190 kcal","protein":"26g","fat":"9g","carbs":"0g","sodium":"400mg"}""", Manufacturer = "Công ty Cổ phần Vissan" },
+            new() { ProductDetailId = Guid.NewGuid(), ProductId = Product12Id, Brand = "Nếp Mới", Ingredients = "Đậu đỏ 50%, đường, nước, muối", NutritionFacts = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""", Manufacturer = "Công ty TNHH Nếp Mới" }
+        };
+        await context.ProductDetails.AddRangeAsync(productDetails);
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Seed ProductLots - Lô hàng với các mức hạn sử dụng khác nhau
+    /// Seed StockLots - Lô hàng với các mức hạn sử dụng khác nhau
     /// </summary>
-    private static async Task SeedProductLotsAsync(ApplicationDbContext context)
+    private static async Task SeedStockLotsAsync(ApplicationDbContext context)
     {
-        if (await context.ProductLots.AnyAsync())
+        if (await context.StockLots.AnyAsync())
             return;
 
         var now = DateTime.UtcNow;
 
-        var productLots = new List<ProductLot>
+        var stockLots = new List<StockLot>
         {
             // === COOPMART LOTS ===
             // Sữa tươi Vinamilk - Hết hạn trong ngày (Today)
@@ -1058,167 +972,7 @@ public static class DataSeeder
             }
         };
 
-        await context.ProductLots.AddRangeAsync(productLots);
-        await context.SaveChangesAsync();
-    }
-
-    private static async Task SeedTimeSlotsAsync(ApplicationDbContext context)
-    {
-        if (await context.TimeSlots.AnyAsync())
-            return;
-
-        var timeSlots = new List<TimeSlot>
-        {
-            new() { TimeSlotId = TimeSlotMorningId, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(12, 0, 0) },
-            new() { TimeSlotId = TimeSlotAfternoonId, StartTime = new TimeSpan(12, 0, 0), EndTime = new TimeSpan(17, 0, 0) },
-            new() { TimeSlotId = TimeSlotEveningId, StartTime = new TimeSpan(17, 0, 0), EndTime = new TimeSpan(21, 0, 0) }
-        };
-        await context.TimeSlots.AddRangeAsync(timeSlots);
-        await context.SaveChangesAsync();
-    }
-
-    private static async Task SeedPickupPointsAsync(ApplicationDbContext context)
-    {
-        if (await context.PickupPoints.AnyAsync())
-            return;
-
-        var pickupPoints = new List<PickupPoint>
-        {
-            new() { PickupPointId = PickupPointMainId, Name = "Điểm lấy hàng chính", Address = "123 Nguyễn Huệ, Q1, TP.HCM", Latitude = 10.7769m, Longitude = 106.7009m },
-            new() { PickupPointId = PickupPointBranch2Id, Name = "Điểm lấy hàng chi nhánh 2", Address = "456 Lê Lợi, Q3, TP.HCM", Latitude = 10.7821m, Longitude = 106.6954m }
-        };
-        await context.PickupPoints.AddRangeAsync(pickupPoints);
-        await context.SaveChangesAsync();
-    }
-
-    private static async Task SeedDoorPickupsAsync(ApplicationDbContext context)
-    {
-        if (await context.DoorPickups.AnyAsync())
-            return;
-
-        var doorPickups = new List<DoorPickup>
-        {
-            new() { DoorPickupId = DoorPickupMainId, Name = "Giao tận cửa - Khu vực trung tâm", Address = "Giao trong bán kính 5km", Latitude = 10.7769m, Longitude = 106.7009m }
-        };
-        await context.DoorPickups.AddRangeAsync(doorPickups);
-        await context.SaveChangesAsync();
-    }
-
-    private static async Task SeedPromotionsAsync(ApplicationDbContext context)
-    {
-        if (await context.Promotions.AnyAsync())
-            return;
-
-        var now = DateTime.UtcNow;
-        var promotions = new List<Promotion>
-        {
-            new()
-            {
-                PromotionId = Promotion10PercentId,
-                Name = "Giảm 10% đơn đầu",
-                DiscountType = "Percent",
-                DiscountValue = 10,
-                StartDate = now.AddDays(-30),
-                EndDate = now.AddDays(30),
-                Status = "Active"
-            }
-        };
-        await context.Promotions.AddRangeAsync(promotions);
-        await context.SaveChangesAsync();
-    }
-
-    /// <summary>
-    /// Seed Orders and OrderItems for testing. Uses existing Users, TimeSlots, PickupPoints, and ProductLots.
-    /// </summary>
-    private static async Task SeedOrdersAndOrderItemsAsync(ApplicationDbContext context)
-    {
-        if (await context.Orders.AnyAsync())
-            return;
-
-        var now = DateTime.UtcNow;
-
-        // Get some active ProductLot IDs to use for order items
-        var lotIds = await context.ProductLots
-            .Where(pl => pl.Status == "Active")
-            .OrderBy(pl => pl.LotId)
-            .Take(12)
-            .Select(pl => pl.LotId)
-            .ToListAsync();
-
-        if (lotIds.Count < 2)
-            return; // Need at least 2 lots to create order items
-
-        var orders = new List<Order>
-        {
-            new()
-            {
-                OrderId = Order1Id,
-                OrderCode = "ORD-SEED-001",
-                UserId = VendorUserId1,
-                TimeSlotId = TimeSlotMorningId,
-                PickupPointId = PickupPointMainId,
-                DeliveryType = "Pickup",
-                TotalAmount = 125000,
-                Status = "Confirmed",
-                OrderDate = now.AddDays(-2),
-                DoorPickupId = null,
-                PromotionId = Promotion10PercentId,
-                CreatedAt = now.AddDays(-2),
-                UpdatedAt = now.AddDays(-2)
-            },
-            new()
-            {
-                OrderId = Order2Id,
-                OrderCode = "ORD-SEED-002",
-                UserId = VendorUserId2,
-                TimeSlotId = TimeSlotAfternoonId,
-                PickupPointId = PickupPointBranch2Id,
-                DeliveryType = "Pickup",
-                TotalAmount = 89000,
-                Status = "Pending",
-                OrderDate = now.AddDays(-1),
-                DoorPickupId = null,
-                PromotionId = null,
-                CreatedAt = now.AddDays(-1),
-                UpdatedAt = now.AddDays(-1)
-            },
-            new()
-            {
-                OrderId = Order3Id,
-                OrderCode = "ORD-SEED-003",
-                UserId = VendorUserId3,
-                TimeSlotId = TimeSlotEveningId,
-                PickupPointId = null,
-                DeliveryType = "DoorPickup",
-                TotalAmount = 210000,
-                Status = "Delivered",
-                OrderDate = now.AddDays(-3),
-                DoorPickupId = DoorPickupMainId,
-                PromotionId = Promotion10PercentId,
-                CreatedAt = now.AddDays(-3),
-                UpdatedAt = now
-            }
-        };
-
-        await context.Orders.AddRangeAsync(orders);
-        await context.SaveChangesAsync();
-
-        // Seed order items: 2–3 items per order using seeded lots
-        var orderItems = new List<OrderItem>
-        {
-            // Order 1
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order1Id, LotId = lotIds[0], Quantity = 2, UnitPrice = 25000 },
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order1Id, LotId = lotIds[1], Quantity = 1, UnitPrice = 45000 },
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order1Id, LotId = lotIds[2], Quantity = 3, UnitPrice = 15000 },
-            // Order 2
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order2Id, LotId = lotIds[3], Quantity = 1, UnitPrice = 39000 },
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order2Id, LotId = lotIds[4], Quantity = 2, UnitPrice = 25000 },
-            // Order 3
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order3Id, LotId = lotIds[5], Quantity = 4, UnitPrice = 22000 },
-            new() { OrderItemId = Guid.NewGuid(), OrderId = Order3Id, LotId = lotIds[6], Quantity = 2, UnitPrice = 61000 }
-        };
-
-        await context.OrderItems.AddRangeAsync(orderItems);
+        await context.StockLots.AddRangeAsync(stockLots);
         await context.SaveChangesAsync();
     }
 }

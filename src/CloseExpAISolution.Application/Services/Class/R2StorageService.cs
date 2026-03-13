@@ -53,7 +53,7 @@ public class R2StorageService : IR2StorageService
             ProductImageId = Guid.NewGuid(),
             ProductId = productId,
             ImageUrl = imageUrl,
-            UploadedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
         };
 
         await _unitOfWork.ProductImageRepository.AddAsync(productImage);

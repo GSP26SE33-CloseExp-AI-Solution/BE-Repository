@@ -4,29 +4,22 @@ using CloseExpAISolution.Domain.Entities;
 
 namespace CloseExpAISolution.Application.Mappings;
 
-/// <summary>
-/// AutoMapper profile cho MarketStaff mappings
-/// </summary>
 public class MarketStaffMappingProfile : Profile
 {
     public MarketStaffMappingProfile()
     {
-        // MarketStaff -> MarketStaffResponseDto
-        CreateMap<MarketStaff, MarketStaffResponseDto>();
+        CreateMap<SupermarketStaff, MarketStaffResponseDto>();
 
-        // MarketStaff -> MarketStaffDto
-        CreateMap<MarketStaff, MarketStaffDto>();
+        CreateMap<SupermarketStaff, MarketStaffDto>();
 
-        // CreateMarketStaffRequestDto -> MarketStaff
-        CreateMap<CreateMarketStaffRequestDto, MarketStaff>()
-            .ForMember(dest => dest.MarketStaffId, opt => opt.MapFrom(_ => Guid.NewGuid()))
+        CreateMap<CreateMarketStaffRequestDto, SupermarketStaff>()
+            .ForMember(dest => dest.SupermarketStaffId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.User, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore());
 
-        // UpdateMarketStaffRequestDto -> MarketStaff
-        CreateMap<UpdateMarketStaffRequestDto, MarketStaff>()
-            .ForMember(dest => dest.MarketStaffId, opt => opt.Ignore())
+        CreateMap<UpdateMarketStaffRequestDto, SupermarketStaff>()
+            .ForMember(dest => dest.SupermarketStaffId, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
             .ForMember(dest => dest.User, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore());

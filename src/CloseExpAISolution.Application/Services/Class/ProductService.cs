@@ -73,45 +73,182 @@ public class ProductService : IProductService
     public async Task<ProductResponseDto?> GetByIdWithImagesAsync(Guid id)
     {
         var product = await _context.Products
-            .Include(p => p.ProductImages)
-            .Include(p => p.Pricing)
+            .Include(p => p.ProductDetail)
+            .Include(p => p.Unit)
+            .Include(p => p.CategoryRef)
+            .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == id);
 
         if (product == null) return null;
 
-        return _mapper.Map<ProductResponseDto>(product);
+        var dto = _mapper.Map<ProductResponseDto>(product);
+        var images = await _context.ProductImages
+            .Where(x => x.ProductId == id)
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync(cancellationToken: default);
+        var pricing = await GetLatestPricingHistoryByProductIdAsync(id, default);
+
+        dto.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
+        dto.TotalImages = images.Count;
+        dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
+        if (pricing != null)
+        {
+            dto.OriginalPrice = pricing.OriginalPrice;
+            dto.SuggestedPrice = pricing.SuggestedUnitPrice;
+            dto.FinalPrice = pricing.FinalPrice ?? 0;
+            dto.PricingConfidence = pricing.AIConfidence;
+            dto.PricedBy = pricing.ConfirmedBy;
+            dto.PricedAt = pricing.ConfirmedAt;
+        }
+        return dto;
     }
 
     public async Task<IEnumerable<ProductResponseDto>> GetAllWithImagesAsync()
     {
         var products = await _context.Products
-            .Include(p => p.ProductImages)
-            .Include(p => p.Pricing)
+            .Include(p => p.ProductDetail)
+            .Include(p => p.Unit)
+            .Include(p => p.CategoryRef)
+            .Include(p => p.Supermarket)
             .ToListAsync();
 
-        return _mapper.Map<IEnumerable<ProductResponseDto>>(products);
+        var productIds = products.Select(p => p.ProductId).ToList();
+        var imagesByProduct = await _context.ProductImages
+            .Where(x => productIds.Contains(x.ProductId))
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync();
+        var pricingLookup = await BuildLatestPricingHistoryLookupAsync(productIds, default);
+
+        var imageLookup = imagesByProduct.GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var result = new List<ProductResponseDto>();
+        foreach (var product in products)
+        {
+            var dto = _mapper.Map<ProductResponseDto>(product);
+            var images = imageLookup.GetValueOrDefault(product.ProductId) ?? new List<ProductImage>();
+            dto.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
+            dto.TotalImages = images.Count;
+            dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
+            if (pricingLookup.TryGetValue(product.ProductId, out var pricing))
+            {
+                dto.OriginalPrice = pricing.OriginalPrice;
+                dto.SuggestedPrice = pricing.SuggestedUnitPrice;
+                dto.FinalPrice = pricing.FinalPrice ?? 0;
+                dto.PricingConfidence = pricing.AIConfidence;
+                dto.PricedBy = pricing.ConfirmedBy;
+                dto.PricedAt = pricing.ConfirmedAt;
+            }
+            result.Add(dto);
+        }
+        return result;
     }
 
     public async Task<ProductResponseDto> CreateProductAsync(CreateProductRequestDto request, CancellationToken cancellationToken = default)
     {
         var product = _mapper.Map<Product>(request);
 
+        var defaultUnit = await _context.Units.FirstOrDefaultAsync(cancellationToken);
+        if (defaultUnit == null)
+            throw new InvalidOperationException("Không tìm thấy đơn vị đo mặc định. Vui lòng seed bảng Units trước.");
+        product.UnitId = defaultUnit.UnitId;
+
+        if (!string.IsNullOrWhiteSpace(request.CategoryName))
+        {
+            var category = await _context.Categories.FirstOrDefaultAsync(
+                c => c.Name != null && c.Name.ToLower() == request.CategoryName.ToLower(),
+                cancellationToken);
+            if (category != null)
+            {
+                product.CategoryId = category.CategoryId;
+                product.IsFreshFood = category.IsFreshFood;
+            }
+        }
+
         var added = await _unitOfWork.ProductRepository.AddAsync(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return _mapper.Map<ProductResponseDto>(added);
+        var detail = new ProductDetail
+        {
+            ProductDetailId = Guid.NewGuid(),
+            ProductId = added.ProductId,
+            Brand = request.Detail.Brand,
+            Ingredients = request.Detail.Ingredients,
+            NutritionFacts = request.Detail.NutritionFactsJson,
+            UsageInstructions = request.Detail.UsageInstructions,
+            StorageInstructions = request.Detail.StorageInstructions,
+            Manufacturer = request.Detail.Manufacturer,
+            Origin = request.Detail.Origin,
+            Description = request.Detail.Description,
+            SafetyWarnings = request.Detail.SafetyWarnings
+        };
+        await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var withDetail = await _context.Products
+            .Include(p => p.ProductDetail)
+            .Include(p => p.Unit)
+            .Include(p => p.CategoryRef)
+            .Include(p => p.Supermarket)
+            .FirstOrDefaultAsync(p => p.ProductId == added.ProductId, cancellationToken);
+        if (withDetail == null) throw new InvalidOperationException("Product not found after create.");
+
+        var dto = _mapper.Map<ProductResponseDto>(withDetail);
+        var images = await _context.ProductImages.Where(x => x.ProductId == added.ProductId).OrderBy(i => i.CreatedAt).ToListAsync(cancellationToken);
+        var pricing = await GetLatestPricingHistoryByProductIdAsync(added.ProductId, cancellationToken);
+        dto.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
+        dto.TotalImages = images.Count;
+        dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
+        if (pricing != null)
+        {
+            dto.OriginalPrice = pricing.OriginalPrice;
+            dto.SuggestedPrice = pricing.SuggestedUnitPrice;
+            dto.FinalPrice = pricing.FinalPrice ?? 0;
+            dto.PricingConfidence = pricing.AIConfidence;
+            dto.PricedBy = pricing.ConfirmedBy;
+            dto.PricedAt = pricing.ConfirmedAt;
+        }
+        return dto;
     }
 
     public async Task UpdateProductAsync(Guid id, UpdateProductRequestDto request, CancellationToken cancellationToken = default)
     {
         var product = await _context.Products
-            .Include(p => p.ProductImages)
-            .Include(p => p.Pricing)
+            .Include(p => p.ProductDetail)
             .FirstOrDefaultAsync(p => p.ProductId == id, cancellationToken);
 
         if (product == null) throw new KeyNotFoundException($"Không tìm thấy sản phẩm với id {id}");
 
         _mapper.Map(request, product);
+
+        if (!string.IsNullOrWhiteSpace(request.CategoryName))
+        {
+            var category = await _context.Categories.FirstOrDefaultAsync(
+                c => c.Name != null && c.Name.ToLower() == request.CategoryName.ToLower(),
+                cancellationToken);
+            if (category != null)
+            {
+                product.CategoryId = category.CategoryId;
+                product.IsFreshFood = category.IsFreshFood;
+            }
+        }
+
+        var detail = product.ProductDetail ?? new ProductDetail { ProductDetailId = Guid.NewGuid(), ProductId = product.ProductId };
+        detail.Brand = request.Detail.Brand;
+        detail.Ingredients = request.Detail.Ingredients;
+        detail.NutritionFacts = request.Detail.NutritionFactsJson;
+        detail.UsageInstructions = request.Detail.UsageInstructions;
+        detail.StorageInstructions = request.Detail.StorageInstructions;
+        detail.Manufacturer = request.Detail.Manufacturer;
+        detail.Origin = request.Detail.Origin;
+        detail.Description = request.Detail.Description;
+        detail.SafetyWarnings = request.Detail.SafetyWarnings;
+        if (product.ProductDetail == null)
+        {
+            await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
+            product.ProductDetail = detail;
+        }
+        else
+            _unitOfWork.Repository<ProductDetail>().Update(detail);
 
         _unitOfWork.ProductRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -125,58 +262,71 @@ public class ProductService : IProductService
         await DeleteAsync(product, cancellationToken);
     }
 
-    public async Task<(IEnumerable<ProductLotDetailDto> Items, int TotalCount)> GetProductLotsBySupermarketAsync(ProductLotFilterDto filter)
+    public async Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(StockLotFilterDto filter)
     {
-        var query = _context.ProductLots
+        var query = _context.StockLots
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.Supermarket)
             .Include(pl => pl.Product)
-                .ThenInclude(p => p!.ProductImages)
+                .ThenInclude(p => p!.ProductDetail)
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.Unit)
+            .Include(pl => pl.Product)
+                .ThenInclude(p => p!.CategoryRef)
             .AsQueryable();
 
-        // Filter theo SupermarketId
         if (filter.SupermarketId.HasValue)
         {
             query = query.Where(pl => pl.Product!.SupermarketId == filter.SupermarketId.Value);
         }
 
-        // Filter theo WeightType (maps to Product.QuantityType)
-        if (filter.WeightType.HasValue)
-        {
-            query = query.Where(pl => pl.Product!.QuantityType == (int)filter.WeightType.Value);
-        }
-
-        // Filter theo IsFreshFood
         if (filter.IsFreshFood.HasValue)
         {
-            query = query.Where(pl => pl.Product!.IsFreshFood == filter.IsFreshFood.Value);
+            query = query.Where(pl => pl.Product!.CategoryRef != null && pl.Product.CategoryRef.IsFreshFood == filter.IsFreshFood.Value);
         }
 
-        // Filter theo Category
         if (!string.IsNullOrEmpty(filter.Category))
         {
-            query = query.Where(pl => pl.Product!.Category == filter.Category);
+            query = query.Where(pl => pl.Product!.CategoryRef != null && pl.Product.CategoryRef.Name == filter.Category);
         }
 
-        // Search theo tên sản phẩm
         if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
             var searchLower = filter.SearchTerm.ToLower();
             query = query.Where(pl =>
                 pl.Product!.Name.ToLower().Contains(searchLower) ||
-                pl.Product!.Brand.ToLower().Contains(searchLower) ||
+                (pl.Product!.ProductDetail != null && pl.Product.ProductDetail.Brand != null && pl.Product.ProductDetail.Brand.ToLower().Contains(searchLower)) ||
                 pl.Product!.Barcode.Contains(searchLower)
             );
         }
 
-        // Load data
         var lots = await query.ToListAsync();
         var now = DateTime.UtcNow;
 
-        // Map using AutoMapper
-        var lotDtos = _mapper.Map<List<ProductLotDetailDto>>(lots);
+        var lotDtos = _mapper.Map<List<StockLotDetailDto>>(lots);
+
+        var productIds = lots.Select(pl => pl.ProductId).Distinct().ToList();
+        var imagesByProduct = await _context.ProductImages
+            .Where(x => productIds.Contains(x.ProductId))
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync();
+        var pricingLookup = await BuildLatestPricingHistoryLookupAsync(productIds, default);
+        var imageLookup = imagesByProduct.GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var dto in lotDtos)
+        {
+            if (imageLookup.TryGetValue(dto.ProductId, out var images) && images.Any())
+            {
+                dto.MainImageUrl = images.First().ImageUrl;
+                dto.TotalImages = images.Count;
+                dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
+            }
+            if (pricingLookup.TryGetValue(dto.ProductId, out var pricing))
+            {
+                dto.OriginalUnitPrice = pricing.OriginalPrice;
+                dto.SuggestedUnitPrice = pricing.SuggestedUnitPrice;
+                dto.FinalUnitPrice = pricing.FinalPrice ?? 0;
+            }
+        }
 
         // Calculate expiry status for each lot
         foreach (var dto in lotDtos)
@@ -214,13 +364,11 @@ public class ProductService : IProductService
             }
         }
 
-        // Filter theo ExpiryStatus (sau khi tính toán)
         if (filter.ExpiryStatus.HasValue)
         {
             lotDtos = lotDtos.Where(dto => dto.ExpiryStatus == filter.ExpiryStatus.Value).ToList();
         }
 
-        // Sort theo trạng thái hạn sử dụng
         // Priority: Today → ExpiringSoon → ShortTerm → LongTerm → Expired (cuối cùng)
         lotDtos = lotDtos
             .OrderBy(dto => dto.ExpiryStatus == ExpiryStatus.Expired ? 99 : (int)dto.ExpiryStatus)
@@ -229,7 +377,6 @@ public class ProductService : IProductService
 
         var totalCount = lotDtos.Count;
 
-        // Pagination
         var pagedLots = lotDtos
             .Skip((filter.PageNumber - 1) * filter.PageSize)
             .Take(filter.PageSize)
@@ -246,26 +393,26 @@ public class ProductService : IProductService
         int pageSize = 20)
     {
         var query = _context.Products
-            .Include(p => p.ProductImages)
+            .Include(p => p.ProductDetail)
+            .Include(p => p.Unit)
+            .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .Where(p => p.SupermarketId == supermarketId)
             .AsQueryable();
 
-        // Search theo tên, brand hoặc barcode
         if (!string.IsNullOrEmpty(searchTerm))
         {
             var searchLower = searchTerm.ToLower();
             query = query.Where(p =>
                 p.Name.ToLower().Contains(searchLower) ||
-                p.Brand.ToLower().Contains(searchLower) ||
+                (p.ProductDetail != null && p.ProductDetail.Brand != null && p.ProductDetail.Brand.ToLower().Contains(searchLower)) ||
                 p.Barcode.Contains(searchLower)
             );
         }
 
-        // Filter theo category
         if (!string.IsNullOrEmpty(category))
         {
-            query = query.Where(p => p.Category == category);
+            query = query.Where(p => p.CategoryRef != null && p.CategoryRef.Name == category);
         }
 
         var totalCount = await query.CountAsync();
@@ -276,45 +423,71 @@ public class ProductService : IProductService
             .Take(pageSize)
             .ToListAsync();
 
-        var productDtos = _mapper.Map<IEnumerable<ProductResponseDto>>(products);
+        var productIds = products.Select(p => p.ProductId).ToList();
+        var imagesByProduct = await _context.ProductImages
+            .Where(x => productIds.Contains(x.ProductId))
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync();
+        var pricingLookup = await BuildLatestPricingHistoryLookupAsync(productIds, default);
+        var imageLookup = imagesByProduct.GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var productDtos = new List<ProductResponseDto>();
+        foreach (var product in products)
+        {
+            var dto = _mapper.Map<ProductResponseDto>(product);
+            var images = imageLookup.GetValueOrDefault(product.ProductId) ?? new List<ProductImage>();
+            dto.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
+            dto.TotalImages = images.Count;
+            dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
+            if (pricingLookup.TryGetValue(product.ProductId, out var pricing))
+            {
+                dto.OriginalPrice = pricing.OriginalPrice;
+                dto.SuggestedPrice = pricing.SuggestedUnitPrice;
+                dto.FinalPrice = pricing.FinalPrice ?? 0;
+                dto.PricingConfidence = pricing.AIConfidence;
+                dto.PricedBy = pricing.ConfirmedBy;
+                dto.PricedAt = pricing.ConfirmedAt;
+            }
+            productDtos.Add(dto);
+        }
 
         return (productDtos, totalCount);
     }
 
-    /// <summary>
-    /// Lấy thông tin chi tiết đầy đủ của sản phẩm (như nhãn sản phẩm)
-    /// </summary>
     public async Task<ProductDetailDto?> GetProductDetailAsync(Guid productId)
     {
         var product = await _context.Products
-            .Include(p => p.ProductImages)
-            .Include(p => p.Pricing)
-            .Include(p => p.Supermarket)
+            .Include(p => p.ProductDetail)
             .Include(p => p.Unit)
+            .Include(p => p.Supermarket)
+            .Include(p => p.CategoryRef)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
 
         if (product == null)
             return null;
 
-        // Map using AutoMapper
-        var detail = _mapper.Map<ProductDetailDto>(product);
+        var images = await _context.ProductImages
+            .Where(x => x.ProductId == productId)
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync();
+        var pricing = await GetLatestPricingHistoryByProductIdAsync(productId, default);
 
-        // Tính số lượng tồn kho từ các lots
-        detail.Quantity = await _context.ProductLots
+        var detail = _mapper.Map<ProductDetailDto>(product);
+        detail.UnitName = product.Unit?.Name ?? "Đang cập nhật";
+        detail.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
+        detail.TotalImages = images.Count;
+        detail.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
+
+        if (pricing != null && pricing.OriginalPrice > 0 && pricing.FinalPrice > 0)
+        {
+            detail.DiscountPercent = Math.Round((1 - pricing.FinalPrice.Value / pricing.OriginalPrice) * 100, 1);
+        }
+
+        detail.Quantity = await _context.StockLots
             .Where(pl => pl.ProductId == productId)
             .SumAsync(pl => pl.Quantity);
 
-        detail.UnitName = product.Unit?.Name ?? "Đang cập nhật";
-
-        // Tính discount percent từ Pricing
-        var pricing = product.Pricing;
-        if (pricing != null && pricing.OriginalUnitPrice > 0 && pricing.FinalUnitPrice > 0)
-        {
-            detail.DiscountPercent = Math.Round((1 - pricing.FinalUnitPrice / pricing.OriginalUnitPrice) * 100, 1);
-        }
-
-        // Lấy ExpiryDate từ lot gần hết hạn nhất
-        var nearestLot = await _context.ProductLots
+        var nearestLot = await _context.StockLots
             .Where(pl => pl.ProductId == productId && pl.ExpiryDate >= DateTime.UtcNow)
             .OrderBy(pl => pl.ExpiryDate)
             .FirstOrDefaultAsync();
@@ -353,5 +526,49 @@ public class ProductService : IProductService
 
         return detail;
     }
-}
 
+    private async Task<PricingHistory?> GetLatestPricingHistoryByProductIdAsync(Guid productId, CancellationToken cancellationToken)
+    {
+        var lotIds = await _context.StockLots
+            .Where(l => l.ProductId == productId)
+            .Select(l => l.LotId)
+            .ToListAsync(cancellationToken);
+
+        if (!lotIds.Any())
+            return null;
+
+        return await _context.AIPriceHistories
+            .Where(h => lotIds.Contains(h.LotId))
+            .OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, PricingHistory>> BuildLatestPricingHistoryLookupAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken)
+    {
+        var idList = productIds.Distinct().ToList();
+        if (!idList.Any())
+            return new Dictionary<Guid, PricingHistory>();
+
+        var lots = await _context.StockLots
+            .Where(l => idList.Contains(l.ProductId))
+            .Select(l => new { l.ProductId, l.LotId })
+            .ToListAsync(cancellationToken);
+
+        var lotIds = lots.Select(x => x.LotId).Distinct().ToList();
+        if (!lotIds.Any())
+            return new Dictionary<Guid, PricingHistory>();
+
+        var histories = await _context.AIPriceHistories
+            .Where(h => lotIds.Contains(h.LotId))
+            .ToListAsync(cancellationToken);
+
+        var lotToProduct = lots.ToDictionary(x => x.LotId, x => x.ProductId);
+
+        return histories
+            .Where(h => lotToProduct.ContainsKey(h.LotId))
+            .GroupBy(h => lotToProduct[h.LotId])
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).First());
+    }
+}

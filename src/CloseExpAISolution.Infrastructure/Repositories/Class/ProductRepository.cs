@@ -15,9 +15,9 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
     public async Task<Product?> GetByIdWithWorkflowDetailsAsync(Guid productId)
     {
         return await _context.Products
-            .Include(p => p.ProductLots)
-            .Include(p => p.Pricing)
-            .Include(p => p.ProductImages)
+            .Include(p => p.ProductDetail)
+            .Include(p => p.CategoryRef)
+            .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
     }
 }

@@ -6,10 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CloseExpAISolution.Infrastructure.Repositories.Class;
 
-/// <summary>
-/// Repository implementation cho BarcodeProduct entity.
-/// Hỗ trợ cơ chế Cache & Crowd-source cho barcode lookup.
-/// </summary>
 public class BarcodeProductRepository : GenericRepository<BarcodeProduct>, IBarcodeProductRepository
 {
     private new readonly ApplicationDbContext _context;
@@ -19,29 +15,26 @@ public class BarcodeProductRepository : GenericRepository<BarcodeProduct>, IBarc
         _context = context;
     }
 
-    /// <inheritdoc/>
     public async Task<BarcodeProduct?> GetByBarcodeAsync(string barcode)
     {
         if (string.IsNullOrWhiteSpace(barcode))
             return null;
-            
+
         var normalizedBarcode = NormalizeBarcode(barcode);
         return await _context.BarcodeProducts
             .FirstOrDefaultAsync(bp => bp.Barcode == normalizedBarcode && bp.Status == "active");
     }
 
-    /// <inheritdoc/>
     public async Task<bool> ExistsByBarcodeAsync(string barcode)
     {
         if (string.IsNullOrWhiteSpace(barcode))
             return false;
-            
+
         var normalizedBarcode = NormalizeBarcode(barcode);
         return await _context.BarcodeProducts
             .AnyAsync(bp => bp.Barcode == normalizedBarcode);
     }
 
-    /// <inheritdoc/>
     public async Task<IEnumerable<BarcodeProduct>> GetByCountryAsync(string country)
     {
         return await _context.BarcodeProducts
@@ -50,7 +43,6 @@ public class BarcodeProductRepository : GenericRepository<BarcodeProduct>, IBarc
             .ToListAsync();
     }
 
-    /// <inheritdoc/>
     public async Task<IEnumerable<BarcodeProduct>> GetVietnameseProductsAsync()
     {
         return await _context.BarcodeProducts
@@ -59,18 +51,16 @@ public class BarcodeProductRepository : GenericRepository<BarcodeProduct>, IBarc
             .ToListAsync();
     }
 
-    /// <inheritdoc/>
     public async Task<IEnumerable<BarcodeProduct>> GetPendingReviewAsync()
     {
         return await _context.BarcodeProducts
-            .Where(bp => bp.Status == "pending_review" || 
+            .Where(bp => bp.Status == "pending_review" ||
                         (bp.Source == "manual" && !bp.IsVerified) ||
                         (bp.Source == "ai-ocr" && !bp.IsVerified))
             .OrderByDescending(bp => bp.CreatedAt)
             .ToListAsync();
     }
 
-    /// <inheritdoc/>
     public async Task<IEnumerable<BarcodeProduct>> SearchAsync(string searchTerm, int limit = 20)
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
@@ -87,13 +77,12 @@ public class BarcodeProductRepository : GenericRepository<BarcodeProduct>, IBarc
             .ToListAsync();
     }
 
-    /// <inheritdoc/>
     public async Task IncrementScanCountAsync(string barcode)
     {
         var normalizedBarcode = NormalizeBarcode(barcode);
         var product = await _context.BarcodeProducts
             .FirstOrDefaultAsync(bp => bp.Barcode == normalizedBarcode);
-            
+
         if (product != null)
         {
             product.ScanCount++;
@@ -102,9 +91,6 @@ public class BarcodeProductRepository : GenericRepository<BarcodeProduct>, IBarc
         }
     }
 
-    /// <summary>
-    /// Chuẩn hóa barcode (chỉ giữ số)
-    /// </summary>
     private static string NormalizeBarcode(string barcode)
     {
         return new string(barcode.Where(char.IsDigit).ToArray());

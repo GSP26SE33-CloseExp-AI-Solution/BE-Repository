@@ -1,4 +1,4 @@
-using CloseExpAISolution.Domain.Entities;
+using System.ComponentModel.DataAnnotations;
 
 namespace CloseExpAISolution.Application.DTOs.Request;
 
@@ -9,21 +9,31 @@ public class MarketStaffDto
     public Guid SupermarketId { get; set; }
     public string Position { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
-    public User? User { get; set; }
-    public Supermarket? Supermarket { get; set; }
 }
 
 public class CreateMarketStaffRequestDto
 {
+    [Required]
     public Guid UserId { get; set; }
+
+    [Required]
     public Guid SupermarketId { get; set; }
+
+    [Required]
+    [StringLength(100)]
     public string Position { get; set; } = string.Empty;
 }
 
 public class UpdateMarketStaffRequestDto
 {
+    [Required]
     public Guid UserId { get; set; }
+
+    [Required]
     public Guid SupermarketId { get; set; }
+
+    [Required]
+    [StringLength(100)]
     public string Position { get; set; } = string.Empty;
 }
 

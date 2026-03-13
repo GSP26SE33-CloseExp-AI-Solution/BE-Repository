@@ -12,6 +12,6 @@ public class Supermarket
     public DateTime CreatedAt { get; set; }
 
     public ICollection<Product> Products { get; set; } = new List<Product>();
-    public ICollection<MarketStaff> MarketStaff { get; set; } = new List<MarketStaff>();
+    public ICollection<SupermarketStaff> SupermarketStaffs { get; set; } = new List<SupermarketStaff>();
 }
 

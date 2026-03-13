@@ -1,11 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.DTOs.Request;
 
-/// <summary>
-/// Public registration request (for Vendor or SupplierStaff only)
-/// </summary>
 public class RegisterRequest
 {
     [Required(ErrorMessage = "Full name is required")]
@@ -22,39 +20,45 @@ public class RegisterRequest
 
     [Required(ErrorMessage = "Password is required")]
     [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be between 8 and 100 characters")]
-    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.])[A-Za-z\d@$!%*?&.]{8,}$",
         ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one number and one special character")]
     public string Password { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Registration type: Only Vendor or SupplierStaff allowed for public registration
-    /// </summary>
     [Required(ErrorMessage = "Registration type is required")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public RegistrationType RegistrationType { get; set; }
+    public NewSupermarketRequest? NewSupermarket { get; set; }
 
-    /// <summary>
-    /// Siêu thị mà nhân viên làm việc (bắt buộc nếu đăng ký là SupplierStaff)
-    /// </summary>
-    public Guid? SupermarketId { get; set; }
-
-    /// <summary>
-    /// Vị trí công việc tại siêu thị (tùy chọn, mặc định: "Nhân viên")
-    /// </summary>
     public string? Position { get; set; }
 }
 
-/// <summary>
-/// Allowed registration types for public registration
-/// </summary>
+public class NewSupermarketRequest
+{
+    [Required(ErrorMessage = "Tên siêu thị không được để trống")]
+    [StringLength(200, ErrorMessage = "Tên siêu thị không được quá 200 ký tự")]
+    public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Địa chỉ không được để trống")]
+    [StringLength(500, ErrorMessage = "Địa chỉ không được quá 500 ký tự")]
+    public string Address { get; set; } = string.Empty;
+
+    [Range(-90, 90, ErrorMessage = "Latitude phải trong khoảng -90 đến 90")]
+    public decimal Latitude { get; set; }
+
+    [Range(-180, 180, ErrorMessage = "Longitude phải trong khoảng -180 đến 180")]
+    public decimal Longitude { get; set; }
+
+    [Required(ErrorMessage = "Số điện thoại không được để trống")]
+    [Phone(ErrorMessage = "Số điện thoại không hợp lệ")]
+    public string ContactPhone { get; set; } = string.Empty;
+
+    [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    public string? ContactEmail { get; set; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum RegistrationType
 {
-    /// <summary>
-    /// Register as Vendor (Small restaurant/retail seller)
-    /// </summary>
     Vendor = (int)RoleUser.Vendor,
-
-    /// <summary>
-    /// Register as SupplierStaff (Supermarket staff - nhân viên siêu thị)
-    /// </summary>
     SupplierStaff = (int)RoleUser.SupplierStaff
 }

@@ -8,5 +8,5 @@ public class UserImageResponseDto
     public string? PreSignedUrl { get; set; }
     public string ImageType { get; set; } = string.Empty;
     public bool IsPrimary { get; set; }
-    public DateTime UploadedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

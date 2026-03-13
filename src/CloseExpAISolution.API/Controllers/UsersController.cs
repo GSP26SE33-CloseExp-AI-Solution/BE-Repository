@@ -74,6 +74,31 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Delete current user account (SupplierStaff cannot self-delete)
+    /// </summary>
+    [HttpDelete("current-user")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteMyAccount()
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null)
+            return Unauthorized(ApiResponse<bool>.ErrorResponse("Không thể xác định người dùng"));
+
+        var result = await _services.UserService.DeleteOwnAccountAsync(userId.Value);
+        if (!result.Success)
+        {
+            if (result.Message == "Không tìm thấy người dùng")
+                return NotFound(result);
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Get all users (Admin only)
     /// </summary>
     [HttpGet]
@@ -356,7 +381,7 @@ public class UsersController : ControllerBase
             PreSignedUrl = _services.R2StorageService.GetPreSignedUrlForImage(image.ImageUrl, TimeSpan.FromHours(1)),
             ImageType = image.ImageType,
             IsPrimary = image.IsPrimary,
-            UploadedAt = image.UploadedAt
+            CreatedAt = image.UploadedAt
         };
     }
 

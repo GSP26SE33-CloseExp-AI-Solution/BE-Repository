@@ -18,4 +18,3 @@ public interface IAIVerificationLogService
     Task<int> CountAsync(Expression<Func<AIVerificationLog, bool>>? predicate = null);
     Task<bool> ExistsAsync(Expression<Func<AIVerificationLog, bool>> predicate);
 }
-

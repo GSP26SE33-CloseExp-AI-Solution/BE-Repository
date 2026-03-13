@@ -20,9 +20,6 @@ public class FeedbacksController : ControllerBase
 
     #region User Endpoints
 
-    /// <summary>
-    /// Get current user's feedbacks
-    /// </summary>
     [HttpGet("me")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<FeedbackResponseDto>>), StatusCodes.Status200OK)]
@@ -36,9 +33,6 @@ public class FeedbacksController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Create a new feedback (Authenticated user)
-    /// </summary>
     [HttpPost]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<FeedbackResponseDto>), StatusCodes.Status201Created)]
@@ -56,9 +50,6 @@ public class FeedbacksController : ControllerBase
         return CreatedAtAction(nameof(GetFeedbackById), new { id = result.Data?.FeedbackId }, result);
     }
 
-    /// <summary>
-    /// Update feedback (Owner only)
-    /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<FeedbackResponseDto>), StatusCodes.Status200OK)]
@@ -84,9 +75,6 @@ public class FeedbacksController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Delete feedback (Owner or Admin)
-    /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -117,9 +105,6 @@ public class FeedbacksController : ControllerBase
 
     #region Public/Admin Endpoints
 
-    /// <summary>
-    /// Get feedback by ID
-    /// </summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<FeedbackResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<FeedbackResponseDto>), StatusCodes.Status404NotFound)]
@@ -132,9 +117,6 @@ public class FeedbacksController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get all feedbacks for an order
-    /// </summary>
     [HttpGet("order/{orderId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<FeedbackResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFeedbacksByOrder(Guid orderId)
@@ -143,9 +125,6 @@ public class FeedbacksController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get all feedbacks (Admin only)
-    /// </summary>
     [HttpGet]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<FeedbackResponseDto>>), StatusCodes.Status200OK)]

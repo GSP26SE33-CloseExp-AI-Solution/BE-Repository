@@ -21,7 +21,7 @@ public class UserImageService : IUserImageService
     /// <summary>Upload ảnh người dùng lên R2</summary>
     public async Task<UserImage> UploadAsync(
         Stream fileStream, string fileName, string contentType, Guid userId,
-        string imageType = "avatar", bool isPrimary = false,
+        string imageType = "avatar", bool IsPrimary = false,
         CancellationToken cancellationToken = default)
     {
         // Upload file lên R2
@@ -30,7 +30,7 @@ public class UserImageService : IUserImageService
         var imageUrl = ((dynamic)result).Url;
 
         // Nếu đặt làm ảnh chính → bỏ primary của các ảnh cũ
-        if (isPrimary)
+        if (IsPrimary)
             await UnsetPrimaryImages(userId);
 
         var userImage = new UserImage
@@ -39,7 +39,7 @@ public class UserImageService : IUserImageService
             UserId = userId,
             ImageUrl = imageUrl,
             ImageType = imageType,
-            IsPrimary = isPrimary,
+            IsPrimary = IsPrimary,
             UploadedAt = DateTime.UtcNow
         };
 
@@ -102,3 +102,4 @@ public class UserImageService : IUserImageService
 
     #endregion
 }
+

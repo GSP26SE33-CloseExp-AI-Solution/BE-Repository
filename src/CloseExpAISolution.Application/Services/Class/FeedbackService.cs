@@ -22,7 +22,7 @@ public class FeedbackService : IFeedbackService
 
     public async Task<ApiResponse<IEnumerable<FeedbackResponseDto>>> GetAllFeedbacksAsync()
     {
-        var feedbacks = await _unitOfWork.Repository<Feedback>().GetAllAsync();
+        var feedbacks = await _unitOfWork.Repository<CustomerFeedback>().GetAllAsync();
         var userDict = await GetUserDictionary();
 
         var response = feedbacks.Select(f => MapFeedbackWithUser(f, userDict));
@@ -41,7 +41,7 @@ public class FeedbackService : IFeedbackService
 
     public async Task<ApiResponse<IEnumerable<FeedbackResponseDto>>> GetFeedbacksByUserIdAsync(Guid userId)
     {
-        var feedbacks = await _unitOfWork.Repository<Feedback>()
+        var feedbacks = await _unitOfWork.Repository<CustomerFeedback>()
             .FindAsync(f => f.UserId == userId);
 
         var user = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == userId);
@@ -59,7 +59,7 @@ public class FeedbackService : IFeedbackService
 
     public async Task<ApiResponse<IEnumerable<FeedbackResponseDto>>> GetFeedbacksByOrderIdAsync(Guid orderId)
     {
-        var feedbacks = await _unitOfWork.Repository<Feedback>()
+        var feedbacks = await _unitOfWork.Repository<CustomerFeedback>()
             .FindAsync(f => f.OrderId == orderId);
 
         var userDict = await GetUserDictionary();
@@ -70,20 +70,18 @@ public class FeedbackService : IFeedbackService
 
     public async Task<ApiResponse<FeedbackResponseDto>> CreateFeedbackAsync(Guid userId, CreateFeedbackRequestDto request)
     {
-        // Check if order exists
         var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == request.OrderId);
         if (order == null)
             return Error("Đơn hàng không tồn tại");
 
-        // Check if user already has feedback for this order
-        var existingFeedback = await _unitOfWork.Repository<Feedback>()
+        var existingFeedback = await _unitOfWork.Repository<CustomerFeedback>()
             .FirstOrDefaultAsync(f => f.UserId == userId && f.OrderId == request.OrderId);
         if (existingFeedback != null)
             return Error("Bạn đã đánh giá đơn hàng này rồi");
 
-        var feedback = new Feedback
+        var feedback = new CustomerFeedback
         {
-            FeedbackId = Guid.NewGuid(),
+            CustomerFeedbackId = Guid.NewGuid(),
             UserId = userId,
             OrderId = request.OrderId,
             Rating = request.Rating,
@@ -91,7 +89,7 @@ public class FeedbackService : IFeedbackService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.Repository<Feedback>().AddAsync(feedback);
+        await _unitOfWork.Repository<CustomerFeedback>().AddAsync(feedback);
         await _unitOfWork.SaveChangesAsync();
 
         var response = await MapFeedbackWithUserAsync(feedback);
@@ -104,18 +102,16 @@ public class FeedbackService : IFeedbackService
         if (feedback == null)
             return NotFound();
 
-        // Only owner can update
         if (feedback.UserId != userId)
             return Error("Bạn không có quyền sửa đánh giá này");
 
-        // Update fields if provided
         if (request.Rating.HasValue)
             feedback.Rating = request.Rating.Value;
 
         if (request.Comment != null)
             feedback.Comment = request.Comment;
 
-        _unitOfWork.Repository<Feedback>().Update(feedback);
+        _unitOfWork.Repository<CustomerFeedback>().Update(feedback);
         await _unitOfWork.SaveChangesAsync();
 
         var response = await MapFeedbackWithUserAsync(feedback);
@@ -128,11 +124,10 @@ public class FeedbackService : IFeedbackService
         if (feedback == null)
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy đánh giá");
 
-        // Admin can delete any feedback, user can only delete their own
         if (!isAdmin && feedback.UserId != userId)
             return ApiResponse<bool>.ErrorResponse("Bạn không có quyền xóa đánh giá này");
 
-        _unitOfWork.Repository<Feedback>().Delete(feedback);
+        _unitOfWork.Repository<CustomerFeedback>().Delete(feedback);
         await _unitOfWork.SaveChangesAsync();
 
         return ApiResponse<bool>.SuccessResponse(true, "Xóa đánh giá thành công");
@@ -142,19 +137,16 @@ public class FeedbackService : IFeedbackService
 
     #region Private Helpers
 
-    /// <summary>Finds feedback by ID</summary>
-    private async Task<Feedback?> FindFeedbackById(Guid id)
-        => await _unitOfWork.Repository<Feedback>().FirstOrDefaultAsync(f => f.FeedbackId == id);
+    private async Task<CustomerFeedback?> FindFeedbackById(Guid id)
+        => await _unitOfWork.Repository<CustomerFeedback>().FirstOrDefaultAsync(f => f.CustomerFeedbackId == id);
 
-    /// <summary>Gets all users as dictionary for bulk mapping</summary>
     private async Task<Dictionary<Guid, string>> GetUserDictionary()
     {
         var users = await _unitOfWork.Repository<User>().GetAllAsync();
         return users.ToDictionary(u => u.UserId, u => u.FullName);
     }
 
-    /// <summary>Maps feedback to DTO with user name lookup</summary>
-    private async Task<FeedbackResponseDto> MapFeedbackWithUserAsync(Feedback feedback)
+    private async Task<FeedbackResponseDto> MapFeedbackWithUserAsync(CustomerFeedback feedback)
     {
         var user = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == feedback.UserId);
         var dto = _mapper.Map<FeedbackResponseDto>(feedback);
@@ -162,19 +154,16 @@ public class FeedbackService : IFeedbackService
         return dto;
     }
 
-    /// <summary>Maps feedback to DTO using pre-loaded user dictionary</summary>
-    private FeedbackResponseDto MapFeedbackWithUser(Feedback feedback, Dictionary<Guid, string> userDict)
+    private FeedbackResponseDto MapFeedbackWithUser(CustomerFeedback feedback, Dictionary<Guid, string> userDict)
     {
         var dto = _mapper.Map<FeedbackResponseDto>(feedback);
         dto.UserName = userDict.GetValueOrDefault(feedback.UserId, "Unknown");
         return dto;
     }
 
-    /// <summary>Shortcut for feedback not found error</summary>
     private static ApiResponse<FeedbackResponseDto> NotFound()
         => ApiResponse<FeedbackResponseDto>.ErrorResponse("Không tìm thấy đánh giá");
 
-    /// <summary>Shortcut to create error response</summary>
     private static ApiResponse<FeedbackResponseDto> Error(string message)
         => ApiResponse<FeedbackResponseDto>.ErrorResponse(message);
 

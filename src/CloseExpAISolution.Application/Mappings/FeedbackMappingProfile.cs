@@ -8,13 +8,11 @@ public class FeedbackMappingProfile : Profile
 {
     public FeedbackMappingProfile()
     {
-        // Feedback -> FeedbackResponseDto
-        CreateMap<Feedback, FeedbackResponseDto>()
-            .ForMember(dest => dest.UserName, opt => opt.Ignore()); // Set manually
+        CreateMap<CustomerFeedback, FeedbackResponseDto>()
+            .ForMember(dest => dest.UserName, opt => opt.Ignore());
 
-        // CreateFeedbackRequestDto -> Feedback
-        CreateMap<CreateFeedbackRequestDto, Feedback>()
-            .ForMember(dest => dest.FeedbackId, opt => opt.MapFrom(_ => Guid.NewGuid()))
+        CreateMap<CreateFeedbackRequestDto, CustomerFeedback>()
+            .ForMember(dest => dest.CustomerFeedbackId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.User, opt => opt.Ignore())
             .ForMember(dest => dest.Order, opt => opt.Ignore());
