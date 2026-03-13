@@ -2,9 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace CloseExpAISolution.Application.Mapbox.DTOs;
 
-/// <summary>
-/// Mapbox Geocoding API v6 GeoJSON response models
-/// </summary>
 public class MapboxGeocodingResponse
 {
     [JsonPropertyName("type")]

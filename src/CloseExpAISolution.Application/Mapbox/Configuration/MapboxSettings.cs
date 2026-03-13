@@ -1,9 +1,6 @@
 
 namespace CloseExpAISolution.Application.Mapbox.Configuration;
 
-/// <summary>
-/// Configuration settings for Mapbox Geocoding API integration
-/// </summary>
 public class MapboxSettings
 {
     public const string SectionName = "Mapbox";

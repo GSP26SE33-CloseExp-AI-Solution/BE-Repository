@@ -10,14 +10,8 @@ using Polly.Extensions.Http;
 
 namespace CloseExpAISolution.Application.AIService.Extensions;
 
-/// <summary>
-/// Extension methods for registering AI Service dependencies
-/// </summary>
 public static class AIServiceExtensions
 {
-    /// <summary>
-    /// Add AI Service client with resilience policies
-    /// </summary>
     public static IServiceCollection AddAIService(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -64,9 +58,6 @@ public static class AIServiceExtensions
         return services;
     }
 
-    /// <summary>
-    /// Create retry policy with exponential backoff
-    /// </summary>
     private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy(AIServiceSettings settings)
     {
         return HttpPolicyExtensions

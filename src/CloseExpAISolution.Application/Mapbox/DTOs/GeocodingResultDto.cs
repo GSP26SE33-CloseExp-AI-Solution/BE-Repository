@@ -1,8 +1,5 @@
 namespace CloseExpAISolution.Application.Mapbox.DTOs;
 
-/// <summary>
-/// Internal DTO chứa kết quả geocoding đã parse từ Mapbox response
-/// </summary>
 public class GeocodingResultDto
 {
     public double Latitude { get; set; }

@@ -27,18 +27,9 @@ public class RegisterRequest
     [Required(ErrorMessage = "Registration type is required")]
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public RegistrationType RegistrationType { get; set; }
-
-    /// <summary>
-    /// Thông tin siêu thị mới (bắt buộc khi đăng ký SupplierStaff).
-    /// </summary>
     public NewSupermarketRequest? NewSupermarket { get; set; }
-
     public string? Position { get; set; }
 }
-
-/// <summary>
-/// DTO để tạo siêu thị mới khi đăng ký SupplierStaff
-/// </summary>
 public class NewSupermarketRequest
 {
     [Required(ErrorMessage = "Tên siêu thị không được để trống")]
@@ -63,14 +54,9 @@ public class NewSupermarketRequest
     public string? ContactEmail { get; set; }
 }
 
-/// <summary>
-/// Registration types available for public registration.
-/// Use string values: "Vendor" or "SupplierStaff"
-/// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum RegistrationType
 {
     Vendor = (int)RoleUser.Vendor,
-    
     SupplierStaff = (int)RoleUser.SupplierStaff
 }

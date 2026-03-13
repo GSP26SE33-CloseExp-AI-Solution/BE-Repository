@@ -55,12 +55,10 @@ public class AuthService : IAuthService
         if (user == null)
             return Error("Email hoặc mật khẩu không hợp lệ");
 
-        // Validate account status
         var statusError = await ValidateAndHandleAccountStatus(user, userRepository);
         if (statusError != null)
             return statusError;
 
-        // Verify password
         if (!VerifyPassword(request.Password, user.PasswordHash))
             return await HandleFailedLogin(user, userRepository);
 
@@ -94,11 +92,9 @@ public class AuthService : IAuthService
     {
         var userRepository = _unitOfWork.Repository<User>();
 
-        // Validate email uniqueness
         if (await EmailExists(request.Email))
             return Error("Email đã được đăng ký");
 
-        // Validate role
         var roleId = (int)request.RegistrationType;
         var roleValidation = await ValidatePublicRegistrationRole(roleId);
         if (roleValidation != null)
@@ -111,7 +107,6 @@ public class AuthService : IAuthService
             if (request.NewSupermarket == null)
                 return Error("Vui lòng nhập thông tin siêu thị/cơ sở");
 
-            // Kiểm tra trùng lặp theo tên + địa chỉ + tọa độ (phân biệt cơ sở)
             var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
                 .FirstOrDefaultAsync(s =>
                     s.Name.ToLower() == request.NewSupermarket.Name.ToLower() &&
@@ -122,7 +117,7 @@ public class AuthService : IAuthService
             if (existingSupermarket != null)
                 return Error($"Cơ sở '{existingSupermarket.Name} - {existingSupermarket.Address}' đã tồn tại trong hệ thống");
 
-            // Auto-geocode: nếu client không gửi tọa độ → dùng Mapbox forward geocoding
+            // Tạo tọa độ nếu chỉ nhập địa chỉ
             if (request.NewSupermarket.Latitude == 0 && request.NewSupermarket.Longitude == 0
                 && !string.IsNullOrWhiteSpace(request.NewSupermarket.Address))
             {
@@ -147,14 +142,11 @@ public class AuthService : IAuthService
                 }
             }
 
-            // Tạo mới
             finalSupermarketId = Guid.NewGuid();
         }
 
-        // Create user
         var user = CreateNewUser(request, roleId);
 
-        // Generate OTP for email verification
         var otp = GenerateOtp();
         user.OtpCode = HashOtp(otp);
         user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
@@ -164,17 +156,14 @@ public class AuthService : IAuthService
         {
             await userRepository.AddAsync(user);
 
-            // TẠO SUPERMARKET MỚI + MARKETSTAFF LINK
             if (roleId == (int)RoleUser.SupplierStaff && finalSupermarketId.HasValue)
             {
-                // Tạo Supermarket
                 var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
                 newSupermarket.SupermarketId = finalSupermarketId.Value;
                 newSupermarket.Status = UserState.Active.ToString();
                 newSupermarket.CreatedAt = DateTime.UtcNow;
                 await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
 
-                // Tạo MarketStaff link
                 var marketStaff = new MarketStaff
                 {
                     MarketStaffId = Guid.NewGuid(),
@@ -195,7 +184,6 @@ public class AuthService : IAuthService
             return Error("Đăng ký thất bại. Vui lòng thử lại sau");
         }
 
-        // Send OTP email (outside transaction - không rollback được email)
         await SendOtpEmailAsync(user.Email, otp, user.FullName);
 
         return ApiResponse<AuthResponse>.SuccessWithMessage(
@@ -212,7 +200,7 @@ public class AuthService : IAuthService
 
         if (!storedToken.IsActive)
         {
-            // If someone tries to use revoked/expired token, revoke all tokens for security
+            // If someone tries to use revoked/expired token, revoke all tokens
             if (storedToken.IsRevoked)
             {
                 await RevokeAllUserTokensAsync(storedToken.UserId);
@@ -221,13 +209,11 @@ public class AuthService : IAuthService
             return Error("Refresh token đã hết hạn");
         }
 
-        // Get user
         var userRepository = _unitOfWork.Repository<User>();
         var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == storedToken.UserId);
         if (user == null)
             return Error("Người dùng không tồn tại");
 
-        // Check user status
         if (user.Status != UserState.Active.ToString())
             return Error("Tài khoản không còn hoạt động");
 
@@ -241,7 +227,6 @@ public class AuthService : IAuthService
         {
             refreshTokenRepo.Update(storedToken);
 
-            // Create new refresh token
             var newToken = CreateRefreshTokenEntity(user.UserId, newRefreshToken, ipAddress, storedToken.DeviceInfo);
             await refreshTokenRepo.AddAsync(newToken);
 
@@ -272,7 +257,6 @@ public class AuthService : IAuthService
         if (storedToken.IsRevoked)
             return ApiResponse<bool>.SuccessResponse(true, "Đã đăng xuất");
 
-        // Revoke token atomically
         await _unitOfWork.BeginTransactionAsync();
         try
         {
@@ -326,15 +310,12 @@ public class AuthService : IAuthService
         if (user.Status != UserState.Unverified.ToString())
             return ApiResponse<bool>.ErrorResponse("Tài khoản không cần xác minh email");
 
-        // Check OTP failed attempts lockout
         if (user.OtpFailedCount >= MaxOtpFailedAttempts)
             return ApiResponse<bool>.ErrorResponse("Nhập sai OTP quá nhiều lần. Vui lòng yêu cầu gửi lại mã OTP mới");
 
-        // Check OTP exists and not expired
         if (string.IsNullOrEmpty(user.OtpCode) || user.OtpExpiresAt == null || user.OtpExpiresAt < DateTime.UtcNow)
             return ApiResponse<bool>.ErrorResponse("Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới");
 
-        // Verify OTP hash
         if (user.OtpCode != HashOtp(request.OtpCode))
         {
             user.OtpFailedCount++;
@@ -354,7 +335,6 @@ public class AuthService : IAuthService
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
-        // Send confirmation email
         await SendEmailVerifiedNotificationAsync(user.Email, user.FullName);
 
         return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Tài khoản đang chờ Admin phê duyệt");
@@ -383,7 +363,6 @@ public class AuthService : IAuthService
             }
         }
 
-        // Generate new OTP
         var otp = GenerateOtp();
         user.OtpCode = HashOtp(otp);
         user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
@@ -405,11 +384,10 @@ public class AuthService : IAuthService
         if (user == null)
             return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
 
-        // Only allow password reset for Active, PendingApproval accounts
-        if (user.Status != UserState.Active.ToString() && user.Status != UserState.PendingApproval.ToString())
+        if (user.Status != UserState.Active.ToString() &&
+            user.Status != UserState.PendingApproval.ToString())
             return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
 
-        // Rate limit
         if (user.OtpExpiresAt != null)
         {
             var otpCreatedAt = user.OtpExpiresAt.Value.AddMinutes(-OtpExpiryMinutes);
@@ -439,15 +417,12 @@ public class AuthService : IAuthService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
 
-        // Check OTP failed attempts
         if (user.OtpFailedCount >= MaxOtpFailedAttempts)
             return ApiResponse<bool>.ErrorResponse("Nhập sai OTP quá nhiều lần. Vui lòng yêu cầu mã OTP mới");
 
-        // Check OTP exists and not expired
         if (string.IsNullOrEmpty(user.OtpCode) || user.OtpExpiresAt == null || user.OtpExpiresAt < DateTime.UtcNow)
             return ApiResponse<bool>.ErrorResponse("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới");
 
-        // Verify OTP
         if (user.OtpCode != HashOtp(request.OtpCode))
         {
             user.OtpFailedCount++;
@@ -576,7 +551,6 @@ public class AuthService : IAuthService
 
     #region Login Helpers
 
-    /// <summary>Checks account status and auto-unlocks if lockout expired</summary>
     private async Task<ApiResponse<AuthResponse>?> ValidateAndHandleAccountStatus(User user, dynamic userRepository)
     {
         var status = user.Status;
@@ -610,7 +584,6 @@ public class AuthService : IAuthService
         return null;
     }
 
-    /// <summary>Attempts to unlock account if 30-min lockout has passed</summary>
     private (bool IsUnlocked, int RemainingMinutes) TryAutoUnlock(User user)
     {
         var lockoutEndTime = user.UpdateAt.AddMinutes(LockoutDurationMinutes);
@@ -626,7 +599,6 @@ public class AuthService : IAuthService
         return (true, 0);
     }
 
-    /// <summary>Increments failed count and locks account after 5 attempts</summary>
     private async Task<ApiResponse<AuthResponse>> HandleFailedLogin(User user, dynamic userRepository)
     {
         await _unitOfWork.BeginTransactionAsync();
@@ -657,17 +629,6 @@ public class AuthService : IAuthService
         }
     }
 
-    // /// <summary>Resets failed login counter after successful login</summary>
-    // private async Task ResetFailedLoginCount(User user, dynamic userRepository)
-    // {
-    //     if (user.FailedLoginCount == 0) return;
-
-    //     user.FailedLoginCount = 0;
-    //     userRepository.Update(user);
-    //     await _unitOfWork.SaveChangesAsync();
-    // }
-
-    /// <summary>Verifies password against BCrypt hash</summary>
     private static bool VerifyPassword(string password, string passwordHash)
         => BCrypt.Net.BCrypt.Verify(password, passwordHash);
 
@@ -675,7 +636,6 @@ public class AuthService : IAuthService
 
     #region Registration Helpers
 
-    /// <summary>Checks if email is already registered</summary>
     private async Task<bool> EmailExists(string email)
     {
         var userRepository = _unitOfWork.Repository<User>();
@@ -683,7 +643,6 @@ public class AuthService : IAuthService
         return existingUser != null;
     }
 
-    /// <summary>Validates role is allowed for public registration (Vendor/SupplierStaff only)</summary>
     private async Task<ApiResponse<AuthResponse>?> ValidatePublicRegistrationRole(int roleId)
     {
         var roleRepository = _unitOfWork.Repository<Role>();
@@ -699,7 +658,6 @@ public class AuthService : IAuthService
         return null;
     }
 
-    /// <summary>Creates a new user entity with Unverified status</summary>
     private static User CreateNewUser(RegisterRequest request, int roleId) => new()
     {
         UserId = Guid.NewGuid(),
@@ -718,7 +676,6 @@ public class AuthService : IAuthService
 
     #region Token Generation
 
-    /// <summary>Generates JWT access token and refresh token, saves refresh token to DB</summary>
     private async Task<AuthResponse> GenerateTokensAsync(User user, string roleName, string? ipAddress, string? deviceInfo)
     {
         var refreshTokenString = GenerateRefreshTokenString();
@@ -731,7 +688,6 @@ public class AuthService : IAuthService
         return await GenerateAuthResponseAsync(user, roleName, refreshTokenString);
     }
 
-    /// <summary>Generates AuthResponse with access token</summary>
     private async Task<AuthResponse> GenerateAuthResponseAsync(User user, string roleName, string refreshToken)
     {
         var jwtSettings = _configuration.GetSection("Jwt");
@@ -756,7 +712,6 @@ public class AuthService : IAuthService
         };
     }
 
-    /// <summary>Creates a secure random refresh token string</summary>
     private static string GenerateRefreshTokenString()
     {
         var randomBytes = new byte[64];
@@ -765,7 +720,6 @@ public class AuthService : IAuthService
         return Convert.ToBase64String(randomBytes);
     }
 
-    /// <summary>Creates RefreshToken entity for database</summary>
     private static RefreshToken CreateRefreshTokenEntity(Guid userId, string token, string? ipAddress, string? deviceInfo) => new()
     {
         RefreshTokenId = Guid.NewGuid(),
@@ -777,7 +731,6 @@ public class AuthService : IAuthService
         DeviceInfo = deviceInfo
     };
 
-    /// <summary>Creates JWT token with user claims</summary>
     private static string GenerateAccessToken(User user, string roleName, IConfigurationSection jwtSettings, DateTime expiresAt)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
@@ -804,7 +757,6 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    /// <summary>Maps User entity to UserResponseDto</summary>
     private static UserResponseDto MapToUserResponse(User user, string roleName, MarketStaffInfoDto? marketStaffInfo = null) => new()
     {
         UserId = user.UserId,
@@ -819,7 +771,6 @@ public class AuthService : IAuthService
         MarketStaffInfo = marketStaffInfo
     };
 
-    /// <summary>Gets MarketStaff info with Supermarket details for a user</summary>
     private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
     {
         var marketStaff = await _unitOfWork.Repository<MarketStaff>()
@@ -849,7 +800,6 @@ public class AuthService : IAuthService
 
     #region Common Helpers
 
-    /// <summary>Gets role name by roleId from database</summary>
     private async Task<string> GetRoleName(int roleId)
     {
         var roleRepository = _unitOfWork.Repository<Role>();
@@ -857,7 +807,6 @@ public class AuthService : IAuthService
         return role?.RoleName ?? "User";
     }
 
-    /// <summary>Shortcut to create error response</summary>
     private static ApiResponse<AuthResponse> Error(string message)
         => ApiResponse<AuthResponse>.ErrorResponse(message);
 
@@ -865,7 +814,6 @@ public class AuthService : IAuthService
 
     #region OTP Helpers
 
-    /// <summary>Generates a random 6-digit OTP</summary>
     private static string GenerateOtp()
     {
         using var rng = RandomNumberGenerator.Create();
@@ -875,7 +823,6 @@ public class AuthService : IAuthService
         return number.ToString();
     }
 
-    /// <summary>Hashes OTP using SHA256 for secure storage</summary>
     private static string HashOtp(string otp)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(otp));

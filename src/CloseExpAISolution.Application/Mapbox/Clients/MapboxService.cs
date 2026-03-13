@@ -7,9 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.Mapbox.Clients;
 
-/// <summary>
-/// Implementation gọi Mapbox Geocoding API v6
-/// </summary>
 public class MapboxService : IMapboxService
 {
     private readonly HttpClient _httpClient;
@@ -128,9 +125,6 @@ public class MapboxService : IMapboxService
         };
     }
 
-    /// <summary>
-    /// Loại bỏ access_token khỏi URL trước khi log
-    /// </summary>
     private static string SanitizeUrl(string url)
     {
         var tokenIndex = url.IndexOf("access_token=", StringComparison.Ordinal);

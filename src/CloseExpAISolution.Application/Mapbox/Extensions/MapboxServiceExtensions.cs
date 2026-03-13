@@ -10,14 +10,8 @@ using Polly.Extensions.Http;
 
 namespace CloseExpAISolution.Application.Mapbox.Extensions;
 
-/// <summary>
-/// Extension methods for registering Mapbox Service dependencies
-/// </summary>
 public static class MapboxServiceExtensions
 {
-    /// <summary>
-    /// Add Mapbox Geocoding Service with HttpClient + Polly retry policies
-    /// </summary>
     public static IServiceCollection AddMapboxService(
         this IServiceCollection services,
         IConfiguration configuration)
