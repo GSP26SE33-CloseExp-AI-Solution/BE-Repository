@@ -17,7 +17,11 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
-                b => b.MigrationsAssembly(typeof(CloseExpAISolution.Domain.Migrations.ApplicationDbContextModelSnapshot).Assembly.FullName)
+                b =>
+                {
+                    b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
+                    b.CommandTimeout(120);
+                }
             )
         );
 

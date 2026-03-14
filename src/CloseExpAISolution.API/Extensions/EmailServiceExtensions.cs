@@ -1,4 +1,4 @@
-﻿using CloseExpAISolution.Application.Email.Jobs;
+using CloseExpAISolution.Application.Email.Jobs;
 using CloseExpAISolution.Application.Email.Settings;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
@@ -10,11 +10,11 @@ namespace CloseExpAISolution.API.Extensions
     {
         public static IServiceCollection AddEmailServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Bind EmailSettings từ configuration
+            // Bind EmailSettings from configuration; use defaults when missing (e.g. in Docker without appsettings)
             var emailSettings = configuration.GetSection("EmailSettings").Get<EmailSettings>()
-                ?? throw new InvalidOperationException("EmailSettings configuration is missing");
+                ?? new EmailSettings();
 
-            // Đăng ký EmailSettings như singleton
+            // Register EmailSettings as singleton
             services.AddSingleton(emailSettings);
 
             // Đăng ký IOptions<EmailSettings> nếu cần

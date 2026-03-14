@@ -27,8 +27,24 @@ public class CreateOrderRequestDto
     [MaxLength(50)]
     public string Status { get; set; } = "Pending";
 
-    public Guid? DoorPickupId { get; set; }
+    [Required]
+    public Guid AddressId { get; set; }
+
     public Guid? PromotionId { get; set; }
+    public Guid? DeliveryGroupId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryNote { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal DiscountAmount { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal FinalAmount { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal DeliveryFee { get; set; }
+
+    public DateTime? CancelDeadline { get; set; }
 
     /// <summary>
     /// Order items: LotId, Quantity, UnitPrice per line
@@ -72,8 +88,22 @@ public class UpdateOrderRequestDto
     [MaxLength(50)]
     public string? Status { get; set; }
 
-    public Guid? DoorPickupId { get; set; }
+    public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
+    public Guid? DeliveryGroupId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryNote { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? DiscountAmount { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? FinalAmount { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? DeliveryFee { get; set; }
+
+    public DateTime? CancelDeadline { get; set; }
 
     /// <summary>
     /// If provided, replaces all order items

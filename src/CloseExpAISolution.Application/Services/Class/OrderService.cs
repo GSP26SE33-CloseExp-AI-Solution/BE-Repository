@@ -57,22 +57,32 @@ public class OrderService : IOrderService
             PickupPointId = request.PickupPointId,
             DeliveryType = request.DeliveryType,
             TotalAmount = request.TotalAmount,
+            DiscountAmount = request.DiscountAmount,
+            FinalAmount = request.FinalAmount,
+            DeliveryFee = request.DeliveryFee,
             Status = request.Status,
             OrderDate = DateTime.UtcNow,
+            AddressId = request.AddressId,
             PromotionId = request.PromotionId,
+            DeliveryGroupId = request.DeliveryGroupId,
+            DeliveryAddress = request.DeliveryAddress,
+            DeliveryNote = request.DeliveryNote,
+            CancelDeadline = request.CancelDeadline,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         foreach (var item in request.OrderItems)
         {
+            var totalPrice = item.Quantity * item.UnitPrice;
             order.OrderItems.Add(new OrderItem
             {
                 OrderItemId = Guid.NewGuid(),
                 OrderId = orderId,
                 LotId = item.LotId,
                 Quantity = item.Quantity,
-                UnitPrice = item.UnitPrice
+                UnitPrice = item.UnitPrice,
+                TotalPrice = totalPrice
             });
         }
 
@@ -93,20 +103,30 @@ public class OrderService : IOrderService
         if (request.DeliveryType != null) order.DeliveryType = request.DeliveryType;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
         if (request.Status != null) order.Status = request.Status;
+        if (request.AddressId.HasValue) order.AddressId = request.AddressId.Value;
         if (request.PromotionId.HasValue) order.PromotionId = request.PromotionId;
+        if (request.DeliveryGroupId.HasValue) order.DeliveryGroupId = request.DeliveryGroupId;
+        if (request.DeliveryAddress != null) order.DeliveryAddress = request.DeliveryAddress;
+        if (request.DeliveryNote != null) order.DeliveryNote = request.DeliveryNote;
+        if (request.DiscountAmount.HasValue) order.DiscountAmount = request.DiscountAmount.Value;
+        if (request.FinalAmount.HasValue) order.FinalAmount = request.FinalAmount.Value;
+        if (request.DeliveryFee.HasValue) order.DeliveryFee = request.DeliveryFee.Value;
+        if (request.CancelDeadline.HasValue) order.CancelDeadline = request.CancelDeadline;
 
         if (request.OrderItems != null && request.OrderItems.Count > 0)
         {
             order.OrderItems.Clear();
             foreach (var dto in request.OrderItems)
             {
+                var totalPrice = dto.Quantity * dto.UnitPrice;
                 order.OrderItems.Add(new OrderItem
                 {
                     OrderItemId = dto.OrderItemId == Guid.Empty ? Guid.NewGuid() : dto.OrderItemId,
                     OrderId = orderId,
                     LotId = dto.LotId,
                     Quantity = dto.Quantity,
-                    UnitPrice = dto.UnitPrice
+                    UnitPrice = dto.UnitPrice,
+                    TotalPrice = totalPrice
                 });
             }
         }

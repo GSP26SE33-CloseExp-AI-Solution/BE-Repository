@@ -15,10 +15,17 @@ public class OrderResponseDto
     public string? PickupPointName { get; set; }
     public string DeliveryType { get; set; } = string.Empty;
     public decimal TotalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal FinalAmount { get; set; }
+    public decimal DeliveryFee { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime OrderDate { get; set; }
-    public Guid? DoorPickupId { get; set; }
+    public Guid AddressId { get; set; }
     public Guid? PromotionId { get; set; }
+    public Guid? DeliveryGroupId { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? DeliveryNote { get; set; }
+    public DateTime? CancelDeadline { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
@@ -35,7 +42,8 @@ public class OrderItemResponseDto
     public Guid LotId { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
-    public decimal LineTotal => Quantity * UnitPrice;
+    public decimal TotalPrice { get; set; }
+    public decimal LineTotal => TotalPrice != 0 ? TotalPrice : Quantity * UnitPrice;
 
     /// <summary>
     /// Product/lot info when loaded with details
