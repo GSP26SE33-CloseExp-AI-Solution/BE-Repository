@@ -102,9 +102,9 @@ public class SupermarketService : ISupermarketService
             return await GetAllWithDtoAsync();
 
         var queryLower = query.Trim().ToLower();
-        
+
         var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
-        
+
         // Lấy danh sách SupermarketId đã có nhân viên
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
@@ -113,8 +113,8 @@ public class SupermarketService : ISupermarketService
 
         // Filter: tìm theo tên hoặc địa chỉ (case-insensitive)
         var searchResults = allSupermarkets
-            .Where(s => 
-                s.Name.ToLower().Contains(queryLower) || 
+            .Where(s =>
+                s.Name.ToLower().Contains(queryLower) ||
                 s.Address.ToLower().Contains(queryLower))
             .Select(s => new
             {
@@ -124,11 +124,11 @@ public class SupermarketService : ISupermarketService
             .ToList();
 
         var dtos = _mapper.Map<List<SupermarketResponseDto>>(searchResults.Select(x => x.Supermarket));
-        
+
         // Gắn thêm thông tin HasStaff vào response nếu cần
         // Hiện SupermarketResponseDto không có field HasStaff
         // Nếu cần, có thể extend DTO hoặc trả về trong metadata
-        
+
         return dtos;
     }
 

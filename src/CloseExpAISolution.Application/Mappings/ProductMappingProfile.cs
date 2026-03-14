@@ -14,9 +14,9 @@ public class ProductMappingProfile : Profile
         CreateMap<ProductImage, ProductImageDto>();
 
         CreateMap<StockLot, StockLotDetailDto>()
-            .ForMember(dest => dest.UnitId, opt => opt.MapFrom(src => src.Product != null && src.Product.UnitOfMeasure != null ? src.Product.UnitOfMeasure.UnitId : Guid.Empty))
-            .ForMember(dest => dest.UnitName, opt => opt.MapFrom(src => src.Product != null && src.Product.UnitOfMeasure != null ? src.Product.UnitOfMeasure.Name : ""))
-            .ForMember(dest => dest.UnitType, opt => opt.MapFrom(src => src.Product != null && src.Product.UnitOfMeasure != null ? src.Product.UnitOfMeasure.Type : ""))
+            .ForMember(dest => dest.UnitId, opt => opt.MapFrom(src => src.Product != null && src.Product.Unit != null ? src.Product.Unit.UnitId : Guid.Empty))
+            .ForMember(dest => dest.UnitName, opt => opt.MapFrom(src => src.Product != null && src.Product.Unit != null ? src.Product.Unit.Name : ""))
+            .ForMember(dest => dest.UnitType, opt => opt.MapFrom(src => src.Product != null && src.Product.Unit != null ? src.Product.Unit.Type : ""))
             .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : ""))
             .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? src.Product.ProductDetail.Brand : ""))
             .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.Product != null && src.Product.CategoryRef != null ? src.Product.CategoryRef.Name : ""))
@@ -45,7 +45,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Description ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.Origin, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Origin ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.Weight, opt => opt.MapFrom(src => src.StockLots != null && src.StockLots.Any()
-                ? src.StockLots.OrderByDescending(pl => pl.ExpiryDate).First().Weight.ToString() + " " + (src.UnitOfMeasure != null ? src.UnitOfMeasure.Name : "")
+                ? src.StockLots.OrderByDescending(pl => pl.ExpiryDate).First().Weight.ToString() + " " + (src.Unit != null ? src.Unit.Name : "")
                 : "Đang cập nhật"))
             .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Ingredients ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.UsageInstructions, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.UsageInstructions ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
@@ -117,7 +117,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.CategoryId, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore())
             .ForMember(dest => dest.CategoryRef, opt => opt.Ignore())
-            .ForMember(dest => dest.UnitOfMeasure, opt => opt.Ignore())
+            .ForMember(dest => dest.Unit, opt => opt.Ignore())
             .ForMember(dest => dest.ProductDetail, opt => opt.Ignore())
             .ForMember(dest => dest.StockLots, opt => opt.Ignore());
 
@@ -128,7 +128,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore())
             .ForMember(dest => dest.CategoryRef, opt => opt.Ignore())
-            .ForMember(dest => dest.UnitOfMeasure, opt => opt.Ignore())
+            .ForMember(dest => dest.Unit, opt => opt.Ignore())
             .ForMember(dest => dest.ProductDetail, opt => opt.Ignore())
             .ForMember(dest => dest.StockLots, opt => opt.Ignore());
     }

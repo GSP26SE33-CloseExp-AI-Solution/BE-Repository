@@ -74,7 +74,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Delete current user account (SupplierStaff cannot self-delete)
+    /// Soft delete current user account (Only Vendor can delete their own account, others must contact Admin)
     /// </summary>
     [HttpDelete("current-user")]
     [Authorize]
@@ -231,7 +231,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserImageResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<UserImageResponseDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadMyImage(
-        IFormFile file, 
+        IFormFile file,
         [FromQuery] string imageType = "avatar",
         [FromQuery] bool setAsPrimary = true)
     {

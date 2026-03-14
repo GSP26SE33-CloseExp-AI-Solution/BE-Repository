@@ -1,6 +1,7 @@
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -102,7 +103,13 @@ public class UserService : IUserService
         UpdateUserFields(user, request.FullName, request.Phone);
 
         if (request.Status.HasValue)
+        {
+            var statusValidation = ValidateStatusTransition(user, request.Status.Value);
+            if (statusValidation != null)
+                return statusValidation;
+
             user.Status = request.Status.Value.ToString();
+        }
 
         await SaveUserChanges(user);
 
@@ -128,6 +135,10 @@ public class UserService : IUserService
         var user = await FindUserById(id);
         if (user == null)
             return NotFound();
+
+        var statusValidation = ValidateStatusTransition(user, request.Status);
+        if (statusValidation != null)
+            return statusValidation;
 
         var oldStatus = user.Status;
         user.Status = request.Status.ToString();
@@ -164,9 +175,11 @@ public class UserService : IUserService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
 
-        // Nhân viên siêu thị không thể tự xóa tài khoản
+        // // Nhân viên siêu thị không thể tự xóa tài khoản
         if (user.RoleId == (int)RoleUser.SupplierStaff)
-            return ApiResponse<bool>.ErrorResponse("Nhân viên siêu thị không thể tự xóa tài khoản. Vui lòng liên hệ Admin");
+            return ApiResponse<bool>.ErrorResponse("Nhân viên siêu thị không thể tự xóa tài khoản. Vui lòng liên hệ quản trị viên");
+        if (user.RoleId != (int)RoleUser.Vendor)
+            return ApiResponse<bool>.ErrorResponse("Bạn không có quyền xóa tài khoản này. Vui lòng liên hệ Admin");
 
         if (user.Status == UserState.Deleted.ToString())
             return ApiResponse<bool>.ErrorResponse("Tài khoản đã bị xóa trước đó");
@@ -176,7 +189,7 @@ public class UserService : IUserService
         {
             // Soft delete user
             user.Status = UserState.Deleted.ToString();
-            user.UpdateAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<User>().Update(user);
 
             // Revoke tất cả refresh token
@@ -204,29 +217,24 @@ public class UserService : IUserService
 
     #region Private Helpers
 
-    /// <summary>Finds user by ID, returns null if not found</summary>
     private async Task<User?> FindUserById(Guid id)
         => await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == id);
 
-    /// <summary>Checks if email already exists in database</summary>
     private async Task<bool> EmailExists(string email)
     {
         var existingUser = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.Email == email);
         return existingUser != null;
     }
 
-    /// <summary>Gets role entity by ID</summary>
     private async Task<Role?> GetRoleById(int roleId)
         => await _unitOfWork.Repository<Role>().GetByIdAsync(roleId);
 
-    /// <summary>Gets all roles as dictionary for bulk mapping</summary>
     private async Task<Dictionary<int, string>> GetRoleDictionary()
     {
         var roles = await _unitOfWork.Repository<Role>().GetAllAsync();
         return roles.ToDictionary(r => r.RoleId, r => r.RoleName);
     }
 
-    /// <summary>Maps user to DTO with role name lookup</summary>
     private async Task<UserResponseDto> MapUserWithRoleAsync(User user)
     {
         var role = await GetRoleById(user.RoleId);
@@ -242,7 +250,6 @@ public class UserService : IUserService
         return dto;
     }
 
-    /// <summary>Maps user to DTO using pre-loaded role dictionary</summary>
     private UserResponseDto MapUserWithRole(User user, Dictionary<int, string> roleDictionary)
     {
         var dto = _mapper.Map<UserResponseDto>(user);
@@ -250,7 +257,6 @@ public class UserService : IUserService
         return dto;
     }
 
-    /// <summary>Maps user to DTO using pre-loaded role dictionary + load MarketStaff info if needed</summary>
     private async Task<UserResponseDto> MapUserWithRoleAndStaffInfoAsync(User user, Dictionary<int, string> roleDictionary)
     {
         var dto = _mapper.Map<UserResponseDto>(user);
@@ -265,7 +271,6 @@ public class UserService : IUserService
         return dto;
     }
 
-    /// <summary>Lấy thông tin MarketStaff và Supermarket theo UserId</summary>
     private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
     {
         var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
@@ -292,7 +297,6 @@ public class UserService : IUserService
         };
     }
 
-    /// <summary>Updates user's basic info (name, phone) if provided</summary>
     private static void UpdateUserFields(User user, string? fullName, string? phone)
     {
         if (!string.IsNullOrEmpty(fullName))
@@ -302,15 +306,32 @@ public class UserService : IUserService
             user.Phone = phone;
     }
 
-    /// <summary>Updates timestamp and saves user changes to database</summary>
     private async Task SaveUserChanges(User user)
     {
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<User>().Update(user);
         await _unitOfWork.SaveChangesAsync();
     }
 
-    /// <summary>Returns Vietnamese message for status change action</summary>
+    private static ApiResponse<UserResponseDto>? ValidateStatusTransition(User user, UserState newStatus)
+    {
+        if (newStatus != UserState.Active)
+            return null;
+
+        if (!Enum.TryParse<UserState>(user.Status, out var currentStatus))
+            return ApiResponse<UserResponseDto>.ErrorResponse("Trạng thái hiện tại của tài khoản không hợp lệ");
+
+        if (currentStatus != UserState.PendingApproval)
+            return ApiResponse<UserResponseDto>.ErrorResponse(
+                "Chỉ có thể chuyển sang Active từ trạng thái PendingApproval (đang chờ phê duyệt)");
+
+        if (user.EmailVerifiedAt == null)
+            return ApiResponse<UserResponseDto>.ErrorResponse(
+                "Tài khoản chưa xác minh email, không thể chuyển sang Active");
+
+        return null;
+    }
+
     private static string GetStatusChangeMessage(string oldStatus, string newStatus) => newStatus switch
     {
         nameof(UserState.Active) => "Phê duyệt tài khoản thành công",
@@ -324,15 +345,12 @@ public class UserService : IUserService
         _ => $"Cập nhật trạng thái từ {oldStatus} sang {newStatus} thành công"
     };
 
-    /// <summary>Shortcut for user not found error</summary>
     private static ApiResponse<UserResponseDto> NotFound()
         => ApiResponse<UserResponseDto>.ErrorResponse("Không tìm thấy người dùng");
 
-    /// <summary>Shortcut to create error response</summary>
     private static ApiResponse<UserResponseDto> Error(string message)
         => ApiResponse<UserResponseDto>.ErrorResponse(message);
 
-    /// <summary>Sends email notification when admin changes user status (approve/reject)</summary>
     private async Task SendStatusChangeEmailAsync(User user, string oldStatus, UserState newStatus)
     {
         try

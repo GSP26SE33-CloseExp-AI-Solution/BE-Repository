@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace CloseExpAISolution.Domain.Entities;
 
 public class Product
@@ -30,8 +28,6 @@ public class Product
     public decimal? DefaultPricePerKg { get; set; }
 
     public UnitOfMeasure? Unit { get; set; }
-    [NotMapped]
-    public UnitOfMeasure? UnitOfMeasure { get => Unit; set => Unit = value; }
 
     public ProductDetail? ProductDetail { get; set; }
     public Category? CategoryRef { get; set; }

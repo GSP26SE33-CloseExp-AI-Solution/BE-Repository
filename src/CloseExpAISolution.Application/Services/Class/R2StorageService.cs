@@ -8,9 +8,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
-/// <summary>
-/// Service upload/quản lý file lên Cloudflare R2 (tương thích S3)
-/// </summary>
 public class R2StorageService : IR2StorageService
 {
     private readonly IUnitOfWork _unitOfWork;
@@ -40,7 +37,6 @@ public class R2StorageService : IR2StorageService
 
     #region Product Images
 
-    /// <summary>Upload ảnh sản phẩm lên R2 và lưu vào DB</summary>
     public async Task<ProductImage> UploadProductImageToR2Async(
         Stream fileStream, string fileName, string contentType, Guid productId,
         CancellationToken cancellationToken = default)
@@ -62,7 +58,6 @@ public class R2StorageService : IR2StorageService
         return productImage;
     }
 
-    /// <summary>Lấy danh sách ảnh của sản phẩm</summary>
     public async Task<IEnumerable<ProductImage>> GetImagesByProductIdAsync(Guid productId, CancellationToken cancellationToken = default)
         => await _unitOfWork.ProductImageRepository.FindAsync(pi => pi.ProductId == productId);
 
@@ -70,14 +65,12 @@ public class R2StorageService : IR2StorageService
 
     #region Common Methods
 
-    /// <summary>Lấy danh sách tất cả file trên bucket</summary>
     public async Task<List<S3Object>> GetAllFilesAsync(CancellationToken cancellationToken = default)
     {
         var response = await _s3Client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = _bucketName }, cancellationToken);
         return response.S3Objects;
     }
 
-    /// <summary>Upload file chung (không lưu DB)</summary>
     public async Task<object> UploadToR2Async(Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default)
     {
         var key = $"uploads/{Guid.NewGuid():N}_{SanitizeFileName(fileName)}";
@@ -85,7 +78,6 @@ public class R2StorageService : IR2StorageService
         return new { Key = key, Url = url };
     }
 
-    /// <summary>Tạo URL có chữ ký để truy cập file private</summary>
     public string GeneratePreSignedUrl(string key, TimeSpan expiry)
     {
         AWSConfigsS3.UseSignatureVersion4 = true;
@@ -98,7 +90,6 @@ public class R2StorageService : IR2StorageService
         });
     }
 
-    /// <summary>Tạo PreSigned URL từ imageUrl</summary>
     public string? GetPreSignedUrlForImage(string imageUrl, TimeSpan? expiry = null)
     {
         var key = ExtractKeyFromUrl(imageUrl);
@@ -109,7 +100,6 @@ public class R2StorageService : IR2StorageService
 
     #region Private Helpers
 
-    /// <summary>Upload stream lên R2, trả về public URL</summary>
     private async Task<string> UploadFileToR2(Stream fileStream, string key, string contentType, CancellationToken cancellationToken)
     {
         using var memoryStream = new MemoryStream();
@@ -130,7 +120,6 @@ public class R2StorageService : IR2StorageService
         return $"{_publicBaseUrl}/{key}";
     }
 
-    /// <summary>Thử xóa file trên R2 (không throw lỗi)</summary>
     private async Task TryDeleteFromR2(string imageUrl, CancellationToken cancellationToken)
     {
         var key = ExtractKeyFromUrl(imageUrl);
@@ -143,7 +132,6 @@ public class R2StorageService : IR2StorageService
         catch { /* Bỏ qua lỗi xóa R2 */ }
     }
 
-    /// <summary>Trích key từ URL (products/... hoặc users/...)</summary>
     private static string? ExtractKeyFromUrl(string url)
     {
         if (string.IsNullOrEmpty(url)) return null;
@@ -157,7 +145,6 @@ public class R2StorageService : IR2StorageService
         return null;
     }
 
-    /// <summary>Loại bỏ ký tự không hợp lệ trong tên file</summary>
     private static string SanitizeFileName(string fileName)
         => string.Join("_", fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
 

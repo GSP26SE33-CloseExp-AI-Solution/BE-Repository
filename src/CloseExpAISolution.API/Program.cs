@@ -14,8 +14,7 @@ builder.Services
     .AddCorsServices(builder.Configuration)
     .AddAuthenticationServices(builder.Configuration)
     .AddApplicationServices(builder.Configuration)
-    .AddInfrastructureServices(builder.Configuration)
-    .AddEmailServices(builder.Configuration);
+    .AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
 

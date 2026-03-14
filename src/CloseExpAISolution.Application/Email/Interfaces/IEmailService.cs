@@ -1,4 +1,4 @@
-namespace CloseExpAISolution.Application.Services.Interface
+namespace CloseExpAISolution.Application.Email.Interfaces
 {
     public interface IEmailService
     {

@@ -1,10 +1,12 @@
+using CloseExpAISolution.Application.Email.Clients;
+using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Email.Jobs;
-using CloseExpAISolution.Application.Email.Settings;
-using CloseExpAISolution.Application.Services.Class;
-using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Application.Email.Configuration;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 
-namespace CloseExpAISolution.API.Extensions
+namespace CloseExpAISolution.Application.Email.Extensions
 {
     public static class EmailServiceExtensions
     {

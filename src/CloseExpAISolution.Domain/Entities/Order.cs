@@ -29,7 +29,6 @@ public class Order
     public CustomerAddress? CustomerAddress { get; set; }
     public Promotion? Promotion { get; set; }
     public DeliveryGroup? DeliveryGroup { get; set; }
-
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     public ICollection<PaymentTransaction> Transactions { get; set; } = new List<PaymentTransaction>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
