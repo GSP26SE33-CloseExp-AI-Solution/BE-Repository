@@ -326,7 +326,10 @@ public class AuthService : IAuthService
         }
 
         // OTP verified successfully
-        user.Status = UserState.PendingApproval.ToString();
+        if (user.RoleId == (int)RoleUser.Vendor)
+            user.Status = UserState.Active.ToString();
+        else
+            user.Status = UserState.PendingApproval.ToString();
         user.EmailVerifiedAt = DateTime.UtcNow;
         user.OtpCode = null;
         user.OtpExpiresAt = null;
@@ -335,9 +338,13 @@ public class AuthService : IAuthService
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
-        await SendEmailVerifiedNotificationAsync(user.Email, user.FullName);
+        if (user.RoleId == (int)RoleUser.Vendor && user.Status == UserState.Active.ToString())
+            await SendEmailVerifiedNotificationAsync(user.Email, user.FullName, isVendor: true);
 
-        return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Tài khoản đang chờ Admin phê duyệt");
+        if (user.RoleId == (int)RoleUser.SupplierStaff && user.Status == UserState.PendingApproval.ToString())
+            return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Tài khoản đang chờ quản trị viên phê duyệt");
+        else
+            return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Bạn có thể đăng nhập ngay bây giờ");
     }
 
     public async Task<ApiResponse<bool>> ResendOtpAsync(ResendOtpRequest request)
@@ -483,7 +490,7 @@ public class AuthService : IAuthService
                     userRepository.Update(user);
                 }
 
-                // Check if user can login
+                // For account Unverified, auto-verify since Google already verified email
                 if (user.Status == UserState.Unverified.ToString())
                 {
                     // Auto-verify email since Google already verified it
@@ -883,8 +890,11 @@ public class AuthService : IAuthService
         catch (Exception ex) { _logger.LogError(ex, "Failed to send password reset email to {Email}", email); }
     }
 
-    private async Task SendEmailVerifiedNotificationAsync(string email, string fullName)
+    private async Task SendEmailVerifiedNotificationAsync(string email, string fullName, bool? isVendor = false)
     {
+        var msgForPendingApproval = "";
+        if (isVendor == true)
+            msgForPendingApproval = "Tài khoản của bạn hiện đang <strong>chờ Admin phê duyệt</strong>. Bạn sẽ nhận được thông báo qua email khi tài khoản được phê duyệt.";
         var subject = "CloseExp AI - Email đã được xác minh!";
         var body = $@"
             <html>
@@ -895,7 +905,7 @@ public class AuthService : IAuthService
                 <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
                     <h2>Xin chào {fullName}!</h2>
                     <p>Email của bạn đã được xác minh thành công! 🎉</p>
-                    <p>Tài khoản của bạn hiện đang <strong>chờ Admin phê duyệt</strong>. Bạn sẽ nhận được thông báo qua email khi tài khoản được phê duyệt.</p>
+                    <p>{msgForPendingApproval}</p>
                     <p style='color: #999; font-size: 12px;'>Cảm ơn bạn đã sử dụng CloseExp AI!</p>
                 </div>
             </body>
