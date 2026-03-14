@@ -16,14 +16,19 @@ public static class MapboxServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Bind configuration
         var settingsSection = configuration.GetSection(MapboxSettings.SectionName);
         services.Configure<MapboxSettings>(settingsSection);
 
         var settings = settingsSection.Get<MapboxSettings>() ?? new MapboxSettings();
+
+        if (string.IsNullOrWhiteSpace(settings.AccessToken))
+        {
+            services.AddSingleton<IMapboxService, NoOpMapboxService>();
+            return services;
+        }
+
         settings.Validate();
 
-        // Register HttpClient with resilience policies
         var httpClientBuilder = services.AddHttpClient<IMapboxService, MapboxService>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<MapboxSettings>>().Value;
@@ -34,7 +39,6 @@ public static class MapboxServiceExtensions
             client.DefaultRequestHeaders.UserAgent.ParseAdd("CloseExpAI-Backend/1.0");
         });
 
-        // Add Polly retry policy
         if (settings.RetryCount > 0)
         {
             httpClientBuilder.AddPolicyHandler(GetRetryPolicy(settings));

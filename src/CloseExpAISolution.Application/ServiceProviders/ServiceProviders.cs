@@ -80,7 +80,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
                 public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper);
-                ublic IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
+                public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
         }
 }
