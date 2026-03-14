@@ -176,7 +176,7 @@ public class UserService : IUserService
         {
             // Soft delete user
             user.Status = UserState.Deleted.ToString();
-            user.UpdateAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<User>().Update(user);
 
             // Revoke tất cả refresh token
@@ -305,7 +305,7 @@ public class UserService : IUserService
     /// <summary>Updates timestamp and saves user changes to database</summary>
     private async Task SaveUserChanges(User user)
     {
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<User>().Update(user);
         await _unitOfWork.SaveChangesAsync();
     }

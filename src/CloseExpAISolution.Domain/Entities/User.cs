@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace CloseExpAISolution.Domain.Entities;
 
 public class User
@@ -17,8 +15,6 @@ public class User
     public int FailedLoginCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    [NotMapped]
-    public DateTime UpdateAt { get => UpdatedAt; set => UpdatedAt = value; }
 
     // Email verification (OTP)
     public string? OtpCode { get; set; }
@@ -33,8 +29,6 @@ public class User
     public ICollection<CustomerFeedback> Feedbacks { get; set; } = new List<CustomerFeedback>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
-    [NotMapped]
-    public ICollection<DeliveryLog> DeliveryRecords { get => DeliveryLogs; set => DeliveryLogs = value; }
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
 

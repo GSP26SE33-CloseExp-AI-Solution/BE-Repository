@@ -321,7 +321,7 @@ public class AuthService : IAuthService
         user.OtpCode = null;
         user.OtpExpiresAt = null;
         user.OtpFailedCount = 0;
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
@@ -359,7 +359,7 @@ public class AuthService : IAuthService
         user.OtpCode = HashOtp(otp);
         user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
         user.OtpFailedCount = 0;
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
@@ -393,7 +393,7 @@ public class AuthService : IAuthService
         user.OtpCode = HashOtp(otp);
         user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
         user.OtpFailedCount = 0;
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
@@ -433,7 +433,7 @@ public class AuthService : IAuthService
         user.OtpCode = null;
         user.OtpExpiresAt = null;
         user.OtpFailedCount = 0;
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
@@ -475,7 +475,7 @@ public class AuthService : IAuthService
                 if (string.IsNullOrEmpty(user.GoogleId))
                 {
                     user.GoogleId = googleId;
-                    user.UpdateAt = DateTime.UtcNow;
+                    user.UpdatedAt = DateTime.UtcNow;
                     userRepository.Update(user);
                 }
 
@@ -487,7 +487,7 @@ public class AuthService : IAuthService
                     user.EmailVerifiedAt = DateTime.UtcNow;
                     user.OtpCode = null;
                     user.OtpExpiresAt = null;
-                    user.UpdateAt = DateTime.UtcNow;
+                    user.UpdatedAt = DateTime.UtcNow;
                     userRepository.Update(user);
 
                     await _unitOfWork.CommitTransactionAsync();
@@ -584,7 +584,7 @@ public class AuthService : IAuthService
     /// <summary>Attempts to unlock account if 30-min lockout has passed</summary>
     private (bool IsUnlocked, int RemainingMinutes) TryAutoUnlock(User user)
     {
-        var lockoutEndTime = user.UpdateAt.AddMinutes(LockoutDurationMinutes);
+        var lockoutEndTime = user.UpdatedAt.AddMinutes(LockoutDurationMinutes);
         var remainingTime = lockoutEndTime - DateTime.UtcNow;
 
         if (remainingTime > TimeSpan.Zero)
@@ -593,7 +593,7 @@ public class AuthService : IAuthService
         // Auto-unlock
         user.Status = UserState.Active.ToString();
         user.FailedLoginCount = 0;
-        user.UpdateAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
         return (true, 0);
     }
 
@@ -604,7 +604,7 @@ public class AuthService : IAuthService
         try
         {
             user.FailedLoginCount++;
-            user.UpdateAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
 
             if (user.FailedLoginCount >= MaxFailedLoginAttempts)
             {
@@ -682,7 +682,7 @@ public class AuthService : IAuthService
         Status = UserState.Unverified.ToString(),
         FailedLoginCount = 0,
         CreatedAt = DateTime.UtcNow,
-        UpdateAt = DateTime.UtcNow
+        UpdatedAt = DateTime.UtcNow
     };
 
     #endregion
@@ -786,7 +786,7 @@ public class AuthService : IAuthService
         RoleId = user.RoleId,
         Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Unverified,
         CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdateAt,
+        UpdatedAt = user.UpdatedAt,
         MarketStaffInfo = marketStaffInfo
     };
 

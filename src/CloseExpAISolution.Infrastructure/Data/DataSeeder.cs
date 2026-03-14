@@ -101,7 +101,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Staff - Internal (RoleId = 2)
@@ -116,7 +116,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
             new()
             {
@@ -129,7 +129,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Staff - Internal (RoleId = 2) - No numbers
@@ -144,7 +144,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Market Staff (RoleId = 3)
@@ -159,7 +159,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
             new()
             {
@@ -172,7 +172,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Market Staff (RoleId = 3) - No numbers
@@ -187,7 +187,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Supplier Staff (RoleId = 4)
@@ -202,7 +202,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
             new()
             {
@@ -215,7 +215,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Supplier Staff (RoleId = 4) - No numbers
@@ -230,7 +230,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Delivery Staff (RoleId = 5)
@@ -245,7 +245,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
             new()
             {
@@ -258,7 +258,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Delivery Staff (RoleId = 5) - No numbers
@@ -273,7 +273,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Vendor - Customer (RoleId = 6)
@@ -288,7 +288,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
             new()
             {
@@ -301,7 +301,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             },
 
             // Vendor - Customer (RoleId = 6) - No numbers
@@ -316,7 +316,7 @@ public static class DataSeeder
                 Status = UserState.Active.ToString(),
                 FailedLoginCount = 0,
                 CreatedAt = DateTime.UtcNow,
-                UpdateAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow
             }
         };
 
