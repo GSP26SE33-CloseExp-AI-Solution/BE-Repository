@@ -325,6 +325,9 @@ public class AuthService : IAuthService
             return ApiResponse<bool>.ErrorResponse($"Mã OTP không đúng. Còn {attemptsLeft} lần thử");
         }
 
+        var jsonUser = System.Text.Json.JsonSerializer.Serialize(user);
+        _logger.LogInformation("Dữ liệu user: {User}", jsonUser);
+
         // OTP verified successfully
         if (user.RoleId == (int)RoleUser.Vendor)
             user.Status = UserState.Active.ToString();
@@ -894,7 +897,7 @@ public class AuthService : IAuthService
     {
         var msgForPendingApproval = "";
         if (isVendor == true)
-            msgForPendingApproval = "Tài khoản của bạn hiện đang <strong>chờ Admin phê duyệt</strong>. Bạn sẽ nhận được thông báo qua email khi tài khoản được phê duyệt.";
+            msgForPendingApproval = "Tài khoản của bạn hiện đang <strong>chờ quản trị viên phê duyệt</strong>. Bạn sẽ nhận được thông báo qua email khi tài khoản được phê duyệt.";
         var subject = "CloseExp AI - Email đã được xác minh!";
         var body = $@"
             <html>
