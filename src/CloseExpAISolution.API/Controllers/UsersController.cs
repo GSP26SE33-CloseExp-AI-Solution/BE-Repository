@@ -74,7 +74,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Delete current user account (SupplierStaff cannot self-delete)
+    /// Soft delete current user account (Only Vendor can delete their own account, others must contact Admin)
     /// </summary>
     [HttpDelete("current-user")]
     [Authorize]

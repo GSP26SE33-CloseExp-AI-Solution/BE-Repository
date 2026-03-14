@@ -28,10 +28,8 @@ public class RegisterRequest
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public RegistrationType RegistrationType { get; set; }
     public NewSupermarketRequest? NewSupermarket { get; set; }
-
     public string? Position { get; set; }
 }
-
 public class NewSupermarketRequest
 {
     [Required(ErrorMessage = "Tên siêu thị không được để trống")]

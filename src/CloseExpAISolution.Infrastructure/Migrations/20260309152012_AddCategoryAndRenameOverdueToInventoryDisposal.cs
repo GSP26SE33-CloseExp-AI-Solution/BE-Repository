@@ -229,12 +229,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 type: "text",
                 nullable: true);
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "Weight",
-                table: "ProductLots",
-                type: "numeric",
-                nullable: false,
-                defaultValue: 0m);
+            migrationBuilder.Sql(@"ALTER TABLE ""ProductLots"" DROP COLUMN IF EXISTS ""Weight"";");
 
             migrationBuilder.CreateTable(
                 name: "OverdueRecords",

@@ -1,6 +1,7 @@
 using AutoMapper;
 using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.AIService.Clients;
+using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
@@ -9,6 +10,8 @@ using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using CloseExpAISolution.Application.Email.Clients;
+using CloseExpAISolution.Application.Email.Interfaces;
 
 namespace CloseExpAISolution.Application.ServiceProviders
 {
@@ -39,6 +42,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IDeliveryService? _deliveryService;
                 private IPackagingService? _packagingService;
                 private IEmailService? _emailService;
+                private IMapboxService? _mapboxService;
 
                 public ServiceProviders(
                     IUnitOfWork unitOfWork,
@@ -73,6 +77,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IDeliveryService DeliveryService => _deliveryService ??= ActivatorUtilities.CreateInstance<DeliveryService>(_serviceProvider);
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
+                public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
         }
 }
 

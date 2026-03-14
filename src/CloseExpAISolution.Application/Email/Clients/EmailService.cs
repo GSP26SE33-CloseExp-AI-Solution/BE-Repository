@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Mail;
-using CloseExpAISolution.Application.Email.Settings;
-using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Application.Email.Interfaces;
+using CloseExpAISolution.Application.Email.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace CloseExpAISolution.Application.Services.Class
+namespace CloseExpAISolution.Application.Email.Clients
 {
     public class EmailService : IEmailService
     {
