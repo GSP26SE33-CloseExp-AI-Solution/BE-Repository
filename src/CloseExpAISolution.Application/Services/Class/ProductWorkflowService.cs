@@ -36,8 +36,6 @@ public class ProductWorkflowService : IProductWorkflowService
         _logger = logger;
     }
 
-    #region Step 2: Verify Product
-
     public async Task<ProductResponseDto> VerifyProductAsync(
         Guid productId,
         VerifyProductRequestDto request,
@@ -135,8 +133,6 @@ public class ProductWorkflowService : IProductWorkflowService
 
         return await MapToResponseDtoAsync(product);
     }
-
-    #endregion
 
     private async Task<PricingSuggestionResponseDto> GetPricingSuggestionInternalAsync(
         Product product,
@@ -236,7 +232,6 @@ public class ProductWorkflowService : IProductWorkflowService
                 BasePrice = originalPrice,
                 ExpiryDate = expiryDateOnly,
                 Brand = product.ProductDetail?.Brand,
-                Brand = product.ProductDetail?.Brand,
                 MinMarketPrice = minMarketPrice,
                 AvgMarketPrice = avgMarketPrice,
                 ProductName = product.Name,
@@ -295,6 +290,7 @@ public class ProductWorkflowService : IProductWorkflowService
         };
     }
 
+    // Thêm vào system settings
     private decimal CalculateFallbackDiscount(int? daysToExpiry)
     {
         if (!daysToExpiry.HasValue) return 10;
@@ -309,8 +305,6 @@ public class ProductWorkflowService : IProductWorkflowService
             _ => 10
         };
     }
-
-    #region Query Methods
 
     public async Task<ProductResponseDto?> GetProductAsync(
         Guid productId,
@@ -351,10 +345,6 @@ public class ProductWorkflowService : IProductWorkflowService
             TotalCount = productList.Count
         };
     }
-
-    #endregion
-
-    #region Helper Methods
 
     private async Task<ProductResponseDto> MapToResponseDtoAsync(Product product, BarcodeProductInfo? barcodeLookupInfo = null)
     {
@@ -566,10 +556,6 @@ public class ProductWorkflowService : IProductWorkflowService
 
         return "other";
     }
-
-    #endregion
-
-    #region New Workflow Methods
 
     public async Task<ScanBarcodeResponseDto> ScanBarcodeAsync(
         string barcode,
@@ -1189,6 +1175,5 @@ public class ProductWorkflowService : IProductWorkflowService
         return histories.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).FirstOrDefault();
     }
 
-    #endregion
 }
 
