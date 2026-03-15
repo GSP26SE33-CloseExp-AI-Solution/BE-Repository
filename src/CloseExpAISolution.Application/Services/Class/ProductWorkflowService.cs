@@ -1106,7 +1106,6 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductName = product?.Name ?? "",
             ProductBarcode = product?.Barcode ?? "",
             ProductBrand = product?.ProductDetail?.Brand,
-            ProductBrand = product?.ProductDetail?.Brand,
             ProductImageUrl = images?.ImageUrl,
             ExpiryDate = lot.ExpiryDate,
             ManufactureDate = lot.ManufactureDate,
