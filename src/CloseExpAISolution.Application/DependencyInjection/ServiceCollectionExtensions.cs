@@ -37,6 +37,10 @@ public static class ServiceCollectionExtensions
         // Register Email + Quartz background jobs
         services.AddEmailServices(configuration);
 
+        // Register Delivery services
+        services.AddScoped<IDeliveryService, DeliveryService>();
+        services.AddScoped<IDeliveryAdminService, DeliveryAdminService>();
+
         // Register HttpClient for downloading images (bypasses CDN hotlink protection)
         services.AddHttpClient("ImageDownloader", client =>
         {

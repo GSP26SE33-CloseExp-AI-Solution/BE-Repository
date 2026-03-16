@@ -8,15 +8,18 @@ using Microsoft.AspNetCore.Mvc;
 namespace CloseExpAISolution.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-[Authorize(Roles = "DeliveryStaff")]
+[Route("api/delivery")]
 public class DeliveryController : ControllerBase
 {
     private readonly IDeliveryService _deliveryService;
+    private readonly IDeliveryAdminService _deliveryAdminService;
 
-    public DeliveryController(IDeliveryService deliveryService)
+    public DeliveryController(
+        IDeliveryService deliveryService,
+        IDeliveryAdminService deliveryAdminService)
     {
         _deliveryService = deliveryService;
+        _deliveryAdminService = deliveryAdminService;
     }
 
     private Guid GetCurrentUserId()
@@ -30,6 +33,103 @@ public class DeliveryController : ControllerBase
         return userId;
     }
 
+    private static (int PageNumber, int PageSize) NormalizePaging(int pageNumber, int pageSize)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 100) pageSize = 100;
+
+        return (pageNumber, pageSize);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("groups")]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>>> GetGroupsForAdmin(
+        [FromQuery] PendingDeliveryGroupQueryDto query,
+        [FromQuery] string status = "Pending")
+    {
+        try
+        {
+            if (!status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
+                    "Hiện tại chỉ hỗ trợ truy vấn nhóm giao hàng ở trạng thái Pending."));
+            }
+
+            var (pageNumber, pageSize) = NormalizePaging(query.PageNumber, query.PageSize);
+
+            var (items, totalCount) = await _deliveryAdminService.GetPendingDeliveryGroupsAsync(
+                query.DeliveryDate,
+                pageNumber,
+                pageSize);
+
+            var result = new PaginatedResult<DeliveryGroupSummaryDto>
+            {
+                Items = items,
+                TotalResult = totalCount,
+                Page = pageNumber,
+                PageSize = pageSize
+            };
+
+            return Ok(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.SuccessResponse(result));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
+                "Lỗi khi lấy danh sách nhóm giao hàng chờ điều phối."));
+        }
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPut("groups/{deliveryGroupId:guid}/assignment")]
+    [HttpPost("groups/{deliveryGroupId:guid}/assign")]
+    public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> AssignGroupToDeliveryStaff(
+        Guid deliveryGroupId,
+        [FromBody] AssignDeliveryGroupRequestDto request)
+    {
+        try
+        {
+            if (request.DeliveryStaffId == Guid.Empty)
+            {
+                return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                    "Mã nhân viên giao hàng không hợp lệ."));
+            }
+
+            var adminId = GetCurrentUserId();
+            var group = await _deliveryAdminService.AssignGroupToStaffAsync(
+                deliveryGroupId,
+                request.DeliveryStaffId,
+                adminId,
+                request.Reason);
+
+            return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(
+                group,
+                "Điều phối nhóm giao hàng thành công."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                "Lỗi khi điều phối nhóm giao hàng."));
+        }
+    }
+
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("groups/available")]
     public async Task<ActionResult<ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>>> GetAvailableGroups(
         [FromQuery] DateTime? deliveryDate = null)
@@ -46,6 +146,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("groups/my")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>>> GetMyGroups(
         [FromQuery] string? status = null,
@@ -56,10 +157,7 @@ public class DeliveryController : ControllerBase
         try
         {
             var staffId = GetCurrentUserId();
-
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 1;
-            if (pageSize > 100) pageSize = 100;
+            (pageNumber, pageSize) = NormalizePaging(pageNumber, pageSize);
 
             var (items, totalCount) = await _deliveryService.GetMyDeliveryGroupsAsync(
                 staffId, status, deliveryDate, pageNumber, pageSize);
@@ -85,6 +183,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("groups/{deliveryGroupId:guid}")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> GetGroupDetail(Guid deliveryGroupId)
     {
@@ -103,16 +202,17 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpPost("groups/{deliveryGroupId:guid}/accept")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> AcceptGroup(
         Guid deliveryGroupId,
-        [FromBody] AcceptDeliveryGroupRequestDto request)
+        [FromBody] AcceptDeliveryGroupRequestDto? request)
     {
         try
         {
             var staffId = GetCurrentUserId();
             var group = await _deliveryService.AcceptDeliveryGroupAsync(
-                deliveryGroupId, staffId, request);
+                deliveryGroupId, staffId, request ?? new AcceptDeliveryGroupRequestDto());
 
             return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group, "Nhận nhóm giao hàng thành công."));
         }
@@ -135,16 +235,17 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpPost("groups/{deliveryGroupId:guid}/start")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> StartDelivery(
         Guid deliveryGroupId,
-        [FromBody] StartDeliveryRequestDto request)
+        [FromBody] StartDeliveryRequestDto? request)
     {
         try
         {
             var staffId = GetCurrentUserId();
             var group = await _deliveryService.StartDeliveryAsync(
-                deliveryGroupId, staffId, request);
+                deliveryGroupId, staffId, request ?? new StartDeliveryRequestDto());
 
             return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group, "Bắt đầu giao hàng thành công."));
         }
@@ -167,6 +268,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpPost("groups/{deliveryGroupId:guid}/complete")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> CompleteGroup(Guid deliveryGroupId)
     {
@@ -197,6 +299,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("orders/{orderId:guid}")]
     public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> GetOrderDetail(Guid orderId)
     {
@@ -215,15 +318,19 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpPost("orders/{orderId:guid}/confirm-delivery")]
     public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ConfirmDelivery(
         Guid orderId,
-        [FromBody] ConfirmDeliveryRequestDto request)
+        [FromBody] ConfirmDeliveryRequestDto? request)
     {
         try
         {
             var staffId = GetCurrentUserId();
-            var order = await _deliveryService.ConfirmDeliveryAsync(orderId, staffId, request);
+            var order = await _deliveryService.ConfirmDeliveryAsync(
+                orderId,
+                staffId,
+                request ?? new ConfirmDeliveryRequestDto());
 
             return Ok(ApiResponse<DeliveryOrderResponseDto>.SuccessResponse(order, "Xác nhận giao hàng thành công."));
         }
@@ -246,6 +353,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpPost("orders/{orderId:guid}/report-failure")]
     public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ReportFailure(
         Guid orderId,
@@ -277,6 +385,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("history")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryRecordResponseDto>>>> GetDeliveryHistory(
         [FromQuery] DateTime? fromDate = null,
@@ -288,10 +397,7 @@ public class DeliveryController : ControllerBase
         try
         {
             var staffId = GetCurrentUserId();
-
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 1;
-            if (pageSize > 100) pageSize = 100;
+            (pageNumber, pageSize) = NormalizePaging(pageNumber, pageSize);
 
             var (items, totalCount) = await _deliveryService.GetDeliveryHistoryAsync(
                 staffId, fromDate, toDate, status, pageNumber, pageSize);
@@ -317,6 +423,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("stats")]
     public async Task<ActionResult<ApiResponse<DeliveryStatsResponseDto>>> GetMyStats()
     {

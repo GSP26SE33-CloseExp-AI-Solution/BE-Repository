@@ -215,7 +215,7 @@ public class DeliveryService : IDeliveryService
         }
         group.UpdatedAt = DateTime.UtcNow;
 
-        // Update all orders in group to Ready_To_Ship → In Transit
+        // Keep orders at Ready_To_Ship until shipper confirms delivery or reports failure
         var orders = await _unitOfWork.Repository<Order>()
             .FindAsync(o => o.DeliveryGroupId == deliveryGroupId
                          && o.Status == OrderState.Ready_To_Ship.ToString());
