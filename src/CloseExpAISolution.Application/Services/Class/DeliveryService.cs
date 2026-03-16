@@ -237,6 +237,7 @@ public class DeliveryService : IDeliveryService
 
     public async Task<DeliveryOrderResponseDto?> GetOrderDetailForDeliveryAsync(
         Guid orderId,
+        Guid deliveryStaffId,
         CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.Repository<Order>()
@@ -244,6 +245,8 @@ public class DeliveryService : IDeliveryService
 
         if (order == null)
             return null;
+
+        await EnsureOrderAssignedToStaffAsync(order, deliveryStaffId);
 
         return await MapToDeliveryOrderResponseAsync(order);
     }
@@ -262,15 +265,7 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        // Validate order belongs to a group assigned to this staff
-        if (order.DeliveryGroupId.HasValue)
-        {
-            var group = await _unitOfWork.Repository<DeliveryGroup>()
-                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
-
-            if (group != null && group.DeliveryStaffId != deliveryStaffId)
-                throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
-        }
+        await EnsureOrderAssignedToStaffAsync(order, deliveryStaffId);
 
         if (order.Status != OrderState.Ready_To_Ship.ToString())
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để xác nhận giao hàng.");
@@ -330,15 +325,7 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        // Validate order belongs to a group assigned to this staff
-        if (order.DeliveryGroupId.HasValue)
-        {
-            var group = await _unitOfWork.Repository<DeliveryGroup>()
-                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
-
-            if (group != null && group.DeliveryStaffId != deliveryStaffId)
-                throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
-        }
+        await EnsureOrderAssignedToStaffAsync(order, deliveryStaffId);
 
         if (order.Status != OrderState.Ready_To_Ship.ToString())
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để báo lỗi.");
@@ -577,6 +564,18 @@ public class DeliveryService : IDeliveryService
             UpdatedAt = group.UpdatedAt,
             Orders = orderDtos
         };
+    }
+
+    private async Task EnsureOrderAssignedToStaffAsync(Order order, Guid deliveryStaffId)
+    {
+        if (!order.DeliveryGroupId.HasValue)
+            throw new UnauthorizedAccessException("Đơn hàng chưa được phân công nhóm giao hàng hợp lệ.");
+
+        var group = await _unitOfWork.Repository<DeliveryGroup>()
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+
+        if (group == null || group.DeliveryStaffId != deliveryStaffId)
+            throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
     }
 
     private async Task<DeliveryOrderResponseDto> MapToDeliveryOrderResponseAsync(Order order)

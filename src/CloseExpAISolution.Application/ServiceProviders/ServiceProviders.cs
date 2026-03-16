@@ -40,6 +40,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IProductWorkflowService? _productWorkflowService;
                 private IExcelImportService? _excelImportService;
                 private IDeliveryService? _deliveryService;
+                private IDeliveryAdminService? _deliveryAdminService;
                 private IPackagingService? _packagingService;
                 private IEmailService? _emailService;
                 private IMapboxService? _mapboxService;
@@ -75,6 +76,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IProductWorkflowService ProductWorkflowService => _productWorkflowService ??= ActivatorUtilities.CreateInstance<ProductWorkflowService>(_serviceProvider);
                 public IExcelImportService ExcelImportService => _excelImportService ??= ActivatorUtilities.CreateInstance<ExcelImportService>(_serviceProvider);
                 public IDeliveryService DeliveryService => _deliveryService ??= ActivatorUtilities.CreateInstance<DeliveryService>(_serviceProvider);
+                public IDeliveryAdminService DeliveryAdminService => _deliveryAdminService ??= ActivatorUtilities.CreateInstance<DeliveryAdminService>(_serviceProvider);
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();

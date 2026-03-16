@@ -1,36 +1,35 @@
 using System.Security.Claims;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
-using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
 
 [ApiController]
-[Route("api/delivery")]
+[Route("api/[controller]")]
 public class DeliveryController : ControllerBase
 {
-    private readonly IDeliveryService _deliveryService;
-    private readonly IDeliveryAdminService _deliveryAdminService;
+    private readonly IServiceProviders _services;
 
     public DeliveryController(
-        IDeliveryService deliveryService,
-        IDeliveryAdminService deliveryAdminService)
+        IServiceProviders services)
     {
-        _deliveryService = deliveryService;
-        _deliveryAdminService = deliveryAdminService;
+        _services = services;
     }
 
-    private Guid GetCurrentUserId()
+    private bool TryGetCurrentUserId(out Guid userId)
     {
+        userId = Guid.Empty;
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                        ?? User.FindFirst("UserId")?.Value;
 
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-            throw new UnauthorizedAccessException("Không thể xác định người dùng hiện tại.");
+        if (string.IsNullOrEmpty(userIdClaim))
+            return false;
 
-        return userId;
+        return Guid.TryParse(userIdClaim, out userId);
     }
 
     private static (int PageNumber, int PageSize) NormalizePaging(int pageNumber, int pageSize)
@@ -58,7 +57,7 @@ public class DeliveryController : ControllerBase
 
             var (pageNumber, pageSize) = NormalizePaging(query.PageNumber, query.PageSize);
 
-            var (items, totalCount) = await _deliveryAdminService.GetPendingDeliveryGroupsAsync(
+            var (items, totalCount) = await _services.DeliveryAdminService.GetPendingDeliveryGroupsAsync(
                 query.DeliveryDate,
                 pageNumber,
                 pageSize);
@@ -95,8 +94,13 @@ public class DeliveryController : ControllerBase
                     "Mã nhân viên giao hàng không hợp lệ."));
             }
 
-            var adminId = GetCurrentUserId();
-            var group = await _deliveryAdminService.AssignGroupToStaffAsync(
+            if (!TryGetCurrentUserId(out var adminId))
+            {
+                return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var group = await _services.DeliveryAdminService.AssignGroupToStaffAsync(
                 deliveryGroupId,
                 request.DeliveryStaffId,
                 adminId,
@@ -136,13 +140,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var groups = await _deliveryService.GetAvailableDeliveryGroupsAsync(deliveryDate);
+            var groups = await _services.DeliveryService.GetAvailableDeliveryGroupsAsync(deliveryDate);
             return Ok(ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.SuccessResponse(groups));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.ErrorResponse(
-                $"Lỗi khi lấy danh sách nhóm giao hàng: {ex.Message}"));
+                "Lỗi khi lấy danh sách nhóm giao hàng."));
         }
     }
 
@@ -156,10 +160,15 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
             (pageNumber, pageSize) = NormalizePaging(pageNumber, pageSize);
 
-            var (items, totalCount) = await _deliveryService.GetMyDeliveryGroupsAsync(
+            var (items, totalCount) = await _services.DeliveryService.GetMyDeliveryGroupsAsync(
                 staffId, status, deliveryDate, pageNumber, pageSize);
 
             var result = new PaginatedResult<DeliveryGroupSummaryDto>
@@ -176,10 +185,10 @@ public class DeliveryController : ControllerBase
         {
             return Unauthorized(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
-                $"Lỗi khi lấy danh sách nhóm giao hàng: {ex.Message}"));
+                "Lỗi khi lấy danh sách nhóm giao hàng."));
         }
     }
 
@@ -189,16 +198,16 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var group = await _deliveryService.GetDeliveryGroupDetailAsync(deliveryGroupId);
+            var group = await _services.DeliveryService.GetDeliveryGroupDetailAsync(deliveryGroupId);
             if (group == null)
                 return NotFound(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse("Không tìm thấy nhóm giao hàng."));
 
             return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
-                $"Lỗi khi lấy chi tiết nhóm giao hàng: {ex.Message}"));
+                "Lỗi khi lấy chi tiết nhóm giao hàng."));
         }
     }
 
@@ -210,8 +219,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
-            var group = await _deliveryService.AcceptDeliveryGroupAsync(
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var group = await _services.DeliveryService.AcceptDeliveryGroupAsync(
                 deliveryGroupId, staffId, request ?? new AcceptDeliveryGroupRequestDto());
 
             return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group, "Nhận nhóm giao hàng thành công."));
@@ -228,10 +242,10 @@ public class DeliveryController : ControllerBase
         {
             return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
-                $"Lỗi khi nhận nhóm giao hàng: {ex.Message}"));
+            "Lỗi khi nhận nhóm giao hàng."));
         }
     }
 
@@ -243,8 +257,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
-            var group = await _deliveryService.StartDeliveryAsync(
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var group = await _services.DeliveryService.StartDeliveryAsync(
                 deliveryGroupId, staffId, request ?? new StartDeliveryRequestDto());
 
             return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group, "Bắt đầu giao hàng thành công."));
@@ -261,10 +280,10 @@ public class DeliveryController : ControllerBase
         {
             return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
-                $"Lỗi khi bắt đầu giao hàng: {ex.Message}"));
+            "Lỗi khi bắt đầu giao hàng."));
         }
     }
 
@@ -274,8 +293,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
-            var group = await _deliveryService.CompleteDeliveryGroupAsync(
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var group = await _services.DeliveryService.CompleteDeliveryGroupAsync(
                 deliveryGroupId, staffId);
 
             return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group, "Hoàn thành nhóm giao hàng thành công."));
@@ -292,10 +316,10 @@ public class DeliveryController : ControllerBase
         {
             return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
-                $"Lỗi khi hoàn thành nhóm giao hàng: {ex.Message}"));
+            "Lỗi khi hoàn thành nhóm giao hàng."));
         }
     }
 
@@ -305,16 +329,26 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var order = await _deliveryService.GetOrderDetailForDeliveryAsync(orderId);
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var order = await _services.DeliveryService.GetOrderDetailForDeliveryAsync(orderId, staffId);
             if (order == null)
                 return NotFound(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse("Không tìm thấy đơn hàng."));
 
             return Ok(ApiResponse<DeliveryOrderResponseDto>.SuccessResponse(order));
         }
-        catch (Exception ex)
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
-                $"Lỗi khi lấy chi tiết đơn hàng: {ex.Message}"));
+                "Lỗi khi lấy chi tiết đơn hàng."));
         }
     }
 
@@ -326,8 +360,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
-            var order = await _deliveryService.ConfirmDeliveryAsync(
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var order = await _services.DeliveryService.ConfirmDeliveryAsync(
                 orderId,
                 staffId,
                 request ?? new ConfirmDeliveryRequestDto());
@@ -346,10 +385,10 @@ public class DeliveryController : ControllerBase
         {
             return BadRequest(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
-                $"Lỗi khi xác nhận giao hàng: {ex.Message}"));
+            "Lỗi khi xác nhận giao hàng."));
         }
     }
 
@@ -361,8 +400,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
-            var order = await _deliveryService.ReportDeliveryFailureAsync(orderId, staffId, request);
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var order = await _services.DeliveryService.ReportDeliveryFailureAsync(orderId, staffId, request);
 
             return Ok(ApiResponse<DeliveryOrderResponseDto>.SuccessResponse(order, "Báo cáo giao hàng thất bại thành công."));
         }
@@ -378,10 +422,10 @@ public class DeliveryController : ControllerBase
         {
             return BadRequest(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
-                $"Lỗi khi báo cáo giao hàng thất bại: {ex.Message}"));
+            "Lỗi khi báo cáo giao hàng thất bại."));
         }
     }
 
@@ -396,10 +440,15 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<PaginatedResult<DeliveryRecordResponseDto>>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
             (pageNumber, pageSize) = NormalizePaging(pageNumber, pageSize);
 
-            var (items, totalCount) = await _deliveryService.GetDeliveryHistoryAsync(
+            var (items, totalCount) = await _services.DeliveryService.GetDeliveryHistoryAsync(
                 staffId, fromDate, toDate, status, pageNumber, pageSize);
 
             var result = new PaginatedResult<DeliveryRecordResponseDto>
@@ -416,10 +465,10 @@ public class DeliveryController : ControllerBase
         {
             return Unauthorized(ApiResponse<PaginatedResult<DeliveryRecordResponseDto>>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<PaginatedResult<DeliveryRecordResponseDto>>.ErrorResponse(
-                $"Lỗi khi lấy lịch sử giao hàng: {ex.Message}"));
+                "Lỗi khi lấy lịch sử giao hàng."));
         }
     }
 
@@ -429,8 +478,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var staffId = GetCurrentUserId();
-            var stats = await _deliveryService.GetDeliveryStatsAsync(staffId);
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryStatsResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var stats = await _services.DeliveryService.GetDeliveryStatsAsync(staffId);
 
             return Ok(ApiResponse<DeliveryStatsResponseDto>.SuccessResponse(stats));
         }
@@ -442,10 +496,10 @@ public class DeliveryController : ControllerBase
         {
             return Unauthorized(ApiResponse<DeliveryStatsResponseDto>.ErrorResponse(ex.Message));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, ApiResponse<DeliveryStatsResponseDto>.ErrorResponse(
-                $"Lỗi khi lấy thống kê giao hàng: {ex.Message}"));
+                "Lỗi khi lấy thống kê giao hàng."));
         }
     }
 }
