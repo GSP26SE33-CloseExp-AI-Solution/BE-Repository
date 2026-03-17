@@ -50,6 +50,12 @@ public interface IDeliveryService
         ReportDeliveryFailureRequestDto request,
         CancellationToken cancellationToken = default);
 
+    Task<DeliveryOrderResponseDto> ConfirmOrderReceiptByCustomerAsync(
+        Guid orderId,
+        Guid customerId,
+        ConfirmOrderReceiptRequestDto request,
+        CancellationToken cancellationToken = default);
+
     Task<(IEnumerable<DeliveryRecordResponseDto> Items, int TotalCount)> GetDeliveryHistoryAsync(
         Guid deliveryStaffId,
         DateTime? fromDate = null,

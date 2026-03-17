@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CloseExpAISolution.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/feedback")]
 public class FeedbacksController : ControllerBase
 {
     private readonly IServiceProviders _services;

@@ -36,3 +36,8 @@ public class StartDeliveryRequestDto
 {
     public string? Notes { get; set; }
 }
+
+public class ConfirmOrderReceiptRequestDto
+{
+    public string? Notes { get; set; }
+}

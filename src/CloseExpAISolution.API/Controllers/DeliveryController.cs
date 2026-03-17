@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CloseExpAISolution.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/delivery")]
 public class DeliveryController : ControllerBase
 {
     private readonly IServiceProviders _services;
@@ -426,6 +426,48 @@ public class DeliveryController : ControllerBase
         {
             return StatusCode(500, ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
             "Lỗi khi báo cáo giao hàng thất bại."));
+        }
+    }
+
+    [Authorize(Roles = "Vendor")]
+    [HttpPost("orders/{orderId:guid}/customer-confirmation")]
+    public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ConfirmOrderReceiptByCustomer(
+        Guid orderId,
+        [FromBody] ConfirmOrderReceiptRequestDto? request)
+    {
+        try
+        {
+            if (!TryGetCurrentUserId(out var customerId))
+            {
+                return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var order = await _services.DeliveryService.ConfirmOrderReceiptByCustomerAsync(
+                orderId,
+                customerId,
+                request ?? new ConfirmOrderReceiptRequestDto());
+
+            return Ok(ApiResponse<DeliveryOrderResponseDto>.SuccessResponse(
+                order,
+                "Xác nhận đã nhận hàng thành công."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
+                "Lỗi khi xác nhận nhận hàng."));
         }
     }
 

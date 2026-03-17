@@ -371,6 +371,84 @@ public class DeliveryService : IDeliveryService
         return await MapToDeliveryOrderResponseAsync(order);
     }
 
+    public async Task<DeliveryOrderResponseDto> ConfirmOrderReceiptByCustomerAsync(
+        Guid orderId,
+        Guid customerId,
+        ConfirmOrderReceiptRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Customer {CustomerId} confirming receipt for order {OrderId}", customerId, orderId);
+
+        var order = await _unitOfWork.Repository<Order>()
+            .FirstOrDefaultAsync(o => o.OrderId == orderId);
+
+        if (order == null)
+            throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
+
+        if (order.UserId != customerId)
+            throw new UnauthorizedAccessException("Bạn không có quyền xác nhận đơn hàng này.");
+
+        if (order.Status != OrderState.Delivered_Wait_Confirm.ToString())
+            throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Đã giao chờ xác nhận' để hoàn tất.");
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            order.Status = OrderState.Completed.ToString();
+            order.UpdatedAt = DateTime.UtcNow;
+
+            if (!string.IsNullOrWhiteSpace(request.Notes))
+            {
+                var note = request.Notes.Trim();
+                order.DeliveryNote = string.IsNullOrWhiteSpace(order.DeliveryNote)
+                    ? $"Khách xác nhận: {note}"
+                    : $"{order.DeliveryNote} | Khách xác nhận: {note}";
+            }
+
+            _unitOfWork.Repository<Order>().Update(order);
+
+            var deliveryGroup = order.DeliveryGroupId.HasValue
+                ? await _unitOfWork.Repository<DeliveryGroup>()
+                    .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value)
+                : null;
+
+            if (deliveryGroup?.DeliveryStaffId.HasValue == true)
+            {
+                var staffNotification = new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    UserId = deliveryGroup.DeliveryStaffId.Value,
+                    Content = $"Khách hàng đã xác nhận hoàn tất đơn {order.OrderCode}.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _unitOfWork.Repository<Notification>().AddAsync(staffNotification);
+
+                var latestDeliveryLog = await _unitOfWork.Repository<DeliveryLog>()
+                    .FirstOrDefaultAsync(l => l.OrderId == orderId
+                                           && l.UserId == deliveryGroup.DeliveryStaffId.Value
+                                           && l.Status == DeliveryState.Delivered_Wait_Confirm.ToString());
+
+                if (latestDeliveryLog != null)
+                {
+                    latestDeliveryLog.Status = DeliveryState.Completed.ToString();
+                    latestDeliveryLog.DeliveredAt ??= DateTime.UtcNow;
+                    _unitOfWork.Repository<DeliveryLog>().Update(latestDeliveryLog);
+                }
+            }
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+
+        return await MapToDeliveryOrderResponseAsync(order);
+    }
+
     public async Task<(IEnumerable<DeliveryRecordResponseDto> Items, int TotalCount)> GetDeliveryHistoryAsync(
         Guid deliveryStaffId,
         DateTime? fromDate = null,

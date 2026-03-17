@@ -1,13 +1,19 @@
 // ============================================================
 // Swagger Auto-Auth Extension  [v2]
 // Intercepts login API calls and auto-fills Bearer token
-// Supports: POST /api/auth/login, POST /api/auth/google-login
 // ============================================================
 (function () {
     const AUTH_ENDPOINTS = [
-        '/api/auth/login',
-        '/api/auth/google-login',
+        '/api/authen/login',
+        '/api/authen/google-login',
     ];
+
+    function normalizeRequestUrl(requestInfo) {
+        if (!requestInfo) return '';
+        if (typeof requestInfo === 'string') return requestInfo.toLowerCase();
+        if (typeof requestInfo.url === 'string') return requestInfo.url.toLowerCase();
+        return requestInfo.toString().toLowerCase();
+    }
 
     // Recursively search for accessToken / token at any nesting depth
     function extractToken(obj) {
@@ -56,10 +62,10 @@
     window.fetch = function (...args) {
         return originalFetch.apply(this, args).then(async (response) => {
             try {
-                const url = (args[0] ?? '').toString().toLowerCase();
+                const url = normalizeRequestUrl(args[0]);
                 const isAuthCall = AUTH_ENDPOINTS.some(ep => url.includes(ep));
 
-                if (isAuthCall) {
+                if (isAuthCall && response.ok) {
                     const data = await response.clone().json();
                     console.debug('[SwaggerAuth] Intercepted response:', data);
                     const token = extractToken(data);
