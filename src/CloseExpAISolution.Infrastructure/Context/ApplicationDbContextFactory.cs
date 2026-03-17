@@ -14,7 +14,8 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
         var configuration = new ConfigurationBuilder()
             .SetBasePath(apiConfigPath)
             .AddJsonFile("appsettings.json", optional: false)
-            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddJsonFile("appsettings.Development.json", optional: true) // overrides for local DB (localhost, Ssl Mode=Disable)
+            .AddEnvironmentVariables()
             .Build();
 
         var connectionString = configuration.GetConnectionString("DefaultConnection");
@@ -25,7 +26,10 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
         optionsBuilder.UseNpgsql(connectionString, b =>
-            b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName));
+        {
+            b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
+            b.CommandTimeout(120);
+        });
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }

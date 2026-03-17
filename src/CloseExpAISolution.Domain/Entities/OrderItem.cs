@@ -9,7 +9,6 @@ public class OrderItem
     public decimal UnitPrice { get; set; }
     public decimal TotalPrice { get; set; }
 
-
     public Order? Order { get; set; }
     public StockLot? StockLot { get; set; }
 }

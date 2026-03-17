@@ -15,8 +15,8 @@ using CloseExpAISolution.Application.Email.Interfaces;
 
 namespace CloseExpAISolution.Application.ServiceProviders
 {
-        public class ServiceProviders : IServiceProviders
-        {
+    public class ServiceProviders : IServiceProviders
+    {
                 private readonly IUnitOfWork _unitOfWork;
                 private readonly IHttpContextAccessor _httpContextAccessor;
                 private readonly ApplicationDbContext _context;
@@ -43,6 +43,8 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IDeliveryAdminService? _deliveryAdminService;
                 private IPackagingService? _packagingService;
                 private IEmailService? _emailService;
+                private IOrderService? _orderService;
+                private IOrderItemService? _orderItemService;
                 private IMapboxService? _mapboxService;
 
                 public ServiceProviders(
@@ -79,6 +81,8 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IDeliveryAdminService DeliveryAdminService => _deliveryAdminService ??= ActivatorUtilities.CreateInstance<DeliveryAdminService>(_serviceProvider);
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
+                public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper);
+                public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
         }
 }

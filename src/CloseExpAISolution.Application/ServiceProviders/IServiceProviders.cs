@@ -18,6 +18,8 @@ public interface IServiceProviders
     IFeedbackService FeedbackService { get; }
     IR2StorageService R2StorageService { get; }
     IUserImageService UserImageService { get; }
+    IOrderService OrderService { get; }
+    IOrderItemService OrderItemService { get; }
     IEmailService EmailService { get; }
     IBarcodeLookupService BarcodeLookupService { get; }
     IAIProductService AIProductService { get; }

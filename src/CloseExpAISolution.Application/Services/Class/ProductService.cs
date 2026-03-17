@@ -179,7 +179,7 @@ public class ProductService : IProductService
             Manufacturer = request.Detail.Manufacturer,
             Origin = request.Detail.Origin,
             Description = request.Detail.Description,
-            SafetyWarnings = request.Detail.SafetyWarnings
+            SafetyWarning = request.Detail.SafetyWarnings
         };
         await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -241,7 +241,7 @@ public class ProductService : IProductService
         detail.Manufacturer = request.Detail.Manufacturer;
         detail.Origin = request.Detail.Origin;
         detail.Description = request.Detail.Description;
-        detail.SafetyWarnings = request.Detail.SafetyWarnings;
+        detail.SafetyWarning = request.Detail.SafetyWarnings;
         if (product.ProductDetail == null)
         {
             await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);

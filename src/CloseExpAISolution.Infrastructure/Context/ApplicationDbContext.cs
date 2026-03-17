@@ -28,9 +28,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<PricingHistory> AIPriceHistories => Set<PricingHistory>();
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
-    public DbSet<OrderPackaging> PackagingRecords => Set<OrderPackaging>();
-    public DbSet<DeliveryTimeSlot> TimeSlots => Set<DeliveryTimeSlot>();
-    public DbSet<CollectionPoint> PickupPoints => Set<CollectionPoint>();
+    public DbSet<OrderPackaging> OrderPackaging => Set<OrderPackaging>();
+    public DbSet<DeliveryTimeSlot> DeliveryTimeSlot => Set<DeliveryTimeSlot>();
+    public DbSet<CollectionPoint> CollectionPoint => Set<CollectionPoint>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Order> Orders => Set<Order>();
@@ -66,6 +66,12 @@ public class ApplicationDbContext : DbContext
         // modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
         modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
         modelBuilder.Entity<CollectionPoint>().HasKey(x => x.PickupPointId);
+
+        modelBuilder.Entity<DeliveryTimeSlot>(e =>
+        {
+            e.ToTable("DeliveryTimeSlots");
+            e.HasKey(x => x.DeliveryTimeSlotId);
+        });
 
         modelBuilder.Entity<Product>()
             .HasOne(p => p.Unit)
@@ -126,21 +132,43 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(dg => dg.DeliveryStaffId)
             .OnDelete(DeleteBehavior.SetNull);
-        modelBuilder.Entity<DeliveryGroup>()
-            .HasOne(dg => dg.TimeSlot)
-            .WithMany()
-            .HasForeignKey(dg => dg.TimeSlotId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Order>()
-            .HasOne(o => o.DeliveryGroup)
-            .WithMany(dg => dg.Orders)
-            .HasForeignKey(o => o.DeliveryGroupId)
-            .OnDelete(DeleteBehavior.SetNull);
-        modelBuilder.Entity<Order>()
-            .HasOne(o => o.CustomerAddress)
-            .WithMany()
-            .HasForeignKey(o => o.AddressId)
-            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<DeliveryGroup>(e =>
+        {
+            e.Property(dg => dg.TimeSlotId).HasColumnName("DeliveryTimeSlotId");
+            e.HasOne(dg => dg.TimeSlot)
+                .WithMany()
+                .HasForeignKey(dg => dg.TimeSlotId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Order>(e =>
+        {
+            e.ToTable("Orders");
+            e.HasKey(o => o.OrderId);
+            e.HasOne(o => o.User)
+                .WithMany()
+                .HasForeignKey(o => o.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(o => o.DeliveryTimeSlot)
+                .WithMany(t => t.Orders)
+                .HasForeignKey(o => o.DeliveryTimeSlotId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(o => o.CollectionPoint)
+                .WithMany(p => p.Orders)
+                .HasForeignKey(o => o.PickupPointId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(o => o.Promotion)
+                .WithMany(p => p.Orders)
+                .HasForeignKey(o => o.PromotionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(o => o.DeliveryGroup)
+                .WithMany(dg => dg.Orders)
+                .HasForeignKey(o => o.DeliveryGroupId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(o => o.CustomerAddress)
+                .WithMany()
+                .HasForeignKey(o => o.AddressId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<CustomerAddress>()
             .HasOne(c => c.User)

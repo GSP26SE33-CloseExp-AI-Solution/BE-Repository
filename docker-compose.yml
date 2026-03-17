@@ -13,8 +13,15 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       # Chỉ dùng HTTP trong container (không có certificate cho HTTPS)
       - ASPNETCORE_URLS=http://+:8080
-      # Kết nối tới Postgres trong container (mật khẩu phải khớp với db bên dưới)
-      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=CloseExpAIDb;Username=postgres;Password=password;
+      # Kết nối tới Postgres trong container (mật khẩu phải khớp với db bên dưới). Ssl Mode=Disable for local Postgres.
+      - "ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=CloseExpAIDb;User Id=postgres;Password=password;Ssl Mode=Disable"
+      # EmailSettings (placeholders so app starts; set real values for sending email)
+      - EmailSettings__SmtpServer=smtp.example.com
+      - EmailSettings__SmtpPort=587
+      - EmailSettings__SmtpUsername=
+      - EmailSettings__SmtpPassword=
+      - EmailSettings__FromEmail=noreply@example.com
+      - EmailSettings__FromName=CloseExpAI
     volumes:
       - ~/.vsdbg:/remote_debugger:rw
     depends_on:
