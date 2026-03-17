@@ -24,8 +24,8 @@ public class OrderRepository : IOrderRepository
     {
         return await _context.Orders
             .Include(o => o.User)
-            .Include(o => o.TimeSlot)
-            .Include(o => o.PickupPoint)
+            .Include(o => o.DeliveryTimeSlot)
+            .Include(o => o.CollectionPoint)
             .Include(o => o.Promotion)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.StockLot)
@@ -37,7 +37,7 @@ public class OrderRepository : IOrderRepository
     {
         return await _context.Orders
             .Include(o => o.User)
-            .Include(o => o.TimeSlot)
+            .Include(o => o.DeliveryTimeSlot)
             .Include(o => o.OrderItems)
             .OrderByDescending(o => o.OrderDate)
             .ToListAsync(cancellationToken);

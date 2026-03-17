@@ -54,7 +54,7 @@ public class OrderService : IOrderService
             OrderId = orderId,
             OrderCode = orderCode,
             UserId = request.UserId,
-            TimeSlotId = request.TimeSlotId,
+            DeliveryTimeSlotId = request.TimeSlotId,
             PickupPointId = request.PickupPointId,
             DeliveryType = request.DeliveryType,
             TotalAmount = request.TotalAmount,
@@ -99,7 +99,7 @@ public class OrderService : IOrderService
         var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
 
-        if (request.TimeSlotId.HasValue) order.TimeSlotId = request.TimeSlotId.Value;
+        if (request.TimeSlotId.HasValue) order.DeliveryTimeSlotId = request.TimeSlotId.Value;
         if (request.PickupPointId.HasValue) order.PickupPointId = request.PickupPointId;
         if (request.DeliveryType != null) order.DeliveryType = request.DeliveryType;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;

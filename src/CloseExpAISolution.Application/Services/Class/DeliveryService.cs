@@ -585,7 +585,7 @@ public class DeliveryService : IDeliveryService
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
 
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.TimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.DeliveryTimeSlotId);
 
         string? pickupPointName = null;
         string? pickupPointAddress = null;

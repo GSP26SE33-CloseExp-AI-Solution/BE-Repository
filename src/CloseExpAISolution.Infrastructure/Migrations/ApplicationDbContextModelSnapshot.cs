@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CloseExpAISolution.Domain.Migrations
+namespace CloseExpAISolution.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
     partial class ApplicationDbContextModelSnapshot : ModelSnapshot
@@ -198,7 +198,7 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.HasKey("PickupPointId");
 
-                    b.ToTable("PickupPoints");
+                    b.ToTable("CollectionPoint");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.CustomerAddress", b =>
@@ -297,7 +297,8 @@ namespace CloseExpAISolution.Domain.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TimeSlotId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("DeliveryTimeSlotId");
 
                     b.Property<int>("TotalOrders")
                         .HasColumnType("integer");
@@ -349,8 +350,7 @@ namespace CloseExpAISolution.Domain.Migrations
                 {
                     b.Property<Guid>("DeliveryTimeSlotId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("TimeSlotId");
+                        .HasColumnType("uuid");
 
                     b.Property<TimeSpan>("EndTime")
                         .HasColumnType("interval");
@@ -360,7 +360,7 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.HasKey("DeliveryTimeSlotId");
 
-                    b.ToTable("TimeSlots", (string)null);
+                    b.ToTable("DeliveryTimeSlots", (string)null);
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.InventoryDisposal", b =>
@@ -497,7 +497,7 @@ namespace CloseExpAISolution.Domain.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AddressId")
+                    b.Property<Guid?>("AddressId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CancelDeadline")
@@ -517,6 +517,9 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.Property<string>("DeliveryNote")
                         .HasColumnType("text");
+
+                    b.Property<Guid>("DeliveryTimeSlotId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("DeliveryType")
                         .IsRequired()
@@ -545,9 +548,6 @@ namespace CloseExpAISolution.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("TimeSlotId")
-                        .HasColumnType("uuid");
-
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("numeric");
 
@@ -563,15 +563,15 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.HasIndex("DeliveryGroupId");
 
+                    b.HasIndex("DeliveryTimeSlotId");
+
                     b.HasIndex("PickupPointId");
 
                     b.HasIndex("PromotionId");
 
-                    b.HasIndex("TimeSlotId");
-
                     b.HasIndex("UserId");
 
-                    b.ToTable("Orders");
+                    b.ToTable("Orders", (string)null);
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.OrderItem", b =>
@@ -629,7 +629,7 @@ namespace CloseExpAISolution.Domain.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PackagingRecords");
+                    b.ToTable("OrderPackaging");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PaymentTransaction", b =>
@@ -1434,27 +1434,28 @@ namespace CloseExpAISolution.Domain.Migrations
                     b.HasOne("CloseExpAISolution.Domain.Entities.CustomerAddress", "CustomerAddress")
                         .WithMany()
                         .HasForeignKey("AddressId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryGroup", "DeliveryGroup")
                         .WithMany("Orders")
                         .HasForeignKey("DeliveryGroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("CloseExpAISolution.Domain.Entities.CollectionPoint", "PickupPoint")
+                    b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", "DeliveryTimeSlot")
                         .WithMany("Orders")
-                        .HasForeignKey("PickupPointId");
+                        .HasForeignKey("DeliveryTimeSlotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CloseExpAISolution.Domain.Entities.CollectionPoint", "CollectionPoint")
+                        .WithMany("Orders")
+                        .HasForeignKey("PickupPointId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CloseExpAISolution.Domain.Entities.Promotion", "Promotion")
                         .WithMany("Orders")
-                        .HasForeignKey("PromotionId");
-
-                    b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", "TimeSlot")
-                        .WithMany("Orders")
-                        .HasForeignKey("TimeSlotId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("PromotionId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CloseExpAISolution.Domain.Entities.User", "User")
                         .WithMany()
@@ -1462,15 +1463,15 @@ namespace CloseExpAISolution.Domain.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("CollectionPoint");
+
                     b.Navigation("CustomerAddress");
 
                     b.Navigation("DeliveryGroup");
 
-                    b.Navigation("PickupPoint");
+                    b.Navigation("DeliveryTimeSlot");
 
                     b.Navigation("Promotion");
-
-                    b.Navigation("TimeSlot");
 
                     b.Navigation("User");
                 });

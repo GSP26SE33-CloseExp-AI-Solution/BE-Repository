@@ -20,7 +20,7 @@ public class OrderResponseDto
     public decimal DeliveryFee { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime OrderDate { get; set; }
-    public Guid AddressId { get; set; }
+    public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
     public Guid? DeliveryGroupId { get; set; }
     public string? DeliveryAddress { get; set; }
