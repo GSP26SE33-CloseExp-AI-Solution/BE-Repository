@@ -972,6 +972,25 @@ public static class DataSeeder
             }
         };
 
+        var productIds = stockLots.Select(x => x.ProductId).Distinct().ToList();
+        var productUnitMap = await context.Products
+            .AsNoTracking()
+            .Where(p => productIds.Contains(p.ProductId))
+            .ToDictionaryAsync(p => p.ProductId, p => p.UnitId);
+
+        foreach (var lot in stockLots)
+        {
+            if (lot.UnitId == Guid.Empty && productUnitMap.TryGetValue(lot.ProductId, out var unitId))
+            {
+                lot.UnitId = unitId;
+            }
+
+            if (lot.UpdatedAt == default)
+            {
+                lot.UpdatedAt = lot.CreatedAt == default ? now : lot.CreatedAt;
+            }
+        }
+
         await context.StockLots.AddRangeAsync(stockLots);
         await context.SaveChangesAsync();
     }
