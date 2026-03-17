@@ -1,6 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
+using CloseExpAISolution.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -90,6 +91,80 @@ public class OrdersController : ControllerBase
         {
             _logger.LogWarning(ex, "Create order failed");
             return BadRequest(ApiResponse<OrderResponseDto>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>Set order status to Pending (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/pending")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetPending(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Pending, cancellationToken);
+
+    /// <summary>Set order status to Paid_Processing (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/paid-processing")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Paid_Processing, cancellationToken);
+
+    /// <summary>Set order status to Ready_To_Ship (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/ready-to-ship")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetReadyToShip(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Ready_To_Ship, cancellationToken);
+
+    /// <summary>Set order status to Delivered_Wait_Confirm (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/delivered-wait-confirm")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetDeliveredWaitConfirm(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Delivered_Wait_Confirm, cancellationToken);
+
+    /// <summary>Set order status to Completed (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/completed")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetCompleted(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Completed, cancellationToken);
+
+    /// <summary>Set order status to Canceled (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/canceled")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetCanceled(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Canceled, cancellationToken);
+
+    /// <summary>Set order status to Refunded (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/refunded")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetRefunded(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Refunded, cancellationToken);
+
+    /// <summary>Set order status to Failed (one-click PUT, no body).</summary>
+    [HttpPut("{id:guid}/failed")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public Task<ActionResult<ApiResponse<object>>> SetFailed(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Failed, cancellationToken);
+
+    private async Task<ActionResult<ApiResponse<object>>> UpdateOrderStatus(Guid id, OrderState status, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _services.OrderService.UpdateStatusAsync(id, status, cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("Order not found"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Update order status {OrderId} to {Status} failed", id, status);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
     }
 

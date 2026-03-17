@@ -3,6 +3,7 @@ using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -131,6 +132,16 @@ public class OrderService : IOrderService
             }
         }
 
+        order.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.OrderRepository.Update(order);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default)
+    {
+        var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Order not found: {orderId}");
+        order.Status = status.ToString();
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

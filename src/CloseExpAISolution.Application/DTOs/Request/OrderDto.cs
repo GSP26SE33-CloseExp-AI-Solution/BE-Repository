@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.DTOs.Request;
 
@@ -69,6 +71,17 @@ public class CreateOrderItemDto
     [Required]
     [Range(0, double.MaxValue)]
     public decimal UnitPrice { get; set; }
+}
+
+/// <summary>
+/// Request DTO for changing order status in one click (PUT api/orders/{id}/status).
+/// Accepts <see cref="OrderState"/> values, e.g. "Pending", "Paid_Processing", "Ready_To_Ship", "Completed", "Canceled", etc.
+/// </summary>
+public class UpdateOrderStatusRequestDto
+{
+    [Required]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public OrderState Status { get; set; }
 }
 
 /// <summary>
