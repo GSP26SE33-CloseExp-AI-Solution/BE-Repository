@@ -175,8 +175,8 @@ public class UserService : IUserService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
 
-        // // Nhân viên siêu thị không thể tự xóa tài khoản
-        if (user.RoleId == (int)RoleUser.SupplierStaff)
+        // Nhân viên siêu thị không thể tự xóa tài khoản
+        if (user.RoleId == (int)RoleUser.SupermarketStaff)
             return ApiResponse<bool>.ErrorResponse("Nhân viên siêu thị không thể tự xóa tài khoản. Vui lòng liên hệ quản trị viên");
         if (user.RoleId != (int)RoleUser.Vendor)
             return ApiResponse<bool>.ErrorResponse("Bạn không có quyền xóa tài khoản này. Vui lòng liên hệ Admin");
@@ -241,8 +241,8 @@ public class UserService : IUserService
         var dto = _mapper.Map<UserResponseDto>(user);
         dto.RoleName = role?.RoleName ?? "Unknown";
 
-        // Nếu là SupplierStaff (RoleId = 4) - nhân viên siêu thị thì load thông tin siêu thị
-        if (user.RoleId == (int)RoleUser.SupplierStaff)
+        // Nếu là SupermarketStaff (RoleId = 4) - nhân viên siêu thị thì load thông tin siêu thị
+        if (user.RoleId == (int)RoleUser.SupermarketStaff)
         {
             dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
         }
@@ -262,8 +262,8 @@ public class UserService : IUserService
         var dto = _mapper.Map<UserResponseDto>(user);
         dto.RoleName = roleDictionary.GetValueOrDefault(user.RoleId, "Unknown");
 
-        // Nếu là SupplierStaff (nhân viên siêu thị) thì load thông tin siêu thị
-        if (user.RoleId == (int)RoleUser.SupplierStaff)
+        // Nếu là SupermarketStaff (nhân viên siêu thị) thì load thông tin siêu thị
+        if (user.RoleId == (int)RoleUser.SupermarketStaff)
         {
             dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
         }

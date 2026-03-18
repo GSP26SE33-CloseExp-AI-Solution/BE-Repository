@@ -35,9 +35,8 @@ public class DeliveryOrderResponseDto
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerPhone { get; set; } = string.Empty;
 
-    public string? DeliveryAddress { get; set; }
-    public string? PickupPointName { get; set; }
-    public string? PickupPointAddress { get; set; }
+    public string? CollectionPointName { get; set; }
+    public string? AddressLine { get; set; }
     public string? DeliveryNote { get; set; }
 
     public string TimeSlotDisplay { get; set; } = string.Empty;

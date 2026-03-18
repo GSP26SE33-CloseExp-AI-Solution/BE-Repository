@@ -147,7 +147,7 @@ public class ProductService : IProductService
     {
         var product = _mapper.Map<Product>(request);
 
-        var defaultUnit = await _context.Units.FirstOrDefaultAsync(cancellationToken);
+        var defaultUnit = await _context.UnitOfMeasures.FirstOrDefaultAsync(cancellationToken);
         if (defaultUnit == null)
             throw new InvalidOperationException("Không tìm thấy đơn vị đo mặc định. Vui lòng seed bảng Units trước.");
         product.UnitId = defaultUnit.UnitId;
@@ -537,7 +537,7 @@ public class ProductService : IProductService
         if (!lotIds.Any())
             return null;
 
-        return await _context.AIPriceHistories
+        return await _context.PricingHistories
             .Where(h => lotIds.Contains(h.LotId))
             .OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -558,7 +558,7 @@ public class ProductService : IProductService
         if (!lotIds.Any())
             return new Dictionary<Guid, PricingHistory>();
 
-        var histories = await _context.AIPriceHistories
+        var histories = await _context.PricingHistories
             .Where(h => lotIds.Contains(h.LotId))
             .ToListAsync(cancellationToken);
 

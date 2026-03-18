@@ -204,7 +204,7 @@ public class PackagingService : IPackagingService
         if (user == null)
             throw new KeyNotFoundException("Không tìm thấy nhân viên đóng gói.");
 
-        if (user.RoleId != (int)RoleUser.SupplierStaff)
+        if (user.RoleId != (int)RoleUser.PackagingStaff)
             throw new UnauthorizedAccessException("Người dùng không có quyền thực hiện đóng gói.");
     }
 

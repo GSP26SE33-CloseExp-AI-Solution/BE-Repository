@@ -18,7 +18,6 @@ public class UnitOfWork : IUnitOfWork
     private ISupermarketRepository? _supermarketRepository;
     private IProductImageRepository? _productImageRepository;
     private IAIVerificationLogRepository? _aIVerificationLogRepository;
-    private IBarcodeProductRepository? _barcodeProductRepository;
     private IMarketPriceRepository? _marketPriceRepository;
     private IPriceFeedbackRepository? _priceFeedbackRepository;
     private IOrderRepository? _orderRepository;
@@ -35,7 +34,6 @@ public class UnitOfWork : IUnitOfWork
     public ISupermarketRepository SupermarketRepository => _supermarketRepository ??= new SupermarketRepository(_context);
     public IProductImageRepository ProductImageRepository => _productImageRepository ??= new ProductImageRepository(_context);
     public IAIVerificationLogRepository AIVerificationLogRepository => _aIVerificationLogRepository ??= new AIVerificationLogRepository(_context);
-    public IBarcodeProductRepository BarcodeProductRepository => _barcodeProductRepository ??= new BarcodeProductRepository(_context);
     public IMarketPriceRepository MarketPriceRepository => _marketPriceRepository ??= new MarketPriceRepository(_context);
     public IPriceFeedbackRepository PriceFeedbackRepository => _priceFeedbackRepository ??= new PriceFeedbackRepository(_context);
     public IOrderRepository OrderRepository => _orderRepository ??= new OrderRepository(_context);

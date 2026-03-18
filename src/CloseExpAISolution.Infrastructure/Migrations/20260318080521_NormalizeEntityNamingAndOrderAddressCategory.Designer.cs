@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260318080521_NormalizeEntityNamingAndOrderAddressCategory")]
+    partial class NormalizeEntityNamingAndOrderAddressCategory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -56,6 +59,98 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("AIVerificationLogs");
+                });
+
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.BarcodeProduct", b =>
+                {
+                    b.Property<Guid>("BarcodeProductId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Barcode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Brand")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<float>("Confidence")
+                        .HasColumnType("real");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Gs1Prefix")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Ingredients")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVietnameseProduct")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Manufacturer")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NutritionFactsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("ScanCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Weight")
+                        .HasColumnType("text");
+
+                    b.HasKey("BarcodeProductId");
+
+                    b.HasIndex("Barcode")
+                        .IsUnique();
+
+                    b.ToTable("BarcodeProducts");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Category", b =>
@@ -189,9 +284,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<Guid?>("DeliveryStaffId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DeliveryTimeSlotId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("DeliveryType")
                         .IsRequired()
                         .HasColumnType("text");
@@ -207,6 +299,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TimeSlotId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("TotalOrders")
                         .HasColumnType("integer");
 
@@ -217,7 +312,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("DeliveryStaffId");
 
-                    b.HasIndex("DeliveryTimeSlotId");
+                    b.HasIndex("TimeSlotId");
 
                     b.ToTable("DeliveryGroups");
                 });
@@ -536,6 +631,36 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.ToTable("OrderPackaging", (string)null);
                 });
 
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PaymentTransaction", b =>
+                {
+                    b.Property<Guid>("PaymentTransactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("PaymentTransactionId");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("PaymentTransactions");
+                });
+
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PriceFeedback", b =>
                 {
                     b.Property<Guid>("Id")
@@ -666,7 +791,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("LotId");
 
-                    b.ToTable("PricingHistories");
+                    b.ToTable("AIPriceHistories");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
@@ -1068,36 +1193,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.ToTable("SystemConfigs");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Transaction", b =>
-                {
-                    b.Property<Guid>("TransactionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PaymentMethod")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PaymentStatus")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("TransactionId");
-
-                    b.HasIndex("OrderId");
-
-                    b.ToTable("Transactions");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.UnitOfMeasure", b =>
                 {
                     b.Property<Guid>("UnitId")
@@ -1124,7 +1219,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("UnitId");
 
-                    b.ToTable("UnitOfMeasures");
+                    b.ToTable("Units");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.User", b =>
@@ -1281,15 +1376,15 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .HasForeignKey("DeliveryStaffId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", "DeliveryTimeSlot")
+                    b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", "TimeSlot")
                         .WithMany()
-                        .HasForeignKey("DeliveryTimeSlotId")
+                        .HasForeignKey("TimeSlotId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("DeliveryStaff");
 
-                    b.Navigation("DeliveryTimeSlot");
+                    b.Navigation("TimeSlot");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryLog", b =>
@@ -1417,10 +1512,21 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PaymentTransaction", b =>
+                {
+                    b.HasOne("CloseExpAISolution.Domain.Entities.Order", "Order")
+                        .WithMany("Transactions")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PricingHistory", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.StockLot", "StockLot")
-                        .WithMany("PricingHistories")
+                        .WithMany("AIPriceHistories")
                         .HasForeignKey("LotId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1536,17 +1642,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Transaction", b =>
-                {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.Order", "Order")
-                        .WithMany("Transactions")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.User", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.Role", "Role")
@@ -1621,11 +1716,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.StockLot", b =>
                 {
+                    b.Navigation("AIPriceHistories");
+
                     b.Navigation("InventoryDisposals");
 
                     b.Navigation("OrderItems");
-
-                    b.Navigation("PricingHistories");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Supermarket", b =>

@@ -58,5 +58,5 @@ public class NewSupermarketRequest
 public enum RegistrationType
 {
     Vendor = (int)RoleUser.Vendor,
-    SupplierStaff = (int)RoleUser.SupplierStaff
+    SupermarketStaff = (int)RoleUser.SupermarketStaff
 }

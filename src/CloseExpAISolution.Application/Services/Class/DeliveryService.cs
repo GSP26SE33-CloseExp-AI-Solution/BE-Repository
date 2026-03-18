@@ -38,7 +38,7 @@ public class DeliveryService : IDeliveryService
         foreach (var group in groups.OrderBy(g => g.DeliveryDate).ThenBy(g => g.CreatedAt))
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.DeliveryTimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
@@ -103,7 +103,7 @@ public class DeliveryService : IDeliveryService
         foreach (var group in pagedGroups)
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.DeliveryTimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
@@ -215,7 +215,7 @@ public class DeliveryService : IDeliveryService
         }
         group.UpdatedAt = DateTime.UtcNow;
 
-        // Keep orders at Ready_To_Ship until shipper confirms delivery or reports failure
+        // Update all orders in group to Ready_To_Ship → In Transit
         var orders = await _unitOfWork.Repository<Order>()
             .FindAsync(o => o.DeliveryGroupId == deliveryGroupId
                          && o.Status == OrderState.Ready_To_Ship.ToString());
@@ -246,7 +246,14 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             return null;
 
-        await EnsureOrderAssignedToStaffAsync(order, deliveryStaffId);
+        if (order.DeliveryGroupId.HasValue)
+        {
+            var group = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+
+            if (group != null && group.DeliveryStaffId != deliveryStaffId)
+                throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
+        }
 
         return await MapToDeliveryOrderResponseAsync(order);
     }
@@ -265,7 +272,15 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        await EnsureOrderAssignedToStaffAsync(order, deliveryStaffId);
+        // Validate order belongs to a group assigned to this staff
+        if (order.DeliveryGroupId.HasValue)
+        {
+            var group = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+
+            if (group != null && group.DeliveryStaffId != deliveryStaffId)
+                throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
+        }
 
         if (order.Status != OrderState.Ready_To_Ship.ToString())
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để xác nhận giao hàng.");
@@ -325,7 +340,15 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        await EnsureOrderAssignedToStaffAsync(order, deliveryStaffId);
+        // Validate order belongs to a group assigned to this staff
+        if (order.DeliveryGroupId.HasValue)
+        {
+            var group = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+
+            if (group != null && group.DeliveryStaffId != deliveryStaffId)
+                throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
+        }
 
         if (order.Status != OrderState.Ready_To_Ship.ToString())
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để báo lỗi.");
@@ -599,7 +622,7 @@ public class DeliveryService : IDeliveryService
     private async Task<DeliveryGroupResponseDto> MapToDeliveryGroupResponseAsync(DeliveryGroup group)
     {
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.DeliveryTimeSlotId);
 
         var staff = group.DeliveryStaffId.HasValue
             ? await _unitOfWork.Repository<User>()
@@ -626,7 +649,7 @@ public class DeliveryService : IDeliveryService
             GroupCode = group.GroupCode,
             DeliveryStaffId = group.DeliveryStaffId,
             DeliveryStaffName = staff?.FullName,
-            DeliveryTimeSlotId = group.TimeSlotId,
+            DeliveryTimeSlotId = group.DeliveryTimeSlotId,
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
                 : "N/A",
@@ -644,18 +667,6 @@ public class DeliveryService : IDeliveryService
         };
     }
 
-    private async Task EnsureOrderAssignedToStaffAsync(Order order, Guid deliveryStaffId)
-    {
-        if (!order.DeliveryGroupId.HasValue)
-            throw new UnauthorizedAccessException("Đơn hàng chưa được phân công nhóm giao hàng hợp lệ.");
-
-        var group = await _unitOfWork.Repository<DeliveryGroup>()
-            .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
-
-        if (group == null || group.DeliveryStaffId != deliveryStaffId)
-            throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
-    }
-
     private async Task<DeliveryOrderResponseDto> MapToDeliveryOrderResponseAsync(Order order)
     {
         var customer = await _unitOfWork.Repository<User>()
@@ -664,22 +675,22 @@ public class DeliveryService : IDeliveryService
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
             .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.DeliveryTimeSlotId);
 
-        string? pickupPointName = null;
-        string? pickupPointAddress = null;
+        string? collectionPointName = null;
+        string? addressLine = null;
 
-        if (order.PickupPointId.HasValue)
+        if (order.CollectionId.HasValue)
         {
-            var pickupPoint = await _unitOfWork.Repository<CollectionPoint>()
-                .FirstOrDefaultAsync(pp => pp.PickupPointId == order.PickupPointId.Value);
-            pickupPointName = pickupPoint?.Name;
-            pickupPointAddress = pickupPoint?.Address;
+            var collectionPoint = await _unitOfWork.Repository<CollectionPoint>()
+                .FirstOrDefaultAsync(pp => pp.CollectionId == order.CollectionId.Value);
+            collectionPointName = collectionPoint?.Name;
+            addressLine = collectionPoint?.AddressLine;
         }
         else
         {
             var customerAddress = await _unitOfWork.Repository<CustomerAddress>()
                 .FirstOrDefaultAsync(ca => ca.CustomerAddressId == order.AddressId);
-            pickupPointName = customerAddress?.RecipientName;
-            pickupPointAddress = customerAddress?.AddressLine;
+            collectionPointName = customerAddress?.RecipientName;
+            addressLine = customerAddress?.AddressLine;
         }
 
         var orderItems = await _unitOfWork.Repository<OrderItem>()
@@ -720,9 +731,8 @@ public class DeliveryService : IDeliveryService
             OrderDate = order.OrderDate,
             CustomerName = customer?.FullName ?? "N/A",
             CustomerPhone = customer?.Phone ?? "N/A",
-            DeliveryAddress = order.DeliveryAddress,
-            PickupPointName = pickupPointName,
-            PickupPointAddress = pickupPointAddress,
+            CollectionPointName = collectionPointName,
+            AddressLine = addressLine,
             DeliveryNote = order.DeliveryNote,
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"

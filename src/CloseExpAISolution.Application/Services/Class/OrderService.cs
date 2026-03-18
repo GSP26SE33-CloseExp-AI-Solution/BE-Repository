@@ -55,7 +55,7 @@ public class OrderService : IOrderService
             OrderCode = orderCode,
             UserId = request.UserId,
             DeliveryTimeSlotId = request.TimeSlotId,
-            PickupPointId = request.PickupPointId,
+            CollectionId = request.CollectionId,
             DeliveryType = request.DeliveryType,
             TotalAmount = request.TotalAmount,
             DiscountAmount = request.DiscountAmount,
@@ -66,7 +66,6 @@ public class OrderService : IOrderService
             AddressId = request.AddressId,
             PromotionId = request.PromotionId,
             DeliveryGroupId = request.DeliveryGroupId,
-            DeliveryAddress = request.DeliveryAddress,
             DeliveryNote = request.DeliveryNote,
             CancelDeadline = request.CancelDeadline,
             CreatedAt = DateTime.UtcNow,
@@ -100,14 +99,13 @@ public class OrderService : IOrderService
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
 
         if (request.TimeSlotId.HasValue) order.DeliveryTimeSlotId = request.TimeSlotId.Value;
-        if (request.PickupPointId.HasValue) order.PickupPointId = request.PickupPointId;
+        if (request.CollectionId.HasValue) order.CollectionId = request.CollectionId;
         if (request.DeliveryType != null) order.DeliveryType = request.DeliveryType;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
         if (request.Status != null) order.Status = request.Status;
-        if (request.AddressId.HasValue) order.AddressId = request.AddressId.Value;
+        if (request.AddressId.HasValue) order.AddressId = request.AddressId;
         if (request.PromotionId.HasValue) order.PromotionId = request.PromotionId;
         if (request.DeliveryGroupId.HasValue) order.DeliveryGroupId = request.DeliveryGroupId;
-        if (request.DeliveryAddress != null) order.DeliveryAddress = request.DeliveryAddress;
         if (request.DeliveryNote != null) order.DeliveryNote = request.DeliveryNote;
         if (request.DiscountAmount.HasValue) order.DiscountAmount = request.DiscountAmount.Value;
         if (request.FinalAmount.HasValue) order.FinalAmount = request.FinalAmount.Value;

@@ -15,7 +15,7 @@ public class CreateOrderRequestDto
     [Required]
     public Guid TimeSlotId { get; set; }
 
-    public Guid? PickupPointId { get; set; }
+    public Guid? CollectionId { get; set; }
 
     [Required]
     [MaxLength(50)]
@@ -29,12 +29,10 @@ public class CreateOrderRequestDto
     [MaxLength(50)]
     public string Status { get; set; } = "Pending";
 
-    [Required]
-    public Guid AddressId { get; set; }
+    public Guid? AddressId { get; set; }
 
     public Guid? PromotionId { get; set; }
     public Guid? DeliveryGroupId { get; set; }
-    public string? DeliveryAddress { get; set; }
     public string? DeliveryNote { get; set; }
 
     [Range(0, double.MaxValue)]
@@ -90,7 +88,7 @@ public class UpdateOrderStatusRequestDto
 public class UpdateOrderRequestDto
 {
     public Guid? TimeSlotId { get; set; }
-    public Guid? PickupPointId { get; set; }
+    public Guid? CollectionId { get; set; }
 
     [MaxLength(50)]
     public string? DeliveryType { get; set; }
@@ -104,7 +102,6 @@ public class UpdateOrderRequestDto
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
     public Guid? DeliveryGroupId { get; set; }
-    public string? DeliveryAddress { get; set; }
     public string? DeliveryNote { get; set; }
 
     [Range(0, double.MaxValue)]

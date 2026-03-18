@@ -100,9 +100,9 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
-        // XỬ LÝ ĐĂNG KÝ SUPPLIERSTAFF
+        // XỬ LÝ ĐĂNG KÝ SUPERMARKETSTAFF
         Guid? finalSupermarketId = null;
-        if (roleId == (int)RoleUser.SupplierStaff)
+        if (roleId == (int)RoleUser.SupermarketStaff)
         {
             if (request.NewSupermarket == null)
                 return Error("Vui lòng nhập thông tin siêu thị/cơ sở");
@@ -156,7 +156,7 @@ public class AuthService : IAuthService
         {
             await userRepository.AddAsync(user);
 
-            if (roleId == (int)RoleUser.SupplierStaff && finalSupermarketId.HasValue)
+            if (roleId == (int)RoleUser.SupermarketStaff && finalSupermarketId.HasValue)
             {
                 var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
                 newSupermarket.SupermarketId = finalSupermarketId.Value;
@@ -345,7 +345,7 @@ public class AuthService : IAuthService
         if (user.RoleId == (int)RoleUser.Vendor && user.Status == UserState.Active.ToString())
             await SendEmailVerifiedNotificationAsync(user.Email, user.FullName, isVendor: true);
 
-        if (user.RoleId == (int)RoleUser.SupplierStaff && user.Status == UserState.PendingApproval.ToString())
+        if (user.RoleId == (int)RoleUser.SupermarketStaff && user.Status == UserState.PendingApproval.ToString())
             return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Tài khoản đang chờ quản trị viên phê duyệt");
         else
             return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Bạn có thể đăng nhập ngay bây giờ");
@@ -662,9 +662,9 @@ public class AuthService : IAuthService
         if (role == null)
             return Error("Loại đăng ký không hợp lệ");
 
-        // Only Vendor and SupplierStaff can register publicly
-        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.SupplierStaff)
-            return Error("Loại đăng ký này không được phép. Chỉ Vendor và SupplierStaff (nhân viên siêu thị) mới có thể đăng ký công khai.");
+        // Only Vendor and SupermarketStaff can register publicly
+        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.SupermarketStaff)
+            return Error("Loại đăng ký này không được phép. Chỉ Vendor và SupermarketStaff (nhân viên siêu thị) mới có thể đăng ký công khai.");
 
         return null;
     }
@@ -707,9 +707,9 @@ public class AuthService : IAuthService
 
         var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt);
 
-        // Load MarketStaffInfo if user is SupplierStaff
+        // Load MarketStaffInfo if user is SupermarketStaff
         MarketStaffInfoDto? marketStaffInfo = null;
-        if (user.RoleId == (int)RoleUser.SupplierStaff)
+        if (user.RoleId == (int)RoleUser.SupermarketStaff)
         {
             marketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
         }

@@ -6,7 +6,7 @@ public class Order
     public string OrderCode { get; set; } = string.Empty;
     public Guid UserId { get; set; }
     public Guid DeliveryTimeSlotId { get; set; }
-    public Guid? PickupPointId { get; set; }
+    public Guid? CollectionId { get; set; }
     public string DeliveryType { get; set; } = string.Empty;
     public decimal TotalAmount { get; set; }
     public decimal DiscountAmount { get; set; }
@@ -16,7 +16,6 @@ public class Order
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
     public Guid? DeliveryGroupId { get; set; }
-    public string? DeliveryAddress { get; set; }
     public string? DeliveryNote { get; set; }
     public decimal DeliveryFee { get; set; }
     public DateTime? CancelDeadline { get; set; }
@@ -30,6 +29,6 @@ public class Order
     public Promotion? Promotion { get; set; }
     public DeliveryGroup? DeliveryGroup { get; set; }
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
-    public ICollection<PaymentTransaction> Transactions { get; set; } = new List<PaymentTransaction>();
+    public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
 }

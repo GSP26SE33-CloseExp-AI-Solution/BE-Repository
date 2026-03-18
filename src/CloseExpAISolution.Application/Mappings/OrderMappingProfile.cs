@@ -19,7 +19,8 @@ public class OrderMappingProfile : Profile
             .ForMember(dest => dest.TimeSlotId, opt => opt.MapFrom(src => src.DeliveryTimeSlotId))
             .ForMember(dest => dest.TimeSlotDisplay, opt => opt.MapFrom(src =>
                 src.DeliveryTimeSlot != null ? $"{src.DeliveryTimeSlot.StartTime:hh\\:mm} - {src.DeliveryTimeSlot.EndTime:hh\\:mm}" : null))
-            .ForMember(dest => dest.PickupPointName, opt => opt.MapFrom(src => src.CollectionPoint != null ? src.CollectionPoint.Name : null))
+            .ForMember(dest => dest.CollectionId, opt => opt.MapFrom(src => src.CollectionId))
+            .ForMember(dest => dest.CollectionPointName, opt => opt.MapFrom(src => src.CollectionPoint != null ? src.CollectionPoint.Name : null))
             .ForMember(dest => dest.OrderItems, opt => opt.MapFrom(src => src.OrderItems));
     }
 }

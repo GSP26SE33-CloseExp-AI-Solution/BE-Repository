@@ -20,9 +20,9 @@ public static class DataSeeder
     private static readonly Guid MarketStaffUserId1 = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     private static readonly Guid MarketStaffUserId2 = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
     private static readonly Guid MarketStaffUserId3 = Guid.Parse("11111111-2222-2222-2222-222222222222");
-    private static readonly Guid SupplierStaffUserId1 = Guid.Parse("33333333-4444-4444-4444-444444444444");
-    private static readonly Guid SupplierStaffUserId2 = Guid.Parse("55555555-6666-6666-6666-666666666666");
-    private static readonly Guid SupplierStaffUserId3 = Guid.Parse("77777777-8888-8888-8888-888888888888");
+    private static readonly Guid SupermarketStaffUserId1 = Guid.Parse("33333333-4444-4444-4444-444444444444");
+    private static readonly Guid SupermarketStaffUserId2 = Guid.Parse("55555555-6666-6666-6666-666666666666");
+    private static readonly Guid SupermarketStaffUserId3 = Guid.Parse("77777777-8888-8888-8888-888888888888");
     private static readonly Guid DeliveryStaffUserId1 = Guid.Parse("99999999-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid DeliveryStaffUserId2 = Guid.Parse("bbbbbbbb-cccc-cccc-cccc-cccccccccccc");
     private static readonly Guid DeliveryStaffUserId3 = Guid.Parse("dddddddd-eeee-eeee-eeee-eeeeeeeeeeee");
@@ -42,6 +42,12 @@ public static class DataSeeder
     private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
     private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
 
+    // Category GUIDs
+    private static readonly Guid CategoryDairyId = Guid.Parse("ccca0001-0001-0001-0001-000000000001");
+    private static readonly Guid CategoryMeatSeafoodId = Guid.Parse("ccca0002-0002-0002-0002-000000000002");
+    private static readonly Guid CategoryVegetableId = Guid.Parse("ccca0003-0003-0003-0003-000000000003");
+    private static readonly Guid CategoryDryFoodId = Guid.Parse("ccca0004-0004-0004-0004-000000000004");
+
     // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
     private static readonly Guid Product2Id = Guid.Parse("bbbb0002-0002-0002-0002-000000000002");
@@ -55,29 +61,30 @@ public static class DataSeeder
     private static readonly Guid Product10Id = Guid.Parse("bbbb000a-000a-000a-000a-00000000000a");
     private static readonly Guid Product11Id = Guid.Parse("bbbb000b-000b-000b-000b-00000000000b");
     private static readonly Guid Product12Id = Guid.Parse("bbbb000c-000c-000c-000c-00000000000c");
-
-    // TimeSlot, PickupPoint, DoorPickup, Promotion GUIDs (for Orders)
     private static readonly Guid TimeSlotMorningId = Guid.Parse("cccc0001-0001-0001-0001-000000000001");
     private static readonly Guid TimeSlotAfternoonId = Guid.Parse("cccc0002-0002-0002-0002-000000000002");
-    private static readonly Guid TimeSlotEveningId = Guid.Parse("cccc0003-0003-0003-0003-000000000003");
-    private static readonly Guid PickupPointMainId = Guid.Parse("dddd0001-0001-0001-0001-000000000001");
-    private static readonly Guid PickupPointBranch2Id = Guid.Parse("dddd0002-0002-0002-0002-000000000002");
-    private static readonly Guid DoorPickupMainId = Guid.Parse("eeee0001-0001-0001-0001-000000000001");
-    private static readonly Guid Promotion10PercentId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
-    // Order GUIDs (for testing)
-    private static readonly Guid Order1Id = Guid.Parse("a1a10001-0001-0001-0001-000000000001");
-    private static readonly Guid Order2Id = Guid.Parse("a1a10002-0002-0002-0002-000000000002");
-    private static readonly Guid Order3Id = Guid.Parse("a1a10003-0003-0003-0003-000000000003");
+    private static readonly Guid CollectionPointDistrict1Id = Guid.Parse("dddd0001-0001-0001-0001-000000000001");
+    private static readonly Guid CollectionPointDistrict3Id = Guid.Parse("dddd0002-0002-0002-0002-000000000002");
+    private static readonly Guid CustomerAddressVendor1Id = Guid.Parse("eeee0001-0001-0001-0001-000000000001");
+    private static readonly Guid CustomerAddressVendor2Id = Guid.Parse("eeee0002-0002-0002-0002-000000000002");
+    private static readonly Guid PackagingOrderPickupId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
+    private static readonly Guid PackagingOrderHomeId = Guid.Parse("ffff0002-0002-0002-0002-000000000002");
+    private static readonly Guid PackagingOrderReadyId = Guid.Parse("ffff0003-0003-0003-0003-000000000003");
 
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         await SeedRolesAsync(context);
         await SeedUsersAsync(context);
         await SeedSupermarketsAsync(context);
-        await SeedMarketStaffAsync(context);  // Liên kết SupplierStaff với Supermarket
+        await SeedMarketStaffAsync(context);  // Liên kết SupermarketStaff với Supermarket
         await SeedUnitsAsync(context);        // Seed đơn vị tính
+        await SeedCategoriesAsync(context);
         await SeedProductsAsync(context);
         await SeedStockLotsAsync(context);
+        await SeedDeliveryTimeSlotsAsync(context);
+        await SeedCollectionPointsAsync(context);
+        await SeedCustomerAddressesAsync(context);
+        await SeedPackagingOrdersAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -87,9 +94,9 @@ public static class DataSeeder
 
         await context.Database.ExecuteSqlRawAsync(@"INSERT INTO ""Roles"" (""RoleId"", ""RoleName"") VALUES 
             (1, 'Admin'),
-            (2, 'Staff'),
+            (2, 'PackagingStaff'),
             (3, 'MarketingStaff'),
-            (4, 'SupplierStaff'),
+            (4, 'SupermarketStaff'),
             (5, 'DeliveryStaff'),
             (6, 'Vendor')
             ON CONFLICT (""RoleId"") DO NOTHING");
@@ -206,7 +213,7 @@ public static class DataSeeder
             // Supplier Staff (RoleId = 4)
             new()
             {
-                UserId = SupplierStaffUserId1,
+                UserId = SupermarketStaffUserId1,
                 FullName = "Lê Văn E - Nhà cung cấp rau",
                 Email = "supplier.1@gmail.com",
                 Phone = "0914555555",
@@ -219,7 +226,7 @@ public static class DataSeeder
             },
             new()
             {
-                UserId = SupplierStaffUserId2,
+                UserId = SupermarketStaffUserId2,
                 FullName = "Phạm Thị F - Nhà cung cấp thịt",
                 Email = "supplier.2@gmail.com",
                 Phone = "0914666666",
@@ -234,7 +241,7 @@ public static class DataSeeder
             // Supplier Staff (RoleId = 4) - No numbers
             new()
             {
-                UserId = SupplierStaffUserId3,
+                UserId = SupermarketStaffUserId3,
                 FullName = "Ngô Kim Liên - Nhà cung cấp",
                 Email = "supplier@gmail.com",
                 Phone = "0917345678",
@@ -384,7 +391,7 @@ public static class DataSeeder
     }
 
     /// <summary>
-    /// Seed MarketStaff - Liên kết SupplierStaff users với Supermarkets
+    /// Seed MarketStaff - Liên kết SupermarketStaff users với Supermarkets
     /// </summary>
     private static async Task SeedMarketStaffAsync(ApplicationDbContext context)
     {
@@ -393,29 +400,29 @@ public static class DataSeeder
 
         var marketStaffRecords = new List<SupermarketStaff>
         {
-            // SupplierStaff 1 - Làm việc tại CoopMart
+            // SupermarketStaff 1 - Làm việc tại CoopMart
             new()
             {
                 SupermarketStaffId = Guid.NewGuid(),
-                UserId = SupplierStaffUserId1,
+                UserId = SupermarketStaffUserId1,
                 SupermarketId = SupermarketCoopMartId,
                 Position = "Nhân viên kho",
                 CreatedAt = DateTime.UtcNow
             },
-            // SupplierStaff 2 - Làm việc tại Big C
+            // SupermarketStaff 2 - Làm việc tại Big C
             new()
             {
                 SupermarketStaffId = Guid.NewGuid(),
-                UserId = SupplierStaffUserId2,
+                UserId = SupermarketStaffUserId2,
                 SupermarketId = SupermarketBigCId,
                 Position = "Nhân viên quầy thịt",
                 CreatedAt = DateTime.UtcNow
             },
-            // SupplierStaff 3 - Làm việc tại VinMart
+            // SupermarketStaff 3 - Làm việc tại VinMart
             new()
             {
                 SupermarketStaffId = Guid.NewGuid(),
-                UserId = SupplierStaffUserId3,
+                UserId = SupermarketStaffUserId3,
                 SupermarketId = SupermarketVinMartId,
                 Position = "Quản lý kho",
                 CreatedAt = DateTime.UtcNow
@@ -431,7 +438,7 @@ public static class DataSeeder
     /// </summary>
     private static async Task SeedUnitsAsync(ApplicationDbContext context)
     {
-        if (await context.Units.AnyAsync())
+        if (await context.UnitOfMeasures.AnyAsync())
             return;
 
         var units = new List<UnitOfMeasure>
@@ -503,7 +510,7 @@ public static class DataSeeder
             }
         };
 
-        await context.Units.AddRangeAsync(units);
+        await context.UnitOfMeasures.AddRangeAsync(units);
         await context.SaveChangesAsync();
     }
 
@@ -518,6 +525,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product1Id,
+                CategoryId = CategoryDairyId,
                 SupermarketId = SupermarketCoopMartId,
                 UnitId = UnitLiterId,
                 Name = "Sữa tươi Vinamilk 1L",
@@ -533,6 +541,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product2Id,
+                CategoryId = CategoryDairyId,
                 SupermarketId = SupermarketCoopMartId,
                 UnitId = UnitBoxId,
                 Name = "Sữa chua Vinamilk có đường",
@@ -548,6 +557,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product3Id,
+                CategoryId = CategoryMeatSeafoodId,
                 SupermarketId = SupermarketCoopMartId,
                 UnitId = UnitKgId,
                 Name = "Thịt heo ba chỉ",
@@ -563,6 +573,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product4Id,
+                CategoryId = CategoryVegetableId,
                 SupermarketId = SupermarketBigCId,
                 UnitId = UnitKgId,
                 Name = "Rau cải xanh hữu cơ",
@@ -578,6 +589,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product5Id,
+                CategoryId = CategoryVegetableId,
                 SupermarketId = SupermarketBigCId,
                 UnitId = UnitKgId,
                 Name = "Cà chua Đà Lạt",
@@ -593,6 +605,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product6Id,
+                CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketBigCId,
                 UnitId = UnitPackId,
                 Name = "Bánh mì sandwich Kinh Đô",
@@ -608,6 +621,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product7Id,
+                CategoryId = CategoryDairyId,
                 SupermarketId = SupermarketVinMartId,
                 UnitId = UnitBottleId,
                 Name = "Nước cam ép Tropicana 1L",
@@ -623,6 +637,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product8Id,
+                CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketVinMartId,
                 UnitId = UnitBoxId,
                 Name = "Bánh quy Oreo 264g",
@@ -638,6 +653,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product9Id,
+                CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketVinMartId,
                 UnitId = UnitPackId,
                 Name = "Mì Hảo Hảo tôm chua cay",
@@ -653,6 +669,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product10Id,
+                CategoryId = CategoryMeatSeafoodId,
                 SupermarketId = SupermarketCoopMartId,
                 UnitId = UnitKgId,
                 Name = "Cá hồi phi lê đông lạnh",
@@ -668,6 +685,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product11Id,
+                CategoryId = CategoryMeatSeafoodId,
                 SupermarketId = SupermarketCoopMartId,
                 UnitId = UnitPackId,
                 Name = "Cá ngừ đóng hộp Vissan 170g",
@@ -683,6 +701,7 @@ public static class DataSeeder
             new()
             {
                 ProductId = Product12Id,
+                CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketBigCId,
                 UnitId = UnitPackId,
                 Name = "Đậu đỏ hầm đường lon 380g",
@@ -716,6 +735,51 @@ public static class DataSeeder
             new() { ProductDetailId = Guid.NewGuid(), ProductId = Product12Id, Brand = "Nếp Mới", Ingredients = "Đậu đỏ 50%, đường, nước, muối", NutritionFacts = """{"calories":"320 kcal","protein":"8g","carbs":"68g","sugar":"42g","fiber":"6g"}""", Manufacturer = "Công ty TNHH Nếp Mới" }
         };
         await context.ProductDetails.AddRangeAsync(productDetails);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedCategoriesAsync(ApplicationDbContext context)
+    {
+        if (await context.Categories.AnyAsync())
+            return;
+
+        var categories = new List<Category>
+        {
+            new()
+            {
+                CategoryId = CategoryDairyId,
+                Name = "Sữa & Đồ uống",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Sữa, đồ uống đóng chai/hộp"
+            },
+            new()
+            {
+                CategoryId = CategoryMeatSeafoodId,
+                Name = "Thịt & Hải sản",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Nhóm thịt, cá, hải sản tươi/đông lạnh"
+            },
+            new()
+            {
+                CategoryId = CategoryVegetableId,
+                Name = "Rau củ",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Rau củ quả tươi"
+            },
+            new()
+            {
+                CategoryId = CategoryDryFoodId,
+                Name = "Thực phẩm khô",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Mì gói, bánh, thực phẩm đóng gói"
+            }
+        };
+
+        await context.Categories.AddRangeAsync(categories);
         await context.SaveChangesAsync();
     }
 
@@ -972,26 +1036,219 @@ public static class DataSeeder
             }
         };
 
-        var productIds = stockLots.Select(x => x.ProductId).Distinct().ToList();
-        var productUnitMap = await context.Products
-            .AsNoTracking()
-            .Where(p => productIds.Contains(p.ProductId))
-            .ToDictionaryAsync(p => p.ProductId, p => p.UnitId);
-
-        foreach (var lot in stockLots)
-        {
-            if (lot.UnitId == Guid.Empty && productUnitMap.TryGetValue(lot.ProductId, out var unitId))
-            {
-                lot.UnitId = unitId;
-            }
-
-            if (lot.UpdatedAt == default)
-            {
-                lot.UpdatedAt = lot.CreatedAt == default ? now : lot.CreatedAt;
-            }
-        }
-
         await context.StockLots.AddRangeAsync(stockLots);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedDeliveryTimeSlotsAsync(ApplicationDbContext context)
+    {
+        if (await context.DeliveryTimeSlots.AnyAsync())
+            return;
+
+        var slots = new List<DeliveryTimeSlot>
+        {
+            new()
+            {
+                DeliveryTimeSlotId = TimeSlotMorningId,
+                StartTime = new TimeSpan(8, 0, 0),
+                EndTime = new TimeSpan(11, 0, 0)
+            },
+            new()
+            {
+                DeliveryTimeSlotId = TimeSlotAfternoonId,
+                StartTime = new TimeSpan(14, 0, 0),
+                EndTime = new TimeSpan(17, 0, 0)
+            }
+        };
+
+        await context.DeliveryTimeSlots.AddRangeAsync(slots);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedCollectionPointsAsync(ApplicationDbContext context)
+    {
+        if (await context.CollectionPoints.AnyAsync())
+            return;
+
+        var points = new List<CollectionPoint>
+        {
+            new()
+            {
+                CollectionId = CollectionPointDistrict1Id,
+                Name = "Điểm nhận hàng Quận 1",
+                AddressLine = "45 Lê Lợi, Bến Nghé, Quận 1, TP.HCM"
+            },
+            new()
+            {
+                CollectionId = CollectionPointDistrict3Id,
+                Name = "Điểm nhận hàng Quận 3",
+                AddressLine = "72 Võ Thị Sáu, Phường Võ Thị Sáu, Quận 3, TP.HCM"
+            }
+        };
+
+        await context.CollectionPoints.AddRangeAsync(points);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedCustomerAddressesAsync(ApplicationDbContext context)
+    {
+        if (await context.CustomerAddresses.AnyAsync())
+            return;
+
+        var addresses = new List<CustomerAddress>
+        {
+            new()
+            {
+                CustomerAddressId = CustomerAddressVendor1Id,
+                UserId = VendorUserId1,
+                RecipientName = "Cửa hàng Tạp hóa Ngõ 5",
+                Phone = "0916999999",
+                AddressLine = "12 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP.HCM",
+                IsDefault = true
+            },
+            new()
+            {
+                CustomerAddressId = CustomerAddressVendor2Id,
+                UserId = VendorUserId2,
+                RecipientName = "Quán cơm Cô Hòa",
+                Phone = "0917888888",
+                AddressLine = "210 Điện Biên Phủ, Phường 7, Quận 3, TP.HCM",
+                IsDefault = true
+            }
+        };
+
+        await context.CustomerAddresses.AddRangeAsync(addresses);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedPackagingOrdersAsync(ApplicationDbContext context)
+    {
+        if (await context.Orders.AnyAsync(o => o.OrderCode.StartsWith("PKG-")))
+            return;
+
+        var activeLots = await context.StockLots
+            .Where(x => x.Status == "Active")
+            .OrderBy(x => x.ExpiryDate)
+            .Take(4)
+            .ToListAsync();
+
+        if (activeLots.Count < 4)
+            return;
+
+        var now = DateTime.UtcNow;
+
+        var pickupOrder = new Order
+        {
+            OrderId = PackagingOrderPickupId,
+            OrderCode = "PKG-PICKUP-001",
+            UserId = VendorUserId1,
+            DeliveryTimeSlotId = TimeSlotMorningId,
+            CollectionId = CollectionPointDistrict1Id,
+            AddressId = null,
+            DeliveryType = "CollectionPoint",
+            TotalAmount = 180000,
+            DiscountAmount = 12000,
+            FinalAmount = 168000,
+            DeliveryFee = 0,
+            Status = OrderState.Paid_Processing.ToString(),
+            OrderDate = now.AddHours(-3),
+            DeliveryNote = "Ưu tiên đóng gói gọn",
+            CreatedAt = now.AddHours(-3),
+            UpdatedAt = now.AddHours(-3)
+        };
+
+        var homeOrder = new Order
+        {
+            OrderId = PackagingOrderHomeId,
+            OrderCode = "PKG-HOME-001",
+            UserId = VendorUserId2,
+            DeliveryTimeSlotId = TimeSlotAfternoonId,
+            CollectionId = null,
+            AddressId = CustomerAddressVendor2Id,
+            DeliveryType = "HomeDelivery",
+            TotalAmount = 220000,
+            DiscountAmount = 15000,
+            FinalAmount = 205000,
+            DeliveryFee = 10000,
+            Status = OrderState.Paid_Processing.ToString(),
+            OrderDate = now.AddHours(-2),
+            DeliveryNote = "Giao trước 16h",
+            CreatedAt = now.AddHours(-2),
+            UpdatedAt = now.AddHours(-2)
+        };
+
+        var readyOrder = new Order
+        {
+            OrderId = PackagingOrderReadyId,
+            OrderCode = "PKG-READY-001",
+            UserId = VendorUserId1,
+            DeliveryTimeSlotId = TimeSlotMorningId,
+            CollectionId = CollectionPointDistrict3Id,
+            AddressId = null,
+            DeliveryType = "CollectionPoint",
+            TotalAmount = 140000,
+            DiscountAmount = 5000,
+            FinalAmount = 135000,
+            DeliveryFee = 0,
+            Status = OrderState.Ready_To_Ship.ToString(),
+            OrderDate = now.AddHours(-5),
+            DeliveryNote = "Đã đóng gói",
+            CreatedAt = now.AddHours(-5),
+            UpdatedAt = now.AddHours(-1)
+        };
+
+        var orderItems = new List<OrderItem>
+        {
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = pickupOrder.OrderId,
+                LotId = activeLots[0].LotId,
+                Quantity = 2,
+                UnitPrice = 60000,
+                TotalPrice = 120000
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = pickupOrder.OrderId,
+                LotId = activeLots[1].LotId,
+                Quantity = 1,
+                UnitPrice = 60000,
+                TotalPrice = 60000
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = homeOrder.OrderId,
+                LotId = activeLots[2].LotId,
+                Quantity = 2,
+                UnitPrice = 90000,
+                TotalPrice = 180000
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = homeOrder.OrderId,
+                LotId = activeLots[3].LotId,
+                Quantity = 1,
+                UnitPrice = 40000,
+                TotalPrice = 40000
+            }
+        };
+
+        var packagingRecord = new OrderPackaging
+        {
+            PackagingId = Guid.NewGuid(),
+            OrderId = readyOrder.OrderId,
+            UserId = StaffUserId1,
+            Status = "Packaged",
+            PackagedAt = now.AddHours(-1)
+        };
+
+        await context.Orders.AddRangeAsync(pickupOrder, homeOrder, readyOrder);
+        await context.OrderItems.AddRangeAsync(orderItems);
+        await context.PackagingRecords.AddAsync(packagingRecord);
         await context.SaveChangesAsync();
     }
 }

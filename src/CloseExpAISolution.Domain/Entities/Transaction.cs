@@ -1,8 +1,8 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-public class PaymentTransaction
+public class Transaction
 {
-    public Guid PaymentTransactionId { get; set; }
+    public Guid TransactionId { get; set; }
 
     public Guid OrderId { get; set; }
     public Order? Order { get; set; }
@@ -12,4 +12,3 @@ public class PaymentTransaction
     public string PaymentStatus { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }
-

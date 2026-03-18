@@ -11,8 +11,8 @@ public class OrderResponseDto
     public string? UserName { get; set; }
     public Guid TimeSlotId { get; set; }
     public string? TimeSlotDisplay { get; set; }
-    public Guid? PickupPointId { get; set; }
-    public string? PickupPointName { get; set; }
+    public Guid? CollectionId { get; set; }
+    public string? CollectionPointName { get; set; }
     public string DeliveryType { get; set; } = string.Empty;
     public decimal TotalAmount { get; set; }
     public decimal DiscountAmount { get; set; }
@@ -23,7 +23,6 @@ public class OrderResponseDto
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
     public Guid? DeliveryGroupId { get; set; }
-    public string? DeliveryAddress { get; set; }
     public string? DeliveryNote { get; set; }
     public DateTime? CancelDeadline { get; set; }
     public DateTime CreatedAt { get; set; }

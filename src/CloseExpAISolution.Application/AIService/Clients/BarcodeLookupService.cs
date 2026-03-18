@@ -92,26 +92,20 @@ public class BarcodeLookupService : IBarcodeLookupService
         }
 
         // 2. Check database (persistent cache)
-        var dbProduct = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
+        var dbProduct = await _unitOfWork.Repository<Product>()
+            .FirstOrDefaultAsync(p => p.Barcode == barcode && p.IsActive);
         if (dbProduct != null)
         {
-            _logger.LogInformation("Barcode {Barcode} found in database (Source: {Source})", barcode, dbProduct.Source);
+            var detail = await _unitOfWork.Repository<ProductDetail>()
+                .FirstOrDefaultAsync(d => d.ProductId == dbProduct.ProductId);
+            var category = dbProduct.CategoryId.HasValue
+                ? await _unitOfWork.Repository<Category>()
+                    .FirstOrDefaultAsync(c => c.CategoryId == dbProduct.CategoryId.Value)
+                : null;
 
-            // Increment scan count asynchronously
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _unitOfWork.BarcodeProductRepository.IncrementScanCountAsync(barcode);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to increment scan count for {Barcode}", barcode);
-                }
-            }, cancellationToken);
+            _logger.LogInformation("Barcode {Barcode} found in product database", barcode);
 
-            var result = MapToProductInfo(dbProduct);
-            result.Source = "database"; // Override source to indicate from DB
+            var result = MapToProductInfo(dbProduct, detail, category, "database");
 
             // Cache in memory for quick access
             _cache.Set(cacheKey, result, MemoryCacheDuration);
@@ -223,44 +217,65 @@ public class BarcodeLookupService : IBarcodeLookupService
         var barcode = NormalizeBarcode(productInfo.Barcode);
 
         // Check if already exists
-        var existing = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
-        if (existing != null)
+        var existingProduct = await _unitOfWork.Repository<Product>()
+            .FirstOrDefaultAsync(p => p.Barcode == barcode);
+        if (existingProduct != null)
         {
-            // Update existing
             return await UpdateProductAsync(barcode, productInfo, userId, cancellationToken) ?? productInfo;
         }
 
-        // Create new
-        var entity = new BarcodeProduct
+        var allSupermarkets = await _unitOfWork.Repository<Supermarket>().GetAllAsync();
+        var defaultSupermarket = allSupermarkets.FirstOrDefault();
+        if (defaultSupermarket == null)
         {
-            BarcodeProductId = Guid.NewGuid(),
+            throw new InvalidOperationException("Không tìm thấy Supermarket mặc định để tạo sản phẩm.");
+        }
+
+        var allUnitOfMeasures = await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync();
+        var defaultUnitOfMeasure = allUnitOfMeasures.FirstOrDefault();
+        if (defaultUnitOfMeasure == null)
+        {
+            throw new InvalidOperationException("Không tìm thấy UnitOfMeasure mặc định để tạo sản phẩm.");
+        }
+
+        var category = await ResolveCategoryAsync(productInfo.Category);
+
+        var product = new Product
+        {
+            ProductId = Guid.NewGuid(),
+            Name = productInfo.ProductName ?? "Unknown Product",
             Barcode = barcode,
-            ProductName = productInfo.ProductName ?? "Unknown Product",
-            Brand = productInfo.Brand,
-            Category = productInfo.Category,
-            Description = productInfo.Description,
-            ImageUrl = productInfo.ImageUrl,
-            Manufacturer = productInfo.Manufacturer,
-            Weight = productInfo.Weight,
-            Ingredients = productInfo.Ingredients,
-            NutritionFactsJson = productInfo.NutritionFacts != null
-                ? JsonSerializer.Serialize(productInfo.NutritionFacts)
-                : null,
-            Country = productInfo.Country ?? GetCountryFromBarcode(barcode),
-            Gs1Prefix = GetGs1Prefix(barcode),
-            IsVietnameseProduct = IsVietnameseBarcode(barcode),
-            Source = productInfo.Source ?? "manual",
-            Confidence = productInfo.Confidence,
-            ScanCount = 1,
-            IsVerified = false,
-            CreatedBy = userId,
+            Sku = barcode,
+            CategoryId = category?.CategoryId,
+            SupermarketId = defaultSupermarket.SupermarketId,
+            UnitId = defaultUnitOfMeasure.UnitId,
+            Status = "Verified",
+            CreatedBy = userId ?? "system",
             CreatedAt = DateTime.UtcNow,
-            Status = productInfo.Source == "manual" || productInfo.Source == "ai-ocr"
-                ? "pending_review"
-                : "active"
+            UpdatedBy = userId,
+            UpdatedAt = DateTime.UtcNow,
+            IsFreshFood = category?.IsFreshFood ?? false,
+            IsActive = true,
+            VerifiedBy = userId,
+            VerifiedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.BarcodeProductRepository.AddAsync(entity);
+        var detail = new ProductDetail
+        {
+            ProductDetailId = Guid.NewGuid(),
+            ProductId = product.ProductId,
+            Brand = productInfo.Brand,
+            Description = productInfo.Description,
+            Manufacturer = productInfo.Manufacturer,
+            Ingredients = productInfo.Ingredients,
+            NutritionFacts = productInfo.NutritionFacts != null
+                ? JsonSerializer.Serialize(productInfo.NutritionFacts)
+                : null,
+            CountryOfOrigin = productInfo.Country
+        };
+
+        await _unitOfWork.Repository<Product>().AddAsync(product);
+        await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Invalidate cache
@@ -268,10 +283,10 @@ public class BarcodeLookupService : IBarcodeLookupService
         _cache.Remove(cacheKey);
 
         _logger.LogInformation(
-            "Saved new barcode product: {Barcode} - {ProductName} (Source: {Source}, User: {User})",
-            barcode, entity.ProductName, entity.Source, userId ?? "system");
+            "Saved new product from barcode lookup: {Barcode} - {ProductName} (User: {User})",
+            barcode, product.Name, userId ?? "system");
 
-        return MapToProductInfo(entity);
+        return MapToProductInfo(product, detail, category, productInfo.Source ?? "manual");
     }
 
     public async Task<BarcodeProductInfo?> UpdateProductAsync(
@@ -282,46 +297,59 @@ public class BarcodeLookupService : IBarcodeLookupService
     {
         barcode = NormalizeBarcode(barcode);
 
-        var entity = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
-        if (entity == null)
+        var product = await _unitOfWork.Repository<Product>()
+            .FirstOrDefaultAsync(p => p.Barcode == barcode);
+        if (product == null)
         {
             _logger.LogWarning("Cannot update non-existent barcode: {Barcode}", barcode);
             return null;
         }
 
-        // Update fields
-        if (!string.IsNullOrWhiteSpace(productInfo.ProductName))
-            entity.ProductName = productInfo.ProductName;
-        if (!string.IsNullOrWhiteSpace(productInfo.Brand))
-            entity.Brand = productInfo.Brand;
-        if (!string.IsNullOrWhiteSpace(productInfo.Category))
-            entity.Category = productInfo.Category;
-        if (!string.IsNullOrWhiteSpace(productInfo.Description))
-            entity.Description = productInfo.Description;
-        if (!string.IsNullOrWhiteSpace(productInfo.ImageUrl))
-            entity.ImageUrl = productInfo.ImageUrl;
-        if (!string.IsNullOrWhiteSpace(productInfo.Manufacturer))
-            entity.Manufacturer = productInfo.Manufacturer;
-        if (!string.IsNullOrWhiteSpace(productInfo.Weight))
-            entity.Weight = productInfo.Weight;
-        if (!string.IsNullOrWhiteSpace(productInfo.Ingredients))
-            entity.Ingredients = productInfo.Ingredients;
-        if (productInfo.NutritionFacts != null)
-            entity.NutritionFactsJson = JsonSerializer.Serialize(productInfo.NutritionFacts);
-        if (!string.IsNullOrWhiteSpace(productInfo.Country))
-            entity.Country = productInfo.Country;
-
-        entity.UpdatedBy = userId;
-        entity.UpdatedAt = DateTime.UtcNow;
-
-        // If manually updated, may need re-verification
-        if (userId != null)
+        var detail = await _unitOfWork.Repository<ProductDetail>()
+            .FirstOrDefaultAsync(d => d.ProductId == product.ProductId);
+        if (detail == null)
         {
-            entity.IsVerified = false;
-            entity.Status = "pending_review";
+            detail = new ProductDetail
+            {
+                ProductDetailId = Guid.NewGuid(),
+                ProductId = product.ProductId
+            };
+            await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
         }
 
-        _unitOfWork.BarcodeProductRepository.Update(entity);
+        if (!string.IsNullOrWhiteSpace(productInfo.ProductName))
+            product.Name = productInfo.ProductName;
+        if (!string.IsNullOrWhiteSpace(productInfo.Brand))
+            detail.Brand = productInfo.Brand;
+        if (!string.IsNullOrWhiteSpace(productInfo.Category))
+        {
+            var category = await ResolveCategoryAsync(productInfo.Category);
+            product.CategoryId = category?.CategoryId;
+            product.IsFreshFood = category?.IsFreshFood ?? product.IsFreshFood;
+        }
+        if (!string.IsNullOrWhiteSpace(productInfo.Description))
+            detail.Description = productInfo.Description;
+        if (!string.IsNullOrWhiteSpace(productInfo.Manufacturer))
+            detail.Manufacturer = productInfo.Manufacturer;
+        if (!string.IsNullOrWhiteSpace(productInfo.Ingredients))
+            detail.Ingredients = productInfo.Ingredients;
+        if (productInfo.NutritionFacts != null)
+            detail.NutritionFacts = JsonSerializer.Serialize(productInfo.NutritionFacts);
+        if (!string.IsNullOrWhiteSpace(productInfo.Country))
+            detail.CountryOfOrigin = productInfo.Country;
+
+        product.UpdatedBy = userId;
+        product.UpdatedAt = DateTime.UtcNow;
+
+        if (userId != null)
+        {
+            product.VerifiedAt = null;
+            product.VerifiedBy = null;
+            product.Status = "Draft";
+        }
+
+        _unitOfWork.Repository<Product>().Update(product);
+        _unitOfWork.Repository<ProductDetail>().Update(detail);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Invalidate cache
@@ -329,28 +357,34 @@ public class BarcodeLookupService : IBarcodeLookupService
         _cache.Remove(cacheKey);
 
         _logger.LogInformation(
-            "Updated barcode product: {Barcode} - {ProductName} (User: {User})",
-            barcode, entity.ProductName, userId ?? "system");
+            "Updated product by barcode: {Barcode} - {ProductName} (User: {User})",
+            barcode, product.Name, userId ?? "system");
 
-        return MapToProductInfo(entity);
+        var categoryRef = product.CategoryId.HasValue
+            ? await _unitOfWork.Repository<Category>().FirstOrDefaultAsync(c => c.CategoryId == product.CategoryId.Value)
+            : null;
+        return MapToProductInfo(product, detail, categoryRef, "database");
     }
 
     public async Task<bool> VerifyProductAsync(string barcode, string verifiedBy, CancellationToken cancellationToken = default)
     {
         barcode = NormalizeBarcode(barcode);
 
-        var entity = await _unitOfWork.BarcodeProductRepository.GetByBarcodeAsync(barcode);
-        if (entity == null)
+        var product = await _unitOfWork.Repository<Product>()
+            .FirstOrDefaultAsync(p => p.Barcode == barcode);
+        if (product == null)
         {
             return false;
         }
 
-        entity.IsVerified = true;
-        entity.Status = "active";
-        entity.UpdatedBy = verifiedBy;
-        entity.UpdatedAt = DateTime.UtcNow;
+        product.VerifiedBy = verifiedBy;
+        product.VerifiedAt = DateTime.UtcNow;
+        product.Status = "Verified";
+        product.IsActive = true;
+        product.UpdatedBy = verifiedBy;
+        product.UpdatedAt = DateTime.UtcNow;
 
-        _unitOfWork.BarcodeProductRepository.Update(entity);
+        _unitOfWork.Repository<Product>().Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Invalidate cache
@@ -367,14 +401,50 @@ public class BarcodeLookupService : IBarcodeLookupService
         int limit = 20,
         CancellationToken cancellationToken = default)
     {
-        var entities = await _unitOfWork.BarcodeProductRepository.SearchAsync(searchTerm, limit);
-        return entities.Select(MapToProductInfo);
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            return Enumerable.Empty<BarcodeProductInfo>();
+        }
+
+        var normalized = searchTerm.Trim().ToLower();
+        var products = await _unitOfWork.Repository<Product>().FindAsync(p =>
+            p.IsActive && (
+                p.Barcode.Contains(searchTerm) ||
+                p.Name.ToLower().Contains(normalized)));
+
+        var takeProducts = products.Take(limit).ToList();
+        var result = new List<BarcodeProductInfo>(takeProducts.Count);
+
+        foreach (var product in takeProducts)
+        {
+            var detail = await _unitOfWork.Repository<ProductDetail>()
+                .FirstOrDefaultAsync(d => d.ProductId == product.ProductId);
+            var category = product.CategoryId.HasValue
+                ? await _unitOfWork.Repository<Category>().FirstOrDefaultAsync(c => c.CategoryId == product.CategoryId.Value)
+                : null;
+            result.Add(MapToProductInfo(product, detail, category, "database"));
+        }
+
+        return result;
     }
 
     public async Task<IEnumerable<BarcodeProductInfo>> GetPendingReviewAsync(CancellationToken cancellationToken = default)
     {
-        var entities = await _unitOfWork.BarcodeProductRepository.GetPendingReviewAsync();
-        return entities.Select(MapToProductInfo);
+        var products = await _unitOfWork.Repository<Product>()
+            .FindAsync(p => !p.VerifiedAt.HasValue || p.Status == "Draft");
+
+        var result = new List<BarcodeProductInfo>();
+        foreach (var product in products)
+        {
+            var detail = await _unitOfWork.Repository<ProductDetail>()
+                .FirstOrDefaultAsync(d => d.ProductId == product.ProductId);
+            var category = product.CategoryId.HasValue
+                ? await _unitOfWork.Repository<Category>().FirstOrDefaultAsync(c => c.CategoryId == product.CategoryId.Value)
+                : null;
+            result.Add(MapToProductInfo(product, detail, category, "database"));
+        }
+
+        return result;
     }
 
     #region Private Methods
@@ -383,35 +453,7 @@ public class BarcodeLookupService : IBarcodeLookupService
     {
         try
         {
-            var entity = new BarcodeProduct
-            {
-                BarcodeProductId = Guid.NewGuid(),
-                Barcode = productInfo.Barcode,
-                ProductName = productInfo.ProductName ?? "Unknown Product",
-                Brand = productInfo.Brand,
-                Category = productInfo.Category,
-                Description = productInfo.Description,
-                ImageUrl = productInfo.ImageUrl,
-                Manufacturer = productInfo.Manufacturer,
-                Weight = productInfo.Weight,
-                Ingredients = productInfo.Ingredients,
-                NutritionFactsJson = productInfo.NutritionFacts != null
-                    ? JsonSerializer.Serialize(productInfo.NutritionFacts)
-                    : null,
-                Country = productInfo.Country,
-                Gs1Prefix = productInfo.Gs1Prefix,
-                IsVietnameseProduct = productInfo.IsVietnameseProduct,
-                Source = productInfo.Source,
-                Confidence = productInfo.Confidence,
-                ScanCount = 1,
-                IsVerified = true, // API data is considered verified
-                CreatedBy = null, // System
-                CreatedAt = DateTime.UtcNow,
-                Status = "active"
-            };
-
-            await _unitOfWork.BarcodeProductRepository.AddAsync(entity);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await SaveProductAsync(productInfo, null, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -420,30 +462,53 @@ public class BarcodeLookupService : IBarcodeLookupService
         }
     }
 
-    private BarcodeProductInfo MapToProductInfo(BarcodeProduct entity)
+    private async Task<Category?> ResolveCategoryAsync(string? categoryName)
     {
+        if (string.IsNullOrWhiteSpace(categoryName))
+        {
+            return null;
+        }
+
+        var normalized = categoryName.Trim().ToLower();
+        var categories = await _unitOfWork.Repository<Category>()
+            .FindAsync(c => c.IsActive && c.Name.ToLower() == normalized);
+
+        return categories.FirstOrDefault();
+    }
+
+    private BarcodeProductInfo MapToProductInfo(Product product, ProductDetail? detail, Category? category, string source)
+    {
+        Dictionary<string, string>? nutritionFacts = null;
+        if (!string.IsNullOrWhiteSpace(detail?.NutritionFacts))
+        {
+            try
+            {
+                nutritionFacts = JsonSerializer.Deserialize<Dictionary<string, string>>(detail.NutritionFacts);
+            }
+            catch
+            {
+                nutritionFacts = null;
+            }
+        }
+
         return new BarcodeProductInfo
         {
-            Barcode = entity.Barcode,
-            ProductName = entity.ProductName,
-            Brand = entity.Brand,
-            Category = entity.Category,
-            Description = entity.Description,
-            ImageUrl = entity.ImageUrl,
-            Manufacturer = entity.Manufacturer,
-            Weight = entity.Weight,
-            Ingredients = entity.Ingredients,
-            NutritionFacts = !string.IsNullOrEmpty(entity.NutritionFactsJson)
-                ? JsonSerializer.Deserialize<Dictionary<string, string>>(entity.NutritionFactsJson)
-                : null,
-            Country = entity.Country,
-            Gs1Prefix = entity.Gs1Prefix,
-            IsVietnameseProduct = entity.IsVietnameseProduct,
-            Source = entity.Source,
-            Confidence = entity.Confidence,
-            LookupTimestamp = entity.UpdatedAt ?? entity.CreatedAt,
-            ScanCount = entity.ScanCount,
-            IsVerified = entity.IsVerified
+            Barcode = product.Barcode,
+            ProductName = product.Name,
+            Brand = detail?.Brand,
+            Category = category?.Name,
+            Description = detail?.Description,
+            Manufacturer = detail?.Manufacturer,
+            Ingredients = detail?.Ingredients,
+            NutritionFacts = nutritionFacts,
+            Country = detail?.CountryOfOrigin,
+            Gs1Prefix = GetGs1Prefix(product.Barcode),
+            IsVietnameseProduct = IsVietnameseBarcode(product.Barcode),
+            Source = source,
+            Confidence = 1.0f,
+            LookupTimestamp = product.UpdatedAt,
+            ScanCount = 0,
+            IsVerified = product.VerifiedAt.HasValue
         };
     }
 

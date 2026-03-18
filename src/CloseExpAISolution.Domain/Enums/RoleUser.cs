@@ -11,9 +11,9 @@ public enum RoleUser
     Admin = 1,
 
     /// <summary>
-    /// Internal staff - Back-office operations
+    /// Packaging staff - Back-office packaging operations
     /// </summary>
-    Staff = 2,
+    PackagingStaff = 2,
 
     /// <summary>
     /// Marketing staff - Manages promotions and campaigns
@@ -21,9 +21,9 @@ public enum RoleUser
     MarketingStaff = 3,
 
     /// <summary>
-    /// Supplier staff - Works at supermarkets (nhân viên siêu thị)
+    /// Supermarket staff - Works at supermarkets (nhân viên siêu thị)
     /// </summary>
-    SupplierStaff = 4,
+    SupermarketStaff = 4,
 
     /// <summary>
     /// Delivery staff - Handles product delivery

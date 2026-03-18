@@ -21,6 +21,6 @@ public class StockLot
     public Product? Product { get; set; }
     public UnitOfMeasure? Unit { get; set; }
     public ICollection<InventoryDisposal> InventoryDisposals { get; set; } = new List<InventoryDisposal>();
-    public ICollection<PricingHistory> AIPriceHistories { get; set; } = new List<PricingHistory>();
+    public ICollection<PricingHistory> PricingHistories { get; set; } = new List<PricingHistory>();
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 }

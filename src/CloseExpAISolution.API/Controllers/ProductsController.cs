@@ -273,7 +273,7 @@ public class ProductsController : ControllerBase
             $"Tìm thấy {totalCount} lô sản phẩm"));
     }
 
-    [Authorize(Roles = "SupplierStaff")]
+    [Authorize(Roles = "SupermarketStaff")]
     [HttpGet("my-supermarket/lots")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<StockLotDetailDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -326,7 +326,7 @@ public class ProductsController : ControllerBase
             $"Tìm thấy {totalCount} lô sản phẩm"));
     }
 
-    [Authorize(Roles = "SupplierStaff")]
+    [Authorize(Roles = "SupermarketStaff")]
     [HttpGet("my-supermarket")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<ProductResponseDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]

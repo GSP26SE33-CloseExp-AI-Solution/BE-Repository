@@ -22,23 +22,22 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProductDetail> ProductDetails => Set<ProductDetail>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<StockLot> StockLots => Set<StockLot>();
-    public DbSet<UnitOfMeasure> Units => Set<UnitOfMeasure>();
+    public DbSet<UnitOfMeasure> UnitOfMeasures => Set<UnitOfMeasure>();
     public DbSet<InventoryDisposal> InventoryDisposals => Set<InventoryDisposal>();
     public DbSet<Category> Categories => Set<Category>();
-    public DbSet<PricingHistory> AIPriceHistories => Set<PricingHistory>();
+    public DbSet<PricingHistory> PricingHistories => Set<PricingHistory>();
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<AIVerificationLog> AIVerificationLogs => Set<AIVerificationLog>();
-    public DbSet<OrderPackaging> OrderPackaging => Set<OrderPackaging>();
-    public DbSet<DeliveryTimeSlot> DeliveryTimeSlot => Set<DeliveryTimeSlot>();
-    public DbSet<CollectionPoint> CollectionPoint => Set<CollectionPoint>();
+    public DbSet<OrderPackaging> PackagingRecords => Set<OrderPackaging>();
+    public DbSet<DeliveryTimeSlot> DeliveryTimeSlots => Set<DeliveryTimeSlot>();
+    public DbSet<CollectionPoint> CollectionPoints => Set<CollectionPoint>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
-    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<DeliveryGroup> DeliveryGroups => Set<DeliveryGroup>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<BarcodeProduct> BarcodeProducts => Set<BarcodeProduct>();
     public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
     public DbSet<PriceFeedback> PriceFeedbacks => Set<PriceFeedback>();
 
@@ -52,6 +51,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DeliveryLog>().HasKey(x => x.DeliveryId);
         modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
         modelBuilder.Entity<OrderPackaging>().HasKey(x => x.PackagingId);
+        modelBuilder.Entity<Transaction>().HasKey(x => x.TransactionId);
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
         modelBuilder.Entity<User>(entity =>
         {
@@ -65,13 +65,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
         // modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
         modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
-        modelBuilder.Entity<CollectionPoint>().HasKey(x => x.PickupPointId);
-
-        modelBuilder.Entity<DeliveryTimeSlot>(e =>
-        {
-            e.ToTable("DeliveryTimeSlots");
-            e.HasKey(x => x.DeliveryTimeSlotId);
-        });
+        modelBuilder.Entity<CollectionPoint>().HasKey(x => x.CollectionId);
+        modelBuilder.Entity<CollectionPoint>().ToTable("CollectionPoints");
+        modelBuilder.Entity<DeliveryTimeSlot>().ToTable("DeliveryTimeSlots");
+        modelBuilder.Entity<OrderPackaging>().ToTable("OrderPackaging");
 
         modelBuilder.Entity<Product>()
             .HasOne(p => p.Unit)
@@ -88,6 +85,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Product>()
             .HasOne(p => p.CategoryRef)
             .WithMany(c => c.Products)
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Promotion>()
+            .HasOne(p => p.Category)
+            .WithMany()
             .HasForeignKey(p => p.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
@@ -117,7 +120,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<PricingHistory>()
             .HasOne(aph => aph.StockLot)
-            .WithMany(pl => pl.AIPriceHistories)
+            .WithMany(pl => pl.PricingHistories)
             .HasForeignKey(aph => aph.LotId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -132,60 +135,37 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(dg => dg.DeliveryStaffId)
             .OnDelete(DeleteBehavior.SetNull);
-        modelBuilder.Entity<DeliveryGroup>(e =>
-        {
-            e.Property(dg => dg.TimeSlotId).HasColumnName("DeliveryTimeSlotId");
-            e.HasOne(dg => dg.TimeSlot)
-                .WithMany()
-                .HasForeignKey(dg => dg.TimeSlotId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-        modelBuilder.Entity<Order>(e =>
-        {
-            e.ToTable("Orders");
-            e.HasKey(o => o.OrderId);
-            e.HasOne(o => o.User)
-                .WithMany()
-                .HasForeignKey(o => o.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(o => o.DeliveryTimeSlot)
-                .WithMany(t => t.Orders)
-                .HasForeignKey(o => o.DeliveryTimeSlotId)
-                .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(o => o.CollectionPoint)
-                .WithMany(p => p.Orders)
-                .HasForeignKey(o => o.PickupPointId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(o => o.Promotion)
-                .WithMany(p => p.Orders)
-                .HasForeignKey(o => o.PromotionId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(o => o.DeliveryGroup)
-                .WithMany(dg => dg.Orders)
-                .HasForeignKey(o => o.DeliveryGroupId)
-                .OnDelete(DeleteBehavior.SetNull);
-            e.HasOne(o => o.CustomerAddress)
-                .WithMany()
-                .HasForeignKey(o => o.AddressId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+        modelBuilder.Entity<DeliveryGroup>()
+            .HasOne(dg => dg.DeliveryTimeSlot)
+            .WithMany()
+            .HasForeignKey(dg => dg.DeliveryTimeSlotId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.DeliveryTimeSlot)
+            .WithMany(ts => ts.Orders)
+            .HasForeignKey(o => o.DeliveryTimeSlotId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.CollectionPoint)
+            .WithMany(cp => cp.Orders)
+            .HasForeignKey(o => o.CollectionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.DeliveryGroup)
+            .WithMany(dg => dg.Orders)
+            .HasForeignKey(o => o.DeliveryGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.CustomerAddress)
+            .WithMany()
+            .HasForeignKey(o => o.AddressId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<CustomerAddress>()
             .HasOne(c => c.User)
             .WithMany()
             .HasForeignKey(c => c.UserId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<BarcodeProduct>().HasKey(bp => bp.BarcodeProductId);
-        modelBuilder.Entity<BarcodeProduct>().HasIndex(bp => bp.Barcode).IsUnique();
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Barcode).HasMaxLength(20);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.ProductName).HasMaxLength(500);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Brand).HasMaxLength(200);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Category).HasMaxLength(200);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Country).HasMaxLength(100);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Gs1Prefix).HasMaxLength(10);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Source).HasMaxLength(50);
-        modelBuilder.Entity<BarcodeProduct>().Property(bp => bp.Status).HasMaxLength(20);
 
         modelBuilder.Entity<MarketPrice>().HasKey(mp => mp.MarketPriceId);
         modelBuilder.Entity<MarketPrice>().HasIndex(mp => mp.Barcode);

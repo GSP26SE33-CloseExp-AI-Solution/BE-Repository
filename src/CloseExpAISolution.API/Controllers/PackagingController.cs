@@ -9,7 +9,7 @@ namespace CloseExpAISolution.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Staff")]
+[Authorize(Roles = "PackagingStaff")]
 public class PackagingController : ControllerBase
 {
     private readonly IPackagingService _packagingService;

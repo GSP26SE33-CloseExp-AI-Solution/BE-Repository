@@ -12,7 +12,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     ISupermarketRepository SupermarketRepository { get; }
     IProductImageRepository ProductImageRepository { get; }
     IAIVerificationLogRepository AIVerificationLogRepository { get; }
-    IBarcodeProductRepository BarcodeProductRepository { get; }
     IMarketPriceRepository MarketPriceRepository { get; }
     IPriceFeedbackRepository PriceFeedbackRepository { get; }
     IOrderRepository OrderRepository { get; }
