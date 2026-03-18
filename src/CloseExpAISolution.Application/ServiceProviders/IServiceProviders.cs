@@ -28,6 +28,7 @@ public interface IServiceProviders
     IExcelImportService ExcelImportService { get; }
     IDeliveryService DeliveryService { get; }
     IDeliveryAdminService DeliveryAdminService { get; }
+    IAdminService AdminService { get; }
     IPackagingService PackagingService { get; }
     IMapboxService MapboxService { get; }
 }

@@ -41,6 +41,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IExcelImportService? _excelImportService;
                 private IDeliveryService? _deliveryService;
                 private IDeliveryAdminService? _deliveryAdminService;
+                private IAdminService? _adminService;
                 private IPackagingService? _packagingService;
                 private IEmailService? _emailService;
                 private IOrderService? _orderService;
@@ -79,6 +80,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IExcelImportService ExcelImportService => _excelImportService ??= ActivatorUtilities.CreateInstance<ExcelImportService>(_serviceProvider);
                 public IDeliveryService DeliveryService => _deliveryService ??= ActivatorUtilities.CreateInstance<DeliveryService>(_serviceProvider);
                 public IDeliveryAdminService DeliveryAdminService => _deliveryAdminService ??= ActivatorUtilities.CreateInstance<DeliveryAdminService>(_serviceProvider);
+                public IAdminService AdminService => _adminService ??= ActivatorUtilities.CreateInstance<AdminService>(_serviceProvider);
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
                 public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper);
