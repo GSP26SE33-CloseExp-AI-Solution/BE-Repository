@@ -8,7 +8,7 @@ using System.Security.Claims;
 namespace CloseExpAISolution.API.Controllers;
 
 [ApiController]
-[Route("api/authen")]
+[Route("api/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IServiceProviders _services;

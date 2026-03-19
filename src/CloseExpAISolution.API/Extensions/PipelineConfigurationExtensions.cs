@@ -17,7 +17,12 @@ public static class PipelineConfigurationExtensions
         }
 
         // Common middleware pipeline
-        app.UseHttpsRedirection();
+        // Only redirect to HTTPS in non-Development or when running with HTTPS profile
+        if (!env.IsDevelopment())
+        {
+            app.UseHttpsRedirection();
+        }
+
         app.UseRouting();
 
         // CORS - Enable for frontend and AI Service integration
