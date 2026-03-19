@@ -1036,6 +1036,25 @@ public static class DataSeeder
             }
         };
 
+        var productIds = stockLots.Select(x => x.ProductId).Distinct().ToList();
+        var productUnitMap = await context.Products
+            .AsNoTracking()
+            .Where(p => productIds.Contains(p.ProductId))
+            .ToDictionaryAsync(p => p.ProductId, p => p.UnitId);
+
+        foreach (var lot in stockLots)
+        {
+            if (lot.UnitId == Guid.Empty && productUnitMap.TryGetValue(lot.ProductId, out var unitId))
+            {
+                lot.UnitId = unitId;
+            }
+
+            if (lot.UpdatedAt == default)
+            {
+                lot.UpdatedAt = lot.CreatedAt == default ? now : lot.CreatedAt;
+            }
+        }
+
         await context.StockLots.AddRangeAsync(stockLots);
         await context.SaveChangesAsync();
     }
@@ -1076,13 +1095,17 @@ public static class DataSeeder
             {
                 CollectionId = CollectionPointDistrict1Id,
                 Name = "Điểm nhận hàng Quận 1",
-                AddressLine = "45 Lê Lợi, Bến Nghé, Quận 1, TP.HCM"
+                AddressLine = "45 Lê Lợi, Bến Nghé, Quận 1, TP.HCM",
+                Latitude = 10.7756m,
+                Longitude = 106.7004m
             },
             new()
             {
                 CollectionId = CollectionPointDistrict3Id,
                 Name = "Điểm nhận hàng Quận 3",
-                AddressLine = "72 Võ Thị Sáu, Phường Võ Thị Sáu, Quận 3, TP.HCM"
+                AddressLine = "72 Võ Thị Sáu, Phường Võ Thị Sáu, Quận 3, TP.HCM",
+                Latitude = 10.7834m,
+                Longitude = 106.6880m
             }
         };
 
@@ -1104,6 +1127,8 @@ public static class DataSeeder
                 RecipientName = "Cửa hàng Tạp hóa Ngõ 5",
                 Phone = "0916999999",
                 AddressLine = "12 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP.HCM",
+                Latitude = 10.7721m,
+                Longitude = 106.6980m,
                 IsDefault = true
             },
             new()
@@ -1113,6 +1138,8 @@ public static class DataSeeder
                 RecipientName = "Quán cơm Cô Hòa",
                 Phone = "0917888888",
                 AddressLine = "210 Điện Biên Phủ, Phường 7, Quận 3, TP.HCM",
+                Latitude = 10.7863m,
+                Longitude = 106.6922m,
                 IsDefault = true
             }
         };

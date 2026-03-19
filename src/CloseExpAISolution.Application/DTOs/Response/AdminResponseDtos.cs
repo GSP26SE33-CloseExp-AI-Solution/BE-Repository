@@ -39,6 +39,8 @@ public class AdminCollectionPointDto
     public Guid CollectionId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string AddressLine { get; set; } = string.Empty;
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
 }
 
 public class AdminSystemConfigDto

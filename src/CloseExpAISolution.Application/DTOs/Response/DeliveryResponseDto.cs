@@ -10,6 +10,8 @@ public class DeliveryGroupResponseDto
     public string TimeSlotDisplay { get; set; } = string.Empty;
     public string DeliveryType { get; set; } = string.Empty;
     public string DeliveryArea { get; set; } = string.Empty;
+    public decimal? CenterLatitude { get; set; }
+    public decimal? CenterLongitude { get; set; }
     public string Status { get; set; } = string.Empty;
     public int TotalOrders { get; set; }
     public int CompletedOrders { get; set; }
@@ -37,6 +39,8 @@ public class DeliveryOrderResponseDto
 
     public string? CollectionPointName { get; set; }
     public string? AddressLine { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
     public string? DeliveryNote { get; set; }
 
     public string TimeSlotDisplay { get; set; } = string.Empty;
@@ -64,6 +68,8 @@ public class DeliveryRecordResponseDto
     public string Status { get; set; } = string.Empty;
     public string? FailureReason { get; set; }
     public DateTime? DeliveredAt { get; set; }
+    public decimal? DeliveryLatitude { get; set; }
+    public decimal? DeliveryLongitude { get; set; }
 }
 
 public class DeliveryStatsResponseDto
@@ -87,6 +93,8 @@ public class DeliveryGroupSummaryDto
     public string TimeSlotDisplay { get; set; } = string.Empty;
     public string DeliveryType { get; set; } = string.Empty;
     public string DeliveryArea { get; set; } = string.Empty;
+    public decimal? CenterLatitude { get; set; }
+    public decimal? CenterLongitude { get; set; }
     public string Status { get; set; } = string.Empty;
     public int TotalOrders { get; set; }
     public int CompletedOrders { get; set; }

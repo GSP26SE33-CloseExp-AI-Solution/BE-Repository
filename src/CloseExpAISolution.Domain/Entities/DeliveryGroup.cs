@@ -9,6 +9,8 @@ public class DeliveryGroup
     public Guid DeliveryTimeSlotId { get; set; }
     public string DeliveryType { get; set; } = string.Empty;
     public string DeliveryArea { get; set; } = string.Empty;
+    public decimal? CenterLatitude { get; set; }
+    public decimal? CenterLongitude { get; set; }
     public string Status { get; set; } = string.Empty;
     public int TotalOrders { get; set; }
     public string? Notes { get; set; }

@@ -8,7 +8,8 @@ public class DeliveryLog
     public string Status { get; set; } = string.Empty;
     public string? FailedReason { get; set; }
     public DateTime? DeliveredAt { get; set; }
-
+    public decimal? DeliveryLatitude { get; set; }
+    public decimal? DeliveryLongitude { get; set; }
 
     public User? User { get; set; }
     public Order? Order { get; set; }

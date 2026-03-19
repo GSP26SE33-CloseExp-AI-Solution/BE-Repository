@@ -53,6 +53,8 @@ public class DeliveryService : IDeliveryService
                     : "N/A",
                 DeliveryType = group.DeliveryType,
                 DeliveryArea = group.DeliveryArea,
+                CenterLatitude = group.CenterLatitude,
+                CenterLongitude = group.CenterLongitude,
                 Status = group.Status,
                 TotalOrders = group.TotalOrders,
                 CompletedOrders = completedCount,
@@ -118,6 +120,8 @@ public class DeliveryService : IDeliveryService
                     : "N/A",
                 DeliveryType = group.DeliveryType,
                 DeliveryArea = group.DeliveryArea,
+                CenterLatitude = group.CenterLatitude,
+                CenterLongitude = group.CenterLongitude,
                 Status = group.Status,
                 TotalOrders = group.TotalOrders,
                 CompletedOrders = completedCount,
@@ -516,7 +520,9 @@ public class DeliveryService : IDeliveryService
                 DeliveryStaffName = staff?.FullName ?? "N/A",
                 Status = record.Status,
                 FailureReason = record.FailedReason,
-                DeliveredAt = record.DeliveredAt
+                DeliveredAt = record.DeliveredAt,
+                DeliveryLatitude = record.DeliveryLatitude,
+                DeliveryLongitude = record.DeliveryLongitude
             });
         }
 
@@ -655,6 +661,8 @@ public class DeliveryService : IDeliveryService
                 : "N/A",
             DeliveryType = group.DeliveryType,
             DeliveryArea = group.DeliveryArea,
+            CenterLatitude = group.CenterLatitude,
+            CenterLongitude = group.CenterLongitude,
             Status = group.Status,
             TotalOrders = group.TotalOrders,
             CompletedOrders = completedCount,
@@ -677,6 +685,8 @@ public class DeliveryService : IDeliveryService
 
         string? collectionPointName = null;
         string? addressLine = null;
+        decimal? latitude = null;
+        decimal? longitude = null;
 
         if (order.CollectionId.HasValue)
         {
@@ -684,6 +694,8 @@ public class DeliveryService : IDeliveryService
                 .FirstOrDefaultAsync(pp => pp.CollectionId == order.CollectionId.Value);
             collectionPointName = collectionPoint?.Name;
             addressLine = collectionPoint?.AddressLine;
+            latitude = collectionPoint?.Latitude;
+            longitude = collectionPoint?.Longitude;
         }
         else
         {
@@ -691,6 +703,8 @@ public class DeliveryService : IDeliveryService
                 .FirstOrDefaultAsync(ca => ca.CustomerAddressId == order.AddressId);
             collectionPointName = customerAddress?.RecipientName;
             addressLine = customerAddress?.AddressLine;
+            latitude = customerAddress?.Latitude;
+            longitude = customerAddress?.Longitude;
         }
 
         var orderItems = await _unitOfWork.Repository<OrderItem>()
@@ -733,6 +747,8 @@ public class DeliveryService : IDeliveryService
             CustomerPhone = customer?.Phone ?? "N/A",
             CollectionPointName = collectionPointName,
             AddressLine = addressLine,
+            Latitude = latitude,
+            Longitude = longitude,
             DeliveryNote = order.DeliveryNote,
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"

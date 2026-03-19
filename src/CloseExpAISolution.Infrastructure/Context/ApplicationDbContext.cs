@@ -49,6 +49,8 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<AIVerificationLog>().HasKey(x => x.VerificationId);
         modelBuilder.Entity<DeliveryLog>().HasKey(x => x.DeliveryId);
+        modelBuilder.Entity<DeliveryLog>().Property(x => x.DeliveryLatitude).HasPrecision(10, 7);
+        modelBuilder.Entity<DeliveryLog>().Property(x => x.DeliveryLongitude).HasPrecision(10, 7);
         modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
         modelBuilder.Entity<OrderPackaging>().HasKey(x => x.PackagingId);
         modelBuilder.Entity<Transaction>().HasKey(x => x.TransactionId);
@@ -67,6 +69,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
         modelBuilder.Entity<CollectionPoint>().HasKey(x => x.CollectionId);
         modelBuilder.Entity<CollectionPoint>().ToTable("CollectionPoints");
+        modelBuilder.Entity<CollectionPoint>().Property(x => x.Latitude).HasPrecision(10, 7);
+        modelBuilder.Entity<CollectionPoint>().Property(x => x.Longitude).HasPrecision(10, 7);
         modelBuilder.Entity<DeliveryTimeSlot>().ToTable("DeliveryTimeSlots");
         modelBuilder.Entity<OrderPackaging>().ToTable("OrderPackaging");
 
@@ -130,6 +134,8 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(oi => oi.LotId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<DeliveryGroup>().HasKey(dg => dg.DeliveryGroupId);
+        modelBuilder.Entity<DeliveryGroup>().Property(x => x.CenterLatitude).HasPrecision(10, 7);
+        modelBuilder.Entity<DeliveryGroup>().Property(x => x.CenterLongitude).HasPrecision(10, 7);
         modelBuilder.Entity<DeliveryGroup>()
             .HasOne(dg => dg.DeliveryStaff)
             .WithMany()
@@ -166,6 +172,8 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(c => c.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerAddress>().Property(x => x.Latitude).HasPrecision(10, 7);
+        modelBuilder.Entity<CustomerAddress>().Property(x => x.Longitude).HasPrecision(10, 7);
 
         modelBuilder.Entity<MarketPrice>().HasKey(mp => mp.MarketPriceId);
         modelBuilder.Entity<MarketPrice>().HasIndex(mp => mp.Barcode);

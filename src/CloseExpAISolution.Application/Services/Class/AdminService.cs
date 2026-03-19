@@ -212,7 +212,9 @@ public class AdminService : IAdminService
             {
                 CollectionId = x.CollectionId,
                 Name = x.Name,
-                AddressLine = x.AddressLine
+                AddressLine = x.AddressLine,
+                Latitude = x.Latitude,
+                Longitude = x.Longitude
             });
     }
 
@@ -222,7 +224,9 @@ public class AdminService : IAdminService
         {
             CollectionId = Guid.NewGuid(),
             Name = request.Name.Trim(),
-            AddressLine = request.AddressLine.Trim()
+            AddressLine = request.AddressLine.Trim(),
+            Latitude = request.Latitude,
+            Longitude = request.Longitude
         };
 
         await _unitOfWork.Repository<CollectionPoint>().AddAsync(entity);
@@ -232,7 +236,9 @@ public class AdminService : IAdminService
         {
             CollectionId = entity.CollectionId,
             Name = entity.Name,
-            AddressLine = entity.AddressLine
+            AddressLine = entity.AddressLine,
+            Latitude = entity.Latitude,
+            Longitude = entity.Longitude
         };
     }
 
@@ -246,6 +252,8 @@ public class AdminService : IAdminService
 
         entity.Name = request.Name.Trim();
         entity.AddressLine = request.AddressLine.Trim();
+        entity.Latitude = request.Latitude;
+        entity.Longitude = request.Longitude;
 
         _unitOfWork.Repository<CollectionPoint>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -254,7 +262,9 @@ public class AdminService : IAdminService
         {
             CollectionId = entity.CollectionId,
             Name = entity.Name,
-            AddressLine = entity.AddressLine
+            AddressLine = entity.AddressLine,
+            Latitude = entity.Latitude,
+            Longitude = entity.Longitude
         };
     }
 
