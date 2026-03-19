@@ -796,11 +796,13 @@ public static class DataSeeder
         var stockLots = new List<StockLot>
         {
             // === COOPMART LOTS ===
+            // === COOPMART LOTS ===
             // Sữa tươi Vinamilk - Hết hạn trong ngày (Today)
             new()
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product1Id,
+                UnitId = UnitLiterId,
                 ExpiryDate = now.AddHours(8),
                 ManufactureDate = now.AddDays(-7),
                 Quantity = 50,
@@ -814,6 +816,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product1Id,
+                UnitId = UnitLiterId,
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 100,
@@ -827,6 +830,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product2Id,
+                UnitId = UnitBoxId,
                 ExpiryDate = now.AddDays(5),
                 ManufactureDate = now.AddDays(-10),
                 Quantity = 200,
@@ -840,6 +844,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product3Id,
+                UnitId = UnitKgId,
                 ExpiryDate = now.AddHours(12),
                 ManufactureDate = now.AddDays(-2),
                 Quantity = 1,
@@ -853,6 +858,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product10Id,
+                UnitId = UnitKgId,
                 ExpiryDate = now.AddDays(1),
                 ManufactureDate = now.AddDays(-3),
                 Quantity = 1,
@@ -868,6 +874,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product4Id,
+                UnitId = UnitKgId,
                 ExpiryDate = now.AddHours(6),
                 ManufactureDate = now.AddDays(-1),
                 Quantity = 1,
@@ -881,6 +888,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product5Id,
+                UnitId = UnitKgId,
                 ExpiryDate = now.AddDays(4),
                 ManufactureDate = now.AddDays(-2),
                 Quantity = 1,
@@ -894,6 +902,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product6Id,
+                UnitId = UnitPackId,
                 ExpiryDate = now.AddHours(10),
                 ManufactureDate = now.AddDays(-1),
                 Quantity = 80,
@@ -909,6 +918,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product7Id,
+                UnitId = UnitBottleId,
                 ExpiryDate = now.AddDays(15),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 150,
@@ -922,6 +932,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product8Id,
+                UnitId = UnitBoxId,
                 ExpiryDate = now.AddDays(30),
                 ManufactureDate = now.AddDays(-60),
                 Quantity = 200,
@@ -935,6 +946,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product9Id,
+                UnitId = UnitPackId,
                 ExpiryDate = now.AddDays(60),
                 ManufactureDate = now.AddDays(-30),
                 Quantity = 500,
@@ -948,6 +960,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product7Id,
+                UnitId = UnitBottleId,
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-18),
                 Quantity = 30,
@@ -963,6 +976,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product2Id,
+                UnitId = UnitBoxId,
                 ExpiryDate = now.AddDays(-2),
                 ManufactureDate = now.AddDays(-17),
                 Quantity = 50,
@@ -974,6 +988,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product4Id,
+                UnitId = UnitKgId,
                 ExpiryDate = now.AddDays(-1),
                 ManufactureDate = now.AddDays(-3),
                 Quantity = 1,
@@ -987,6 +1002,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product11Id,
+                UnitId = UnitPackId,
                 ExpiryDate = now.AddDays(180),
                 ManufactureDate = now.AddDays(-90),
                 Quantity = 100,
@@ -1000,6 +1016,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product11Id,
+                UnitId = UnitPackId,
                 ExpiryDate = now.AddDays(3),
                 ManufactureDate = now.AddDays(-360),
                 Quantity = 30,
@@ -1013,6 +1030,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product12Id,
+                UnitId = UnitPackId,
                 ExpiryDate = now.AddDays(365),
                 ManufactureDate = now.AddDays(-30),
                 Quantity = 80,
@@ -1026,6 +1044,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product12Id,
+                UnitId = UnitPackId,
                 ExpiryDate = now.AddDays(5),
                 ManufactureDate = now.AddDays(-360),
                 Quantity = 20,
