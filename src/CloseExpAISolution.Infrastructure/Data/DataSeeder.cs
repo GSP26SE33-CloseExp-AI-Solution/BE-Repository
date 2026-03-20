@@ -70,6 +70,8 @@ public static class DataSeeder
     private static readonly Guid PackagingOrderPickupId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
     private static readonly Guid PackagingOrderHomeId = Guid.Parse("ffff0002-0002-0002-0002-000000000002");
     private static readonly Guid PackagingOrderReadyId = Guid.Parse("ffff0003-0003-0003-0003-000000000003");
+    /// <summary>Sample order for vendor user 22222222-2222-2222-0000-000000000002 (PayOS / API tests).</summary>
+    private static readonly Guid VendorUser3SampleOrderId = Guid.Parse("ffff0004-0004-0004-0004-000000000004");
 
     public static async Task SeedAsync(ApplicationDbContext context)
     {
@@ -85,6 +87,7 @@ public static class DataSeeder
         await SeedCollectionPointsAsync(context);
         await SeedCustomerAddressesAsync(context);
         await SeedPackagingOrdersAsync(context);
+        await SeedVendorUser3SampleOrderAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -1268,6 +1271,58 @@ public static class DataSeeder
         await context.Orders.AddRangeAsync(pickupOrder, homeOrder, readyOrder);
         await context.OrderItems.AddRangeAsync(orderItems);
         await context.PackagingRecords.AddAsync(packagingRecord);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// One order owned by <see cref="VendorUserId3"/> (22222222-2222-2222-0000-000000000002), status Pending (e.g. thanh toán PayOS).
+    /// </summary>
+    private static async Task SeedVendorUser3SampleOrderAsync(ApplicationDbContext context)
+    {
+        if (await context.Orders.AnyAsync(o => o.OrderId == VendorUser3SampleOrderId))
+            return;
+
+        var lot = await context.StockLots
+            .Where(x => x.Status == "Active")
+            .OrderBy(x => x.ExpiryDate)
+            .FirstOrDefaultAsync();
+
+        if (lot == null)
+            return;
+
+        var now = DateTime.UtcNow;
+        var order = new Order
+        {
+            OrderId = VendorUser3SampleOrderId,
+            OrderCode = "VENDOR3-SEED-001",
+            UserId = VendorUserId3,
+            DeliveryTimeSlotId = TimeSlotMorningId,
+            CollectionId = CollectionPointDistrict1Id,
+            AddressId = null,
+            DeliveryType = "CollectionPoint",
+            TotalAmount = 120000,
+            DiscountAmount = 0,
+            FinalAmount = 120000,
+            DeliveryFee = 0,
+            Status = OrderState.Pending.ToString(),
+            OrderDate = now.AddMinutes(-30),
+            DeliveryNote = "Đơn seed cho vendor@gmail.com — chờ thanh toán",
+            CreatedAt = now.AddMinutes(-30),
+            UpdatedAt = now.AddMinutes(-30)
+        };
+
+        var item = new OrderItem
+        {
+            OrderItemId = Guid.Parse("ffff0005-0005-0005-0005-000000000005"),
+            OrderId = order.OrderId,
+            LotId = lot.LotId,
+            Quantity = 2,
+            UnitPrice = 60000,
+            TotalPrice = 120000
+        };
+
+        await context.Orders.AddAsync(order);
+        await context.OrderItems.AddAsync(item);
         await context.SaveChangesAsync();
     }
 }

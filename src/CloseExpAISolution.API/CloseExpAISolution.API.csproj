@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Required for dotnet user-secrets (Development local secrets, not committed) -->
+    <UserSecretsId>7c2f4a9e-1b3d-4e8c-9f6a-2d5e8b0c1a4f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
