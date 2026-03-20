@@ -10,6 +10,7 @@ using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Mapbox.Extensions;
 using CloseExpAISolution.Application.Email.Extensions;
+using CloseExpAISolution.Application.Payment;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
 
@@ -37,6 +38,7 @@ public static class ServiceCollectionExtensions
 
         // Register Email + Quartz background jobs
         services.AddEmailServices(configuration);
+        services.AddPayOS(configuration);
 
         // Register Delivery services
         services.AddScoped<IDeliveryService, DeliveryService>();

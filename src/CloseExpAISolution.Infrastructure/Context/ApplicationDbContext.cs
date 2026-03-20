@@ -53,7 +53,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DeliveryLog>().Property(x => x.DeliveryLongitude).HasPrecision(10, 7);
         modelBuilder.Entity<UserImage>().HasKey(x => x.ImageId);
         modelBuilder.Entity<OrderPackaging>().HasKey(x => x.PackagingId);
-        modelBuilder.Entity<Transaction>().HasKey(x => x.TransactionId);
+        modelBuilder.Entity<Transaction>(entity =>
+        {
+            entity.HasKey(x => x.TransactionId);
+            entity.HasIndex(x => x.PayOSOrderCode)
+                .IsUnique()
+                .HasFilter("\"PayOSOrderCode\" IS NOT NULL");
+        });
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
         modelBuilder.Entity<User>(entity =>
         {
