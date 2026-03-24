@@ -30,5 +30,6 @@ public class Order
     public DeliveryGroup? DeliveryGroup { get; set; }
     public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    public ICollection<Refund> Refunds { get; set; } = new List<Refund>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
 }

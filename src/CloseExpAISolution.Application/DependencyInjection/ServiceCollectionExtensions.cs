@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
             cfg.AddProfile<MarketStaffMappingProfile>();
             cfg.AddProfile<OrderMappingProfile>();
             cfg.AddProfile<CategoryMappingProfile>();
+            cfg.AddProfile<RefundMappingProfile>();
         });
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();

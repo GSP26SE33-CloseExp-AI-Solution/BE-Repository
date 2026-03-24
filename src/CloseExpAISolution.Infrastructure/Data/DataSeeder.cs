@@ -87,6 +87,15 @@ public static class DataSeeder
     /// <summary>Sample order for vendor user 22222222-2222-2222-0000-000000000002 (PayOS / API tests).</summary>
     private static readonly Guid VendorUser3SampleOrderId = Guid.Parse("ffff0004-0004-0004-0004-000000000004");
 
+    // Sample Transactions + Refunds (testing Refunds API / PayOS reconciliation)
+    private static readonly Guid SeedTxnPickupId = Guid.Parse("fffa1111-1111-1111-1111-111111111111");
+    private static readonly Guid SeedTxnHomeId = Guid.Parse("fffa1111-2222-2222-2222-222222222222");
+    private static readonly Guid SeedTxnReadyId = Guid.Parse("fffa1111-3333-3333-3333-333333333333");
+    private static readonly Guid SeedRefundPendingId = Guid.Parse("fffa2222-1111-1111-1111-111111111111");
+    private static readonly Guid SeedRefundApprovedId = Guid.Parse("fffa2222-2222-2222-2222-222222222222");
+    private static readonly Guid SeedRefundRejectedId = Guid.Parse("fffa2222-3333-3333-3333-333333333333");
+    private static readonly Guid SeedRefundCompletedId = Guid.Parse("fffa2222-4444-4444-4444-444444444444");
+
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         await SeedRolesAsync(context);
@@ -102,6 +111,7 @@ public static class DataSeeder
         await SeedCustomerAddressesAsync(context);
         await SeedPackagingOrdersAsync(context);
         await SeedVendorUser3SampleOrderAsync(context);
+        await SeedSampleTransactionsAndRefundsAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -1430,6 +1440,120 @@ public static class DataSeeder
 
         await context.Orders.AddAsync(order);
         await context.OrderItems.AddAsync(item);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Fake <see cref="Transaction"/> + <see cref="Refund"/> rows on seeded PKG-* orders (requires packaging orders present).
+    /// </summary>
+    private static async Task SeedSampleTransactionsAndRefundsAsync(ApplicationDbContext context)
+    {
+        if (await context.Transactions.AnyAsync(t => t.TransactionId == SeedTxnPickupId))
+            return;
+
+        if (!await context.Orders.AnyAsync(o => o.OrderId == PackagingOrderPickupId))
+            return;
+
+        var now = DateTime.UtcNow;
+        var paid = PaymentState.Paid.ToString();
+
+        var transactions = new List<Transaction>
+        {
+            new()
+            {
+                TransactionId = SeedTxnPickupId,
+                OrderId = PackagingOrderPickupId,
+                Amount = 168000,
+                PaymentMethod = "PayOS",
+                PaymentStatus = paid,
+                CreatedAt = now.AddHours(-4),
+                UpdatedAt = now.AddHours(-4),
+                PayOSOrderCode = 9_001_000_000_000_001,
+                PayOSPaymentLinkId = "seed-link-pickup",
+                CheckoutUrl = "https://pay.payos.vn/web/seed-pickup"
+            },
+            new()
+            {
+                TransactionId = SeedTxnHomeId,
+                OrderId = PackagingOrderHomeId,
+                Amount = 205000,
+                PaymentMethod = "PayOS",
+                PaymentStatus = paid,
+                CreatedAt = now.AddHours(-3),
+                UpdatedAt = now.AddHours(-3),
+                PayOSOrderCode = 9_001_000_000_000_002,
+                PayOSPaymentLinkId = "seed-link-home",
+                CheckoutUrl = "https://pay.payos.vn/web/seed-home"
+            },
+            new()
+            {
+                TransactionId = SeedTxnReadyId,
+                OrderId = PackagingOrderReadyId,
+                Amount = 135000,
+                PaymentMethod = "PayOS",
+                PaymentStatus = paid,
+                CreatedAt = now.AddHours(-6),
+                UpdatedAt = now.AddHours(-6),
+                PayOSOrderCode = 9_001_000_000_000_003,
+                PayOSPaymentLinkId = "seed-link-ready",
+                CheckoutUrl = "https://pay.payos.vn/web/seed-ready"
+            }
+        };
+
+        await context.Transactions.AddRangeAsync(transactions);
+        await context.SaveChangesAsync();
+
+        var refunds = new List<Refund>
+        {
+            new()
+            {
+                RefundId = SeedRefundPendingId,
+                OrderId = PackagingOrderPickupId,
+                TransactionId = SeedTxnPickupId,
+                Amount = 50_000,
+                Reason = "[Seed] Khách yêu cầu hoàn một phần — chờ duyệt",
+                Status = RefundState.Pending,
+                CreatedAt = now.AddHours(-2)
+            },
+            new()
+            {
+                RefundId = SeedRefundApprovedId,
+                OrderId = PackagingOrderHomeId,
+                TransactionId = SeedTxnHomeId,
+                Amount = 25_000,
+                Reason = "[Seed] Đã duyệt hoàn tiền giao hàng trễ",
+                Status = RefundState.Approved,
+                ProcessedBy = AdminUserId.ToString(),
+                ProcessedAt = now.AddHours(-1),
+                CreatedAt = now.AddHours(-2)
+            },
+            new()
+            {
+                RefundId = SeedRefundRejectedId,
+                OrderId = PackagingOrderHomeId,
+                TransactionId = SeedTxnHomeId,
+                Amount = 99_000,
+                Reason = "[Seed] Yêu cầu hoàn không hợp lệ (demo Rejected)",
+                Status = RefundState.Rejected,
+                ProcessedBy = AdminUserId.ToString(),
+                ProcessedAt = now.AddMinutes(-90),
+                CreatedAt = now.AddHours(-2)
+            },
+            new()
+            {
+                RefundId = SeedRefundCompletedId,
+                OrderId = PackagingOrderReadyId,
+                TransactionId = SeedTxnReadyId,
+                Amount = 15_000,
+                Reason = "[Seed] Hoàn tiền sau khi đóng gói — đã chuyển khoản",
+                Status = RefundState.Completed,
+                ProcessedBy = AdminUserId.ToString(),
+                ProcessedAt = now.AddHours(-1),
+                CreatedAt = now.AddHours(-3)
+            }
+        };
+
+        await context.Refunds.AddRangeAsync(refunds);
         await context.SaveChangesAsync();
     }
 }

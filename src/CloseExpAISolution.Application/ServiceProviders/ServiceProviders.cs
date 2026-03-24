@@ -48,6 +48,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IOrderItemService? _orderItemService;
                 private IMapboxService? _mapboxService;
                 private ICategoryService? _categoryService;
+                private IRefundService? _refundService;
 
                 public ServiceProviders(
                     IUnitOfWork unitOfWork,
@@ -88,6 +89,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
                 public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
+                public IRefundService RefundService => _refundService ??= new RefundService(_unitOfWork, _mapper);
         }
 }
 
