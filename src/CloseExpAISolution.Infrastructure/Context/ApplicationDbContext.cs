@@ -36,6 +36,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<DeliveryGroup> DeliveryGroups => Set<DeliveryGroup>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
@@ -172,6 +173,23 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(o => o.AddressId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Refund>(entity =>
+        {
+            entity.ToTable("Refunds");
+            entity.HasKey(x => x.RefundId);
+            entity.Property(x => x.Amount).HasPrecision(18, 2);
+            entity.Property(x => x.Reason).HasMaxLength(2000);
+            entity.Property(x => x.ProcessedBy).HasMaxLength(200);
+            entity.HasOne(r => r.Order)
+                .WithMany(o => o.Refunds)
+                .HasForeignKey(r => r.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(r => r.Transaction)
+                .WithMany(t => t.Refunds)
+                .HasForeignKey(r => r.TransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<CustomerAddress>()
             .HasOne(c => c.User)

@@ -47,6 +47,20 @@ public static class DataSeeder
     private static readonly Guid CategoryMeatSeafoodId = Guid.Parse("ccca0002-0002-0002-0002-000000000002");
     private static readonly Guid CategoryVegetableId = Guid.Parse("ccca0003-0003-0003-0003-000000000003");
     private static readonly Guid CategoryDryFoodId = Guid.Parse("ccca0004-0004-0004-0004-000000000004");
+    private static readonly Guid CategoryFrozenId = Guid.Parse("ccca0005-0005-0005-0005-000000000005");
+    private static readonly Guid CategorySpiceId = Guid.Parse("ccca0006-0006-0006-0006-000000000006");
+    /// <summary>Danh mục con (demo cây phân cấp) — con của Thực phẩm khô.</summary>
+    private static readonly Guid CategorySnackSubId = Guid.Parse("ccca0007-0007-0007-0007-000000000007");
+    private static readonly Guid CategoryFruitFreshId = Guid.Parse("ccca0008-0008-0008-0008-000000000008");
+    private static readonly Guid CategoryBreakfastCerealId = Guid.Parse("ccca0009-0009-0009-0009-000000000009");
+    private static readonly Guid CategoryCannedGoodsId = Guid.Parse("ccca000a-000a-000a-000a-00000000000a");
+    private static readonly Guid CategoryVegetarianId = Guid.Parse("ccca000b-000b-000b-000b-00000000000b");
+    private static readonly Guid CategoryTofuEggId = Guid.Parse("ccca000c-000c-000c-000c-00000000000c");
+    /// <summary>Self-ref FK <c>Category.ParentCatId</c> → <c>Rau củ</c>.</summary>
+    private static readonly Guid CategoryLeafyGreensId = Guid.Parse("ccca000d-000d-000d-000d-00000000000d");
+    /// <summary>Self-ref cấp 2: con của <c>Snack</c> (cha của Snack là Thực phẩm khô).</summary>
+    private static readonly Guid CategoryBiscuitCandyId = Guid.Parse("ccca000e-000e-000e-000e-00000000000e");
+    private static readonly Guid CategoryInstantFoodId = Guid.Parse("ccca000f-000f-000f-000f-00000000000f");
 
     // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
@@ -73,6 +87,15 @@ public static class DataSeeder
     /// <summary>Sample order for vendor user 22222222-2222-2222-0000-000000000002 (PayOS / API tests).</summary>
     private static readonly Guid VendorUser3SampleOrderId = Guid.Parse("ffff0004-0004-0004-0004-000000000004");
 
+    // Sample Transactions + Refunds (testing Refunds API / PayOS reconciliation)
+    private static readonly Guid SeedTxnPickupId = Guid.Parse("fffa1111-1111-1111-1111-111111111111");
+    private static readonly Guid SeedTxnHomeId = Guid.Parse("fffa1111-2222-2222-2222-222222222222");
+    private static readonly Guid SeedTxnReadyId = Guid.Parse("fffa1111-3333-3333-3333-333333333333");
+    private static readonly Guid SeedRefundPendingId = Guid.Parse("fffa2222-1111-1111-1111-111111111111");
+    private static readonly Guid SeedRefundApprovedId = Guid.Parse("fffa2222-2222-2222-2222-222222222222");
+    private static readonly Guid SeedRefundRejectedId = Guid.Parse("fffa2222-3333-3333-3333-333333333333");
+    private static readonly Guid SeedRefundCompletedId = Guid.Parse("fffa2222-4444-4444-4444-444444444444");
+
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         await SeedRolesAsync(context);
@@ -88,6 +111,7 @@ public static class DataSeeder
         await SeedCustomerAddressesAsync(context);
         await SeedPackagingOrdersAsync(context);
         await SeedVendorUser3SampleOrderAsync(context);
+        await SeedSampleTransactionsAndRefundsAsync(context);
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -779,6 +803,99 @@ public static class DataSeeder
                 IsFreshFood = false,
                 IsActive = true,
                 Description = "Mì gói, bánh, thực phẩm đóng gói"
+            },
+            new()
+            {
+                CategoryId = CategoryFrozenId,
+                Name = "Đông lạnh",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Thực phẩm đông lạnh, kem"
+            },
+            new()
+            {
+                CategoryId = CategorySpiceId,
+                Name = "Gia vị & dầu ăn",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Muối, nước mắm, dầu, gia vị khô"
+            },
+            new()
+            {
+                CategoryId = CategorySnackSubId,
+                ParentCatId = CategoryDryFoodId,
+                Name = "Snack & đồ ăn vặt",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Danh mục con — self-ref ParentCatId → Thực phẩm khô"
+            },
+            new()
+            {
+                CategoryId = CategoryFruitFreshId,
+                Name = "Trái cây tươi",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Trái cây theo mùa"
+            },
+            new()
+            {
+                CategoryId = CategoryBreakfastCerealId,
+                Name = "Ngũ cốc & điểm tâm",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Ngũ cốc ăn sáng, yến mạch, granola"
+            },
+            new()
+            {
+                CategoryId = CategoryCannedGoodsId,
+                Name = "Đồ hộp & đóng lon",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Thịt cá hộp, rau củ đóng lon"
+            },
+            new()
+            {
+                CategoryId = CategoryVegetarianId,
+                Name = "Thực phẩm chay",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Đồ chay, thịt thực vật"
+            },
+            new()
+            {
+                CategoryId = CategoryTofuEggId,
+                Name = "Đậu phụ & trứng",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Đậu phụ, đậu hũ, trứng gia cầm"
+            },
+            // Self-reference (Category → Category): một danh mục con trỏ ParentCatId về danh mục gốc "Rau củ"
+            new()
+            {
+                CategoryId = CategoryLeafyGreensId,
+                ParentCatId = CategoryVegetableId,
+                Name = "Rau lá xanh",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Cải, rau muống, xà lách — con của Rau củ (ParentCatId self-ref)"
+            },
+            // Self-reference cấp sâu: con của Snack (Snack đã có ParentCatId → Thực phẩm khô)
+            new()
+            {
+                CategoryId = CategoryBiscuitCandyId,
+                ParentCatId = CategorySnackSubId,
+                Name = "Bánh quy & kẹo",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Cấp 3: Thực phẩm khô → Snack → Bánh quy & kẹo"
+            },
+            new()
+            {
+                CategoryId = CategoryInstantFoodId,
+                Name = "Đồ ăn liền",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Xôi, cháo gói, meal kit"
             }
         };
 
@@ -1350,6 +1467,120 @@ public static class DataSeeder
 
         await context.Orders.AddAsync(order);
         await context.OrderItems.AddAsync(item);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Fake <see cref="Transaction"/> + <see cref="Refund"/> rows on seeded PKG-* orders (requires packaging orders present).
+    /// </summary>
+    private static async Task SeedSampleTransactionsAndRefundsAsync(ApplicationDbContext context)
+    {
+        if (await context.Transactions.AnyAsync(t => t.TransactionId == SeedTxnPickupId))
+            return;
+
+        if (!await context.Orders.AnyAsync(o => o.OrderId == PackagingOrderPickupId))
+            return;
+
+        var now = DateTime.UtcNow;
+        var paid = PaymentState.Paid.ToString();
+
+        var transactions = new List<Transaction>
+        {
+            new()
+            {
+                TransactionId = SeedTxnPickupId,
+                OrderId = PackagingOrderPickupId,
+                Amount = 168000,
+                PaymentMethod = "PayOS",
+                PaymentStatus = paid,
+                CreatedAt = now.AddHours(-4),
+                UpdatedAt = now.AddHours(-4),
+                PayOSOrderCode = 9_001_000_000_000_001,
+                PayOSPaymentLinkId = "seed-link-pickup",
+                CheckoutUrl = "https://pay.payos.vn/web/seed-pickup"
+            },
+            new()
+            {
+                TransactionId = SeedTxnHomeId,
+                OrderId = PackagingOrderHomeId,
+                Amount = 205000,
+                PaymentMethod = "PayOS",
+                PaymentStatus = paid,
+                CreatedAt = now.AddHours(-3),
+                UpdatedAt = now.AddHours(-3),
+                PayOSOrderCode = 9_001_000_000_000_002,
+                PayOSPaymentLinkId = "seed-link-home",
+                CheckoutUrl = "https://pay.payos.vn/web/seed-home"
+            },
+            new()
+            {
+                TransactionId = SeedTxnReadyId,
+                OrderId = PackagingOrderReadyId,
+                Amount = 135000,
+                PaymentMethod = "PayOS",
+                PaymentStatus = paid,
+                CreatedAt = now.AddHours(-6),
+                UpdatedAt = now.AddHours(-6),
+                PayOSOrderCode = 9_001_000_000_000_003,
+                PayOSPaymentLinkId = "seed-link-ready",
+                CheckoutUrl = "https://pay.payos.vn/web/seed-ready"
+            }
+        };
+
+        await context.Transactions.AddRangeAsync(transactions);
+        await context.SaveChangesAsync();
+
+        var refunds = new List<Refund>
+        {
+            new()
+            {
+                RefundId = SeedRefundPendingId,
+                OrderId = PackagingOrderPickupId,
+                TransactionId = SeedTxnPickupId,
+                Amount = 50_000,
+                Reason = "[Seed] Khách yêu cầu hoàn một phần — chờ duyệt",
+                Status = RefundState.Pending,
+                CreatedAt = now.AddHours(-2)
+            },
+            new()
+            {
+                RefundId = SeedRefundApprovedId,
+                OrderId = PackagingOrderHomeId,
+                TransactionId = SeedTxnHomeId,
+                Amount = 25_000,
+                Reason = "[Seed] Đã duyệt hoàn tiền giao hàng trễ",
+                Status = RefundState.Approved,
+                ProcessedBy = AdminUserId.ToString(),
+                ProcessedAt = now.AddHours(-1),
+                CreatedAt = now.AddHours(-2)
+            },
+            new()
+            {
+                RefundId = SeedRefundRejectedId,
+                OrderId = PackagingOrderHomeId,
+                TransactionId = SeedTxnHomeId,
+                Amount = 99_000,
+                Reason = "[Seed] Yêu cầu hoàn không hợp lệ (demo Rejected)",
+                Status = RefundState.Rejected,
+                ProcessedBy = AdminUserId.ToString(),
+                ProcessedAt = now.AddMinutes(-90),
+                CreatedAt = now.AddHours(-2)
+            },
+            new()
+            {
+                RefundId = SeedRefundCompletedId,
+                OrderId = PackagingOrderReadyId,
+                TransactionId = SeedTxnReadyId,
+                Amount = 15_000,
+                Reason = "[Seed] Hoàn tiền sau khi đóng gói — đã chuyển khoản",
+                Status = RefundState.Completed,
+                ProcessedBy = AdminUserId.ToString(),
+                ProcessedAt = now.AddHours(-1),
+                CreatedAt = now.AddHours(-3)
+            }
+        };
+
+        await context.Refunds.AddRangeAsync(refunds);
         await context.SaveChangesAsync();
     }
 }

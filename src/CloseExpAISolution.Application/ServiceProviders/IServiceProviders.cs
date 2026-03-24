@@ -31,4 +31,8 @@ public interface IServiceProviders
     IAdminService AdminService { get; }
     IPackagingService PackagingService { get; }
     IMapboxService MapboxService { get; }
+    ICategoryService CategoryService { get; }
+    IRefundService RefundService { get; }
+    ICollectionPointService CollectionPointService { get; }
+    ICustomerAddressService CustomerAddressService { get; }
 }

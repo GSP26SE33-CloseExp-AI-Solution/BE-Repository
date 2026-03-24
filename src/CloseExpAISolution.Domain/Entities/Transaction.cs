@@ -21,4 +21,6 @@ public class Transaction
 
     /// <summary>Hosted checkout URL (optional snapshot for support / debugging).</summary>
     public string? CheckoutUrl { get; set; }
+
+    public ICollection<Refund> Refunds { get; set; } = new List<Refund>();
 }
