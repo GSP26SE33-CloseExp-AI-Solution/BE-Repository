@@ -31,4 +31,5 @@ public interface IServiceProviders
     IAdminService AdminService { get; }
     IPackagingService PackagingService { get; }
     IMapboxService MapboxService { get; }
+    ICategoryService CategoryService { get; }
 }

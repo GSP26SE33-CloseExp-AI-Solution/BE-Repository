@@ -47,6 +47,10 @@ public static class DataSeeder
     private static readonly Guid CategoryMeatSeafoodId = Guid.Parse("ccca0002-0002-0002-0002-000000000002");
     private static readonly Guid CategoryVegetableId = Guid.Parse("ccca0003-0003-0003-0003-000000000003");
     private static readonly Guid CategoryDryFoodId = Guid.Parse("ccca0004-0004-0004-0004-000000000004");
+    private static readonly Guid CategoryFrozenId = Guid.Parse("ccca0005-0005-0005-0005-000000000005");
+    private static readonly Guid CategorySpiceId = Guid.Parse("ccca0006-0006-0006-0006-000000000006");
+    /// <summary>Danh mục con (demo cây phân cấp) — con của Thực phẩm khô.</summary>
+    private static readonly Guid CategorySnackSubId = Guid.Parse("ccca0007-0007-0007-0007-000000000007");
 
     // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
@@ -779,6 +783,31 @@ public static class DataSeeder
                 IsFreshFood = false,
                 IsActive = true,
                 Description = "Mì gói, bánh, thực phẩm đóng gói"
+            },
+            new()
+            {
+                CategoryId = CategoryFrozenId,
+                Name = "Đông lạnh",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Thực phẩm đông lạnh, kem"
+            },
+            new()
+            {
+                CategoryId = CategorySpiceId,
+                Name = "Gia vị & dầu ăn",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Muối, nước mắm, dầu, gia vị khô"
+            },
+            new()
+            {
+                CategoryId = CategorySnackSubId,
+                ParentCatId = CategoryDryFoodId,
+                Name = "Snack & đồ ăn vặt",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Danh mục con demo — thuộc nhóm Thực phẩm khô"
             }
         };
 
