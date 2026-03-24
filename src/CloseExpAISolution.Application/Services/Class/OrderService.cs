@@ -19,6 +19,56 @@ public class OrderService : IOrderService
         _mapper = mapper;
     }
 
+    public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
+    {
+        var slots = await _unitOfWork.Repository<DeliveryTimeSlot>().GetAllAsync();
+
+        return slots
+            .OrderBy(x => x.StartTime)
+            .Select(x => new DeliveryTimeSlotDto
+            {
+                TimeSlotId = x.TimeSlotId,
+                StartTime = x.StartTime,
+                EndTime = x.EndTime,
+                DisplayTimeRange = $"{x.StartTime:hh\\:mm} - {x.EndTime:hh\\:mm}"
+            })
+            .ToList();
+    }
+
+    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
+    {
+        var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
+
+        return points
+            .OrderBy(x => x.Name)
+            .Select(x => new PickupPointDto
+            {
+                PickupPointId = x.CollectionId,
+                Name = x.Name,
+                Address = x.AddressLine
+            })
+            .ToList();
+    }
+
+    public async Task<IEnumerable<CustomerAddressDto>> GetCustomerAddressesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var addresses = await _unitOfWork.Repository<CustomerAddress>()
+            .FindAsync(x => x.UserId == userId);
+
+        return addresses
+            .OrderByDescending(x => x.IsDefault)
+            .ThenBy(x => x.RecipientName)
+            .Select(x => new CustomerAddressDto
+            {
+                AddressId = x.CustomerAddressId,
+                RecipientName = x.RecipientName,
+                Phone = x.Phone,
+                AddressLine = x.AddressLine,
+                IsDefault = x.IsDefault
+            })
+            .ToList();
+    }
+
     public async Task<(IEnumerable<OrderResponseDto> Items, int TotalCount)> GetAllAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
         var all = await _unitOfWork.OrderRepository.GetAllAsync(cancellationToken);
@@ -54,14 +104,14 @@ public class OrderService : IOrderService
             OrderId = orderId,
             OrderCode = orderCode,
             UserId = request.UserId,
-            DeliveryTimeSlotId = request.TimeSlotId,
+            TimeSlotId = request.TimeSlotId,
             CollectionId = request.CollectionId,
             DeliveryType = request.DeliveryType,
             TotalAmount = request.TotalAmount,
             DiscountAmount = request.DiscountAmount,
             FinalAmount = request.FinalAmount,
             DeliveryFee = request.DeliveryFee,
-            Status = request.Status,
+            Status = Enum.Parse<OrderState>(request.Status),
             OrderDate = DateTime.UtcNow,
             AddressId = request.AddressId,
             PromotionId = request.PromotionId,
@@ -80,7 +130,7 @@ public class OrderService : IOrderService
                 OrderItemId = Guid.NewGuid(),
                 OrderId = orderId,
                 LotId = item.LotId,
-                Quantity = item.Quantity,
+                Quantity = (short)item.Quantity,
                 UnitPrice = item.UnitPrice,
                 TotalPrice = totalPrice
             });
@@ -98,11 +148,11 @@ public class OrderService : IOrderService
         var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
 
-        if (request.TimeSlotId.HasValue) order.DeliveryTimeSlotId = request.TimeSlotId.Value;
+        if (request.TimeSlotId.HasValue) order.TimeSlotId = request.TimeSlotId.Value;
         if (request.CollectionId.HasValue) order.CollectionId = request.CollectionId;
         if (request.DeliveryType != null) order.DeliveryType = request.DeliveryType;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
-        if (request.Status != null) order.Status = request.Status;
+        if (request.Status != null) order.Status = Enum.Parse<OrderState>(request.Status);
         if (request.AddressId.HasValue) order.AddressId = request.AddressId;
         if (request.PromotionId.HasValue) order.PromotionId = request.PromotionId;
         if (request.DeliveryGroupId.HasValue) order.DeliveryGroupId = request.DeliveryGroupId;
@@ -123,7 +173,7 @@ public class OrderService : IOrderService
                     OrderItemId = dto.OrderItemId == Guid.Empty ? Guid.NewGuid() : dto.OrderItemId,
                     OrderId = orderId,
                     LotId = dto.LotId,
-                    Quantity = dto.Quantity,
+                    Quantity = (short)dto.Quantity,
                     UnitPrice = dto.UnitPrice,
                     TotalPrice = totalPrice
                 });
@@ -139,7 +189,7 @@ public class OrderService : IOrderService
     {
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
-        order.Status = status.ToString();
+        order.Status = status;
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -153,3 +203,11 @@ public class OrderService : IOrderService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }
+
+
+
+
+
+
+
+

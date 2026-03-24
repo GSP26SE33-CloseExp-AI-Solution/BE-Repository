@@ -160,7 +160,7 @@ public class AuthService : IAuthService
             {
                 var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
                 newSupermarket.SupermarketId = finalSupermarketId.Value;
-                newSupermarket.Status = UserState.Active.ToString();
+                newSupermarket.Status = SupermarketState.Active;
                 newSupermarket.CreatedAt = DateTime.UtcNow;
                 await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
 
@@ -215,7 +215,7 @@ public class AuthService : IAuthService
         if (user == null)
             return Error("Người dùng không tồn tại");
 
-        if (user.Status != UserState.Active.ToString())
+        if (user.Status != UserState.Active)
             return Error("Tài khoản không còn hoạt động");
 
         // Rotate token: revoke old, create new
@@ -308,7 +308,7 @@ public class AuthService : IAuthService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
 
-        if (user.Status != UserState.Unverified.ToString())
+        if (user.Status != UserState.Unverified)
             return ApiResponse<bool>.ErrorResponse("Tài khoản không cần xác minh email");
 
         if (user.OtpFailedCount >= MaxOtpFailedAttempts)
@@ -331,9 +331,9 @@ public class AuthService : IAuthService
 
         // OTP verified successfully
         if (user.RoleId == (int)RoleUser.Vendor)
-            user.Status = UserState.Active.ToString();
+            user.Status = UserState.Active;
         else
-            user.Status = UserState.PendingApproval.ToString();
+            user.Status = UserState.PendingApproval;
         user.EmailVerifiedAt = DateTime.UtcNow;
         user.OtpCode = null;
         user.OtpExpiresAt = null;
@@ -342,10 +342,10 @@ public class AuthService : IAuthService
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
-        if (user.RoleId == (int)RoleUser.Vendor && user.Status == UserState.Active.ToString())
+        if (user.RoleId == (int)RoleUser.Vendor && user.Status == UserState.Active)
             await SendEmailVerifiedNotificationAsync(user.Email, user.FullName, isVendor: true);
 
-        if (user.RoleId == (int)RoleUser.SupermarketStaff && user.Status == UserState.PendingApproval.ToString())
+        if (user.RoleId == (int)RoleUser.SupermarketStaff && user.Status == UserState.PendingApproval)
             return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Tài khoản đang chờ quản trị viên phê duyệt");
         else
             return ApiResponse<bool>.SuccessResponse(true, "Xác minh email thành công! Bạn có thể đăng nhập ngay bây giờ");
@@ -359,7 +359,7 @@ public class AuthService : IAuthService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
 
-        if (user.Status != UserState.Unverified.ToString())
+        if (user.Status != UserState.Unverified)
             return ApiResponse<bool>.ErrorResponse("Tài khoản không cần xác minh email");
 
         // Rate limit: must wait 60 seconds between OTP sends
@@ -395,8 +395,8 @@ public class AuthService : IAuthService
         if (user == null)
             return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
 
-        if (user.Status != UserState.Active.ToString() &&
-            user.Status != UserState.PendingApproval.ToString())
+        if (user.Status != UserState.Active &&
+            user.Status != UserState.PendingApproval)
             return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
 
         if (user.OtpExpiresAt != null)
@@ -495,10 +495,10 @@ public class AuthService : IAuthService
                 }
 
                 // For account Unverified, auto-verify since Google already verified email
-                if (user.Status == UserState.Unverified.ToString())
+                if (user.Status == UserState.Unverified)
                 {
                     // Auto-verify email since Google already verified it
-                    user.Status = UserState.PendingApproval.ToString();
+                    user.Status = UserState.PendingApproval;
                     user.EmailVerifiedAt = DateTime.UtcNow;
                     user.OtpCode = null;
                     user.OtpExpiresAt = null;
@@ -511,28 +511,28 @@ public class AuthService : IAuthService
                     return ApiResponse<AuthResponse>.SuccessWithMessage("Email đã xác minh thành công qua Google! Tài khoản đang chờ Admin phê duyệt");
                 }
 
-                if (user.Status == UserState.PendingApproval.ToString())
+                if (user.Status == UserState.PendingApproval)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     return Error("Tài khoản đang chờ Admin phê duyệt. Vui lòng đợi thông báo qua email");
                 }
-                if (user.Status == UserState.Rejected.ToString())
+                if (user.Status == UserState.Rejected)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     return Error("Tài khoản đã bị từ chối phê duyệt. Vui lòng liên hệ Admin");
                 }
-                if (user.Status == UserState.Banned.ToString())
+                if (user.Status == UserState.Banned)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     return Error("Tài khoản đã bị khóa vĩnh viễn bởi Admin");
                 }
-                if (user.Status == UserState.Deleted.ToString())
+                if (user.Status == UserState.Deleted)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     return Error("Tài khoản đã bị xóa");
                 }
 
-                if (user.Status == UserState.Active.ToString())
+                if (user.Status == UserState.Active)
                 {
                     var roleName = await GetRoleName(user.RoleId);
                     var authResponse = await GenerateTokensAsync(user, roleName, ipAddress, deviceInfo);
@@ -566,16 +566,16 @@ public class AuthService : IAuthService
     {
         var status = user.Status;
 
-        if (status == UserState.Unverified.ToString())
+        if (status == UserState.Unverified)
             return Error("Tài khoản chưa xác minh email. Vui lòng kiểm tra email để nhập mã OTP");
 
-        if (status == UserState.PendingApproval.ToString())
+        if (status == UserState.PendingApproval)
             return Error("Tài khoản đang chờ Admin phê duyệt. Vui lòng đợi thông báo qua email");
 
-        if (status == UserState.Rejected.ToString())
+        if (status == UserState.Rejected)
             return Error("Tài khoản đã bị từ chối phê duyệt. Vui lòng liên hệ Admin");
 
-        if (status == UserState.Locked.ToString())
+        if (status == UserState.Locked)
         {
             var unlockResult = TryAutoUnlock(user);
             if (!unlockResult.IsUnlocked)
@@ -586,10 +586,10 @@ public class AuthService : IAuthService
             await _unitOfWork.SaveChangesAsync();
         }
 
-        if (status == UserState.Banned.ToString())
+        if (status == UserState.Banned)
             return Error("Tài khoản đã bị khóa vĩnh viễn bởi Admin");
 
-        if (status == UserState.Deleted.ToString())
+        if (status == UserState.Deleted)
             return Error("Tài khoản đã bị xóa");
 
         return null;
@@ -604,7 +604,7 @@ public class AuthService : IAuthService
             return (false, (int)Math.Ceiling(remainingTime.TotalMinutes));
 
         // Auto-unlock
-        user.Status = UserState.Active.ToString();
+        user.Status = UserState.Active;
         user.FailedLoginCount = 0;
         user.UpdatedAt = DateTime.UtcNow;
         return (true, 0);
@@ -620,7 +620,7 @@ public class AuthService : IAuthService
 
             if (user.FailedLoginCount >= MaxFailedLoginAttempts)
             {
-                user.Status = UserState.Locked.ToString();
+                user.Status = UserState.Locked;
                 userRepository.Update(user);
                 await _unitOfWork.CommitTransactionAsync();
                 return Error($"Tài khoản đã bị khóa tạm thời do đăng nhập sai quá {MaxFailedLoginAttempts} lần. Vui lòng thử lại sau {LockoutDurationMinutes} phút");
@@ -677,7 +677,7 @@ public class AuthService : IAuthService
         Phone = request.Phone,
         PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
         RoleId = roleId,
-        Status = UserState.Unverified.ToString(),
+        Status = UserState.Unverified,
         FailedLoginCount = 0,
         CreatedAt = DateTime.UtcNow,
         UpdatedAt = DateTime.UtcNow
@@ -776,7 +776,7 @@ public class AuthService : IAuthService
         Phone = user.Phone,
         RoleName = roleName,
         RoleId = user.RoleId,
-        Status = Enum.TryParse<UserState>(user.Status, out var status) ? status : UserState.Unverified,
+        Status = Enum.TryParse<UserState>(user.Status.ToString(), out var status) ? status : UserState.Unverified,
         CreatedAt = user.CreatedAt,
         UpdatedAt = user.UpdatedAt,
         MarketStaffInfo = marketStaffInfo
@@ -921,3 +921,7 @@ public class AuthService : IAuthService
 
     #endregion
 }
+
+
+
+

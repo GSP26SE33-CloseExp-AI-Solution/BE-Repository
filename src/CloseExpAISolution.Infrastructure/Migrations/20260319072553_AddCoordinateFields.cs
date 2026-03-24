@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,109 +10,71 @@ namespace CloseExpAISolution.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<decimal>(
-                name: "DeliveryLatitude",
-                table: "DeliveryLogs",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: true);
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                    IF to_regclass('"DeliveryLogs"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DeliveryLogs' AND column_name = 'DeliveryLatitude') THEN
+                        ALTER TABLE "DeliveryLogs" ADD "DeliveryLatitude" numeric(10,7);
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "DeliveryLongitude",
-                table: "DeliveryLogs",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: true);
+                    IF to_regclass('"DeliveryLogs"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DeliveryLogs' AND column_name = 'DeliveryLongitude') THEN
+                        ALTER TABLE "DeliveryLogs" ADD "DeliveryLongitude" numeric(10,7);
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "CenterLatitude",
-                table: "DeliveryGroups",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: true);
+                    IF to_regclass('"DeliveryGroups"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DeliveryGroups' AND column_name = 'CenterLatitude') THEN
+                        ALTER TABLE "DeliveryGroups" ADD "CenterLatitude" numeric(10,7);
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "CenterLongitude",
-                table: "DeliveryGroups",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: true);
+                    IF to_regclass('"DeliveryGroups"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DeliveryGroups' AND column_name = 'CenterLongitude') THEN
+                        ALTER TABLE "DeliveryGroups" ADD "CenterLongitude" numeric(10,7);
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "Latitude",
-                table: "CustomerAddresses",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: false,
-                defaultValue: 0m);
+                    IF to_regclass('"CustomerAddresses"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'CustomerAddresses' AND column_name = 'Latitude') THEN
+                        ALTER TABLE "CustomerAddresses" ADD "Latitude" numeric(10,7) NOT NULL DEFAULT 0;
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "Longitude",
-                table: "CustomerAddresses",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: false,
-                defaultValue: 0m);
+                    IF to_regclass('"CustomerAddresses"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'CustomerAddresses' AND column_name = 'Longitude') THEN
+                        ALTER TABLE "CustomerAddresses" ADD "Longitude" numeric(10,7) NOT NULL DEFAULT 0;
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "Latitude",
-                table: "CollectionPoints",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: false,
-                defaultValue: 0m);
+                    IF to_regclass('"CollectionPoints"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'CollectionPoints' AND column_name = 'Latitude') THEN
+                        ALTER TABLE "CollectionPoints" ADD "Latitude" numeric(10,7) NOT NULL DEFAULT 0;
+                    END IF;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "Longitude",
-                table: "CollectionPoints",
-                type: "numeric(10,7)",
-                precision: 10,
-                scale: 7,
-                nullable: false,
-                defaultValue: 0m);
+                    IF to_regclass('"CollectionPoints"') IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'CollectionPoints' AND column_name = 'Longitude') THEN
+                        ALTER TABLE "CollectionPoints" ADD "Longitude" numeric(10,7) NOT NULL DEFAULT 0;
+                    END IF;
+                END $$;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "DeliveryLatitude",
-                table: "DeliveryLogs");
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                    IF to_regclass('"DeliveryLogs"') IS NOT NULL
+                       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DeliveryLogs' AND column_name = 'DeliveryLatitude') THEN
+                        ALTER TABLE "DeliveryLogs" DROP COLUMN "DeliveryLatitude";
+                    END IF;
 
-            migrationBuilder.DropColumn(
-                name: "DeliveryLongitude",
-                table: "DeliveryLogs");
-
-            migrationBuilder.DropColumn(
-                name: "CenterLatitude",
-                table: "DeliveryGroups");
-
-            migrationBuilder.DropColumn(
-                name: "CenterLongitude",
-                table: "DeliveryGroups");
-
-            migrationBuilder.DropColumn(
-                name: "Latitude",
-                table: "CustomerAddresses");
-
-            migrationBuilder.DropColumn(
-                name: "Longitude",
-                table: "CustomerAddresses");
-
-            migrationBuilder.DropColumn(
-                name: "Latitude",
-                table: "CollectionPoints");
-
-            migrationBuilder.DropColumn(
-                name: "Longitude",
-                table: "CollectionPoints");
+                    IF to_regclass('"DeliveryLogs"') IS NOT NULL
+                       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DeliveryLogs' AND column_name = 'DeliveryLongitude') THEN
+                        ALTER TABLE "DeliveryLogs" DROP COLUMN "DeliveryLongitude";
+                    END IF;
+                END $$;
+                """);
         }
     }
 }

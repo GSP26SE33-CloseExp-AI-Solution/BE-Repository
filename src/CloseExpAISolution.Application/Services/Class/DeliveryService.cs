@@ -26,7 +26,7 @@ public class DeliveryService : IDeliveryService
         _logger.LogInformation("Getting available delivery groups for date: {Date}", deliveryDate);
 
         var groups = await _unitOfWork.Repository<DeliveryGroup>()
-            .FindAsync(g => g.DeliveryStaffId == null && g.Status == "Pending");
+            .FindAsync(g => g.DeliveryStaffId == null && g.Status == DeliveryGroupState.Pending);
 
         if (deliveryDate.HasValue)
         {
@@ -38,11 +38,11 @@ public class DeliveryService : IDeliveryService
         foreach (var group in groups.OrderBy(g => g.DeliveryDate).ThenBy(g => g.CreatedAt))
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.DeliveryTimeSlotId);
+                .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
-            var completedCount = orders.Count(o => o.Status == OrderState.Completed.ToString());
+            var completedCount = orders.Count(o => o.Status == OrderState.Completed);
 
             result.Add(new DeliveryGroupSummaryDto
             {
@@ -55,7 +55,7 @@ public class DeliveryService : IDeliveryService
                 DeliveryArea = group.DeliveryArea,
                 CenterLatitude = group.CenterLatitude,
                 CenterLongitude = group.CenterLongitude,
-                Status = group.Status,
+                Status = group.Status.ToString(),
                 TotalOrders = group.TotalOrders,
                 CompletedOrders = completedCount,
                 DeliveryDate = group.DeliveryDate
@@ -82,7 +82,7 @@ public class DeliveryService : IDeliveryService
 
         if (!string.IsNullOrEmpty(status))
         {
-            filtered = filtered.Where(g => g.Status.Equals(status, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(g => g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
         }
 
         if (deliveryDate.HasValue)
@@ -105,11 +105,11 @@ public class DeliveryService : IDeliveryService
         foreach (var group in pagedGroups)
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.DeliveryTimeSlotId);
+                .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
-            var completedCount = orders.Count(o => o.Status == OrderState.Completed.ToString());
+            var completedCount = orders.Count(o => o.Status == OrderState.Completed);
 
             result.Add(new DeliveryGroupSummaryDto
             {
@@ -122,7 +122,7 @@ public class DeliveryService : IDeliveryService
                 DeliveryArea = group.DeliveryArea,
                 CenterLatitude = group.CenterLatitude,
                 CenterLongitude = group.CenterLongitude,
-                Status = group.Status,
+                Status = group.Status.ToString(),
                 TotalOrders = group.TotalOrders,
                 CompletedOrders = completedCount,
                 DeliveryDate = group.DeliveryDate
@@ -169,7 +169,7 @@ public class DeliveryService : IDeliveryService
         if (group == null)
             throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
 
-        if (group.Status != "Pending")
+        if (group.Status != DeliveryGroupState.Pending)
             throw new InvalidOperationException("Nhóm giao hàng không ở trạng thái chờ nhận.");
 
         if (group.DeliveryStaffId != null)
@@ -177,7 +177,7 @@ public class DeliveryService : IDeliveryService
 
         // Assign delivery staff
         group.DeliveryStaffId = deliveryStaffId;
-        group.Status = "Assigned";
+        group.Status = DeliveryGroupState.Assigned;
         group.Notes = request.Notes;
         group.UpdatedAt = DateTime.UtcNow;
 
@@ -206,11 +206,11 @@ public class DeliveryService : IDeliveryService
         if (group.DeliveryStaffId != deliveryStaffId)
             throw new UnauthorizedAccessException("Bạn không được phân công nhóm giao hàng này.");
 
-        if (group.Status != "Assigned")
+        if (group.Status != DeliveryGroupState.Assigned)
             throw new InvalidOperationException("Nhóm giao hàng phải ở trạng thái 'Đã nhận' để bắt đầu giao.");
 
         // Update group status
-        group.Status = "InTransit";
+        group.Status = DeliveryGroupState.InTransit;
         if (!string.IsNullOrEmpty(request.Notes))
         {
             group.Notes = string.IsNullOrEmpty(group.Notes)
@@ -222,11 +222,11 @@ public class DeliveryService : IDeliveryService
         // Update all orders in group to Ready_To_Ship → In Transit
         var orders = await _unitOfWork.Repository<Order>()
             .FindAsync(o => o.DeliveryGroupId == deliveryGroupId
-                         && o.Status == OrderState.Ready_To_Ship.ToString());
+                         && o.Status == OrderState.ReadyToShip);
 
         foreach (var order in orders)
         {
-            order.Status = OrderState.Ready_To_Ship.ToString();
+            order.Status = OrderState.ReadyToShip;
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
         }
@@ -286,13 +286,13 @@ public class DeliveryService : IDeliveryService
                 throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
         }
 
-        if (order.Status != OrderState.Ready_To_Ship.ToString())
+        if (order.Status != OrderState.ReadyToShip)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để xác nhận giao hàng.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            order.Status = OrderState.Delivered_Wait_Confirm.ToString();
+            order.Status = OrderState.DeliveredWaitConfirm;
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
 
@@ -301,7 +301,7 @@ public class DeliveryService : IDeliveryService
                 DeliveryId = Guid.NewGuid(),
                 OrderId = orderId,
                 UserId = deliveryStaffId,
-                Status = DeliveryState.Delivered_Wait_Confirm.ToString(),
+                Status = DeliveryState.DeliveredWaitConfirm,
                 DeliveredAt = DateTime.UtcNow,
                 FailedReason = null
             };
@@ -311,7 +311,9 @@ public class DeliveryService : IDeliveryService
             {
                 NotificationId = Guid.NewGuid(),
                 UserId = order.UserId,
+                Title = "Cập nhật giao hàng",
                 Content = $"Đơn hàng {order.OrderCode} đã được giao. Vui lòng xác nhận nhận hàng.",
+                Type = NotificationType.DeliveryUpdate,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             };
@@ -354,13 +356,13 @@ public class DeliveryService : IDeliveryService
                 throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
         }
 
-        if (order.Status != OrderState.Ready_To_Ship.ToString())
+        if (order.Status != OrderState.ReadyToShip)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để báo lỗi.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            order.Status = OrderState.Failed.ToString();
+            order.Status = OrderState.Failed;
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
 
@@ -369,7 +371,7 @@ public class DeliveryService : IDeliveryService
                 DeliveryId = Guid.NewGuid(),
                 OrderId = orderId,
                 UserId = deliveryStaffId,
-                Status = DeliveryState.Failed.ToString(),
+                Status = DeliveryState.Failed,
                 FailedReason = request.FailureReason,
                 DeliveredAt = null
             };
@@ -379,7 +381,9 @@ public class DeliveryService : IDeliveryService
             {
                 NotificationId = Guid.NewGuid(),
                 UserId = order.UserId,
+                Title = "Giao hàng thất bại",
                 Content = $"Đơn hàng {order.OrderCode} giao thất bại. Lý do: {request.FailureReason}",
+                Type = NotificationType.DeliveryUpdate,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             };
@@ -415,13 +419,13 @@ public class DeliveryService : IDeliveryService
         if (order.UserId != customerId)
             throw new UnauthorizedAccessException("Bạn không có quyền xác nhận đơn hàng này.");
 
-        if (order.Status != OrderState.Delivered_Wait_Confirm.ToString())
+        if (order.Status != OrderState.DeliveredWaitConfirm)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Đã giao chờ xác nhận' để hoàn tất.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            order.Status = OrderState.Completed.ToString();
+            order.Status = OrderState.Completed;
             order.UpdatedAt = DateTime.UtcNow;
 
             if (!string.IsNullOrWhiteSpace(request.Notes))
@@ -445,7 +449,9 @@ public class DeliveryService : IDeliveryService
                 {
                     NotificationId = Guid.NewGuid(),
                     UserId = deliveryGroup.DeliveryStaffId.Value,
+                    Title = "Khách đã xác nhận đơn",
                     Content = $"Khách hàng đã xác nhận hoàn tất đơn {order.OrderCode}.",
+                    Type = NotificationType.OrderUpdate,
                     IsRead = false,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -455,11 +461,11 @@ public class DeliveryService : IDeliveryService
                 var latestDeliveryLog = await _unitOfWork.Repository<DeliveryLog>()
                     .FirstOrDefaultAsync(l => l.OrderId == orderId
                                            && l.UserId == deliveryGroup.DeliveryStaffId.Value
-                                           && l.Status == DeliveryState.Delivered_Wait_Confirm.ToString());
+                                           && l.Status == DeliveryState.DeliveredWaitConfirm);
 
                 if (latestDeliveryLog != null)
                 {
-                    latestDeliveryLog.Status = DeliveryState.Completed.ToString();
+                    latestDeliveryLog.Status = DeliveryState.Completed;
                     latestDeliveryLog.DeliveredAt ??= DateTime.UtcNow;
                     _unitOfWork.Repository<DeliveryLog>().Update(latestDeliveryLog);
                 }
@@ -497,7 +503,10 @@ public class DeliveryService : IDeliveryService
             filtered = filtered.Where(r => r.DeliveredAt <= toDate.Value);
 
         if (!string.IsNullOrEmpty(status))
-            filtered = filtered.Where(r => r.Status.Equals(status, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(r =>
+                (r.Status ?? DeliveryState.ReadyToShip)
+                    .ToString()
+                    .Equals(status, StringComparison.OrdinalIgnoreCase));
 
         var orderedRecords = filtered.OrderByDescending(r => r.DeliveredAt).ToList();
         var totalCount = orderedRecords.Count;
@@ -518,7 +527,7 @@ public class DeliveryService : IDeliveryService
                 OrderCode = order?.OrderCode ?? "N/A",
                 UserId = record.UserId,
                 DeliveryStaffName = staff?.FullName ?? "N/A",
-                Status = record.Status,
+                Status = (record.Status ?? DeliveryState.ReadyToShip).ToString(),
                 FailureReason = record.FailedReason,
                 DeliveredAt = record.DeliveredAt,
                 DeliveryLatitude = record.DeliveryLatitude,
@@ -546,18 +555,18 @@ public class DeliveryService : IDeliveryService
             .FindAsync(dr => dr.UserId == deliveryStaffId);
 
         var recordList = records.ToList();
-        var completedCount = recordList.Count(r => r.Status == DeliveryState.Delivered_Wait_Confirm.ToString()
-                                                  || r.Status == DeliveryState.Completed.ToString());
-        var failedCount = recordList.Count(r => r.Status == DeliveryState.Failed.ToString());
+        var completedCount = recordList.Count(r => r.Status == DeliveryState.DeliveredWaitConfirm
+                                                  || r.Status == DeliveryState.Completed);
+        var failedCount = recordList.Count(r => r.Status == DeliveryState.Failed);
         var totalOrders = recordList.Count;
 
-        var assignedGroups = groups.Where(g => g.Status == "InTransit" || g.Status == "Assigned").ToList();
+        var assignedGroups = groups.Where(g => g.Status == DeliveryGroupState.InTransit || g.Status == DeliveryGroupState.Assigned).ToList();
         var inTransitCount = 0;
         foreach (var g in assignedGroups)
         {
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == g.DeliveryGroupId
-                             && o.Status == OrderState.Ready_To_Ship.ToString());
+                             && o.Status == OrderState.ReadyToShip);
             inTransitCount += orders.Count();
         }
 
@@ -598,23 +607,23 @@ public class DeliveryService : IDeliveryService
         if (group.DeliveryStaffId != deliveryStaffId)
             throw new UnauthorizedAccessException("Bạn không được phân công nhóm giao hàng này.");
 
-        if (group.Status != "InTransit")
+        if (group.Status != DeliveryGroupState.InTransit)
             throw new InvalidOperationException("Nhóm giao hàng phải đang trong quá trình giao để hoàn thành.");
 
         var orders = await _unitOfWork.Repository<Order>()
             .FindAsync(o => o.DeliveryGroupId == deliveryGroupId);
 
         var pendingOrders = orders.Where(o =>
-            o.Status != OrderState.Delivered_Wait_Confirm.ToString()
-            && o.Status != OrderState.Completed.ToString()
-            && o.Status != OrderState.Failed.ToString())
+            o.Status != OrderState.DeliveredWaitConfirm
+            && o.Status != OrderState.Completed
+            && o.Status != OrderState.Failed)
             .ToList();
 
         if (pendingOrders.Any())
             throw new InvalidOperationException(
                 $"Còn {pendingOrders.Count} đơn hàng chưa được xử lý. Vui lòng giao hoặc báo lỗi tất cả đơn hàng trước khi hoàn thành nhóm.");
 
-        group.Status = "Completed";
+        group.Status = DeliveryGroupState.Completed;
         group.UpdatedAt = DateTime.UtcNow;
 
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
@@ -628,7 +637,7 @@ public class DeliveryService : IDeliveryService
     private async Task<DeliveryGroupResponseDto> MapToDeliveryGroupResponseAsync(DeliveryGroup group)
     {
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.DeliveryTimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
 
         var staff = group.DeliveryStaffId.HasValue
             ? await _unitOfWork.Repository<User>()
@@ -645,9 +654,9 @@ public class DeliveryService : IDeliveryService
         }
 
         var completedCount = orders.Count(o =>
-            o.Status == OrderState.Completed.ToString()
-            || o.Status == OrderState.Delivered_Wait_Confirm.ToString());
-        var failedCount = orders.Count(o => o.Status == OrderState.Failed.ToString());
+            o.Status == OrderState.Completed
+            || o.Status == OrderState.DeliveredWaitConfirm);
+        var failedCount = orders.Count(o => o.Status == OrderState.Failed);
 
         return new DeliveryGroupResponseDto
         {
@@ -655,7 +664,7 @@ public class DeliveryService : IDeliveryService
             GroupCode = group.GroupCode,
             DeliveryStaffId = group.DeliveryStaffId,
             DeliveryStaffName = staff?.FullName,
-            DeliveryTimeSlotId = group.DeliveryTimeSlotId,
+            TimeSlotId = group.TimeSlotId,
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
                 : "N/A",
@@ -663,7 +672,7 @@ public class DeliveryService : IDeliveryService
             DeliveryArea = group.DeliveryArea,
             CenterLatitude = group.CenterLatitude,
             CenterLongitude = group.CenterLongitude,
-            Status = group.Status,
+            Status = group.Status.ToString(),
             TotalOrders = group.TotalOrders,
             CompletedOrders = completedCount,
             FailedOrders = failedCount,
@@ -681,7 +690,7 @@ public class DeliveryService : IDeliveryService
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
 
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.DeliveryTimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.TimeSlotId == order.TimeSlotId);
 
         string? collectionPointName = null;
         string? addressLine = null;
@@ -738,7 +747,7 @@ public class DeliveryService : IDeliveryService
         {
             OrderId = order.OrderId,
             OrderCode = order.OrderCode,
-            Status = order.Status,
+            Status = order.Status.ToString(),
             DeliveryType = order.DeliveryType,
             TotalAmount = order.TotalAmount,
             DeliveryFee = order.DeliveryFee,
@@ -758,3 +767,16 @@ public class DeliveryService : IDeliveryService
         };
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

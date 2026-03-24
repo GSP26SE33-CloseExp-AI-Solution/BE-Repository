@@ -1,3 +1,4 @@
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
@@ -10,18 +11,15 @@ namespace CloseExpAISolution.Application.Services;
 public class MarketPriceService : IMarketPriceService
 {
     private readonly IMarketPriceRepository _marketPriceRepository;
-    private readonly IPriceFeedbackRepository _priceFeedbackRepository;
     private readonly IAIServiceClient _aiClient;
     private readonly ILogger<MarketPriceService> _logger;
 
     public MarketPriceService(
         IMarketPriceRepository marketPriceRepository,
-        IPriceFeedbackRepository priceFeedbackRepository,
         IAIServiceClient aiClient,
         ILogger<MarketPriceService> logger)
     {
         _marketPriceRepository = marketPriceRepository;
-        _priceFeedbackRepository = priceFeedbackRepository;
         _aiClient = aiClient;
         _logger = logger;
     }
@@ -125,8 +123,8 @@ public class MarketPriceService : IMarketPriceService
                 Weight = p.Weight,
                 Region = "VN",
                 IsInStock = p.IsInStock,
-                Confidence = p.Confidence,
-                Status = "active"
+                Confidence = (decimal)p.Confidence,
+                Status = MarketPriceState.Active
             }).ToList();
 
             await _marketPriceRepository.BulkUpsertAsync(marketPrices, cancellationToken);
@@ -166,44 +164,12 @@ public class MarketPriceService : IMarketPriceService
             StoreName = request.StoreName,
             Region = request.Region ?? "VN",
             IsInStock = request.IsInStock,
-            Confidence = 0.7f,
-            Status = "active",
+            Confidence = 0.7m,
+            Status = MarketPriceState.Active,
             Notes = $"Entered by staff {request.StaffId} at supermarket {request.SupermarketId}. {request.Note}"
         };
 
         return await _marketPriceRepository.UpsertAsync(marketPrice, cancellationToken);
-    }
-
-    public async Task<PriceFeedback> SavePriceFeedbackAsync(PriceFeedbackRequest request, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Saving price feedback for barcode: {Barcode}, accepted: {Accepted}",
-            request.Barcode, request.WasAccepted);
-
-        var actualDiscount = ((request.OriginalPrice - request.FinalPrice) / request.OriginalPrice) * 100;
-
-        var feedback = new PriceFeedback
-        {
-            Barcode = request.Barcode,
-            SuggestedPrice = request.SuggestedPrice,
-            FinalPrice = request.FinalPrice,
-            OriginalPrice = request.OriginalPrice,
-            ActualDiscountPercent = (float)actualDiscount,
-            DaysToExpire = request.DaysToExpire,
-            Category = request.Category,
-            WasAccepted = request.WasAccepted,
-            RejectionReason = request.RejectionReason,
-            StaffId = request.StaffId?.ToString(),
-            SupermarketId = request.SupermarketId,
-            MarketPriceRef = request.MarketPriceRef,
-            MarketPriceSource = request.MarketPriceSource
-        };
-
-        return await _priceFeedbackRepository.AddAsync(feedback, cancellationToken);
-    }
-
-    public async Task<Dictionary<string, float>> GetAIAccuracyByCategoryAsync(CancellationToken cancellationToken = default)
-    {
-        return await _priceFeedbackRepository.GetAcceptanceRateByCategoryAsync(cancellationToken);
     }
 
     public async Task<int> CleanupExpiredPricesAsync(int daysOld = 30, CancellationToken cancellationToken = default)
@@ -212,3 +178,4 @@ public class MarketPriceService : IMarketPriceService
         return await _marketPriceRepository.DeleteExpiredAsync(daysOld, cancellationToken);
     }
 }
+

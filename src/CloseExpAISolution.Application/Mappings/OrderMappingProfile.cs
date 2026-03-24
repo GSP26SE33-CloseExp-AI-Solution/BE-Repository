@@ -16,7 +16,7 @@ public class OrderMappingProfile : Profile
 
         CreateMap<Order, OrderResponseDto>()
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? src.User.FullName ?? src.User.Email : null))
-            .ForMember(dest => dest.TimeSlotId, opt => opt.MapFrom(src => src.DeliveryTimeSlotId))
+            .ForMember(dest => dest.TimeSlotId, opt => opt.MapFrom(src => src.TimeSlotId))
             .ForMember(dest => dest.TimeSlotDisplay, opt => opt.MapFrom(src =>
                 src.DeliveryTimeSlot != null ? $"{src.DeliveryTimeSlot.StartTime:hh\\:mm} - {src.DeliveryTimeSlot.EndTime:hh\\:mm}" : null))
             .ForMember(dest => dest.CollectionId, opt => opt.MapFrom(src => src.CollectionId))

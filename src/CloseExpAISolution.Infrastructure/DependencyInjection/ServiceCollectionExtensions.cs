@@ -27,11 +27,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
-
-        // Market Price Repositories
         services.AddScoped<IMarketPriceRepository, MarketPriceRepository>();
-        services.AddScoped<IPriceFeedbackRepository, PriceFeedbackRepository>();
-
         return services;
     }
 }

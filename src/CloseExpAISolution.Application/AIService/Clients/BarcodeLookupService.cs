@@ -1,3 +1,4 @@
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -93,7 +94,7 @@ public class BarcodeLookupService : IBarcodeLookupService
 
         // 2. Check database (persistent cache)
         var dbProduct = await _unitOfWork.Repository<Product>()
-            .FirstOrDefaultAsync(p => p.Barcode == barcode && p.IsActive);
+            .FirstOrDefaultAsync(p => p.Barcode == barcode && p.Status != ProductState.Hidden);
         if (dbProduct != null)
         {
             var detail = await _unitOfWork.Repository<ProductDetail>()
@@ -248,14 +249,11 @@ public class BarcodeLookupService : IBarcodeLookupService
             Sku = barcode,
             CategoryId = category?.CategoryId,
             SupermarketId = defaultSupermarket.SupermarketId,
-            UnitId = defaultUnitOfMeasure.UnitId,
-            Status = "Verified",
+            Status = ProductState.Verified,
             CreatedBy = userId ?? "system",
             CreatedAt = DateTime.UtcNow,
             UpdatedBy = userId,
             UpdatedAt = DateTime.UtcNow,
-            IsFreshFood = category?.IsFreshFood ?? false,
-            IsActive = true,
             VerifiedBy = userId,
             VerifiedAt = DateTime.UtcNow
         };
@@ -325,7 +323,6 @@ public class BarcodeLookupService : IBarcodeLookupService
         {
             var category = await ResolveCategoryAsync(productInfo.Category);
             product.CategoryId = category?.CategoryId;
-            product.IsFreshFood = category?.IsFreshFood ?? product.IsFreshFood;
         }
         if (!string.IsNullOrWhiteSpace(productInfo.Description))
             detail.Description = productInfo.Description;
@@ -345,7 +342,7 @@ public class BarcodeLookupService : IBarcodeLookupService
         {
             product.VerifiedAt = null;
             product.VerifiedBy = null;
-            product.Status = "Draft";
+            product.Status = ProductState.Draft;
         }
 
         _unitOfWork.Repository<Product>().Update(product);
@@ -379,8 +376,7 @@ public class BarcodeLookupService : IBarcodeLookupService
 
         product.VerifiedBy = verifiedBy;
         product.VerifiedAt = DateTime.UtcNow;
-        product.Status = "Verified";
-        product.IsActive = true;
+        product.Status = ProductState.Verified;
         product.UpdatedBy = verifiedBy;
         product.UpdatedAt = DateTime.UtcNow;
 
@@ -408,7 +404,7 @@ public class BarcodeLookupService : IBarcodeLookupService
 
         var normalized = searchTerm.Trim().ToLower();
         var products = await _unitOfWork.Repository<Product>().FindAsync(p =>
-            p.IsActive && (
+            p.Status != ProductState.Hidden && (
                 p.Barcode.Contains(searchTerm) ||
                 p.Name.ToLower().Contains(normalized)));
 
@@ -431,7 +427,7 @@ public class BarcodeLookupService : IBarcodeLookupService
     public async Task<IEnumerable<BarcodeProductInfo>> GetPendingReviewAsync(CancellationToken cancellationToken = default)
     {
         var products = await _unitOfWork.Repository<Product>()
-            .FindAsync(p => !p.VerifiedAt.HasValue || p.Status == "Draft");
+            .FindAsync(p => !p.VerifiedAt.HasValue || p.Status == ProductState.Draft);
 
         var result = new List<BarcodeProductInfo>();
         foreach (var product in products)
@@ -858,4 +854,9 @@ internal class UpcItemDbItem
 }
 
 #endregion
+
+
+
+
+
 

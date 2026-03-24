@@ -24,7 +24,6 @@ public class ProductDto
     public string Manufacturer { get; set; } = string.Empty;
     public string ResponsibleOrg { get; set; } = string.Empty;
     public string Warning { get; set; } = string.Empty;
-    public bool isActive { get; set; }
     public bool isFeatured { get; set; }
     public string[] Tags { get; set; } = Array.Empty<string>();
     public DateTime CreatedAt { get; set; }
@@ -42,11 +41,9 @@ public class CreateProductRequestDto
     public string Name { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
-    public bool IsFreshFood { get; set; }
     public ProductType Type { get; set; } = ProductType.Standard;
     public string Sku { get; set; } = string.Empty;
     public string ResponsibleOrg { get; set; } = string.Empty;
-    public bool isActive { get; set; } = true;
     public bool isFeatured { get; set; } = false;
     public string[] Tags { get; set; } = Array.Empty<string>();
     public ProductDetailRequestDto Detail { get; set; } = new();
@@ -58,12 +55,10 @@ public class UpdateProductRequestDto
     public string Name { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
-    public bool IsFreshFood { get; set; }
     public ProductType Type { get; set; }
     public string Sku { get; set; } = string.Empty;
     public ProductState Status { get; set; }
     public string ResponsibleOrg { get; set; } = string.Empty;
-    public bool isActive { get; set; }
     public bool isFeatured { get; set; }
     public string[] Tags { get; set; } = Array.Empty<string>();
     public ProductDetailRequestDto Detail { get; set; } = new();
@@ -130,6 +125,60 @@ public class CreateStockLotFromExistingDto
     public string CreatedBy { get; set; } = string.Empty;
 }
 
+public class StaffProductIdentificationRequestDto
+{
+    [Required]
+    [MaxLength(50)]
+    public string Barcode { get; set; } = string.Empty;
+}
+
+public class StaffCreateProductFromWorkflowRequestDto
+{
+    [Required]
+    [MaxLength(50)]
+    public string Barcode { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(255)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    public ProductDetailRequestDto Detail { get; set; } = new();
+
+    [MaxLength(255)]
+    public string CategoryName { get; set; } = string.Empty;
+
+    public string? OcrImageUrl { get; set; }
+    public string? OcrExtractedData { get; set; }
+    public float? OcrConfidence { get; set; }
+    public bool IsManualFallback { get; set; }
+}
+
+public class StaffCreateLotAndPublishRequestDto
+{
+    [Required]
+    public Guid ProductId { get; set; }
+
+    [Required]
+    public DateTime ExpiryDate { get; set; }
+
+    public DateTime? ManufactureDate { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal Quantity { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal Weight { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal OriginalUnitPrice { get; set; }
+
+    public decimal? FinalUnitPrice { get; set; }
+    public bool? AcceptedSuggestion { get; set; }
+    public string? PriceFeedback { get; set; }
+    public bool IsManualFallback { get; set; }
+}
+
 public class CreateNewProductRequestDto
 {
     [Required]
@@ -142,13 +191,10 @@ public class CreateNewProductRequestDto
     [Required]
     public string Barcode { get; set; } = string.Empty;
 
-    public bool IsFreshFood { get; set; }
     public ProductType Type { get; set; }
     public string Sku { get; set; } = string.Empty;
     public ProductState Status { get; set; }
-    public int WeightType { get; set; }
     public string WeightTypeName { get; set; } = string.Empty;
-    public decimal? DefaultPricePerKg { get; set; }
     public decimal OriginalPrice { get; set; }
     public decimal SuggestedPrice { get; set; }
     public decimal FinalPrice { get; set; }

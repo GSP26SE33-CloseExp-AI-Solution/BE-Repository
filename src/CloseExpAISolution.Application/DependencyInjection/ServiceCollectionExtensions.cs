@@ -10,7 +10,6 @@ using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Mapbox.Extensions;
 using CloseExpAISolution.Application.Email.Extensions;
-using CloseExpAISolution.Application.Payment;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
 
@@ -27,8 +26,6 @@ public static class ServiceCollectionExtensions
             cfg.AddProfile<SupermarketMappingProfile>();
             cfg.AddProfile<MarketStaffMappingProfile>();
             cfg.AddProfile<OrderMappingProfile>();
-            cfg.AddProfile<CategoryMappingProfile>();
-            cfg.AddProfile<RefundMappingProfile>();
         });
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
@@ -40,11 +37,18 @@ public static class ServiceCollectionExtensions
 
         // Register Email + Quartz background jobs
         services.AddEmailServices(configuration);
-        services.AddPayOS(configuration);
 
         // Register Delivery services
         services.AddScoped<IDeliveryService, DeliveryService>();
         services.AddScoped<IDeliveryAdminService, DeliveryAdminService>();
+        services.AddScoped<IPackagingService, PackagingService>();
+
+        // Register Product workflow services
+        services.AddScoped<IR2StorageService, R2StorageService>();
+        services.AddScoped<IMarketPriceService, MarketPriceService>();
+        services.AddScoped<IBarcodeLookupService, BarcodeLookupService>();
+        services.AddScoped<IExcelImportService, ExcelImportService>();
+        services.AddScoped<IProductWorkflowService, ProductWorkflowService>();
 
         // Register HttpClient for downloading images (bypasses CDN hotlink protection)
         services.AddHttpClient("ImageDownloader", client =>

@@ -182,19 +182,16 @@ public class ExcelImportService : IExcelImportService
                 {
                     ProductId = Guid.NewGuid(),
                     SupermarketId = request.SupermarketId,
-                    UnitId = defaultUnit.UnitId,
                     Name = name,
                     Barcode = barcode ?? "",
                     CategoryId = category?.CategoryId,
                     Sku = GetValueOrDefault(rowData, ProductFieldNames.Sku),
-                    IsFreshFood = category?.IsFreshFood ?? ParseBool(GetValueOrDefault(rowData, ProductFieldNames.IsFreshFood)),
                     CreatedBy = request.ImportedBy,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    Status = ProductState.Verified.ToString(),
+                    Status = ProductState.Verified,
                     VerifiedBy = request.ImportedBy,
-                    VerifiedAt = DateTime.UtcNow,
-                    IsActive = true
+                    VerifiedAt = DateTime.UtcNow
                 };
 
                 await _unitOfWork.ProductRepository.AddAsync(product);

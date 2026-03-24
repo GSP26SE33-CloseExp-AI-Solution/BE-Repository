@@ -19,6 +19,22 @@ public class OrdersController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet("time-slots")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<DeliveryTimeSlotDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<DeliveryTimeSlotDto>>>> GetTimeSlots(CancellationToken cancellationToken = default)
+    {
+        var timeSlots = await _services.OrderService.GetDeliveryTimeSlotsAsync(cancellationToken);
+        return Ok(ApiResponse<IEnumerable<DeliveryTimeSlotDto>>.SuccessResponse(timeSlots));
+    }
+
+    [HttpGet("collection-points")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<PickupPointDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<PickupPointDto>>>> GetCollectionPoints(CancellationToken cancellationToken = default)
+    {
+        var collectionPoints = await _services.OrderService.GetCollectionPointsAsync(cancellationToken);
+        return Ok(ApiResponse<IEnumerable<PickupPointDto>>.SuccessResponse(collectionPoints));
+    }
+
     /// <summary>
     /// Get all orders with pagination
     /// </summary>
@@ -101,26 +117,26 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ApiResponse<object>>> SetPending(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Pending, cancellationToken);
 
-    /// <summary>Set order status to Paid_Processing (one-click PUT, no body).</summary>
-    [HttpPut("{id:guid}/paid-processing")]
+    /// <summary>Set order status to PaidProcessing (one-click PUT, no body).</summary>
+    [HttpPut("{id}/paid-processing")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Paid_Processing, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.PaidProcessing, cancellationToken);
 
-    /// <summary>Set order status to Ready_To_Ship (one-click PUT, no body).</summary>
-    [HttpPut("{id:guid}/ready-to-ship")]
+    /// <summary>Set order status to ReadyToShip (one-click PUT, no body).</summary>
+    [HttpPut("{id}/ready-to-ship")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetReadyToShip(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Ready_To_Ship, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetReadyToShip(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.ReadyToShip, cancellationToken);
 
-    /// <summary>Set order status to Delivered_Wait_Confirm (one-click PUT, no body).</summary>
-    [HttpPut("{id:guid}/delivered-wait-confirm")]
+    /// <summary>Set order status to DeliveredWaitConfirm (one-click PUT, no body).</summary>
+    [HttpPut("{id}/delivered-wait-confirm")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetDeliveredWaitConfirm(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Delivered_Wait_Confirm, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetDeliveredWaitConfirm(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.DeliveredWaitConfirm, cancellationToken);
 
     /// <summary>Set order status to Completed (one-click PUT, no body).</summary>
     [HttpPut("{id:guid}/completed")]

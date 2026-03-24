@@ -76,7 +76,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             OrderId = order.OrderId,
             Amount = order.FinalAmount,
             PaymentMethod = PayOSMethod,
-            PaymentStatus = PaymentState.Pending.ToString(),
+            PaymentStatus = PaymentState.Pending,
             CreatedAt = DateTime.UtcNow,
             PayOSOrderCode = payOsOrderCode
         };
@@ -106,7 +106,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "PayOS CreateAsync failed for order {OrderId}", order.OrderId);
-            tx.PaymentStatus = PaymentState.Failed.ToString();
+            tx.PaymentStatus = PaymentState.Failed;
             tx.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Transaction>().Update(tx);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -170,16 +170,16 @@ public sealed class PaymentService : IPaymentService, IDisposable
             return PaymentConfirmResult.MissingTransaction(payOsOrderCode);
         }
 
-        if (string.Equals(transaction.PaymentStatus, PaymentState.Paid.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (transaction.PaymentStatus == PaymentState.Paid)
             return PaymentConfirmResult.Ok();
 
-        transaction.PaymentStatus = PaymentState.Paid.ToString();
+        transaction.PaymentStatus = PaymentState.Paid;
         transaction.UpdatedAt = DateTime.UtcNow;
 
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
-        if (order != null && !string.Equals(order.Status, OrderState.Paid_Processing.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (order != null && order.Status != OrderState.PaidProcessing)
         {
-            order.Status = OrderState.Paid_Processing.ToString();
+            order.Status = OrderState.PaidProcessing;
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.OrderRepository.Update(order);
         }
@@ -207,12 +207,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         return link.Status is not (PaymentLinkStatus.Cancelled or PaymentLinkStatus.Failed or PaymentLinkStatus.Expired);
     }
 
-    private static bool IsOrderAlreadyPaid(string orderStatus)
+    private static bool IsOrderAlreadyPaid(OrderState orderStatus)
     {
-        if (!Enum.TryParse<OrderState>(orderStatus, true, out var st))
-            return false;
-
-        return st is OrderState.Paid_Processing
+        return orderStatus is OrderState.PaidProcessing
             or OrderState.Ready_To_Ship
             or OrderState.Delivered_Wait_Confirm
             or OrderState.Completed
@@ -224,18 +221,18 @@ public sealed class PaymentService : IPaymentService, IDisposable
         bool success,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(transaction.PaymentStatus, PaymentState.Paid.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (transaction.PaymentStatus == PaymentState.Paid)
             return;
 
-        transaction.PaymentStatus = success ? PaymentState.Paid.ToString() : PaymentState.Failed.ToString();
+        transaction.PaymentStatus = success ? PaymentState.Paid : PaymentState.Failed;
         transaction.UpdatedAt = DateTime.UtcNow;
 
         if (success)
         {
             var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
-            if (order != null && !string.Equals(order.Status, OrderState.Paid_Processing.ToString(), StringComparison.OrdinalIgnoreCase))
+            if (order != null && order.Status != OrderState.PaidProcessing)
             {
-                order.Status = OrderState.Paid_Processing.ToString();
+                order.Status = OrderState.PaidProcessing;
                 order.UpdatedAt = DateTime.UtcNow;
                 _unitOfWork.OrderRepository.Update(order);
             }

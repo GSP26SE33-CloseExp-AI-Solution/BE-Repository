@@ -84,7 +84,7 @@ public class FeedbackService : IFeedbackService
             CustomerFeedbackId = Guid.NewGuid(),
             UserId = userId,
             OrderId = request.OrderId,
-            Rating = request.Rating,
+            Rating = (short)request.Rating,
             Comment = request.Comment,
             CreatedAt = DateTime.UtcNow
         };
@@ -106,7 +106,7 @@ public class FeedbackService : IFeedbackService
             return Error("Bạn không có quyền sửa đánh giá này");
 
         if (request.Rating.HasValue)
-            feedback.Rating = request.Rating.Value;
+            feedback.Rating = (short)request.Rating.Value;
 
         if (request.Comment != null)
             feedback.Comment = request.Comment;

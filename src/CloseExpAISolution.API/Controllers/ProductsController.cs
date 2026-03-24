@@ -13,6 +13,8 @@ namespace CloseExpAISolution.API.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
+    private const int WorkflowAiTimeoutSeconds = 30;
+
     private readonly IServiceProviders _services;
     private readonly IProductWorkflowService _workflowService;
     private readonly IExcelImportService _excelImportService;
@@ -112,11 +114,9 @@ public class ProductsController : ControllerBase
             Name = Name,
             CategoryName = Category,
             Barcode = Barcode,
-            IsFreshFood = IsFreshFood,
             Type = Type,
             Sku = Sku,
             ResponsibleOrg = ResponsibleOrg,
-            isActive = isActive,
             isFeatured = isFeatured,
             Tags = Array.Empty<string>(),
             Detail = new ProductDetailRequestDto
@@ -178,6 +178,170 @@ public class ProductsController : ControllerBase
         catch (KeyNotFoundException)
         {
             return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
+        }
+    }
+
+    #endregion
+
+    #region Supermarket Staff Workflow APIs
+
+    [Authorize(Roles = "SupermarketStaff")]
+    [HttpPost("workflow/identify")]
+    [ProducesResponseType(typeof(ApiResponse<StaffProductIdentificationResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<StaffProductIdentificationResponseDto>>> IdentifyProductForStaff(
+        [FromBody] StaffProductIdentificationRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Barcode))
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Barcode is required"));
+        }
+
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+        {
+            return supermarketIdResult.ErrorResult!;
+        }
+
+        try
+        {
+            var result = await _workflowService.IdentifyProductForStaffAsync(request.Barcode.Trim(), supermarketIdResult.SupermarketId!.Value, cancellationToken);
+            return Ok(ApiResponse<StaffProductIdentificationResponseDto>.SuccessResponse(result));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error identifying product for barcode {Barcode}", request.Barcode);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
+    [HttpPost("workflow/analyze-image")]
+    [RequestSizeLimit(20 * 1024 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse<OcrAnalysisResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status408RequestTimeout)]
+    public async Task<ActionResult<ApiResponse<OcrAnalysisResponseDto>>> AnalyzeProductImageForStaff(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Image file is required"));
+        }
+
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+        {
+            return supermarketIdResult.ErrorResult!;
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(WorkflowAiTimeoutSeconds));
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await _workflowService.AnalyzeProductImageAsync(
+                supermarketIdResult.SupermarketId!.Value,
+                stream,
+                file.FileName,
+                file.ContentType,
+                timeoutCts.Token);
+
+            return Ok(ApiResponse<OcrAnalysisResponseDto>.SuccessResponse(
+                result,
+                $"AI OCR completed. Timeout threshold: {WorkflowAiTimeoutSeconds}s. You can still input manually if needed."));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status408RequestTimeout,
+                ApiResponse<object>.ErrorResponse($"AI OCR timeout after {WorkflowAiTimeoutSeconds}s. Please retry or use manual fallback."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error analyzing image for supermarket staff");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
+    [HttpPost("workflow/products")]
+    [ProducesResponseType(typeof(ApiResponse<CreateNewProductResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<CreateNewProductResponseDto>>> CreateProductForStaffWorkflow(
+        [FromBody] StaffCreateProductFromWorkflowRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+        {
+            return supermarketIdResult.ErrorResult!;
+        }
+
+        try
+        {
+            var staffName = GetCurrentStaffDisplayName();
+            var result = await _workflowService.CreateProductFromStaffWorkflowAsync(
+                request,
+                supermarketIdResult.SupermarketId!.Value,
+                staffName,
+                cancellationToken);
+
+            return CreatedAtAction(nameof(GetById), new { id = result.ProductId },
+                ApiResponse<CreateNewProductResponseDto>.SuccessResponse(
+                    result,
+                    "Product created and verified by staff. Continue to lot creation & pricing."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating product from staff workflow");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
+    [HttpPost("workflow/lots/create-and-publish")]
+    [ProducesResponseType(typeof(ApiResponse<StaffCreateLotAndPublishResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status408RequestTimeout)]
+    public async Task<ActionResult<ApiResponse<StaffCreateLotAndPublishResponseDto>>> CreateLotAndPublishForStaffWorkflow(
+        [FromBody] StaffCreateLotAndPublishRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+        {
+            return supermarketIdResult.ErrorResult!;
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(WorkflowAiTimeoutSeconds));
+
+        try
+        {
+            var staffName = GetCurrentStaffDisplayName();
+            var result = await _workflowService.CreateLotAndPublishForStaffAsync(
+                request,
+                supermarketIdResult.SupermarketId!.Value,
+                staffName,
+                timeoutCts.Token);
+
+            return Ok(ApiResponse<StaffCreateLotAndPublishResponseDto>.SuccessResponse(
+                result,
+                $"StockLot created, priced and published. Timeout threshold: {WorkflowAiTimeoutSeconds}s."));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status408RequestTimeout,
+                ApiResponse<object>.ErrorResponse($"AI pricing timeout after {WorkflowAiTimeoutSeconds}s. Please retry or switch to manual fallback."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating lot and publishing for staff workflow");
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
     }
 
@@ -721,4 +885,27 @@ public class ProductsController : ControllerBase
     }
 
     #endregion
+
+    private async Task<(bool Success, Guid? SupermarketId, ActionResult? ErrorResult)> GetCurrentStaffSupermarketIdAsync()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return (false, null, Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng")));
+        }
+
+        var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
+        if (!supermarketId.HasValue)
+        {
+            return (false, null, BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào")));
+        }
+
+        return (true, supermarketId.Value, null);
+    }
+
+    private string GetCurrentStaffDisplayName()
+    {
+        var fullName = User.FindFirst(ClaimTypes.Name)?.Value;
+        return string.IsNullOrWhiteSpace(fullName) ? "Supermarket Staff" : fullName;
+    }
 }

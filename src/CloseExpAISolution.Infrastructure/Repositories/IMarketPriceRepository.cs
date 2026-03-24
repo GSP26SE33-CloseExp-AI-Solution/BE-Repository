@@ -13,13 +13,7 @@ public interface IMarketPriceRepository
     Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, CancellationToken cancellationToken = default);
 }
 
-public interface IPriceFeedbackRepository
-{
-    Task<PriceFeedback> AddAsync(PriceFeedback feedback, CancellationToken cancellationToken = default);
-    Task<List<PriceFeedback>> GetByBarcodeAsync(string barcode, int limit = 100, CancellationToken cancellationToken = default);
-    Task<Dictionary<string, float>> GetAcceptanceRateByCategoryAsync(CancellationToken cancellationToken = default);
-    Task<List<PriceFeedback>> GetTrainingDataAsync(DateTime fromDate, int limit = 10000, CancellationToken cancellationToken = default);
-}
+
 
 public class MarketPriceStats
 {

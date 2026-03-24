@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class Transaction
@@ -9,7 +11,7 @@ public class Transaction
 
     public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;
-    public string PaymentStatus { get; set; } = string.Empty;
+    public PaymentState PaymentStatus { get; set; } = PaymentState.Pending;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 

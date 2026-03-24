@@ -17,11 +17,9 @@ public static class SwaggerServiceExtensions
                 Description = "AI-powered Near-Expiry Food Trading Platform API"
             });
 
-            // Ensure unique schema ids and resolve conflicting actions
             options.CustomSchemaIds(type => type.FullName);
             options.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
 
-            // Add JWT Authentication to Swagger
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -53,7 +51,6 @@ public static class SwaggerServiceExtensions
 
     public static IApplicationBuilder UseSwaggerPipeline(this IApplicationBuilder app)
     {
-        // Enable serving static files (for custom JS)
         app.UseStaticFiles();
 
         app.UseSwagger();
@@ -62,16 +59,9 @@ public static class SwaggerServiceExtensions
             options.SwaggerEndpoint("/swagger/v1/swagger.json", "CloseExpAISolution API v1");
             options.RoutePrefix = "swagger";
 
-            // Enable search/filter box
             options.EnableFilter();
-
-            // Collapse all endpoints by default (only show controller names)
             options.DocExpansion(DocExpansion.None);
-
-            // Optional: Show request duration
             options.DisplayRequestDuration();
-
-            // Inject custom JS for auto-fill token after login
             options.InjectJavascript("/swagger/custom-swagger.js");
         });
 

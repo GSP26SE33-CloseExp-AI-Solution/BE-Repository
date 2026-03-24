@@ -16,15 +16,12 @@ public class StockLotDetailDto
     public string UnitType { get; set; } = string.Empty;
     public decimal OriginalUnitPrice { get; set; }
     public decimal SuggestedUnitPrice { get; set; }
-    public decimal FinalUnitPrice { get; set; }
+    public decimal? FinalUnitPrice { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string Brand { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
-    public ProductWeightType WeightType { get; set; }
-    public string WeightTypeName { get; set; } = string.Empty;
-    public decimal? DefaultPricePerKg { get; set; }
     public Guid SupermarketId { get; set; }
     public string SupermarketName { get; set; } = string.Empty;
     public string? MainImageUrl { get; set; }
@@ -49,4 +46,31 @@ public class StockLotFilterDto
     public string? Category { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+}
+
+public class AvailableStocklotDto
+{
+    public Guid LotId { get; set; }
+    public Guid ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public string? ProductImageUrl { get; set; }
+    public string Barcode { get; set; } = string.Empty;
+    public string Brand { get; set; } = string.Empty;
+    public Guid SupermarketId { get; set; }
+    public string SupermarketName { get; set; } = string.Empty;
+    public Guid UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal Weight { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime ManufactureDate { get; set; }
+    public DateTime ExpiryDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? PublishedBy { get; set; }
+    public DateTime? PublishedAt { get; set; }
+    public decimal OriginalUnitPrice { get; set; }
+    public decimal SuggestedUnitPrice { get; set; }
+    public decimal? FinalUnitPrice { get; set; }
+    public decimal SellingUnitPrice { get; set; }
+    public int DaysRemaining { get; set; }
 }

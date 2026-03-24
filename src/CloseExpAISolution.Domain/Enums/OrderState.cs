@@ -13,24 +13,37 @@ public enum OrderState
     /// <summary>
     /// Payment received, processing order
     /// </summary>
-    Paid_Processing,
+    PaidProcessing,
+
+    /// <summary>
+    /// Legacy alias for backward compatibility with historical data
+    /// </summary>
+    Paid_Processing = PaidProcessing,
 
     /// <summary>
     /// Order packed and ready to ship
     /// </summary>
-    Ready_To_Ship,
+    ReadyToShip,
+
+    /// <summary>
+    /// Legacy alias for backward compatibility with historical data
+    /// </summary>
+    Ready_To_Ship = ReadyToShip,
 
     /// <summary>
     /// Delivered, waiting for vendor confirmation
     /// </summary>
-    Delivered_Wait_Confirm,
+    DeliveredWaitConfirm,
+
+    /// <summary>
+    /// Legacy alias for backward compatibility with historical data
+    /// </summary>
+    Delivered_Wait_Confirm = DeliveredWaitConfirm,
 
     /// <summary>
     /// Order completed and confirmed by vendor
     /// </summary>
     Completed,
-
-    // Terminal states (before Pending only)
 
     /// <summary>
     /// Order canceled before payment

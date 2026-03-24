@@ -58,7 +58,7 @@ public class OrderItemService : IOrderItemService
             OrderItemId = Guid.NewGuid(),
             OrderId = request.OrderId,
             LotId = request.LotId,
-            Quantity = request.Quantity,
+            Quantity = (short)request.Quantity,
             UnitPrice = request.UnitPrice
         };
         await _unitOfWork.OrderItemRepository.AddAsync(orderItem, cancellationToken);
@@ -74,7 +74,7 @@ public class OrderItemService : IOrderItemService
             ?? throw new KeyNotFoundException($"Order item not found: {orderItemId}");
 
         if (request.LotId.HasValue) item.LotId = request.LotId.Value;
-        if (request.Quantity.HasValue) item.Quantity = request.Quantity.Value;
+        if (request.Quantity.HasValue) item.Quantity = (short)request.Quantity.Value;
         if (request.UnitPrice.HasValue) item.UnitPrice = request.UnitPrice.Value;
 
         _unitOfWork.OrderItemRepository.Update(item);

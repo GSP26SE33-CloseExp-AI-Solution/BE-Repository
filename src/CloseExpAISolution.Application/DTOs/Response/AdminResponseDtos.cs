@@ -76,9 +76,7 @@ public class AdminAiPriceHistoryDto
 {
     public Guid AiPriceId { get; set; }
     public Guid LotId { get; set; }
-    public decimal OriginalPrice { get; set; }
-    public decimal SuggestedUnitPrice { get; set; }
-    public decimal? FinalPrice { get; set; }
+    public decimal SuggestedPrice { get; set; }
     public decimal? MarketAvgPrice { get; set; }
     public float AiConfidence { get; set; }
     public bool AcceptedSuggestion { get; set; }

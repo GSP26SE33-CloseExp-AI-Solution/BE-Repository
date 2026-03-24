@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class SupermarketStaff
@@ -6,7 +8,7 @@ public class SupermarketStaff
     public Guid UserId { get; set; }
     public Guid SupermarketId { get; set; }
     public string Position { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
+    public SupermarketStaffState Status { get; set; } = SupermarketStaffState.Active;
     public DateTime CreatedAt { get; set; }
 
     public User? User { get; set; }

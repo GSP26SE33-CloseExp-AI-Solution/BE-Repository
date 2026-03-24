@@ -13,7 +13,8 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IProductImageRepository ProductImageRepository { get; }
     IAIVerificationLogRepository AIVerificationLogRepository { get; }
     IMarketPriceRepository MarketPriceRepository { get; }
-    IPriceFeedbackRepository PriceFeedbackRepository { get; }
+
+
     IOrderRepository OrderRepository { get; }
     IOrderItemRepository OrderItemRepository { get; }
 

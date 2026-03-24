@@ -25,6 +25,7 @@ public interface IProductService
     Task UpdateProductAsync(Guid id, UpdateProductRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteProductAsync(Guid id, CancellationToken cancellationToken = default);
     Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(StockLotFilterDto filter);
+    Task<(IEnumerable<AvailableStocklotDto> Items, int TotalCount)> GetAvailableStockLotsForCustomerAsync(int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(Guid supermarketId, string? searchTerm = null, string? category = null, int pageNumber = 1, int pageSize = 20);
     Task<ProductDetailDto?> GetProductDetailAsync(Guid productId);
 }

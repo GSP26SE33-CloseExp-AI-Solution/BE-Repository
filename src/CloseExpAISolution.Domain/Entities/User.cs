@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class User
@@ -11,8 +13,8 @@ public class User
     public int RoleId { get; set; }
     public Role? Role { get; set; }
 
-    public string Status { get; set; } = string.Empty;
-    public int FailedLoginCount { get; set; }
+    public UserState Status { get; set; } = UserState.Unverified;
+    public short FailedLoginCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
@@ -30,5 +32,5 @@ public class User
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<PromotionUsage> PromotionUsages { get; set; } = new List<PromotionUsage>();
 }
-

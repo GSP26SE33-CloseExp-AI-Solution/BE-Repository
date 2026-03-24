@@ -108,7 +108,7 @@ public class UserService : IUserService
             if (statusValidation != null)
                 return statusValidation;
 
-            user.Status = request.Status.Value.ToString();
+            user.Status = request.Status.Value;
         }
 
         await SaveUserChanges(user);
@@ -141,7 +141,7 @@ public class UserService : IUserService
             return statusValidation;
 
         var oldStatus = user.Status;
-        user.Status = request.Status.ToString();
+        user.Status = request.Status;
 
         // Reset failed login count when verifying or unlocking
         if (request.Status == UserState.Active)
@@ -151,7 +151,7 @@ public class UserService : IUserService
         // Send email notification on approve/reject
         await SendStatusChangeEmailAsync(user, oldStatus, request.Status);
         var userResponse = await MapUserWithRoleAsync(user);
-        var statusMessage = GetStatusChangeMessage(oldStatus, request.Status.ToString());
+        var statusMessage = GetStatusChangeMessage(oldStatus.ToString(), request.Status.ToString());
 
         return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, statusMessage);
     }
@@ -163,7 +163,7 @@ public class UserService : IUserService
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
 
         // Soft delete
-        user.Status = UserState.Deleted.ToString();
+        user.Status = UserState.Deleted;
         await SaveUserChanges(user);
 
         return ApiResponse<bool>.SuccessResponse(true, "Xóa người dùng thành công");
@@ -181,14 +181,14 @@ public class UserService : IUserService
         if (user.RoleId != (int)RoleUser.Vendor)
             return ApiResponse<bool>.ErrorResponse("Bạn không có quyền xóa tài khoản này. Vui lòng liên hệ Admin");
 
-        if (user.Status == UserState.Deleted.ToString())
+        if (user.Status == UserState.Deleted)
             return ApiResponse<bool>.ErrorResponse("Tài khoản đã bị xóa trước đó");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
             // Soft delete user
-            user.Status = UserState.Deleted.ToString();
+            user.Status = UserState.Deleted;
             user.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<User>().Update(user);
 
@@ -318,7 +318,7 @@ public class UserService : IUserService
         if (newStatus != UserState.Active)
             return null;
 
-        if (!Enum.TryParse<UserState>(user.Status, out var currentStatus))
+        if (!Enum.TryParse<UserState>(user.Status.ToString(), out var currentStatus))
             return ApiResponse<UserResponseDto>.ErrorResponse("Trạng thái hiện tại của tài khoản không hợp lệ");
 
         if (currentStatus != UserState.PendingApproval)
@@ -351,11 +351,11 @@ public class UserService : IUserService
     private static ApiResponse<UserResponseDto> Error(string message)
         => ApiResponse<UserResponseDto>.ErrorResponse(message);
 
-    private async Task SendStatusChangeEmailAsync(User user, string oldStatus, UserState newStatus)
+    private async Task SendStatusChangeEmailAsync(User user, UserState oldStatus, UserState newStatus)
     {
         try
         {
-            if (oldStatus == UserState.PendingApproval.ToString() && newStatus == UserState.Active)
+            if (oldStatus == UserState.PendingApproval && newStatus == UserState.Active)
             {
                 var subject = "CloseExp AI - Tài khoản đã được phê duyệt!";
                 var body = $@"
@@ -374,7 +374,7 @@ public class UserService : IUserService
                     </html>";
                 await _emailService.SendEmailAsync(user.Email, subject, body);
             }
-            else if (oldStatus == UserState.PendingApproval.ToString() && newStatus == UserState.Rejected)
+            else if (oldStatus == UserState.PendingApproval && newStatus == UserState.Rejected)
             {
                 var subject = "CloseExp AI - Tài khoản không được phê duyệt";
                 var body = $@"
@@ -402,3 +402,6 @@ public class UserService : IUserService
 
     #endregion
 }
+
+
+

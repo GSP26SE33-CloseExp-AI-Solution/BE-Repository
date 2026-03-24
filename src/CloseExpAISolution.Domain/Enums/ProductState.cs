@@ -33,6 +33,11 @@ public enum ProductState
     Published = 3,
 
     /// <summary>
+    /// Legacy alias for backward compatibility with historical data.
+    /// </summary>
+    Active = Published,
+
+    /// <summary>
     /// Product has expired - no longer available for sale.
     /// Auto-changed when expiry date is reached.
     /// </summary>
@@ -48,6 +53,11 @@ public enum ProductState
     /// Can be restored.
     /// </summary>
     Hidden = 6,
+
+    /// <summary>
+    /// Legacy alias for backward compatibility with historical data.
+    /// </summary>
+    Inactive = Hidden,
 
     /// <summary>
     /// Product permanently deleted.

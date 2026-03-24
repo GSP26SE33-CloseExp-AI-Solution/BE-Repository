@@ -15,8 +15,8 @@ using CloseExpAISolution.Application.Email.Interfaces;
 
 namespace CloseExpAISolution.Application.ServiceProviders
 {
-    public class ServiceProviders : IServiceProviders
-    {
+        public class ServiceProviders : IServiceProviders
+        {
                 private readonly IUnitOfWork _unitOfWork;
                 private readonly IHttpContextAccessor _httpContextAccessor;
                 private readonly ApplicationDbContext _context;

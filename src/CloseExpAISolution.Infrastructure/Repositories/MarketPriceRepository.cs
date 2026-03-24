@@ -1,4 +1,5 @@
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ public class MarketPriceRepository : IMarketPriceRepository
     public async Task<List<MarketPrice>> GetByBarcodeAsync(string barcode, CancellationToken cancellationToken = default)
     {
         return await _context.MarketPrices
-            .Where(mp => mp.Barcode == barcode && mp.Status == "active")
+            .Where(mp => mp.Barcode == barcode && mp.Status == MarketPriceState.Active)
             .OrderBy(mp => mp.Price)
             .ToListAsync(cancellationToken);
     }
@@ -24,7 +25,7 @@ public class MarketPriceRepository : IMarketPriceRepository
     public async Task<MarketPrice?> GetMinPriceByBarcodeAsync(string barcode, CancellationToken cancellationToken = default)
     {
         return await _context.MarketPrices
-            .Where(mp => mp.Barcode == barcode && mp.Status == "active" && mp.IsInStock)
+            .Where(mp => mp.Barcode == barcode && mp.Status == MarketPriceState.Active && mp.IsInStock)
             .OrderBy(mp => mp.Price)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -34,7 +35,7 @@ public class MarketPriceRepository : IMarketPriceRepository
         var searchTerms = productName.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         
         return await _context.MarketPrices
-            .Where(mp => mp.Status == "active" && 
+            .Where(mp => mp.Status == MarketPriceState.Active && 
                          mp.ProductName != null &&
                          searchTerms.All(term => mp.ProductName.ToLower().Contains(term)))
             .OrderBy(mp => mp.Price)
@@ -128,7 +129,7 @@ public class MarketPriceRepository : IMarketPriceRepository
     public async Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, CancellationToken cancellationToken = default)
     {
         var prices = await _context.MarketPrices
-            .Where(mp => mp.Barcode == barcode && mp.Status == "active")
+            .Where(mp => mp.Barcode == barcode && mp.Status == MarketPriceState.Active)
             .ToListAsync(cancellationToken);
 
         if (!prices.Any())
@@ -147,59 +148,4 @@ public class MarketPriceRepository : IMarketPriceRepository
     }
 }
 
-public class PriceFeedbackRepository : IPriceFeedbackRepository
-{
-    private readonly ApplicationDbContext _context;
 
-    public PriceFeedbackRepository(ApplicationDbContext context)
-    {
-        _context = context;
-    }
-
-    public async Task<PriceFeedback> AddAsync(PriceFeedback feedback, CancellationToken cancellationToken = default)
-    {
-        if (feedback.Id == Guid.Empty)
-        {
-            feedback.Id = Guid.NewGuid();
-        }
-        feedback.CreatedAt = DateTime.UtcNow;
-        
-        await _context.PriceFeedbacks.AddAsync(feedback, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        
-        return feedback;
-    }
-
-    public async Task<List<PriceFeedback>> GetByBarcodeAsync(string barcode, int limit = 100, CancellationToken cancellationToken = default)
-    {
-        return await _context.PriceFeedbacks
-            .Where(pf => pf.Barcode == barcode)
-            .OrderByDescending(pf => pf.CreatedAt)
-            .Take(limit)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<Dictionary<string, float>> GetAcceptanceRateByCategoryAsync(CancellationToken cancellationToken = default)
-    {
-        var stats = await _context.PriceFeedbacks
-            .Where(pf => pf.Category != null)
-            .GroupBy(pf => pf.Category!)
-            .Select(g => new 
-            {
-                Category = g.Key,
-                AcceptanceRate = (float)g.Count(pf => pf.WasAccepted) / g.Count()
-            })
-            .ToDictionaryAsync(x => x.Category, x => x.AcceptanceRate, cancellationToken);
-
-        return stats;
-    }
-
-    public async Task<List<PriceFeedback>> GetTrainingDataAsync(DateTime fromDate, int limit = 10000, CancellationToken cancellationToken = default)
-    {
-        return await _context.PriceFeedbacks
-            .Where(pf => pf.CreatedAt >= fromDate)
-            .OrderByDescending(pf => pf.CreatedAt)
-            .Take(limit)
-            .ToListAsync(cancellationToken);
-    }
-}

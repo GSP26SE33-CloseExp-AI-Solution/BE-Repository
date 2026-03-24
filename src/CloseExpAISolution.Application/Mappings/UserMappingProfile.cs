@@ -16,7 +16,7 @@ public class UserMappingProfile : Profile
         CreateMap<User, UserResponseDto>()
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt))
             .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role != null ? src.Role.RoleName : "Unknown"))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => ParseUserState(src.Status)));
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => ParseUserState(src.Status.ToString())));
 
         // User -> UserDto
         CreateMap<User, UserDto>()
@@ -27,7 +27,7 @@ public class UserMappingProfile : Profile
         CreateMap<CreateUserRequestDto, User>()
             .ForMember(dest => dest.UserId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.PasswordHash, opt => opt.Ignore()) // Handle separately with BCrypt
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => UserState.Active.ToString())) // Admin creates active users
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => UserState.Active)) // Admin creates active users
             .ForMember(dest => dest.FailedLoginCount, opt => opt.MapFrom(_ => 0))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
@@ -53,4 +53,7 @@ public class UserMappingProfile : Profile
         return Enum.TryParse<UserState>(status, out var result) ? result : UserState.Unverified;
     }
 }
+
+
+
 

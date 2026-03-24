@@ -28,8 +28,6 @@ public class ProductDetailDto
     public decimal SuggestedPrice { get; set; }
     public string Barcode { get; set; } = string.Empty;
     public bool IsFreshFood { get; set; }
-    public string WeightTypeName { get; set; } = string.Empty;
-    public decimal? DefaultPricePerKg { get; set; }
     public ProductState Status { get; set; }
     public string SupermarketName { get; set; } = string.Empty;
     public string? MainImageUrl { get; set; }

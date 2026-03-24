@@ -1,4 +1,5 @@
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace CloseExpAISolution.Infrastructure.Context;
@@ -40,7 +41,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<DeliveryGroup> DeliveryGroups => Set<DeliveryGroup>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
-    public DbSet<PriceFeedback> PriceFeedbacks => Set<PriceFeedback>();
+    // New entities
+    public DbSet<OrderStatusLog> OrderStatusLogs => Set<OrderStatusLog>();
+    public DbSet<PromotionUsage> PromotionUsages => Set<PromotionUsage>();
+    public DbSet<DeliveryFeeConfig> DeliveryFeeConfigs => Set<DeliveryFeeConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +52,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
+        // ── Keys ──────────────────────────────────────────────────
         modelBuilder.Entity<AIVerificationLog>().HasKey(x => x.VerificationId);
         modelBuilder.Entity<DeliveryLog>().HasKey(x => x.DeliveryId);
         modelBuilder.Entity<DeliveryLog>().Property(x => x.DeliveryLatitude).HasPrecision(10, 7);
@@ -62,31 +67,39 @@ public class ApplicationDbContext : DbContext
                 .HasFilter("\"PayOSOrderCode\" IS NOT NULL");
         });
         modelBuilder.Entity<SystemConfig>().HasKey(x => x.ConfigKey);
+        modelBuilder.Entity<StockLot>().HasKey(x => x.LotId);
+        modelBuilder.Entity<PricingHistory>().HasKey(x => x.AIPriceId);
+        modelBuilder.Entity<InventoryDisposal>().HasKey(x => x.DisposalId);
+        modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
+        modelBuilder.Entity<CollectionPoint>().HasKey(x => x.CollectionId);
+        modelBuilder.Entity<DeliveryTimeSlot>().HasKey(x => x.TimeSlotId);
+        modelBuilder.Entity<DeliveryGroup>().HasKey(dg => dg.DeliveryGroupId);
+        modelBuilder.Entity<MarketPrice>().HasKey(mp => mp.MarketPriceId);
+        // New entity keys
+        modelBuilder.Entity<Refund>().HasKey(r => r.RefundId);
+        modelBuilder.Entity<OrderStatusLog>().HasKey(o => o.LogId);
+        modelBuilder.Entity<PromotionUsage>().HasKey(pu => pu.UsageId);
+        modelBuilder.Entity<DeliveryFeeConfig>().HasKey(d => d.ConfigId);
+
+        // ── Table names ───────────────────────────────────────────
+        modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
+        modelBuilder.Entity<CollectionPoint>().ToTable("CollectionPoints");
+        modelBuilder.Entity<DeliveryTimeSlot>().ToTable("DeliveryTimeSlots");
+        modelBuilder.Entity<OrderPackaging>().ToTable("OrderPackaging");
+
+        // ── User ──────────────────────────────────────────────────
         modelBuilder.Entity<User>(entity =>
         {
             entity.Property(u => u.OtpCode).HasMaxLength(100);
             entity.Property(u => u.GoogleId).HasMaxLength(200);
             entity.HasIndex(u => u.GoogleId).IsUnique().HasFilter("\"GoogleId\" IS NOT NULL");
+            // New indexes
+            entity.HasIndex(u => u.Email).IsUnique();
+            entity.HasIndex(u => u.Phone);
+            entity.HasIndex(u => u.Status);
         });
-        modelBuilder.Entity<StockLot>().HasKey(x => x.LotId);
-        modelBuilder.Entity<PricingHistory>().HasKey(x => x.AIPriceId);
-        modelBuilder.Entity<InventoryDisposal>().HasKey(x => x.DisposalId);
-        modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
-        // modelBuilder.Entity<AIPriceHistory>().HasKey(x => x.AIPriceId);
-        modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
-        modelBuilder.Entity<CollectionPoint>().HasKey(x => x.CollectionId);
-        modelBuilder.Entity<CollectionPoint>().ToTable("CollectionPoints");
-        modelBuilder.Entity<CollectionPoint>().Property(x => x.Latitude).HasPrecision(10, 7);
-        modelBuilder.Entity<CollectionPoint>().Property(x => x.Longitude).HasPrecision(10, 7);
-        modelBuilder.Entity<DeliveryTimeSlot>().ToTable("DeliveryTimeSlots");
-        modelBuilder.Entity<OrderPackaging>().ToTable("OrderPackaging");
 
-        modelBuilder.Entity<Product>()
-            .HasOne(p => p.Unit)
-            .WithMany(u => u.Products)
-            .HasForeignKey(p => p.UnitId)
-            .OnDelete(DeleteBehavior.Restrict);
-
+        // ── Product relationships ─────────────────────────────────
         modelBuilder.Entity<Product>()
             .HasOne(p => p.ProductDetail)
             .WithOne(pd => pd.Product)
@@ -99,12 +112,21 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(p => p.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<Product>(entity =>
+        {
+            entity.HasIndex(p => p.Barcode).IsUnique();
+            entity.HasIndex(p => new { p.SupermarketId, p.Status });
+            entity.HasIndex(p => p.CategoryId);
+        });
+
+        // ── Promotion ─────────────────────────────────────────────
         modelBuilder.Entity<Promotion>()
             .HasOne(p => p.Category)
             .WithMany()
             .HasForeignKey(p => p.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // ── StockLot ──────────────────────────────────────────────
         modelBuilder.Entity<StockLot>()
             .HasOne(pl => pl.Product)
             .WithMany(p => p.StockLots)
@@ -113,34 +135,78 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<StockLot>()
             .HasOne(pl => pl.Unit)
-            .WithMany()
+            .WithMany(u => u.StockLots)
             .HasForeignKey(pl => pl.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<StockLot>(entity =>
+        {
+            entity.HasIndex(l => new { l.ProductId, l.Status });
+            entity.HasIndex(l => l.ExpiryDate);
+        });
+
+        // ── InventoryDisposal ─────────────────────────────────────
         modelBuilder.Entity<InventoryDisposal>()
             .HasOne(id => id.StockLot)
             .WithMany(pl => pl.InventoryDisposals)
             .HasForeignKey(id => id.LotId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // ── Category ──────────────────────────────────────────────
         modelBuilder.Entity<Category>()
             .HasOne(c => c.ParentCategory)
             .WithMany(c => c.ChildCategories)
             .HasForeignKey(c => c.ParentCatId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // ── PricingHistory ────────────────────────────────────────
         modelBuilder.Entity<PricingHistory>()
             .HasOne(aph => aph.StockLot)
             .WithMany(pl => pl.PricingHistories)
             .HasForeignKey(aph => aph.LotId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<PricingHistory>()
+            .HasOne(ph => ph.SupermarketRef)
+            .WithMany()
+            .HasForeignKey(ph => ph.SupermarketId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PricingHistory>(entity =>
+        {
+            entity.HasIndex(ph => new { ph.LotId, ph.CreatedAt });
+            entity.Property(ph => ph.AIConfidence).HasPrecision(5, 4);
+            entity.Property(ph => ph.SuggestedPrice).HasPrecision(18, 2);
+            entity.Property(ph => ph.MarketMinPrice).HasPrecision(18, 2);
+            entity.Property(ph => ph.MarketMaxPrice).HasPrecision(18, 2);
+            entity.Property(ph => ph.MarketAvgPrice).HasPrecision(18, 2);
+            entity.Property(ph => ph.MarketPriceRef).HasPrecision(18, 2);
+            entity.Property(ph => ph.RejectionReason).HasMaxLength(500);
+            entity.Property(ph => ph.Feedback).HasMaxLength(1000);
+            entity.Property(ph => ph.Source).HasMaxLength(50);
+        });
+
+        // ── AIVerificationLog ─────────────────────────────────────
+        modelBuilder.Entity<AIVerificationLog>()
+            .HasOne(a => a.Product)
+            .WithMany(p => p.AIVerificationLogs)
+            .HasForeignKey(a => a.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ── OrderItem ─────────────────────────────────────────────
         modelBuilder.Entity<OrderItem>()
             .HasOne(oi => oi.StockLot)
             .WithMany(pl => pl.OrderItems)
             .HasForeignKey(oi => oi.LotId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<DeliveryGroup>().HasKey(dg => dg.DeliveryGroupId);
+
+        modelBuilder.Entity<OrderItem>(entity =>
+        {
+            entity.HasIndex(oi => oi.OrderId);
+            entity.HasIndex(oi => oi.LotId);
+        });
+
+        // ── DeliveryGroup ─────────────────────────────────────────
         modelBuilder.Entity<DeliveryGroup>().Property(x => x.CenterLatitude).HasPrecision(10, 7);
         modelBuilder.Entity<DeliveryGroup>().Property(x => x.CenterLongitude).HasPrecision(10, 7);
         modelBuilder.Entity<DeliveryGroup>()
@@ -151,12 +217,14 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DeliveryGroup>()
             .HasOne(dg => dg.DeliveryTimeSlot)
             .WithMany()
-            .HasForeignKey(dg => dg.DeliveryTimeSlotId)
+            .HasForeignKey(dg => dg.TimeSlotId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ── Order ─────────────────────────────────────────────────
         modelBuilder.Entity<Order>()
             .HasOne(o => o.DeliveryTimeSlot)
             .WithMany(ts => ts.Orders)
-            .HasForeignKey(o => o.DeliveryTimeSlotId)
+            .HasForeignKey(o => o.TimeSlotId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Order>()
             .HasOne(o => o.CollectionPoint)
@@ -173,24 +241,20 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(o => o.AddressId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<Refund>(entity =>
+        modelBuilder.Entity<Order>()
+            .HasOne(o => o.Promotion)
+            .WithMany(p => p.Orders)
+            .HasForeignKey(o => o.PromotionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Order>(entity =>
         {
-            entity.ToTable("Refunds");
-            entity.HasKey(x => x.RefundId);
-            entity.Property(x => x.Amount).HasPrecision(18, 2);
-            entity.Property(x => x.Reason).HasMaxLength(2000);
-            entity.Property(x => x.ProcessedBy).HasMaxLength(200);
-            entity.HasOne(r => r.Order)
-                .WithMany(o => o.Refunds)
-                .HasForeignKey(r => r.OrderId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(r => r.Transaction)
-                .WithMany(t => t.Refunds)
-                .HasForeignKey(r => r.TransactionId)
-                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(o => new { o.UserId, o.Status });
+            entity.HasIndex(o => o.OrderCode).IsUnique();
+            entity.HasIndex(o => o.OrderDate);
+            entity.HasIndex(o => o.DeliveryGroupId);
         });
 
+        // ── CustomerAddress ───────────────────────────────────────
         modelBuilder.Entity<CustomerAddress>()
             .HasOne(c => c.User)
             .WithMany()
@@ -199,32 +263,115 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CustomerAddress>().Property(x => x.Latitude).HasPrecision(10, 7);
         modelBuilder.Entity<CustomerAddress>().Property(x => x.Longitude).HasPrecision(10, 7);
 
-        modelBuilder.Entity<MarketPrice>().HasKey(mp => mp.MarketPriceId);
-        modelBuilder.Entity<MarketPrice>().HasIndex(mp => mp.Barcode);
-        modelBuilder.Entity<MarketPrice>().HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName }).IsUnique();
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.Barcode).HasMaxLength(20);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.ProductName).HasMaxLength(500);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.Source).HasMaxLength(50);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.StoreName).HasMaxLength(200);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.Region).HasMaxLength(100);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.Status).HasMaxLength(20);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.Price).HasPrecision(18, 2);
-        modelBuilder.Entity<MarketPrice>().Property(mp => mp.OriginalPrice).HasPrecision(18, 2);
+        modelBuilder.Entity<CustomerAddress>(entity =>
+        {
+            entity.HasIndex(ca => ca.UserId);
+            entity.Property(ca => ca.Latitude).HasPrecision(10, 7);
+            entity.Property(ca => ca.Longitude).HasPrecision(10, 7);
+        });
 
-        modelBuilder.Entity<PriceFeedback>().HasKey(pf => pf.Id);
-        modelBuilder.Entity<PriceFeedback>().HasIndex(pf => pf.Barcode);
-        modelBuilder.Entity<PriceFeedback>().HasIndex(pf => pf.CreatedAt);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.Barcode).HasMaxLength(20);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.ProductName).HasMaxLength(500);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.Category).HasMaxLength(100);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.RejectionReason).HasMaxLength(500);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.StaffFeedback).HasMaxLength(1000);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.StaffId).HasMaxLength(100);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.MarketPriceSource).HasMaxLength(50);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.SuggestedPrice).HasPrecision(18, 2);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.FinalPrice).HasPrecision(18, 2);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.OriginalPrice).HasPrecision(18, 2);
-        modelBuilder.Entity<PriceFeedback>().Property(pf => pf.MarketPriceRef).HasPrecision(18, 2);
+        // ── CollectionPoint ───────────────────────────────────────
+        modelBuilder.Entity<CollectionPoint>(entity =>
+        {
+            entity.Property(cp => cp.Latitude).HasPrecision(10, 7);
+            entity.Property(cp => cp.Longitude).HasPrecision(10, 7);
+        });
+
+        // ── Supermarket ───────────────────────────────────────────
+        modelBuilder.Entity<Supermarket>(entity =>
+        {
+            entity.HasIndex(s => s.Status);
+            entity.Property(s => s.Latitude).HasPrecision(10, 7);
+            entity.Property(s => s.Longitude).HasPrecision(10, 7);
+        });
+
+        // ── Transaction ───────────────────────────────────────────
+        modelBuilder.Entity<Transaction>(entity =>
+        {
+            entity.HasIndex(t => t.OrderId);
+        });
+
+        // ── Notification ──────────────────────────────────────────
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasIndex(n => new { n.UserId, n.IsRead });
+        });
+
+        // ── DeliveryLog ───────────────────────────────────────────
+        modelBuilder.Entity<DeliveryLog>(entity =>
+        {
+            entity.HasIndex(dl => dl.OrderId);
+        });
+
+        // ── ProductImage ──────────────────────────────────────────
+        modelBuilder.Entity<ProductImage>(entity =>
+        {
+            entity.HasIndex(pi => pi.ProductId);
+        });
+
+        // ── MarketPrice ───────────────────────────────────────────
+        modelBuilder.Entity<MarketPrice>(entity =>
+        {
+            entity.HasIndex(mp => mp.Barcode);
+            entity.HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName }).IsUnique();
+            entity.Property(mp => mp.Barcode).HasMaxLength(20);
+            entity.Property(mp => mp.ProductName).HasMaxLength(500);
+            entity.Property(mp => mp.Source).HasMaxLength(50);
+            entity.Property(mp => mp.StoreName).HasMaxLength(200);
+            entity.Property(mp => mp.Region).HasMaxLength(100);
+            entity.Property(mp => mp.Price).HasPrecision(18, 2);
+            entity.Property(mp => mp.OriginalPrice).HasPrecision(18, 2);
+            entity.Property(mp => mp.Confidence).HasPrecision(5, 4);
+        });
+
+        // ── Refund ────────────────────────────────────────────────
+        modelBuilder.Entity<Refund>()
+            .HasOne(r => r.Order)
+            .WithMany(o => o.Refunds)
+            .HasForeignKey(r => r.OrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Refund>()
+            .HasOne(r => r.Transaction)
+            .WithMany(t => t.Refunds)
+            .HasForeignKey(r => r.TransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ── OrderStatusLog ────────────────────────────────────────
+        modelBuilder.Entity<OrderStatusLog>()
+            .HasOne(os => os.Order)
+            .WithMany(o => o.StatusLogs)
+            .HasForeignKey(os => os.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<OrderStatusLog>(entity =>
+        {
+            entity.HasIndex(os => os.OrderId);
+        });
+
+        // ── PromotionUsage ────────────────────────────────────────
+        modelBuilder.Entity<PromotionUsage>()
+            .HasOne(pu => pu.Promotion)
+            .WithMany(p => p.PromotionUsages)
+            .HasForeignKey(pu => pu.PromotionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PromotionUsage>()
+            .HasOne(pu => pu.User)
+            .WithMany(u => u.PromotionUsages)
+            .HasForeignKey(pu => pu.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PromotionUsage>(entity =>
+        {
+            entity.HasIndex(pu => new { pu.PromotionId, pu.UserId });
+        });
+
+        // ── DeliveryFeeConfig ─────────────────────────────────────
+        modelBuilder.Entity<DeliveryFeeConfig>(entity =>
+        {
+            entity.Property(d => d.MinDistance).HasPrecision(10, 2);
+            entity.Property(d => d.MaxDistance).HasPrecision(10, 2);
+            entity.Property(d => d.BaseFee).HasPrecision(18, 2);
+            entity.Property(d => d.FeePerKm).HasPrecision(18, 2);
+        });
+
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

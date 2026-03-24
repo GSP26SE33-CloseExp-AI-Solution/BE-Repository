@@ -98,33 +98,7 @@ public class MarketPricesController : ControllerBase
             new { message = "Price saved successfully", marketPriceId = result.MarketPriceId });
     }
 
-    [HttpPost("feedback")]
-    public async Task<ActionResult> SavePriceFeedback(
-        [FromBody] PriceFeedbackRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(request.Barcode))
-        {
-            return BadRequest(new { message = "Barcode is required" });
-        }
 
-        var result = await _marketPriceService.SavePriceFeedbackAsync(request, cancellationToken);
-
-        return Ok(new
-        {
-            message = "Feedback saved successfully",
-            feedbackId = result.Id,
-            wasAccepted = result.WasAccepted
-        });
-    }
-
-    [HttpGet("accuracy/by-category")]
-    public async Task<ActionResult<Dictionary<string, float>>> GetAIAccuracyByCategory(
-        CancellationToken cancellationToken)
-    {
-        var result = await _marketPriceService.GetAIAccuracyByCategoryAsync(cancellationToken);
-        return Ok(result);
-    }
 
     [HttpDelete("cleanup")]
     [Authorize(Roles = "Admin")]
