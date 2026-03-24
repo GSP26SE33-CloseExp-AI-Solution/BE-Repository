@@ -33,4 +33,6 @@ public interface IServiceProviders
     IMapboxService MapboxService { get; }
     ICategoryService CategoryService { get; }
     IRefundService RefundService { get; }
+    ICollectionPointService CollectionPointService { get; }
+    ICustomerAddressService CustomerAddressService { get; }
 }

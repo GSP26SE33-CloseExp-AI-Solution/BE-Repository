@@ -52,3 +52,13 @@ public class UpdateSupermarketRequestDto
 
     public UserState Status { get; set; }
 }
+
+public class UpdateSupermarketLocationRequestDto
+{
+    [Required]
+    [StringLength(500)]
+    public string Address { get; set; } = string.Empty;
+
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
+}
