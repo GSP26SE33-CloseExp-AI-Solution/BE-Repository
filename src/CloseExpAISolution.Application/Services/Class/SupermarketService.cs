@@ -67,7 +67,8 @@ public class SupermarketService : ISupermarketService
 
     public async Task<SupermarketResponseDto?> GetByIdWithDtoAsync(Guid id)
     {
-        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(x => x.SupermarketId == id);
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(
+            x => x.SupermarketId == id && x.Status != SupermarketState.Deleted.ToString());
         if (supermarket == null) return null;
 
         return _mapper.Map<SupermarketResponseDto>(supermarket);
@@ -75,13 +76,15 @@ public class SupermarketService : ISupermarketService
 
     public async Task<IEnumerable<SupermarketResponseDto>> GetAllWithDtoAsync()
     {
-        var items = await _unitOfWork.SupermarketRepository.GetAllAsync();
+        var items = await _unitOfWork.SupermarketRepository.FindAsync(
+            x => x.Status != SupermarketState.Deleted.ToString());
         return _mapper.Map<IEnumerable<SupermarketResponseDto>>(items);
     }
 
     public async Task<IEnumerable<SupermarketResponseDto>> GetAvailableWithDtoAsync()
     {
-        var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
+        var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(
+            x => x.Status != SupermarketState.Deleted.ToString());
 
         // Lấy danh sách SupermarketId đã có nhân viên đăng ký
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
@@ -103,7 +106,8 @@ public class SupermarketService : ISupermarketService
 
         var queryLower = query.Trim().ToLower();
 
-        var allSupermarkets = await _unitOfWork.SupermarketRepository.GetAllAsync();
+        var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(
+            x => x.Status != SupermarketState.Deleted.ToString());
 
         // Lấy danh sách SupermarketId đã có nhân viên
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
@@ -155,10 +159,14 @@ public class SupermarketService : ISupermarketService
 
     public async Task DeleteSupermarketAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(x => x.SupermarketId == id);
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(
+            x => x.SupermarketId == id && x.Status != SupermarketState.Deleted.ToString());
         if (supermarket == null) throw new KeyNotFoundException($"Không tìm thấy siêu thị với id {id}");
 
-        await DeleteAsync(supermarket, cancellationToken);
+        // Soft-delete: chuyển trạng thái sang Deleted thay vì xóa khỏi DB
+        supermarket.Status = SupermarketState.Deleted.ToString();
+        _unitOfWork.SupermarketRepository.Update(supermarket);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }
 

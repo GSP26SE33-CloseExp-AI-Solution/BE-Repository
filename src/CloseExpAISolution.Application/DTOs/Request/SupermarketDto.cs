@@ -50,7 +50,7 @@ public class UpdateSupermarketRequestDto
     [Phone]
     public string ContactPhone { get; set; } = string.Empty;
 
-    public UserState Status { get; set; }
+    public SupermarketState Status { get; set; }
 }
 
 public class UpdateSupermarketLocationRequestDto

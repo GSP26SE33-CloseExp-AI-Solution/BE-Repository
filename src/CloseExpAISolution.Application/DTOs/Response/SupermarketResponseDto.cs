@@ -10,6 +10,6 @@ public class SupermarketResponseDto
     public decimal Latitude { get; set; }
     public decimal Longitude { get; set; }
     public string ContactPhone { get; set; } = string.Empty;
-    public UserState Status { get; set; }
+    public SupermarketState Status { get; set; }
     public DateTime CreatedAt { get; set; }
 }

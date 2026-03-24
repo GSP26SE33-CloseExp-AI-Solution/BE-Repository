@@ -386,7 +386,7 @@ public static class DataSeeder
                 Latitude = 10.7769m,
                 Longitude = 106.6869m,
                 ContactPhone = "028-3930-5678",
-                Status = "Active",
+                Status = SupermarketState.Active.ToString(),
                 CreatedAt = DateTime.UtcNow
             },
             new()
@@ -397,7 +397,7 @@ public static class DataSeeder
                 Latitude = 10.8025m,
                 Longitude = 106.7385m,
                 ContactPhone = "028-3744-1234",
-                Status = "Active",
+                Status = SupermarketState.Active.ToString(),
                 CreatedAt = DateTime.UtcNow
             },
             new()
@@ -408,7 +408,7 @@ public static class DataSeeder
                 Latitude = 10.7950m,
                 Longitude = 106.7220m,
                 ContactPhone = "028-3636-8888",
-                Status = "Active",
+                Status = SupermarketState.Active.ToString(),
                 CreatedAt = DateTime.UtcNow
             }
         };
