@@ -51,6 +51,16 @@ public static class DataSeeder
     private static readonly Guid CategorySpiceId = Guid.Parse("ccca0006-0006-0006-0006-000000000006");
     /// <summary>Danh mục con (demo cây phân cấp) — con của Thực phẩm khô.</summary>
     private static readonly Guid CategorySnackSubId = Guid.Parse("ccca0007-0007-0007-0007-000000000007");
+    private static readonly Guid CategoryFruitFreshId = Guid.Parse("ccca0008-0008-0008-0008-000000000008");
+    private static readonly Guid CategoryBreakfastCerealId = Guid.Parse("ccca0009-0009-0009-0009-000000000009");
+    private static readonly Guid CategoryCannedGoodsId = Guid.Parse("ccca000a-000a-000a-000a-00000000000a");
+    private static readonly Guid CategoryVegetarianId = Guid.Parse("ccca000b-000b-000b-000b-00000000000b");
+    private static readonly Guid CategoryTofuEggId = Guid.Parse("ccca000c-000c-000c-000c-00000000000c");
+    /// <summary>Self-ref FK <c>Category.ParentCatId</c> → <c>Rau củ</c>.</summary>
+    private static readonly Guid CategoryLeafyGreensId = Guid.Parse("ccca000d-000d-000d-000d-00000000000d");
+    /// <summary>Self-ref cấp 2: con của <c>Snack</c> (cha của Snack là Thực phẩm khô).</summary>
+    private static readonly Guid CategoryBiscuitCandyId = Guid.Parse("ccca000e-000e-000e-000e-00000000000e");
+    private static readonly Guid CategoryInstantFoodId = Guid.Parse("ccca000f-000f-000f-000f-00000000000f");
 
     // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
@@ -807,7 +817,75 @@ public static class DataSeeder
                 Name = "Snack & đồ ăn vặt",
                 IsFreshFood = false,
                 IsActive = true,
-                Description = "Danh mục con demo — thuộc nhóm Thực phẩm khô"
+                Description = "Danh mục con — self-ref ParentCatId → Thực phẩm khô"
+            },
+            new()
+            {
+                CategoryId = CategoryFruitFreshId,
+                Name = "Trái cây tươi",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Trái cây theo mùa"
+            },
+            new()
+            {
+                CategoryId = CategoryBreakfastCerealId,
+                Name = "Ngũ cốc & điểm tâm",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Ngũ cốc ăn sáng, yến mạch, granola"
+            },
+            new()
+            {
+                CategoryId = CategoryCannedGoodsId,
+                Name = "Đồ hộp & đóng lon",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Thịt cá hộp, rau củ đóng lon"
+            },
+            new()
+            {
+                CategoryId = CategoryVegetarianId,
+                Name = "Thực phẩm chay",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Đồ chay, thịt thực vật"
+            },
+            new()
+            {
+                CategoryId = CategoryTofuEggId,
+                Name = "Đậu phụ & trứng",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Đậu phụ, đậu hũ, trứng gia cầm"
+            },
+            // Self-reference (Category → Category): một danh mục con trỏ ParentCatId về danh mục gốc "Rau củ"
+            new()
+            {
+                CategoryId = CategoryLeafyGreensId,
+                ParentCatId = CategoryVegetableId,
+                Name = "Rau lá xanh",
+                IsFreshFood = true,
+                IsActive = true,
+                Description = "Cải, rau muống, xà lách — con của Rau củ (ParentCatId self-ref)"
+            },
+            // Self-reference cấp sâu: con của Snack (Snack đã có ParentCatId → Thực phẩm khô)
+            new()
+            {
+                CategoryId = CategoryBiscuitCandyId,
+                ParentCatId = CategorySnackSubId,
+                Name = "Bánh quy & kẹo",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Cấp 3: Thực phẩm khô → Snack → Bánh quy & kẹo"
+            },
+            new()
+            {
+                CategoryId = CategoryInstantFoodId,
+                Name = "Đồ ăn liền",
+                IsFreshFood = false,
+                IsActive = true,
+                Description = "Xôi, cháo gói, meal kit"
             }
         };
 
