@@ -1,16 +1,13 @@
 namespace CloseExpAISolution.Application.DTOs.Response;
 
-/// <summary>Outcome of polling PayOS and updating local <c>Transaction</c> / order.</summary>
 public sealed class PaymentConfirmResult
 {
     public bool Success { get; init; }
 
-    /// <summary>Application-level reason; maps to HTTP status in the API layer.</summary>
     public PaymentConfirmErrorCode ErrorCode { get; init; }
 
     public string Message { get; init; } = string.Empty;
 
-    /// <summary>PayOS payment-link status string, for troubleshooting.</summary>
     public string? PayOsStatus { get; init; }
 
     public long? AmountPaid { get; init; }
@@ -53,10 +50,7 @@ public sealed class PaymentConfirmResult
 public enum PaymentConfirmErrorCode
 {
     None = 0,
-    /// <summary>Could not call PayOS or unexpected error from SDK.</summary>
     PayOsUnavailable,
-    /// <summary>PayOS link exists but is not settled as paid yet.</summary>
     PaymentNotComplete,
-    /// <summary>No matching <c>Transaction</c> row for this PayOS order code.</summary>
     TransactionMissing
 }

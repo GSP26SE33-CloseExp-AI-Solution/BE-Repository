@@ -7,12 +7,10 @@ namespace CloseExpAISolution.Infrastructure.Data;
 
 public static class DataSeeder
 {
-    // Fixed GUIDs for seeding (for foreign key references)
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid SupermarketVinMartId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-    // User GUIDs
     private static readonly Guid AdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid StaffUserId1 = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid StaffUserId2 = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -30,7 +28,6 @@ public static class DataSeeder
     private static readonly Guid VendorUserId2 = Guid.Parse("11111111-1111-1111-0000-000000000001");
     private static readonly Guid VendorUserId3 = Guid.Parse("22222222-2222-2222-0000-000000000002");
 
-    // Unit GUIDs
     private static readonly Guid UnitKgId = Guid.Parse("aaaa0001-0001-0001-0001-000000000001");
     private static readonly Guid UnitGramId = Guid.Parse("aaaa0002-0002-0002-0002-000000000002");
     private static readonly Guid UnitLiterId = Guid.Parse("aaaa0003-0003-0003-0003-000000000003");
@@ -42,27 +39,22 @@ public static class DataSeeder
     private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
     private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
 
-    // Category GUIDs
     private static readonly Guid CategoryDairyId = Guid.Parse("ccca0001-0001-0001-0001-000000000001");
     private static readonly Guid CategoryMeatSeafoodId = Guid.Parse("ccca0002-0002-0002-0002-000000000002");
     private static readonly Guid CategoryVegetableId = Guid.Parse("ccca0003-0003-0003-0003-000000000003");
     private static readonly Guid CategoryDryFoodId = Guid.Parse("ccca0004-0004-0004-0004-000000000004");
     private static readonly Guid CategoryFrozenId = Guid.Parse("ccca0005-0005-0005-0005-000000000005");
     private static readonly Guid CategorySpiceId = Guid.Parse("ccca0006-0006-0006-0006-000000000006");
-    /// <summary>Danh mục con (demo cây phân cấp) — con của Thực phẩm khô.</summary>
     private static readonly Guid CategorySnackSubId = Guid.Parse("ccca0007-0007-0007-0007-000000000007");
     private static readonly Guid CategoryFruitFreshId = Guid.Parse("ccca0008-0008-0008-0008-000000000008");
     private static readonly Guid CategoryBreakfastCerealId = Guid.Parse("ccca0009-0009-0009-0009-000000000009");
     private static readonly Guid CategoryCannedGoodsId = Guid.Parse("ccca000a-000a-000a-000a-00000000000a");
     private static readonly Guid CategoryVegetarianId = Guid.Parse("ccca000b-000b-000b-000b-00000000000b");
     private static readonly Guid CategoryTofuEggId = Guid.Parse("ccca000c-000c-000c-000c-00000000000c");
-    /// <summary>Self-ref FK <c>Category.ParentCatId</c> → <c>Rau củ</c>.</summary>
     private static readonly Guid CategoryLeafyGreensId = Guid.Parse("ccca000d-000d-000d-000d-00000000000d");
-    /// <summary>Self-ref cấp 2: con của <c>Snack</c> (cha của Snack là Thực phẩm khô).</summary>
     private static readonly Guid CategoryBiscuitCandyId = Guid.Parse("ccca000e-000e-000e-000e-00000000000e");
     private static readonly Guid CategoryInstantFoodId = Guid.Parse("ccca000f-000f-000f-000f-00000000000f");
 
-    // Product GUIDs (để có thể tạo StockLots)
     private static readonly Guid Product1Id = Guid.Parse("bbbb0001-0001-0001-0001-000000000001");
     private static readonly Guid Product2Id = Guid.Parse("bbbb0002-0002-0002-0002-000000000002");
     private static readonly Guid Product3Id = Guid.Parse("bbbb0003-0003-0003-0003-000000000003");
@@ -84,10 +76,8 @@ public static class DataSeeder
     private static readonly Guid PackagingOrderPickupId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
     private static readonly Guid PackagingOrderHomeId = Guid.Parse("ffff0002-0002-0002-0002-000000000002");
     private static readonly Guid PackagingOrderReadyId = Guid.Parse("ffff0003-0003-0003-0003-000000000003");
-    /// <summary>Sample order for vendor user 22222222-2222-2222-0000-000000000002 (PayOS / API tests).</summary>
     private static readonly Guid VendorUser3SampleOrderId = Guid.Parse("ffff0004-0004-0004-0004-000000000004");
 
-    // Sample Transactions + Refunds (testing Refunds API / PayOS reconciliation)
     private static readonly Guid SeedTxnPickupId = Guid.Parse("fffa1111-1111-1111-1111-111111111111");
     private static readonly Guid SeedTxnHomeId = Guid.Parse("fffa1111-2222-2222-2222-222222222222");
     private static readonly Guid SeedTxnReadyId = Guid.Parse("fffa1111-3333-3333-3333-333333333333");
@@ -96,7 +86,6 @@ public static class DataSeeder
     private static readonly Guid SeedRefundRejectedId = Guid.Parse("fffa2222-3333-3333-3333-333333333333");
     private static readonly Guid SeedRefundCompletedId = Guid.Parse("fffa2222-4444-4444-4444-444444444444");
 
-    // Fixed StockLot GUIDs for expiry-status coverage (2 lots per status)
     private static readonly Guid CoverageExpiredLot1Id = Guid.Parse("aaaa1111-1111-1111-1111-111111111111");
     private static readonly Guid CoverageExpiredLot2Id = Guid.Parse("aaaa2222-2222-2222-2222-222222222222");
     private static readonly Guid CoverageTodayLot1Id = Guid.Parse("aaaa3333-3333-3333-3333-333333333333");
@@ -113,13 +102,12 @@ public static class DataSeeder
         await SeedRolesAsync(context);
         await SeedUsersAsync(context);
         await SeedSupermarketsAsync(context);
-        await SeedMarketStaffAsync(context);  // Liên kết SupermarketStaff với Supermarket
-        await SeedUnitsAsync(context);        // Seed đơn vị tính
+        await SeedMarketStaffAsync(context);
+        await SeedUnitsAsync(context);
         await SeedCategoriesAsync(context);
         await SeedProductsAsync(context);
         await SeedStockLotsAsync(context);
         await SeedExpiryStatusCoverageStockLotsAsync(context);
-        await BackfillExistingStockLotsAsync(context);
         await SeedDeliveryTimeSlotsAsync(context);
         await SeedCollectionPointsAsync(context);
         await SeedCustomerAddressesAsync(context);
@@ -150,7 +138,6 @@ public static class DataSeeder
 
         var users = new List<User>
         {
-            // Admin (RoleId = 1)
             new()
             {
                 UserId = AdminUserId,
@@ -165,7 +152,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Staff - Internal (RoleId = 2)
             new()
             {
                 UserId = StaffUserId1,
@@ -193,7 +179,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Staff - Internal (RoleId = 2) - No numbers
             new()
             {
                 UserId = StaffUserId3,
@@ -208,7 +193,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Market Staff (RoleId = 3)
             new()
             {
                 UserId = MarketStaffUserId1,
@@ -236,7 +220,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Market Staff (RoleId = 3) - No numbers
             new()
             {
                 UserId = MarketStaffUserId3,
@@ -251,7 +234,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Supplier Staff (RoleId = 4)
             new()
             {
                 UserId = SupermarketStaffUserId1,
@@ -279,7 +261,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Supplier Staff (RoleId = 4) - No numbers
             new()
             {
                 UserId = SupermarketStaffUserId3,
@@ -294,7 +275,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Delivery Staff (RoleId = 5)
             new()
             {
                 UserId = DeliveryStaffUserId1,
@@ -322,7 +302,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Delivery Staff (RoleId = 5) - No numbers
             new()
             {
                 UserId = DeliveryStaffUserId3,
@@ -337,7 +316,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Vendor - Customer (RoleId = 6)
             new()
             {
                 UserId = VendorUserId1,
@@ -365,7 +343,6 @@ public static class DataSeeder
                 UpdatedAt = DateTime.UtcNow
             },
 
-            // Vendor - Customer (RoleId = 6) - No numbers
             new()
             {
                 UserId = VendorUserId3,
@@ -431,9 +408,6 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Seed MarketStaff - Liên kết SupermarketStaff users với Supermarkets
-    /// </summary>
     private static async Task SeedMarketStaffAsync(ApplicationDbContext context)
     {
         if (await context.SupermarketStaffs.AnyAsync())
@@ -441,7 +415,6 @@ public static class DataSeeder
 
         var marketStaffRecords = new List<SupermarketStaff>
         {
-            // SupermarketStaff 1 - Làm việc tại CoopMart
             new()
             {
                 SupermarketStaffId = Guid.NewGuid(),
@@ -450,7 +423,6 @@ public static class DataSeeder
                 Position = "Nhân viên kho",
                 CreatedAt = DateTime.UtcNow
             },
-            // SupermarketStaff 2 - Làm việc tại Big C
             new()
             {
                 SupermarketStaffId = Guid.NewGuid(),
@@ -459,7 +431,6 @@ public static class DataSeeder
                 Position = "Nhân viên quầy thịt",
                 CreatedAt = DateTime.UtcNow
             },
-            // SupermarketStaff 3 - Làm việc tại VinMart
             new()
             {
                 SupermarketStaffId = Guid.NewGuid(),
@@ -474,9 +445,6 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Seed Units - Đơn vị tính cho sản phẩm
-    /// </summary>
     private static async Task SeedUnitsAsync(ApplicationDbContext context)
     {
         if (await context.UnitOfMeasures.AnyAsync())
@@ -484,7 +452,6 @@ public static class DataSeeder
 
         var units = new List<UnitOfMeasure>
         {
-            // Weight units - Đơn vị khối lượng
             new()
             {
                 UnitId = UnitKgId,
@@ -498,7 +465,6 @@ public static class DataSeeder
                 Type = "Weight"
             },
 
-            // Volume units - Đơn vị thể tích
             new()
             {
                 UnitId = UnitLiterId,
@@ -512,7 +478,6 @@ public static class DataSeeder
                 Type = "Volume"
             },
 
-            // Count units - Đơn vị đếm
             new()
             {
                 UnitId = UnitBoxId,
@@ -871,7 +836,6 @@ public static class DataSeeder
                 IsActive = true,
                 Description = "Đậu phụ, đậu hũ, trứng gia cầm"
             },
-            // Self-reference (Category → Category): một danh mục con trỏ ParentCatId về danh mục gốc "Rau củ"
             new()
             {
                 CategoryId = CategoryLeafyGreensId,
@@ -881,7 +845,6 @@ public static class DataSeeder
                 IsActive = true,
                 Description = "Cải, rau muống, xà lách — con của Rau củ (ParentCatId self-ref)"
             },
-            // Self-reference cấp sâu: con của Snack (Snack đã có ParentCatId → Thực phẩm khô)
             new()
             {
                 CategoryId = CategoryBiscuitCandyId,
@@ -905,9 +868,6 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Seed StockLots - Lô hàng với các mức hạn sử dụng khác nhau
-    /// </summary>
     private static async Task SeedStockLotsAsync(ApplicationDbContext context)
     {
         if (await context.StockLots.AnyAsync())
@@ -917,9 +877,6 @@ public static class DataSeeder
 
         var stockLots = new List<StockLot>
         {
-            // === COOPMART LOTS ===
-            // === COOPMART LOTS ===
-            // Sữa tươi Vinamilk - Hết hạn trong ngày (Today)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -933,7 +890,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId1.ToString(),
                 PublishedAt = now.AddHours(-2)
             },
-            // Sữa tươi Vinamilk - Sắp hết hạn (ExpiringSoon - 1-2 ngày)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -947,7 +903,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId1.ToString(),
                 PublishedAt = now.AddHours(-1)
             },
-            // Sữa chua - Còn ngắn hạn (ShortTerm - 3-7 ngày)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -961,7 +916,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId1.ToString(),
                 PublishedAt = now.AddHours(-3)
             },
-            // Thịt heo ba chỉ - Hết hạn trong ngày (bán theo cân)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -975,7 +929,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId1.ToString(),
                 PublishedAt = now.AddHours(-4)
             },
-            // Cá hồi - Sắp hết hạn (bán theo cân)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -990,8 +943,6 @@ public static class DataSeeder
                 PublishedAt = now.AddHours(-5)
             },
 
-            // === BIGC LOTS ===
-            // Rau cải xanh - Hết hạn trong ngày (bán theo cân)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1005,7 +956,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId2.ToString(),
                 PublishedAt = now.AddHours(-6)
             },
-            // Cà chua - Còn ngắn hạn (bán theo cân)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1019,7 +969,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId2.ToString(),
                 PublishedAt = now.AddHours(-7)
             },
-            // Bánh mì - Hết hạn trong ngày
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1034,8 +983,6 @@ public static class DataSeeder
                 PublishedAt = now.AddHours(-8)
             },
 
-            // === VINMART LOTS ===
-            // Nước cam - Còn dài hạn (LongTerm - 8+ ngày)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1049,7 +996,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId3.ToString(),
                 PublishedAt = now.AddHours(-9)
             },
-            // Bánh quy Oreo - Còn dài hạn (non-fresh)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1063,7 +1009,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId3.ToString(),
                 PublishedAt = now.AddHours(-10)
             },
-            // Mì Hảo Hảo - Còn dài hạn (non-fresh)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1077,7 +1022,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId3.ToString(),
                 PublishedAt = now.AddHours(-11)
             },
-            // Nước cam - Sắp hết hạn
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1092,8 +1036,6 @@ public static class DataSeeder
                 PublishedAt = now.AddHours(-12)
             },
 
-            // === EXPIRED LOTS (để test filter Expired) ===
-            // Sữa chua đã hết hạn
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1105,7 +1047,6 @@ public static class DataSeeder
                 Status = ProductState.Expired,
                 CreatedAt = now.AddDays(-10)
             },
-            // Rau cải đã hết hạn
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1118,8 +1059,6 @@ public static class DataSeeder
                 CreatedAt = now.AddDays(-3)
             },
 
-            // === ĐỒ HỘP LOTS ===
-            // Cá ngừ đóng hộp - Còn dài hạn (đồ hộp thường có hạn dài)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1133,7 +1072,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId1.ToString(),
                 PublishedAt = now.AddDays(-1)
             },
-            // Cá ngừ - Sắp hết hạn (lô cũ)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1147,7 +1085,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId1.ToString(),
                 PublishedAt = now.AddDays(-25)
             },
-            // Đậu đỏ hầm đường - Còn dài hạn
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1161,7 +1098,6 @@ public static class DataSeeder
                 PublishedBy = MarketStaffUserId2.ToString(),
                 PublishedAt = now.AddDays(-2)
             },
-            // Đậu đỏ - Còn ngắn hạn (lô cũ sắp hết)
             new()
             {
                 LotId = Guid.NewGuid(),
@@ -1187,16 +1123,6 @@ public static class DataSeeder
 
             lot.OriginalUnitPrice = originalPrice;
             lot.SuggestedUnitPrice = suggestedPrice;
-        }
-
-        var publishCandidates = stockLots
-            .Where(l => l.Status == ProductState.Published && l.ExpiryDate > now && l.Quantity > 0 && l.PublishedAt.HasValue)
-            .Take(6)
-            .ToList();
-
-        foreach (var lot in publishCandidates)
-        {
-            lot.Status = ProductState.Published;
         }
 
         await context.StockLots.AddRangeAsync(stockLots);
@@ -1228,7 +1154,6 @@ public static class DataSeeder
 
         var coverageLots = new List<StockLot>
         {
-            // Expired (2)
             new()
             {
                 LotId = CoverageExpiredLot1Id,
@@ -1252,7 +1177,6 @@ public static class DataSeeder
                 UpdatedAt = now
             },
 
-            // Today (2)
             new()
             {
                 LotId = CoverageTodayLot1Id,
@@ -1280,7 +1204,6 @@ public static class DataSeeder
                 PublishedAt = now.AddMinutes(-45)
             },
 
-            // ExpiringSoon (2) - 1 to 2 days
             new()
             {
                 LotId = CoverageExpiringSoonLot1Id,
@@ -1308,7 +1231,6 @@ public static class DataSeeder
                 PublishedAt = now.AddHours(-2)
             },
 
-            // ShortTerm (2) - 3 to 7 days
             new()
             {
                 LotId = CoverageShortTermLot1Id,
@@ -1336,7 +1258,6 @@ public static class DataSeeder
                 PublishedAt = now.AddHours(-4)
             },
 
-            // LongTerm (2) - 8+ days
             new()
             {
                 LotId = CoverageLongTermLot1Id,
@@ -1441,83 +1362,6 @@ public static class DataSeeder
         };
 
         return Math.Round(originalPrice * (1 - discountRate), 0, MidpointRounding.AwayFromZero);
-    }
-
-    private static async Task BackfillExistingStockLotsAsync(ApplicationDbContext context)
-    {
-        var stockLots = await context.StockLots.ToListAsync();
-        if (stockLots.Count == 0)
-            return;
-
-        var now = DateTime.UtcNow;
-        var hasChanges = false;
-
-        foreach (var lot in stockLots)
-        {
-            if (lot.UnitId == Guid.Empty)
-            {
-                lot.UnitId = ResolveUnitIdByProduct(lot.ProductId);
-                hasChanges = true;
-            }
-
-            var originalPrice = ResolveOriginalPriceByProduct(lot.ProductId);
-            var suggestedPrice = CalculateSuggestedPrice(originalPrice, lot.ExpiryDate, now);
-
-            if (lot.OriginalUnitPrice <= 0)
-            {
-                lot.OriginalUnitPrice = originalPrice;
-                hasChanges = true;
-            }
-
-            if (lot.SuggestedUnitPrice <= 0)
-            {
-                lot.SuggestedUnitPrice = suggestedPrice;
-                hasChanges = true;
-            }
-
-
-
-            if (lot.UpdatedAt == default)
-            {
-                lot.UpdatedAt = now;
-                hasChanges = true;
-            }
-        }
-
-        var hasPublishedAvailable = stockLots.Any(l =>
-            l.Status == ProductState.Published &&
-            l.Quantity > 0 &&
-            l.ExpiryDate > now);
-
-        if (!hasPublishedAvailable)
-        {
-            var publishCandidates = stockLots
-                .Where(l => l.Status == ProductState.Published && l.ExpiryDate > now && l.Quantity > 0)
-                .OrderBy(l => l.ExpiryDate)
-                .Take(6)
-                .ToList();
-
-            foreach (var lot in publishCandidates)
-            {
-                lot.Status = ProductState.Published;
-                if (!lot.PublishedAt.HasValue)
-                {
-                    lot.PublishedAt = now;
-                }
-
-                if (string.IsNullOrWhiteSpace(lot.PublishedBy))
-                {
-                    lot.PublishedBy = MarketStaffUserId1.ToString();
-                }
-
-                hasChanges = true;
-            }
-        }
-
-        if (hasChanges)
-        {
-            await context.SaveChangesAsync();
-        }
     }
 
     private static async Task SeedDeliveryTimeSlotsAsync(ApplicationDbContext context)
@@ -1740,9 +1584,6 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// One order owned by <see cref="VendorUserId3"/> (22222222-2222-2222-0000-000000000002), status Pending (e.g. thanh toán PayOS).
-    /// </summary>
     private static async Task SeedVendorUser3SampleOrderAsync(ApplicationDbContext context)
     {
         if (await context.Orders.AnyAsync(o => o.OrderId == VendorUser3SampleOrderId))
@@ -1792,9 +1633,6 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Fake <see cref="Transaction"/> + <see cref="Refund"/> rows on seeded PKG-* orders (requires packaging orders present).
-    /// </summary>
     private static async Task SeedSampleTransactionsAndRefundsAsync(ApplicationDbContext context)
     {
         if (await context.Transactions.AnyAsync(t => t.TransactionId == SeedTxnPickupId))

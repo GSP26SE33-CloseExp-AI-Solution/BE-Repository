@@ -97,11 +97,7 @@ public class SupermarketsController : ControllerBase
         }
     }
 
-    // ────────────── MAPBOX GEOCODING ENDPOINTS ──────────────
 
-    /// <summary>
-    /// Forward geocoding: chuyển địa chỉ → tọa độ GPS
-    /// </summary>
     [HttpGet("geocode/forward")]
     [ProducesResponseType(typeof(ApiResponse<GeocodingResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ForwardGeocode([FromQuery] string address, CancellationToken ct)
@@ -116,9 +112,6 @@ public class SupermarketsController : ControllerBase
         return Ok(ApiResponse<GeocodingResultDto>.SuccessResponse(result));
     }
 
-    /// <summary>
-    /// Reverse geocoding: chuyển tọa độ GPS → địa chỉ
-    /// </summary>
     [HttpGet("geocode/reverse")]
     [ProducesResponseType(typeof(ApiResponse<GeocodingResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ReverseGeocode([FromQuery] double lat, [FromQuery] double lng, CancellationToken ct)
@@ -133,9 +126,6 @@ public class SupermarketsController : ControllerBase
         return Ok(ApiResponse<GeocodingResultDto>.SuccessResponse(result));
     }
 
-    /// <summary>
-    /// Gợi ý địa chỉ (autocomplete) cho frontend
-    /// </summary>
     [HttpGet("geocode/suggest")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<GeocodingResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SuggestAddresses([FromQuery] string query, [FromQuery] int limit = 5, CancellationToken ct = default)

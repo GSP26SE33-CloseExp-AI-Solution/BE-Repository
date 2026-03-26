@@ -21,7 +21,6 @@ public class RefundsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>List refunds (newest first), paginated.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<RefundResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<RefundResponseDto>>>> GetAll(
@@ -79,7 +78,6 @@ public class RefundsController : ControllerBase
         }
     }
 
-    /// <summary>No-op if already Pending; cannot move back to Pending from other states.</summary>
     [HttpPut("{id:guid}/pending")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

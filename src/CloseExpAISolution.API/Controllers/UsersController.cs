@@ -20,9 +20,6 @@ public class UsersController : ControllerBase
         _services = services;
     }
 
-    /// <summary>
-    /// Get current user profile (Authenticated user)
-    /// </summary>
     [HttpGet("current-user")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
@@ -44,9 +41,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Update current user profile (Authenticated user - cannot update status/role)
-    /// </summary>
     [HttpPut("current-user")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
@@ -73,9 +67,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Soft delete current user account (Only Vendor can delete their own account, others must contact Admin)
-    /// </summary>
     [HttpDelete("current-user")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -98,9 +89,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get all users (Admin only)
-    /// </summary>
     [HttpGet]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResponseDto>>), StatusCodes.Status200OK)]
@@ -110,9 +98,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get user by ID (Admin only)
-    /// </summary>
     [HttpGet("{id:guid}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
@@ -129,9 +114,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Create a new user (Admin only)
-    /// </summary>
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status201Created)]
@@ -148,9 +130,6 @@ public class UsersController : ControllerBase
         return CreatedAtAction(nameof(GetUserById), new { id = result.Data?.UserId }, result);
     }
 
-    /// <summary>
-    /// Update an existing user (Admin only)
-    /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
@@ -172,9 +151,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Delete a user (soft delete, Admin only)
-    /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -191,12 +167,6 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Update user account status (Admin only)
-    /// Used for verifying or banning user accounts
-    /// </summary>
-    /// <param name="id">User ID</param>
-    /// <param name="request">New status (Unverified, Verified, Banned, Deleted, Hidden)</param>
     [HttpPatch("{id:guid}/status")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
@@ -220,12 +190,6 @@ public class UsersController : ControllerBase
 
     #region User Image Endpoints
 
-    /// <summary>
-    /// Upload avatar/profile image for current user
-    /// </summary>
-    /// <param name="file">Image file (JPEG, PNG, GIF, WebP - max 5MB)</param>
-    /// <param name="imageType">Type of image: avatar, cover, etc. Default: avatar</param>
-    /// <param name="setAsPrimary">Set this image as primary profile picture</param>
     [HttpPost("current-user/images")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<UserImageResponseDto>), StatusCodes.Status201Created)]
@@ -251,9 +215,6 @@ public class UsersController : ControllerBase
         return Created(string.Empty, ApiResponse<UserImageResponseDto>.SuccessResponse(response, "Tải ảnh lên thành công"));
     }
 
-    /// <summary>
-    /// Get all images of current user
-    /// </summary>
     [HttpGet("current-user/images")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserImageResponseDto>>), StatusCodes.Status200OK)]
@@ -269,9 +230,6 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<IEnumerable<UserImageResponseDto>>.SuccessResponse(response));
     }
 
-    /// <summary>
-    /// Get primary/avatar image of current user
-    /// </summary>
     [HttpGet("current-user/images/primary")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<UserImageResponseDto>), StatusCodes.Status200OK)]
@@ -289,9 +247,6 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<UserImageResponseDto>.SuccessResponse(MapToUserImageResponse(image)));
     }
 
-    /// <summary>
-    /// Set an image as primary profile picture
-    /// </summary>
     [HttpPatch("current-user/images/{imageId:guid}/set-primary")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -309,9 +264,6 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Đặt ảnh đại diện thành công"));
     }
 
-    /// <summary>
-    /// Delete an image of current user
-    /// </summary>
     [HttpDelete("current-user/images/{imageId:guid}")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -322,7 +274,6 @@ public class UsersController : ControllerBase
         if (userId == null)
             return Unauthorized(ApiResponse<bool>.ErrorResponse("Không thể xác định người dùng"));
 
-        // Verify image belongs to user
         var images = await _services.UserImageService.GetByUserIdAsync(userId.Value);
         if (!images.Any(i => i.ImageId == imageId))
             return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy ảnh hoặc ảnh không thuộc về bạn"));
@@ -334,9 +285,6 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa ảnh thành công"));
     }
 
-    /// <summary>
-    /// Get images of a user by ID (Admin only)
-    /// </summary>
     [HttpGet("{userId:guid}/images")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserImageResponseDto>>), StatusCodes.Status200OK)]

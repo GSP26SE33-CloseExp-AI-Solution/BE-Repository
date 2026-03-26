@@ -875,22 +875,40 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("DiscountType")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<decimal>("DiscountValue")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<decimal?>("MaxDiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<int>("MaxUsage")
                         .HasColumnType("integer");
+
+                    b.Property<decimal?>("MinOrderAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("PerUserLimit")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
@@ -905,6 +923,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "StartDate", "EndDate");
+
                     b.ToTable("Promotions");
                 });
 
@@ -915,7 +938,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
@@ -933,9 +957,14 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("PromotionId", "UsedAt");
 
                     b.HasIndex("PromotionId", "UserId");
+
+                    b.HasIndex("UserId", "UsedAt");
+
+                    b.HasIndex("PromotionId", "UserId", "OrderId")
+                        .IsUnique();
 
                     b.ToTable("PromotionUsages");
                 });

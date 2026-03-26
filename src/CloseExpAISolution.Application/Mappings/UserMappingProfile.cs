@@ -5,25 +5,19 @@ using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.Mappings;
 
-/// <summary>
-/// AutoMapper profile cho User mappings
-/// </summary>
 public class UserMappingProfile : Profile
 {
     public UserMappingProfile()
     {
-        // User -> UserResponseDto
         CreateMap<User, UserResponseDto>()
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt))
             .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role != null ? src.Role.RoleName : "Unknown"))
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => ParseUserState(src.Status.ToString())));
 
-        // User -> UserDto
         CreateMap<User, UserDto>()
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt))
             .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role != null ? src.Role.RoleName : "Unknown"));
 
-        // CreateUserRequestDto -> User
         CreateMap<CreateUserRequestDto, User>()
             .ForMember(dest => dest.UserId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.PasswordHash, opt => opt.Ignore()) // Handle separately with BCrypt
@@ -43,7 +37,6 @@ public class UserMappingProfile : Profile
             .ForMember(dest => dest.EmailVerifiedAt, opt => opt.Ignore())
             .ForMember(dest => dest.GoogleId, opt => opt.Ignore());
 
-        // UpdateUserRequestDto -> User (for partial updates)
         CreateMap<UpdateUserRequestDto, User>()
             .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
     }

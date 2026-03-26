@@ -10,6 +10,5 @@ public interface IRefundService
     Task<RefundResponseDto?> GetByIdAsync(Guid refundId, CancellationToken cancellationToken = default);
     Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default);
 
-    /// <summary>One-click status update (same pattern as <see cref="IOrderService.UpdateStatusAsync"/>).</summary>
     Task UpdateStatusAsync(Guid refundId, RefundState status, string? processedBy, CancellationToken cancellationToken = default);
 }

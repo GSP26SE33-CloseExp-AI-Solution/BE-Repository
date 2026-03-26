@@ -1,8 +1,5 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-/// <summary>
-/// Tracks individual user usage of promotions to prevent duplicate use.
-/// </summary>
 public class PromotionUsage
 {
     public Guid UsageId { get; set; }

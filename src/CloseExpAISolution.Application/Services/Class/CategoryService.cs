@@ -122,10 +122,6 @@ public class CategoryService : ICategoryService
             throw new InvalidOperationException($"A category with name '{name.Trim()}' already exists.");
     }
 
-    /// <summary>
-    /// True if assigning <paramref name="categoryId"/>.Parent = <paramref name="newParentId"/> would create a cycle
-    /// (i.e. <paramref name="newParentId"/> is <paramref name="categoryId"/> or a descendant of it).
-    /// </summary>
     private async Task<bool> WouldCreateCycleAsync(Guid categoryId, Guid newParentId, CancellationToken cancellationToken)
     {
         if (newParentId == categoryId)

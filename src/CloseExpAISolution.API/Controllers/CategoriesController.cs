@@ -17,7 +17,6 @@ public class CategoriesController : ControllerBase
         _services = services;
     }
 
-    /// <summary>Danh sách danh mục (mặc định chỉ <c>IsActive</c>).</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<CategoryResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] bool includeInactive = false, CancellationToken cancellationToken = default)

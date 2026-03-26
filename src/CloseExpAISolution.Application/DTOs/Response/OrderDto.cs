@@ -1,8 +1,5 @@
 namespace CloseExpAISolution.Application.DTOs.Response;
 
-/// <summary>
-/// Response DTO for order
-/// </summary>
 public class OrderResponseDto
 {
     public Guid OrderId { get; set; }
@@ -31,9 +28,6 @@ public class OrderResponseDto
     public List<OrderItemResponseDto> OrderItems { get; set; } = new();
 }
 
-/// <summary>
-/// Response DTO for order item
-/// </summary>
 public class OrderItemResponseDto
 {
     public Guid OrderItemId { get; set; }
@@ -44,9 +38,6 @@ public class OrderItemResponseDto
     public decimal TotalPrice { get; set; }
     public decimal LineTotal => TotalPrice != 0 ? TotalPrice : Quantity * UnitPrice;
 
-    /// <summary>
-    /// Product/lot info when loaded with details
-    /// </summary>
     public string? ProductName { get; set; }
     public DateTime? ExpiryDate { get; set; }
 }

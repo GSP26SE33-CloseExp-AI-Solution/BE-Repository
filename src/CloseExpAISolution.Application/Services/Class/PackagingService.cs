@@ -10,11 +10,6 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class PackagingService : IPackagingService
 {
-    private const PackagingState PackagingConfirmed = PackagingState.Pending;
-    private const PackagingState PackagingCollecting = PackagingState.Packaging;
-    private const PackagingState PackagingPackaged = PackagingState.Completed;
-    private const PackagingState PackagingPending = PackagingState.Pending;
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PackagingService> _logger;
 
@@ -44,7 +39,7 @@ public class PackagingService : IPackagingService
 
         var filtered = pendingOrders
             .Where(o => !recordsByOrder.TryGetValue(o.OrderId, out var record)
-                     || record.Status != PackagingPackaged)
+                     || record.Status != PackagingState.Completed)
             .OrderBy(o => o.OrderDate)
             .ToList();
 
@@ -119,7 +114,7 @@ public class PackagingService : IPackagingService
         var record = await RequirePackagingRecordAsync(orderId);
         EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
-        if (record.Status != PackagingConfirmed)
+        if (record.Status != PackagingState.Pending)
             throw new InvalidOperationException("Đơn hàng phải được xác nhận trước khi thu gom sản phẩm.");
 
         record.Status = PackagingState.Packaging;
@@ -143,7 +138,7 @@ public class PackagingService : IPackagingService
         var record = await RequirePackagingRecordAsync(orderId);
         EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
-        if (record.Status != PackagingState.Packaging && record.Status != PackagingConfirmed)
+        if (record.Status != PackagingState.Packaging && record.Status != PackagingState.Pending)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái đã xác nhận hoặc đang thu gom để hoàn tất đóng gói.");
 
         await _unitOfWork.BeginTransactionAsync();
@@ -241,7 +236,7 @@ public class PackagingService : IPackagingService
             PackagingId = Guid.NewGuid(),
             OrderId = orderId,
             UserId = packagingStaffId,
-            Status = PackagingPending,
+            Status = PackagingState.Pending,
             PackagedAt = null
         };
 

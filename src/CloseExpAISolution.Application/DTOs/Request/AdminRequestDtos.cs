@@ -55,6 +55,10 @@ public class UpsertUnitRequestDto
 public class CreatePromotionRequestDto
 {
     [Required]
+    [MaxLength(50)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
     public Guid CategoryId { get; set; }
 
     [Required]
@@ -67,6 +71,18 @@ public class CreatePromotionRequestDto
 
     [Range(0, double.MaxValue)]
     public decimal DiscountValue { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? MinOrderAmount { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? MaxDiscountAmount { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int MaxUsage { get; set; } = 1;
+
+    [Range(1, int.MaxValue)]
+    public int PerUserLimit { get; set; } = 1;
 
     [Required]
     public DateTime StartDate { get; set; }
@@ -81,6 +97,9 @@ public class CreatePromotionRequestDto
 
 public class UpdatePromotionRequestDto
 {
+    [MaxLength(50)]
+    public string? Code { get; set; }
+
     public Guid? CategoryId { get; set; }
 
     [MaxLength(255)]
@@ -91,6 +110,18 @@ public class UpdatePromotionRequestDto
 
     [Range(0, double.MaxValue)]
     public decimal? DiscountValue { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? MinOrderAmount { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? MaxDiscountAmount { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? MaxUsage { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? PerUserLimit { get; set; }
 
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }

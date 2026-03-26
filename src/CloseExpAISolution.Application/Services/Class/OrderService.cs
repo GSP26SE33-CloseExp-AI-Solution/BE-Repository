@@ -12,11 +12,15 @@ public class OrderService : IOrderService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IPromotionService _promotionService;
+    private readonly IPromotionUsageService _promotionUsageService;
 
-    public OrderService(IUnitOfWork unitOfWork, IMapper mapper)
+    public OrderService(IUnitOfWork unitOfWork, IMapper mapper, IPromotionService promotionService, IPromotionUsageService promotionUsageService)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _promotionService = promotionService;
+        _promotionUsageService = promotionUsageService;
     }
 
     public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
@@ -122,6 +126,25 @@ public class OrderService : IOrderService
             UpdatedAt = DateTime.UtcNow
         };
 
+        if (request.PromotionId.HasValue)
+        {
+            var validation = await _promotionService.ValidatePromotionAsync(
+                request.UserId,
+                new ValidatePromotionRequestDto
+                {
+                    PromotionId = request.PromotionId,
+                    TotalAmount = request.TotalAmount
+                },
+                cancellationToken);
+
+            if (!validation.IsValid || !validation.PromotionId.HasValue)
+                throw new InvalidOperationException(validation.Message);
+
+            order.PromotionId = validation.PromotionId.Value;
+            order.DiscountAmount = validation.DiscountAmount;
+            order.FinalAmount = validation.FinalAmount;
+        }
+
         foreach (var item in request.OrderItems)
         {
             var totalPrice = item.Quantity * item.UnitPrice;
@@ -138,6 +161,8 @@ public class OrderService : IOrderService
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await TryRecordPromotionUsageAsync(order, cancellationToken);
 
         var created = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
         return _mapper.Map<OrderResponseDto>(created!);
@@ -162,6 +187,25 @@ public class OrderService : IOrderService
         if (request.DeliveryFee.HasValue) order.DeliveryFee = request.DeliveryFee.Value;
         if (request.CancelDeadline.HasValue) order.CancelDeadline = request.CancelDeadline;
 
+        if (request.PromotionId.HasValue)
+        {
+            var validation = await _promotionService.ValidatePromotionAsync(
+                order.UserId,
+                new ValidatePromotionRequestDto
+                {
+                    PromotionId = request.PromotionId,
+                    TotalAmount = order.TotalAmount
+                },
+                cancellationToken);
+
+            if (!validation.IsValid || !validation.PromotionId.HasValue)
+                throw new InvalidOperationException(validation.Message);
+
+            order.PromotionId = validation.PromotionId.Value;
+            order.DiscountAmount = validation.DiscountAmount;
+            order.FinalAmount = validation.FinalAmount;
+        }
+
         if (request.OrderItems != null && request.OrderItems.Count > 0)
         {
             order.OrderItems.Clear();
@@ -183,6 +227,7 @@ public class OrderService : IOrderService
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await TryRecordPromotionUsageAsync(order, cancellationToken);
     }
 
     public async Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default)
@@ -193,6 +238,40 @@ public class OrderService : IOrderService
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await TryRecordPromotionUsageAsync(order, cancellationToken);
+    }
+
+    public async Task<OrderResponseDto> ApplyPromotionAsync(Guid orderId, Guid userId, ApplyPromotionToOrderRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Order not found: {orderId}");
+
+        if (order.UserId != userId)
+            throw new InvalidOperationException("Bạn không có quyền áp dụng khuyến mãi cho đơn này");
+
+        var validation = await _promotionService.ValidatePromotionAsync(
+            userId,
+            new ValidatePromotionRequestDto
+            {
+                PromotionId = request.PromotionId,
+                PromotionCode = request.PromotionCode,
+                TotalAmount = order.TotalAmount
+            },
+            cancellationToken);
+        if (!validation.IsValid || !validation.PromotionId.HasValue)
+            throw new InvalidOperationException(validation.Message);
+
+        order.PromotionId = validation.PromotionId.Value;
+        order.DiscountAmount = validation.DiscountAmount;
+        order.FinalAmount = validation.FinalAmount;
+        order.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.OrderRepository.Update(order);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await TryRecordPromotionUsageAsync(order, cancellationToken);
+
+        var updated = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
+        return _mapper.Map<OrderResponseDto>(updated!);
     }
 
     public async Task DeleteAsync(Guid orderId, CancellationToken cancellationToken = default)
@@ -201,6 +280,17 @@ public class OrderService : IOrderService
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
         _unitOfWork.OrderRepository.Delete(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task TryRecordPromotionUsageAsync(Order order, CancellationToken cancellationToken)
+    {
+        if (!order.PromotionId.HasValue || order.DiscountAmount <= 0)
+            return;
+
+        if (order.Status is not (OrderState.PaidProcessing or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm or OrderState.Completed))
+            return;
+
+        await _promotionUsageService.RecordUsageAsync(order.PromotionId.Value, order.UserId, order.OrderId, order.DiscountAmount, cancellationToken);
     }
 }
 

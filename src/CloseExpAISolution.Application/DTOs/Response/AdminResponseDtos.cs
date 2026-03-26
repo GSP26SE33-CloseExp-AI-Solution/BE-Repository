@@ -63,13 +63,59 @@ public class AdminUnitDto
 public class AdminPromotionDto
 {
     public Guid PromotionId { get; set; }
+    public string Code { get; set; } = string.Empty;
     public Guid CategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string DiscountType { get; set; } = string.Empty;
     public decimal DiscountValue { get; set; }
+    public decimal? MinOrderAmount { get; set; }
+    public decimal? MaxDiscountAmount { get; set; }
+    public int MaxUsage { get; set; }
+    public int UsedCount { get; set; }
+    public int PerUserLimit { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public string Status { get; set; } = string.Empty;
+}
+
+public class PromotionValidationResultDto
+{
+    public bool IsValid { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid? PromotionId { get; set; }
+    public string? PromotionCode { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal OriginalAmount { get; set; }
+    public decimal FinalAmount { get; set; }
+}
+
+public class PromotionUsageDto
+{
+    public Guid UsageId { get; set; }
+    public Guid PromotionId { get; set; }
+    public string PromotionCode { get; set; } = string.Empty;
+    public Guid UserId { get; set; }
+    public Guid OrderId { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public DateTime UsedAt { get; set; }
+}
+
+public class PromotionAnalyticsOverviewDto
+{
+    public int TotalPromotionUsages { get; set; }
+    public int UniqueUsers { get; set; }
+    public decimal TotalDiscountAmount { get; set; }
+    public decimal GrossRevenueAffected { get; set; }
+    public decimal NetRevenueAffected { get; set; }
+    public decimal AvgDiscountPerUsage { get; set; }
+}
+
+public class PromotionTrendPointDto
+{
+    public DateTime Date { get; set; }
+    public int UsageCount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal NetRevenueAffected { get; set; }
 }
 
 public class AdminAiPriceHistoryDto

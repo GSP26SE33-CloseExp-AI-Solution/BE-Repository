@@ -22,7 +22,6 @@ public class PaymentController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Create PayOS payment link for an order (persists a <c>Transaction</c> row).</summary>
     [HttpPost("create-payment-link")]
     [Authorize]
     public async Task<IActionResult> CreatePaymentLink([FromBody] CreatePaymentRequestDto requestDto)
@@ -60,15 +59,13 @@ public class PaymentController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PayOS webhook. Use the full JSON envelope (<see cref="Webhook"/>) so the SDK can verify the signature.
-    /// </summary>
     [HttpPost("webhook")]
     [AllowAnonymous]
     public async Task<IActionResult> HandlePayOsWebhook([FromBody] Webhook webhookData)
     {
         try
         {
+            // PayOS webhook payload must be verified by the SDK using the full JSON envelope.
             await _paymentService.HandleWebhookAsync(webhookData);
             return Ok();
         }
@@ -79,7 +76,6 @@ public class PaymentController : ControllerBase
         }
     }
 
-    /// <summary>Poll PayOS for link status and finalize local transaction + order if paid.</summary>
     [HttpPost("confirm")]
     [Authorize]
     public async Task<IActionResult> ConfirmPayment([FromBody] ConfirmPaymentRequestDto body)

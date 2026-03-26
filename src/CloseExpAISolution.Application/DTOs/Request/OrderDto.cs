@@ -4,9 +4,6 @@ using CloseExpAISolution.Domain.Enums;
 
 namespace CloseExpAISolution.Application.DTOs.Request;
 
-/// <summary>
-/// Request DTO for creating an order
-/// </summary>
 public class CreateOrderRequestDto
 {
     [Required]
@@ -46,17 +43,11 @@ public class CreateOrderRequestDto
 
     public DateTime? CancelDeadline { get; set; }
 
-    /// <summary>
-    /// Order items: LotId, Quantity, UnitPrice per line
-    /// </summary>
     [Required]
     [MinLength(1, ErrorMessage = "Order must have at least one item")]
     public List<CreateOrderItemDto> OrderItems { get; set; } = new();
 }
 
-/// <summary>
-/// Single order line for create
-/// </summary>
 public class CreateOrderItemDto
 {
     [Required]
@@ -71,10 +62,6 @@ public class CreateOrderItemDto
     public decimal UnitPrice { get; set; }
 }
 
-/// <summary>
-/// Request DTO for changing order status in one click (PUT api/orders/{id}/status).
-/// Accepts <see cref="OrderState"/> values, e.g. "Pending", "Paid_Processing", "Ready_To_Ship", "Completed", "Canceled", etc.
-/// </summary>
 public class UpdateOrderStatusRequestDto
 {
     [Required]
@@ -82,9 +69,6 @@ public class UpdateOrderStatusRequestDto
     public OrderState Status { get; set; }
 }
 
-/// <summary>
-/// Request DTO for updating an order
-/// </summary>
 public class UpdateOrderRequestDto
 {
     public Guid? TimeSlotId { get; set; }
@@ -115,9 +99,6 @@ public class UpdateOrderRequestDto
 
     public DateTime? CancelDeadline { get; set; }
 
-    /// <summary>
-    /// If provided, replaces all order items
-    /// </summary>
     public List<UpdateOrderItemDto>? OrderItems { get; set; }
 }
 
@@ -131,9 +112,6 @@ public class UpdateOrderItemDto
     public decimal UnitPrice { get; set; }
 }
 
-/// <summary>
-/// Request DTO for creating a standalone order item
-/// </summary>
 public class CreateOrderItemRequestDto
 {
     [Required]
@@ -151,9 +129,6 @@ public class CreateOrderItemRequestDto
     public decimal UnitPrice { get; set; }
 }
 
-/// <summary>
-/// Request DTO for updating an order item
-/// </summary>
 public class UpdateOrderItemRequestDto
 {
     public Guid? LotId { get; set; }

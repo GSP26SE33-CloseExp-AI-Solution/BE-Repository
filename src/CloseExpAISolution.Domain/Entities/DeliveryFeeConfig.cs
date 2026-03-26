@@ -1,8 +1,5 @@
 namespace CloseExpAISolution.Domain.Entities;
 
-/// <summary>
-/// Configuration for distance-based delivery fee calculation.
-/// </summary>
 public class DeliveryFeeConfig
 {
     public Guid ConfigId { get; set; }

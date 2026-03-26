@@ -219,7 +219,6 @@ public class DeliveryService : IDeliveryService
         }
         group.UpdatedAt = DateTime.UtcNow;
 
-        // Update all orders in group to Ready_To_Ship → In Transit
         var orders = await _unitOfWork.Repository<Order>()
             .FindAsync(o => o.DeliveryGroupId == deliveryGroupId
                          && o.Status == OrderState.ReadyToShip);

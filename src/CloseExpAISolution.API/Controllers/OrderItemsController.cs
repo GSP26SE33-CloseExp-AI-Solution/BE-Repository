@@ -18,9 +18,6 @@ public class OrderItemsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Get all order items with optional filter by order ID and pagination
-    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<OrderItemResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<OrderItemResponseDto>>>> GetAll(
@@ -44,9 +41,6 @@ public class OrderItemsController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<OrderItemResponseDto>>.SuccessResponse(result));
     }
 
-    /// <summary>
-    /// Get order items for a specific order
-    /// </summary>
     [HttpGet("by-order/{orderId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<OrderItemResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IEnumerable<OrderItemResponseDto>>>> GetByOrderId(Guid orderId, CancellationToken cancellationToken = default)
@@ -55,9 +49,6 @@ public class OrderItemsController : ControllerBase
         return Ok(ApiResponse<IEnumerable<OrderItemResponseDto>>.SuccessResponse(items));
     }
 
-    /// <summary>
-    /// Get order item by ID
-    /// </summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<OrderItemResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -69,9 +60,6 @@ public class OrderItemsController : ControllerBase
         return Ok(ApiResponse<OrderItemResponseDto>.SuccessResponse(item));
     }
 
-    /// <summary>
-    /// Get order item by ID with full details (order, product lot, product)
-    /// </summary>
     [HttpGet("{id:guid}/details")]
     [ProducesResponseType(typeof(ApiResponse<OrderItemResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -83,9 +71,6 @@ public class OrderItemsController : ControllerBase
         return Ok(ApiResponse<OrderItemResponseDto>.SuccessResponse(item));
     }
 
-    /// <summary>
-    /// Create a new order item
-    /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<OrderItemResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -105,9 +90,6 @@ public class OrderItemsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update an existing order item
-    /// </summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -130,9 +112,6 @@ public class OrderItemsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Delete an order item
-    /// </summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

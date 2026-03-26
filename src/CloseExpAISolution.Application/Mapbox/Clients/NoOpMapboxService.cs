@@ -3,9 +3,6 @@ using CloseExpAISolution.Application.Mapbox.Interfaces;
 
 namespace CloseExpAISolution.Application.Mapbox.Clients;
 
-/// <summary>
-/// No-op implementation when Mapbox AccessToken is not configured. Allows the app to run without Mapbox; geocoding returns null/empty.
-/// </summary>
 public class NoOpMapboxService : IMapboxService
 {
     public Task<GeocodingResultDto?> ForwardGeocodeAsync(string address, CancellationToken ct = default) =>

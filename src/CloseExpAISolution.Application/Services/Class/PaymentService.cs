@@ -189,9 +189,6 @@ public sealed class PaymentService : IPaymentService, IDisposable
         return PaymentConfirmResult.Ok();
     }
 
-    /// <summary>
-    /// PayOS may leave status as Processing briefly after checkout while AmountPaid already matches Amount.
-    /// </summary>
     private static bool IsPaymentLinkSettled(PaymentLink link)
     {
         if (link.Status == PaymentLinkStatus.Paid)
@@ -203,15 +200,15 @@ public sealed class PaymentService : IPaymentService, IDisposable
         if (link.AmountPaid < link.Amount)
             return false;
 
-        // Fully collected — treat as success unless the link was cancelled / failed / expired.
+        // Treat as settled when PayOS has collected the full amount unless it was cancelled, failed, or expired.
         return link.Status is not (PaymentLinkStatus.Cancelled or PaymentLinkStatus.Failed or PaymentLinkStatus.Expired);
     }
 
     private static bool IsOrderAlreadyPaid(OrderState orderStatus)
     {
         return orderStatus is OrderState.PaidProcessing
-            or OrderState.Ready_To_Ship
-            or OrderState.Delivered_Wait_Confirm
+            or OrderState.ReadyToShip
+            or OrderState.DeliveredWaitConfirm
             or OrderState.Completed
             or OrderState.Refunded;
     }

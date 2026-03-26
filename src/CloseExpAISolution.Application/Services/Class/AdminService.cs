@@ -413,80 +413,6 @@ public class AdminService : IAdminService
         return true;
     }
 
-    public async Task<IEnumerable<AdminPromotionDto>> GetPromotionsAsync(CancellationToken cancellationToken = default)
-    {
-        var promotions = await _unitOfWork.Repository<Promotion>().GetAllAsync();
-        return promotions
-            .OrderByDescending(x => x.StartDate)
-            .Select(MapPromotion);
-    }
-
-    public async Task<AdminPromotionDto> CreatePromotionAsync(CreatePromotionRequestDto request, CancellationToken cancellationToken = default)
-    {
-        if (request.EndDate < request.StartDate)
-            throw new InvalidOperationException("EndDate phải lớn hơn hoặc bằng StartDate");
-
-        var entity = new Promotion
-        {
-            PromotionId = Guid.NewGuid(),
-            CategoryId = request.CategoryId,
-            Name = request.Name.Trim(),
-            DiscountType = request.DiscountType.Trim(),
-            DiscountValue = request.DiscountValue,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
-            Status = Enum.Parse<PromotionState>(request.Status.Trim())
-        };
-
-        await _unitOfWork.Repository<Promotion>().AddAsync(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapPromotion(entity);
-    }
-
-    public async Task<AdminPromotionDto?> UpdatePromotionAsync(Guid promotionId, UpdatePromotionRequestDto request, CancellationToken cancellationToken = default)
-    {
-        var entity = await _unitOfWork.Repository<Promotion>()
-            .FirstOrDefaultAsync(x => x.PromotionId == promotionId);
-
-        if (entity == null)
-            return null;
-
-        if (request.StartDate.HasValue) entity.StartDate = request.StartDate.Value;
-        if (request.EndDate.HasValue) entity.EndDate = request.EndDate.Value;
-        if (entity.EndDate < entity.StartDate)
-            throw new InvalidOperationException("EndDate phải lớn hơn hoặc bằng StartDate");
-
-        if (request.CategoryId.HasValue) entity.CategoryId = request.CategoryId.Value;
-        if (!string.IsNullOrWhiteSpace(request.Name)) entity.Name = request.Name.Trim();
-        if (!string.IsNullOrWhiteSpace(request.DiscountType)) entity.DiscountType = request.DiscountType.Trim();
-        if (request.DiscountValue.HasValue) entity.DiscountValue = request.DiscountValue.Value;
-        if (!string.IsNullOrWhiteSpace(request.Status)) entity.Status = Enum.Parse<PromotionState>(request.Status.Trim());
-
-        _unitOfWork.Repository<Promotion>().Update(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapPromotion(entity);
-    }
-
-    public async Task<AdminPromotionDto?> UpdatePromotionStatusAsync(Guid promotionId, string status, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(status))
-            throw new ArgumentException("Status is required", nameof(status));
-
-        var entity = await _unitOfWork.Repository<Promotion>()
-            .FirstOrDefaultAsync(x => x.PromotionId == promotionId);
-
-        if (entity == null)
-            return null;
-
-        entity.Status = Enum.Parse<PromotionState>(status.Trim());
-        _unitOfWork.Repository<Promotion>().Update(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapPromotion(entity);
-    }
-
     public async Task<PaginatedResult<AdminAiPriceHistoryDto>> GetAiPriceHistoriesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
         var safePage = Math.Max(1, pageNumber);
@@ -521,18 +447,6 @@ public class AdminService : IAdminService
             PageSize = safeSize
         };
     }
-
-    private static AdminPromotionDto MapPromotion(Promotion x) => new()
-    {
-        PromotionId = x.PromotionId,
-        CategoryId = x.CategoryId,
-        Name = x.Name,
-        DiscountType = x.DiscountType,
-        DiscountValue = x.DiscountValue,
-        StartDate = x.StartDate,
-        EndDate = x.EndDate,
-        Status = x.Status.ToString().ToString()
-    };
 
     private async Task EnsureNoOverlappingTimeSlotAsync(Guid? currentId, TimeSpan start, TimeSpan end)
     {

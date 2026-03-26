@@ -31,9 +31,6 @@ public class MapboxGeometry
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 
-    /// <summary>
-    /// [longitude, latitude]
-    /// </summary>
     [JsonPropertyName("coordinates")]
     public List<double> Coordinates { get; set; } = new();
 }
