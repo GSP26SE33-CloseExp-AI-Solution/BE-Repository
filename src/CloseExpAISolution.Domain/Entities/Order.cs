@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class Order
@@ -5,13 +7,13 @@ public class Order
     public Guid OrderId { get; set; }
     public string OrderCode { get; set; } = string.Empty;
     public Guid UserId { get; set; }
-    public Guid DeliveryTimeSlotId { get; set; }
+    public Guid TimeSlotId { get; set; }
     public Guid? CollectionId { get; set; }
     public string DeliveryType { get; set; } = string.Empty;
     public decimal TotalAmount { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal FinalAmount { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public OrderState Status { get; set; } = OrderState.Pending;
     public DateTime OrderDate { get; set; }
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
@@ -32,4 +34,5 @@ public class Order
     public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     public ICollection<Refund> Refunds { get; set; } = new List<Refund>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
+    public ICollection<OrderStatusLog> StatusLogs { get; set; } = new List<OrderStatusLog>();
 }

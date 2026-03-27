@@ -24,16 +24,13 @@ public class ProductResponseDto
     public ProductType Type { get; set; }
     public string Sku { get; set; } = string.Empty;
     public ProductState Status { get; set; }
-    public int WeightType { get; set; }
     public string WeightTypeName { get; set; } = string.Empty;
-    public decimal? DefaultPricePerKg { get; set; }
     public decimal OriginalPrice { get; set; }
     public decimal SuggestedPrice { get; set; }
     public decimal FinalPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime? ManufactureDate { get; set; }
     public int? DaysToExpiry { get; set; }
-    public float OcrConfidence { get; set; }
     public float PricingConfidence { get; set; }
     public string? PricingReasons { get; set; }
 
@@ -116,7 +113,7 @@ public class ExistingProductInfoDto
     public string Category { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public string? MainImageUrl { get; set; }
-    public bool IsFreshFood { get; set; }
+
     public string? Manufacturer { get; set; }
     public string? Ingredients { get; set; }
     public decimal? LastPrice { get; set; }
@@ -131,12 +128,10 @@ public class CreateNewProductResponseDto
     public string Brand { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
-    public bool IsFreshFood { get; set; }
     public string? Manufacturer { get; set; }
     public string? Ingredients { get; set; }
     public string? MainImageUrl { get; set; }
     public ProductState Status { get; set; }
-    public float OcrConfidence { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public string NextAction { get; set; } = "VERIFY_PRODUCT";
@@ -188,6 +183,35 @@ public class StockLotResponseDto
     public decimal? SuggestedPrice { get; set; }
     public decimal? FinalPrice { get; set; }
     public float? PricingConfidence { get; set; }
+}
+
+public class WorkflowTimeoutInfoDto
+{
+    public int TimeoutSeconds { get; set; }
+    public bool IsAiStep { get; set; }
+    public bool SupportsManualFallback { get; set; }
+}
+
+public class StaffProductIdentificationResponseDto
+{
+    public string Barcode { get; set; } = string.Empty;
+    public bool ProductExists { get; set; }
+    public string Phase { get; set; } = "IDENTIFICATION";
+    public string NextAction { get; set; } = string.Empty;
+    public ExistingProductInfoDto? ExistingProduct { get; set; }
+    public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
+    public WorkflowTimeoutInfoDto TimeoutInfo { get; set; } = new();
+}
+
+public class StaffCreateLotAndPublishResponseDto
+{
+    public Guid ProductId { get; set; }
+    public Guid LotId { get; set; }
+    public string Phase { get; set; } = "LOT_AND_PRICING";
+    public PricingSuggestionResponseDto PricingSuggestion { get; set; } = new();
+    public StockLotResponseDto StockLot { get; set; } = new();
+    public bool IsManualFallback { get; set; }
+    public WorkflowTimeoutInfoDto TimeoutInfo { get; set; } = new();
 }
 
 public class ExcelPreviewResponseDto

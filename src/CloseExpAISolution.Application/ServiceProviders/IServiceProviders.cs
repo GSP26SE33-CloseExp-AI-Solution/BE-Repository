@@ -35,4 +35,7 @@ public interface IServiceProviders
     IRefundService RefundService { get; }
     ICollectionPointService CollectionPointService { get; }
     ICustomerAddressService CustomerAddressService { get; }
+    IPromotionService PromotionService { get; }
+    IPromotionUsageService PromotionUsageService { get; }
+    IPromotionAnalyticsService PromotionAnalyticsService { get; }
 }

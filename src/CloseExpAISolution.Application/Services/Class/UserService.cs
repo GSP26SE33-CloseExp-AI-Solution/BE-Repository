@@ -109,7 +109,7 @@ public class UserService : IUserService
             if (statusValidation != null)
                 return statusValidation;
 
-            user.Status = request.Status.Value.ToString();
+            user.Status = request.Status.Value;
         }
 
         await SaveUserChanges(user);
@@ -139,14 +139,14 @@ public class UserService : IUserService
 
         var oldStatus = user.Status;
 
-        if (oldStatus == request.Status.ToString())
+        if (oldStatus == request.Status)
             return Error($"Tài khoản đã ở trạng thái {request.Status}");
 
         var statusValidation = ValidateStatusTransition(user, request.Status);
         if (statusValidation != null)
             return statusValidation;
 
-        user.Status = request.Status.ToString();
+        user.Status = request.Status;
 
         // Reset FailedLoginCount khi Active / Admin lock
         if (request.Status == UserState.Active || request.Status == UserState.Locked)
@@ -182,7 +182,7 @@ public class UserService : IUserService
 
         await SendStatusChangeEmailAsync(user, oldStatus, request.Status);
         var userResponse = await MapUserWithRoleAsync(user);
-        var statusMessage = GetStatusChangeMessage(oldStatus, request.Status.ToString());
+        var statusMessage = GetStatusChangeMessage(oldStatus.ToString(), request.Status.ToString());
 
         return ApiResponse<UserResponseDto>.SuccessResponse(userResponse, statusMessage);
     }
@@ -194,7 +194,7 @@ public class UserService : IUserService
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
 
         // Soft delete
-        user.Status = UserState.Deleted.ToString();
+        user.Status = UserState.Deleted;
         await SaveUserChanges(user);
 
         return ApiResponse<bool>.SuccessResponse(true, "Xóa người dùng thành công");
@@ -212,14 +212,14 @@ public class UserService : IUserService
         if (user.RoleId != (int)RoleUser.Vendor)
             return ApiResponse<bool>.ErrorResponse("Bạn không có quyền xóa tài khoản này. Vui lòng liên hệ Admin");
 
-        if (user.Status == UserState.Deleted.ToString())
+        if (user.Status == UserState.Deleted)
             return ApiResponse<bool>.ErrorResponse("Tài khoản đã bị xóa trước đó");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
             // Soft delete user
-            user.Status = UserState.Deleted.ToString();
+            user.Status = UserState.Deleted;
             user.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<User>().Update(user);
 
@@ -347,16 +347,14 @@ public class UserService : IUserService
 
         if (marketStaff == null) return;
 
-        var hiddenStatus = ProductState.Hidden.ToString();
-        var deletedStatus = ProductState.Deleted.ToString();
         var products = await _unitOfWork.Repository<Product>()
             .FindAsync(p => p.SupermarketId == marketStaff.SupermarketId
-                           && p.Status != hiddenStatus
-                           && p.Status != deletedStatus);
+                           && p.Status != ProductState.Hidden
+                           && p.Status != ProductState.Deleted);
 
         foreach (var product in products)
         {
-            product.Status = hiddenStatus;
+            product.Status = ProductState.Hidden;
             product.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Product>().Update(product);
         }
@@ -387,7 +385,7 @@ public class UserService : IUserService
         if (newStatus != UserState.Active)
             return null;
 
-        if (!Enum.TryParse<UserState>(user.Status, out var currentStatus))
+        if (!Enum.TryParse<UserState>(user.Status.ToString(), out var currentStatus))
             return ApiResponse<UserResponseDto>.ErrorResponse("Trạng thái hiện tại của tài khoản không hợp lệ");
 
         if (currentStatus != UserState.PendingApproval && currentStatus != UserState.Banned)
@@ -420,14 +418,14 @@ public class UserService : IUserService
     private static ApiResponse<UserResponseDto> Error(string message)
         => ApiResponse<UserResponseDto>.ErrorResponse(message);
 
-    private async Task SendStatusChangeEmailAsync(User user, string oldStatus, UserState newStatus)
+    private async Task SendStatusChangeEmailAsync(User user, UserState oldStatus, UserState newStatus)
     {
         try
         {
             string? subject = null;
             string? body = null;
 
-            if (newStatus == UserState.Active && oldStatus == UserState.PendingApproval.ToString())
+            if (newStatus == UserState.Active && oldStatus == UserState.PendingApproval)
             {
                 subject = "CloseExp AI - Tài khoản đã được phê duyệt!";
                 body = BuildEmailBody(
@@ -438,7 +436,7 @@ public class UserService : IUserService
                     "Bạn có thể đăng nhập vào hệ thống CloseExp AI ngay bây giờ!");
             }
             else if (newStatus == UserState.Active &&
-                     (oldStatus == UserState.Locked.ToString() || oldStatus == UserState.Banned.ToString()))
+                     (oldStatus == UserState.Locked || oldStatus == UserState.Banned))
             {
                 subject = "CloseExp AI - Tài khoản đã được mở khóa!";
                 body = BuildEmailBody(
@@ -508,3 +506,6 @@ public class UserService : IUserService
 
     #endregion
 }
+
+
+

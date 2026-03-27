@@ -11,6 +11,11 @@ public interface IProductWorkflowService
         Guid supermarketId,
         CancellationToken cancellationToken = default);
 
+    Task<StaffProductIdentificationResponseDto> IdentifyProductForStaffAsync(
+        string barcode,
+        Guid supermarketId,
+        CancellationToken cancellationToken = default);
+
     Task<StockLotResponseDto> CreateStockLotFromExistingAsync(
         CreateStockLotFromExistingDto request,
         CancellationToken cancellationToken = default);
@@ -24,6 +29,12 @@ public interface IProductWorkflowService
 
     Task<CreateNewProductResponseDto> CreateNewProductAsync(
         CreateNewProductRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    Task<CreateNewProductResponseDto> CreateProductFromStaffWorkflowAsync(
+        StaffCreateProductFromWorkflowRequestDto request,
+        Guid supermarketId,
+        string staffName,
         CancellationToken cancellationToken = default);
 
     Task<ProductResponseDto> VerifyProductAsync(
@@ -44,6 +55,12 @@ public interface IProductWorkflowService
     Task<StockLotResponseDto> PublishStockLotAsync(
         Guid lotId,
         PublishProductRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    Task<StaffCreateLotAndPublishResponseDto> CreateLotAndPublishForStaffAsync(
+        StaffCreateLotAndPublishRequestDto request,
+        Guid supermarketId,
+        string staffName,
         CancellationToken cancellationToken = default);
 
     Task<ProductResponseDto?> GetProductAsync(

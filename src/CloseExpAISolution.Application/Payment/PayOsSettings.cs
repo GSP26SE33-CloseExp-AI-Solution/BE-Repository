@@ -1,8 +1,5 @@
 namespace CloseExpAISolution.Application.Payment;
 
-/// <summary>
-/// PayOS merchant credentials. Bind section <c>PayOsSettings</c> from configuration.
-/// </summary>
 public class PayOsSettings
 {
     public const string SectionName = "PayOsSettings";

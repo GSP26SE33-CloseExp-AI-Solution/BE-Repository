@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class OrderPackaging
@@ -5,7 +7,7 @@ public class OrderPackaging
     public Guid PackagingId { get; set; }
     public Guid OrderId { get; set; }
     public Guid UserId { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public PackagingState Status { get; set; } = PackagingState.Pending;
     public DateTime? PackagedAt { get; set; }
 
     public User? User { get; set; }

@@ -122,10 +122,6 @@ public class CategoryService : ICategoryService
             throw new InvalidOperationException($"A category with name '{name.Trim()}' already exists.");
     }
 
-    /// <summary>
-    /// True if assigning <paramref name="categoryId"/>.Parent = <paramref name="newParentId"/> would create a cycle
-    /// (i.e. <paramref name="newParentId"/> is <paramref name="categoryId"/> or a descendant of it).
-    /// </summary>
     private async Task<bool> WouldCreateCycleAsync(Guid categoryId, Guid newParentId, CancellationToken cancellationToken)
     {
         if (newParentId == categoryId)
@@ -159,5 +155,16 @@ public class CategoryService : ICategoryService
         }
 
         return dtos;
+    }
+    public async Task<IEnumerable<CategoryResponseDto>> GetAllWithParentNamesAsync(
+        string parentName,
+        CancellationToken cancellationToken = default)
+    {
+        var all = (await _unitOfWork.Repository<Category>().GetAllAsync()).ToList();
+        var filtered = all
+            .Where(c => c.ParentCatId.HasValue
+                     && all.Any(p => p.CategoryId == c.ParentCatId.Value && p.Name == parentName))
+            .ToList();
+        return MapWithParentNames(filtered, all);
     }
 }

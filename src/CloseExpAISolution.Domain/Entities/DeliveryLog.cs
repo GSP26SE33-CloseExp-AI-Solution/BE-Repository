@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class DeliveryLog
@@ -5,7 +7,7 @@ public class DeliveryLog
     public Guid DeliveryId { get; set; }
     public Guid OrderId { get; set; }
     public Guid UserId { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public DeliveryState? Status { get; set; } = DeliveryState.ReadyToShip;
     public string? FailedReason { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public decimal? DeliveryLatitude { get; set; }

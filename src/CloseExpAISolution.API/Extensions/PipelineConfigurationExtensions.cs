@@ -10,14 +10,11 @@ public static class PipelineConfigurationExtensions
             "true",
             StringComparison.OrdinalIgnoreCase);
 
-        // Apply Swagger in development (and optionally in production if enabled)
         if (env.IsDevelopment() || enableSwaggerInProd)
         {
             app.UseSwaggerPipeline();
         }
 
-        // Common middleware pipeline
-        // Only redirect to HTTPS in non-Development or when running with HTTPS profile
         if (!env.IsDevelopment())
         {
             app.UseHttpsRedirection();
@@ -25,14 +22,11 @@ public static class PipelineConfigurationExtensions
 
         app.UseRouting();
 
-        // CORS - Enable for frontend and AI Service integration
         app.UseCors("CorsPolicy");
 
-        // Authentication & Authorization - order matters!
         app.UseAuthentication();
         app.UseAuthorization();
 
-        // Map controllers
         app.UseEndpoints(endpoints => endpoints.MapControllers());
 
         return app;

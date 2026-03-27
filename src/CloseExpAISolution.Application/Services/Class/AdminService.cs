@@ -11,9 +11,9 @@ public class AdminService : IAdminService
 {
     private static readonly HashSet<string> RevenueStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
-        OrderState.Paid_Processing.ToString(),
-        OrderState.Ready_To_Ship.ToString(),
-        OrderState.Delivered_Wait_Confirm.ToString(),
+        OrderState.PaidProcessing.ToString(),
+        OrderState.ReadyToShip.ToString(),
+        OrderState.DeliveredWaitConfirm.ToString(),
         OrderState.Completed.ToString()
     };
 
@@ -42,16 +42,16 @@ public class AdminService : IAdminService
             (!toUtc.HasValue || o.OrderDate <= toUtc.Value));
 
         var revenue = filteredOrders
-            .Where(o => RevenueStatuses.Contains(o.Status))
+            .Where(o => RevenueStatuses.Contains(o.Status.ToString()))
             .Sum(o => o.FinalAmount);
 
         var slaBreached = filteredOrders.Count(o =>
-            !TerminalStatuses.Contains(o.Status) &&
+            !TerminalStatuses.Contains(o.Status.ToString()) &&
             o.OrderDate <= now.AddHours(-2));
 
         var userCount = await _unitOfWork.Repository<User>().CountAsync();
         var activeSupermarketCount = await _unitOfWork.Repository<Supermarket>()
-            .CountAsync(s => s.Status == "Active");
+            .CountAsync(s => s.Status == SupermarketState.Active);
 
         return new AdminDashboardOverviewDto
         {
@@ -70,7 +70,7 @@ public class AdminService : IAdminService
 
         var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
         var grouped = orders
-            .Where(o => o.OrderDate.Date >= fromDate && RevenueStatuses.Contains(o.Status))
+            .Where(o => o.OrderDate.Date >= fromDate && RevenueStatuses.Contains(o.Status.ToString()))
             .GroupBy(o => o.OrderDate.Date)
             .ToDictionary(
                 g => g.Key,
@@ -112,14 +112,14 @@ public class AdminService : IAdminService
         var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
 
         return orders
-            .Where(o => !TerminalStatuses.Contains(o.Status) && o.OrderDate <= thresholdTime)
+            .Where(o => !TerminalStatuses.Contains(o.Status.ToString()) && o.OrderDate <= thresholdTime)
             .OrderBy(o => o.OrderDate)
             .Take(safeTop)
             .Select(o => new AdminSlaAlertDto
             {
                 OrderId = o.OrderId,
                 OrderCode = o.OrderCode,
-                Status = o.Status,
+                Status = o.Status.ToString(),
                 OrderDate = o.OrderDate,
                 MinutesLate = (int)Math.Max(0, (DateTime.UtcNow - o.OrderDate).TotalMinutes - safeThreshold),
                 DeliveryType = o.DeliveryType,
@@ -135,7 +135,7 @@ public class AdminService : IAdminService
             .OrderBy(x => x.StartTime)
             .Select(x => new AdminTimeSlotDto
             {
-                TimeSlotId = x.DeliveryTimeSlotId,
+                TimeSlotId = x.TimeSlotId,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime
             });
@@ -148,7 +148,7 @@ public class AdminService : IAdminService
 
         var entity = new DeliveryTimeSlot
         {
-            DeliveryTimeSlotId = Guid.NewGuid(),
+            TimeSlotId = Guid.NewGuid(),
             StartTime = request.StartTime,
             EndTime = request.EndTime
         };
@@ -158,7 +158,7 @@ public class AdminService : IAdminService
 
         return new AdminTimeSlotDto
         {
-            TimeSlotId = entity.DeliveryTimeSlotId,
+            TimeSlotId = entity.TimeSlotId,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime
         };
@@ -169,7 +169,7 @@ public class AdminService : IAdminService
         ValidateTimeSlot(request.StartTime, request.EndTime);
 
         var entity = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(x => x.DeliveryTimeSlotId == timeSlotId);
+            .FirstOrDefaultAsync(x => x.TimeSlotId == timeSlotId);
 
         if (entity == null)
             return null;
@@ -184,7 +184,7 @@ public class AdminService : IAdminService
 
         return new AdminTimeSlotDto
         {
-            TimeSlotId = entity.DeliveryTimeSlotId,
+            TimeSlotId = entity.TimeSlotId,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime
         };
@@ -193,7 +193,7 @@ public class AdminService : IAdminService
     public async Task<bool> DeleteTimeSlotAsync(Guid timeSlotId, CancellationToken cancellationToken = default)
     {
         var entity = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(x => x.DeliveryTimeSlotId == timeSlotId);
+            .FirstOrDefaultAsync(x => x.TimeSlotId == timeSlotId);
 
         if (entity == null)
             return false;
@@ -213,8 +213,8 @@ public class AdminService : IAdminService
                 CollectionId = x.CollectionId,
                 Name = x.Name,
                 AddressLine = x.AddressLine,
-                Latitude = x.Latitude,
-                Longitude = x.Longitude
+                Latitude = x.Latitude ?? 0,
+                Longitude = x.Longitude ?? 0
             });
     }
 
@@ -237,8 +237,8 @@ public class AdminService : IAdminService
             CollectionId = entity.CollectionId,
             Name = entity.Name,
             AddressLine = entity.AddressLine,
-            Latitude = entity.Latitude,
-            Longitude = entity.Longitude
+            Latitude = entity.Latitude ?? 0,
+            Longitude = entity.Longitude ?? 0
         };
     }
 
@@ -263,8 +263,8 @@ public class AdminService : IAdminService
             CollectionId = entity.CollectionId,
             Name = entity.Name,
             AddressLine = entity.AddressLine,
-            Latitude = entity.Latitude,
-            Longitude = entity.Longitude
+            Latitude = entity.Latitude ?? 0,
+            Longitude = entity.Longitude ?? 0
         };
     }
 
@@ -413,80 +413,6 @@ public class AdminService : IAdminService
         return true;
     }
 
-    public async Task<IEnumerable<AdminPromotionDto>> GetPromotionsAsync(CancellationToken cancellationToken = default)
-    {
-        var promotions = await _unitOfWork.Repository<Promotion>().GetAllAsync();
-        return promotions
-            .OrderByDescending(x => x.StartDate)
-            .Select(MapPromotion);
-    }
-
-    public async Task<AdminPromotionDto> CreatePromotionAsync(CreatePromotionRequestDto request, CancellationToken cancellationToken = default)
-    {
-        if (request.EndDate < request.StartDate)
-            throw new InvalidOperationException("EndDate phải lớn hơn hoặc bằng StartDate");
-
-        var entity = new Promotion
-        {
-            PromotionId = Guid.NewGuid(),
-            CategoryId = request.CategoryId,
-            Name = request.Name.Trim(),
-            DiscountType = request.DiscountType.Trim(),
-            DiscountValue = request.DiscountValue,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
-            Status = request.Status.Trim()
-        };
-
-        await _unitOfWork.Repository<Promotion>().AddAsync(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapPromotion(entity);
-    }
-
-    public async Task<AdminPromotionDto?> UpdatePromotionAsync(Guid promotionId, UpdatePromotionRequestDto request, CancellationToken cancellationToken = default)
-    {
-        var entity = await _unitOfWork.Repository<Promotion>()
-            .FirstOrDefaultAsync(x => x.PromotionId == promotionId);
-
-        if (entity == null)
-            return null;
-
-        if (request.StartDate.HasValue) entity.StartDate = request.StartDate.Value;
-        if (request.EndDate.HasValue) entity.EndDate = request.EndDate.Value;
-        if (entity.EndDate < entity.StartDate)
-            throw new InvalidOperationException("EndDate phải lớn hơn hoặc bằng StartDate");
-
-        if (request.CategoryId.HasValue) entity.CategoryId = request.CategoryId.Value;
-        if (!string.IsNullOrWhiteSpace(request.Name)) entity.Name = request.Name.Trim();
-        if (!string.IsNullOrWhiteSpace(request.DiscountType)) entity.DiscountType = request.DiscountType.Trim();
-        if (request.DiscountValue.HasValue) entity.DiscountValue = request.DiscountValue.Value;
-        if (!string.IsNullOrWhiteSpace(request.Status)) entity.Status = request.Status.Trim();
-
-        _unitOfWork.Repository<Promotion>().Update(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapPromotion(entity);
-    }
-
-    public async Task<AdminPromotionDto?> UpdatePromotionStatusAsync(Guid promotionId, string status, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(status))
-            throw new ArgumentException("Status is required", nameof(status));
-
-        var entity = await _unitOfWork.Repository<Promotion>()
-            .FirstOrDefaultAsync(x => x.PromotionId == promotionId);
-
-        if (entity == null)
-            return null;
-
-        entity.Status = status.Trim();
-        _unitOfWork.Repository<Promotion>().Update(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapPromotion(entity);
-    }
-
     public async Task<PaginatedResult<AdminAiPriceHistoryDto>> GetAiPriceHistoriesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
         var safePage = Math.Max(1, pageNumber);
@@ -503,11 +429,9 @@ public class AdminService : IAdminService
             {
                 AiPriceId = x.AIPriceId,
                 LotId = x.LotId,
-                OriginalPrice = x.OriginalPrice,
-                SuggestedUnitPrice = x.SuggestedUnitPrice,
-                FinalPrice = x.FinalPrice,
-                MarketAvgPrice = x.MarketAvgPrice,
-                AiConfidence = x.AIConfidence,
+                SuggestedPrice = x.SuggestedPrice,
+                MarketAvgPrice = x.MarketAvgPrice ?? 0,
+                AiConfidence = (float)x.AIConfidence,
                 AcceptedSuggestion = x.AcceptedSuggestion,
                 ConfirmedBy = x.ConfirmedBy,
                 ConfirmedAt = x.ConfirmedAt,
@@ -524,24 +448,12 @@ public class AdminService : IAdminService
         };
     }
 
-    private static AdminPromotionDto MapPromotion(Promotion x) => new()
-    {
-        PromotionId = x.PromotionId,
-        CategoryId = x.CategoryId,
-        Name = x.Name,
-        DiscountType = x.DiscountType,
-        DiscountValue = x.DiscountValue,
-        StartDate = x.StartDate,
-        EndDate = x.EndDate,
-        Status = x.Status
-    };
-
     private async Task EnsureNoOverlappingTimeSlotAsync(Guid? currentId, TimeSpan start, TimeSpan end)
     {
         var slots = await _unitOfWork.Repository<DeliveryTimeSlot>().GetAllAsync();
 
         var hasOverlap = slots.Any(slot =>
-            (!currentId.HasValue || slot.DeliveryTimeSlotId != currentId.Value) &&
+            (!currentId.HasValue || slot.TimeSlotId != currentId.Value) &&
             start < slot.EndTime &&
             end > slot.StartTime);
 
@@ -555,3 +467,11 @@ public class AdminService : IAdminService
             throw new InvalidOperationException("EndTime phải lớn hơn StartTime");
     }
 }
+
+
+
+
+
+
+
+

@@ -33,7 +33,6 @@ public static class AuthenticationServiceExtensions
                 NameClaimType = ClaimTypes.Name
             };
 
-            // Custom 401 response
             options.Events = new JwtBearerEvents
             {
                 OnChallenge = context =>

@@ -61,9 +61,6 @@ public class UploadController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Test upload to R2 - uploads any file and returns Key and Url (no ProductImage record).
-    /// </summary>
     [HttpPost("test")]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
     public async Task<ActionResult<ApiResponse<object>>> UploadTest(
@@ -113,9 +110,6 @@ public class UploadController : ControllerBase
         return Ok(ApiResponse<IEnumerable<ProductImage>>.SuccessResponse(images));
     }
 
-    /// <summary>
-    /// Get a pre-signed URL for viewing an image. Use this URL in browser or img src.
-    /// </summary>
     [HttpGet("image/{productImageId:guid}/presign")]
     public async Task<ActionResult<ApiResponse<object>>> GetPresignedUrl(
         Guid productImageId,
@@ -136,9 +130,6 @@ public class UploadController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(new { PresignedUrl = presignedUrl }));
     }
 
-    /// <summary>
-    /// Get a pre-signed URL by R2 object key (e.g. from test upload response).
-    /// </summary>
     [HttpGet("presign")]
     public ActionResult<ApiResponse<object>> GetPresignedUrlByKey([FromQuery] string key, [FromQuery] int expiryMinutes = 60)
     {

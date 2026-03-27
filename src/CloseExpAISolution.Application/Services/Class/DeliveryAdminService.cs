@@ -57,7 +57,7 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (deliveryStaff.RoleId != (int)RoleUser.DeliveryStaff)
             throw new InvalidOperationException("Người dùng được chọn không phải nhân viên giao hàng.");
 
-        if (!string.Equals(deliveryStaff.Status, UserState.Active.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (deliveryStaff.Status != UserState.Active)
             throw new InvalidOperationException("Nhân viên giao hàng không ở trạng thái hoạt động.");
 
         var group = await _unitOfWork.Repository<DeliveryGroup>()
@@ -66,7 +66,7 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (group == null)
             throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
 
-        if (!string.Equals(group.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+        if (group.Status != DeliveryGroupState.Pending)
             throw new InvalidOperationException("Chỉ có thể gán nhóm giao hàng đang ở trạng thái chờ nhận.");
 
         if (group.DeliveryStaffId != null)
@@ -76,7 +76,7 @@ public class DeliveryAdminService : IDeliveryAdminService
         try
         {
             group.DeliveryStaffId = deliveryStaffId;
-            group.Status = "Assigned";
+            group.Status = DeliveryGroupState.Assigned;
             group.UpdatedAt = DateTime.UtcNow;
 
             if (!string.IsNullOrWhiteSpace(reason))
@@ -93,7 +93,9 @@ public class DeliveryAdminService : IDeliveryAdminService
             {
                 NotificationId = Guid.NewGuid(),
                 UserId = deliveryStaffId,
+                Title = "Phân công nhóm giao hàng",
                 Content = $"Bạn được phân công nhóm giao hàng {group.GroupCode} cho ngày {group.DeliveryDate:dd/MM/yyyy}.",
+                Type = NotificationType.DeliveryUpdate,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             };
@@ -142,3 +144,5 @@ public class DeliveryAdminService : IDeliveryAdminService
         return (pagedGroups, totalCount);
     }
 }
+
+

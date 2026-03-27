@@ -13,6 +13,8 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class ProductWorkflowService : IProductWorkflowService
 {
+    private const int WorkflowAiTimeoutSeconds = 30;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAIServiceClient _aiClient;
     private readonly IR2StorageService _r2Storage;
@@ -47,7 +49,7 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new KeyNotFoundException($"Product {productId} not found");
         }
 
-        if (product.Status != ProductState.Draft.ToString())
+        if (product.Status != ProductState.Draft)
         {
             throw new InvalidOperationException($"Product must be in Draft status to verify. Current status: {product.Status}");
         }
@@ -86,16 +88,7 @@ public class ProductWorkflowService : IProductWorkflowService
             if (category != null)
             {
                 product.CategoryId = category.CategoryId;
-                product.IsFreshFood = category.IsFreshFood;
             }
-            else if (request.IsFreshFood.HasValue)
-            {
-                product.IsFreshFood = request.IsFreshFood.Value;
-            }
-        }
-        else if (request.IsFreshFood.HasValue)
-        {
-            product.IsFreshFood = request.IsFreshFood.Value;
         }
 
         if (product.ProductDetail == null)
@@ -126,7 +119,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
         product.VerifiedBy = request.VerifiedBy;
         product.VerifiedAt = DateTime.UtcNow;
-        product.Status = ProductState.Verified.ToString();
+        product.Status = ProductState.Verified;
 
         _unitOfWork.ProductRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -290,7 +283,6 @@ public class ProductWorkflowService : IProductWorkflowService
         };
     }
 
-    // Thêm vào system settings
     private decimal CalculateFallbackDiscount(int? daysToExpiry)
     {
         if (!daysToExpiry.HasValue) return 10;
@@ -320,7 +312,7 @@ public class ProductWorkflowService : IProductWorkflowService
         CancellationToken cancellationToken = default)
     {
         var products = await _unitOfWork.ProductRepository.FindAsync(
-            p => p.SupermarketId == supermarketId && p.Status == status.ToString());
+            p => p.SupermarketId == supermarketId && p.Status == status);
 
         var responses = await Task.WhenAll(products.Select(p => MapToResponseDtoAsync(p)));
         return responses;
@@ -337,11 +329,11 @@ public class ProductWorkflowService : IProductWorkflowService
 
         return new WorkflowSummaryDto
         {
-            DraftCount = productList.Count(p => p.Status == ProductState.Draft.ToString()),
-            VerifiedCount = productList.Count(p => p.Status == ProductState.Verified.ToString()),
-            PricedCount = productList.Count(p => p.Status == ProductState.Priced.ToString()),
-            PublishedCount = productList.Count(p => p.Status == ProductState.Published.ToString()),
-            ExpiredCount = productList.Count(p => p.Status == ProductState.Expired.ToString()),
+            DraftCount = productList.Count(p => p.Status == ProductState.Draft),
+            VerifiedCount = productList.Count(p => p.Status == ProductState.Verified),
+            PricedCount = productList.Count(p => p.Status == ProductState.Priced),
+            PublishedCount = productList.Count(p => p.Status == ProductState.Published),
+            ExpiredCount = productList.Count(p => p.Status == ProductState.Expired),
             TotalCount = productList.Count
         };
     }
@@ -367,18 +359,15 @@ public class ProductWorkflowService : IProductWorkflowService
             Brand = product.ProductDetail?.Brand ?? string.Empty,
             Category = product.CategoryRef?.Name ?? string.Empty,
             Barcode = product.Barcode,
-            IsFreshFood = product.IsFreshFood,
-            WeightType = int.TryParse(product.QuantityType, out var weightType) ? weightType : 0,
-            DefaultPricePerKg = product.DefaultPricePerKg,
-            Status = Enum.TryParse<ProductState>(product.Status, out var state) ? state : ProductState.Draft,
-            OriginalPrice = pricing?.OriginalPrice ?? 0,
-            SuggestedPrice = pricing?.SuggestedUnitPrice ?? 0,
-            FinalPrice = pricing?.FinalPrice ?? 0,
+            IsFreshFood = product.CategoryRef?.IsFreshFood ?? false,
+            Status = product.Status,
+            OriginalPrice = lot?.OriginalUnitPrice ?? 0,
+            SuggestedPrice = pricing?.SuggestedPrice ?? 0,
+            FinalPrice = 0,
             ExpiryDate = expiryDate,
             ManufactureDate = manufactureDate,
             DaysToExpiry = daysToExpiry,
-            OcrConfidence = product.OcrConfidenceScore.HasValue ? (float)product.OcrConfidenceScore.Value : 0f,
-            PricingConfidence = pricing?.AIConfidence ?? 0,
+            PricingConfidence = (float)pricing?.AIConfidence,
             PricingReasons = pricing?.Reason,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
@@ -570,8 +559,8 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
         }
 
-        var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
-            p => p.Barcode == barcode && p.IsActive);
+            var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+            p => p.Barcode == barcode && p.Status != ProductState.Hidden);
         if (existingProduct != null)
         {
             existingProduct = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(existingProduct.ProductId) ?? existingProduct;
@@ -585,7 +574,7 @@ public class ProductWorkflowService : IProductWorkflowService
             var mainImage = images.OrderByDescending(i => i.CreatedAt).FirstOrDefault()?.ImageUrl;
 
             var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => l.ProductId == existingProduct.ProductId);
-            var totalLotsSold = lots.Count(l => l.Status == ProductState.Published.ToString() || l.Status == ProductState.SoldOut.ToString());
+            var totalLotsSold = lots.Count(l => l.Status == ProductState.Published || l.Status == ProductState.SoldOut);
 
             // Get last price from PricingHistory
             var lotIds = lots.Select(l => l.LotId).ToList();
@@ -607,10 +596,9 @@ public class ProductWorkflowService : IProductWorkflowService
                     Category = existingProduct.CategoryRef?.Name ?? string.Empty,
                     Barcode = existingProduct.Barcode,
                     MainImageUrl = mainImage,
-                    IsFreshFood = existingProduct.IsFreshFood,
                     Manufacturer = existingProduct.ProductDetail?.Manufacturer,
                     Ingredients = existingProduct.ProductDetail?.Ingredients,
-                    LastPrice = latestPricing?.FinalPrice ?? latestPricing?.SuggestedUnitPrice,
+                    LastPrice = latestPricing?.SuggestedPrice,
                     TotalLotsSold = totalLotsSold
                 },
                 NextAction = "CREATE_LOT",
@@ -659,6 +647,197 @@ public class ProductWorkflowService : IProductWorkflowService
         };
     }
 
+    public async Task<StaffProductIdentificationResponseDto> IdentifyProductForStaffAsync(
+        string barcode,
+        Guid supermarketId,
+        CancellationToken cancellationToken = default)
+    {
+        var scanResult = await ScanBarcodeAsync(barcode, supermarketId, cancellationToken);
+
+        return new StaffProductIdentificationResponseDto
+        {
+            Barcode = scanResult.Barcode,
+            ProductExists = scanResult.ProductExists,
+            ExistingProduct = scanResult.ExistingProduct,
+            BarcodeLookupInfo = scanResult.BarcodeLookupInfo,
+            NextAction = scanResult.ProductExists ? "CREATE_STOCKLOT" : "CREATE_PRODUCT",
+            TimeoutInfo = new WorkflowTimeoutInfoDto
+            {
+                TimeoutSeconds = WorkflowAiTimeoutSeconds,
+                IsAiStep = !scanResult.ProductExists,
+                SupportsManualFallback = true
+            }
+        };
+    }
+
+    public async Task<CreateNewProductResponseDto> CreateProductFromStaffWorkflowAsync(
+        StaffCreateProductFromWorkflowRequestDto request,
+        Guid supermarketId,
+        string staffName,
+        CancellationToken cancellationToken = default)
+    {
+        var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
+        if (supermarket == null)
+        {
+            throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Barcode))
+        {
+            throw new ArgumentException("Barcode is required.", nameof(request.Barcode));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            throw new ArgumentException("Product name is required.", nameof(request.Name));
+        }
+
+        var existed = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(p => p.Barcode == request.Barcode);
+        if (existed != null)
+        {
+            throw new InvalidOperationException($"Product with barcode {request.Barcode} already exists (ProductId: {existed.ProductId}).");
+        }
+
+        var defaultUnit = (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
+        if (defaultUnit == null)
+        {
+            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
+        }
+
+        var product = new Product
+        {
+            ProductId = Guid.NewGuid(),
+            SupermarketId = supermarketId,
+            Name = request.Name.Trim(),
+            Barcode = request.Barcode.Trim(),
+            CreatedBy = staffName,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            VerifiedBy = staffName,
+            VerifiedAt = DateTime.UtcNow,
+            Status = ProductState.Verified
+        };
+
+        var category = await ResolveCategoryByNameAsync(request.CategoryName, cancellationToken);
+        if (category != null)
+        {
+            product.CategoryId = category.CategoryId;
+        }
+
+        await _unitOfWork.ProductRepository.AddAsync(product);
+
+        var detail = request.Detail ?? new ProductDetailRequestDto();
+        var productDetail = new ProductDetail
+        {
+            ProductDetailId = Guid.NewGuid(),
+            ProductId = product.ProductId,
+            Brand = detail.Brand,
+            Ingredients = detail.Ingredients,
+            NutritionFacts = detail.NutritionFactsJson,
+            Manufacturer = detail.Manufacturer,
+            Origin = detail.Origin,
+            Description = detail.Description,
+            StorageInstructions = detail.StorageInstructions,
+            UsageInstructions = detail.UsageInstructions,
+            SafetyWarning = detail.SafetyWarnings
+        };
+        await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
+
+        if (!string.IsNullOrWhiteSpace(request.OcrImageUrl))
+        {
+            await _unitOfWork.Repository<ProductImage>().AddAsync(new ProductImage
+            {
+                ProductImageId = Guid.NewGuid(),
+                ProductId = product.ProductId,
+                ImageUrl = request.OcrImageUrl,
+                CreatedAt = DateTime.UtcNow,
+                IsPrimary = true
+            });
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new CreateNewProductResponseDto
+        {
+            ProductId = product.ProductId,
+            SupermarketId = product.SupermarketId,
+            Name = product.Name,
+            Brand = productDetail.Brand ?? string.Empty,
+            Category = category?.Name ?? request.CategoryName,
+            Barcode = product.Barcode,
+            Manufacturer = productDetail.Manufacturer,
+            Ingredients = productDetail.Ingredients,
+            MainImageUrl = request.OcrImageUrl,
+            Status = ProductState.Verified,
+            CreatedBy = product.CreatedBy,
+            CreatedAt = product.CreatedAt,
+            NextAction = "CREATE_STOCKLOT",
+            NextActionDescription = "Sản phẩm đã xác nhận. Tiếp tục tạo lô hàng và gợi ý giá."
+        };
+    }
+
+    public async Task<StaffCreateLotAndPublishResponseDto> CreateLotAndPublishForStaffAsync(
+        StaffCreateLotAndPublishRequestDto request,
+        Guid supermarketId,
+        string staffName,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(request.ProductId);
+        if (product == null)
+        {
+            throw new KeyNotFoundException($"Product {request.ProductId} not found");
+        }
+
+        if (product.SupermarketId != supermarketId)
+        {
+            throw new UnauthorizedAccessException("Bạn không có quyền thao tác sản phẩm của siêu thị khác.");
+        }
+
+        var createdLot = await CreateStockLotFromExistingAsync(new CreateStockLotFromExistingDto
+        {
+            ProductId = request.ProductId,
+            ExpiryDate = request.ExpiryDate,
+            ManufactureDate = request.ManufactureDate,
+            Quantity = request.Quantity,
+            Weight = request.Weight,
+            CreatedBy = staffName
+        }, cancellationToken);
+
+        var pricingSuggestion = await GetLotPricingSuggestionAsync(createdLot.LotId, new GetPricingSuggestionRequestDto
+        {
+            OriginalPrice = request.OriginalUnitPrice
+        }, cancellationToken);
+
+        var acceptedSuggestion = request.AcceptedSuggestion ?? !request.FinalUnitPrice.HasValue;
+        var confirmedLot = await ConfirmLotPriceAsync(createdLot.LotId, new ConfirmPriceRequestDto
+        {
+            FinalPrice = request.FinalUnitPrice,
+            AcceptedSuggestion = acceptedSuggestion,
+            PriceFeedback = request.PriceFeedback,
+            ConfirmedBy = staffName
+        }, cancellationToken);
+
+        var publishedLot = await PublishStockLotAsync(confirmedLot.LotId, new PublishProductRequestDto
+        {
+            PublishedBy = staffName
+        }, cancellationToken);
+
+        return new StaffCreateLotAndPublishResponseDto
+        {
+            ProductId = request.ProductId,
+            LotId = publishedLot.LotId,
+            PricingSuggestion = pricingSuggestion,
+            StockLot = publishedLot,
+            IsManualFallback = request.IsManualFallback,
+            TimeoutInfo = new WorkflowTimeoutInfoDto
+            {
+                TimeoutSeconds = WorkflowAiTimeoutSeconds,
+                IsAiStep = true,
+                SupportsManualFallback = true
+            }
+        };
+    }
+
     public async Task<StockLotResponseDto> CreateStockLotFromExistingAsync(
         CreateStockLotFromExistingDto request,
         CancellationToken cancellationToken = default)
@@ -671,7 +850,7 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new KeyNotFoundException($"Product {request.ProductId} not found");
         }
 
-        if (product.Status != ProductState.Verified.ToString())
+        if (product.Status != ProductState.Verified)
         {
             throw new InvalidOperationException(
                 $"Product must be in Verified status to create StockLot. Current status: {product.Status}. " +
@@ -692,7 +871,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ManufactureDate = request.ManufactureDate ?? DateTime.UtcNow,
             Quantity = request.Quantity,
             Weight = request.Weight,
-            Status = ProductState.Draft.ToString(),
+            Status = ProductState.Draft,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -857,17 +1036,12 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             ProductId = Guid.NewGuid(),
             SupermarketId = request.SupermarketId,
-            UnitId = defaultUnit.UnitId,
             Name = request.Name,
             Barcode = request.Barcode,
-            IsFreshFood = request.IsFreshFood,
-            OcrRawData = request.OcrExtractedData,
-            OcrConfidenceScore = (decimal?)request.OcrConfidence,
             CreatedBy = request.CreatedBy,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            Status = ProductState.Draft.ToString(), // Draft - needs verification
-            IsActive = false // Not active until verified
+            Status = ProductState.Draft,
         };
 
         await _unitOfWork.ProductRepository.AddAsync(product);
@@ -876,7 +1050,6 @@ public class ProductWorkflowService : IProductWorkflowService
         if (category != null)
         {
             product.CategoryId = category.CategoryId;
-            product.IsFreshFood = category.IsFreshFood;
         }
 
         var productDetail = new ProductDetail
@@ -922,12 +1095,10 @@ public class ProductWorkflowService : IProductWorkflowService
             Brand = productDetail.Brand ?? string.Empty,
             Category = category?.Name ?? request.CategoryName,
             Barcode = product.Barcode,
-            IsFreshFood = product.IsFreshFood,
             Manufacturer = productDetail.Manufacturer,
             Ingredients = productDetail.Ingredients,
             MainImageUrl = mainImageUrl,
             Status = ProductState.Draft,
-            OcrConfidence = product.OcrConfidenceScore.HasValue ? (float)product.OcrConfidenceScore.Value : 0f,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
             NextAction = "VERIFY_PRODUCT",
@@ -961,23 +1132,18 @@ public class ProductWorkflowService : IProductWorkflowService
             {
                 AIPriceId = Guid.NewGuid(),
                 LotId = lotId,
-                OriginalPrice = request.OriginalPrice,
                 CreatedAt = DateTime.UtcNow
             };
             await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
         }
-        else
-        {
-            priceHistory.OriginalPrice = request.OriginalPrice;
             _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
-        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var suggestion = await GetPricingSuggestionInternalAsync(product, request.OriginalPrice, cancellationToken);
 
-        priceHistory.SuggestedUnitPrice = suggestion.SuggestedPrice;
-        priceHistory.AIConfidence = suggestion.Confidence;
+        priceHistory.SuggestedPrice = suggestion.SuggestedPrice;
+        priceHistory.AIConfidence = (decimal)suggestion.Confidence;
         priceHistory.Reason = string.Join("; ", suggestion.Reasons);
         _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1008,16 +1174,15 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new InvalidOperationException("Please get pricing suggestion first.");
         }
 
-        var finalPrice = request.FinalPrice ?? priceHistory.SuggestedUnitPrice;
-        priceHistory.FinalPrice = finalPrice;
+        var finalPrice = request.FinalPrice ?? priceHistory.SuggestedPrice;
         priceHistory.AcceptedSuggestion = request.AcceptedSuggestion;
-        priceHistory.StaffFeedback = request.PriceFeedback;
+        priceHistory.Feedback = request.PriceFeedback;
         priceHistory.ConfirmedBy = request.ConfirmedBy;
         priceHistory.ConfirmedAt = DateTime.UtcNow;
 
         _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
 
-        lot.Status = ProductState.Priced.ToString();
+        lot.Status = ProductState.Priced;
         _unitOfWork.Repository<StockLot>().Update(lot);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1036,7 +1201,7 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new KeyNotFoundException($"StockLot {lotId} not found");
         }
 
-        if (lot.Status != ProductState.Priced.ToString())
+        if (lot.Status != ProductState.Priced)
         {
             throw new InvalidOperationException($"StockLot must be in Priced status to publish. Current: {lot.Status}");
         }
@@ -1051,7 +1216,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
         lot.PublishedBy = request.PublishedBy;
         lot.PublishedAt = DateTime.UtcNow;
-        lot.Status = ProductState.Published.ToString();
+        lot.Status = ProductState.Published;
 
         _unitOfWork.Repository<StockLot>().Update(lot);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1082,7 +1247,7 @@ public class ProductWorkflowService : IProductWorkflowService
         var productIds = products.Select(p => p.ProductId).ToList();
 
         var lots = await _unitOfWork.Repository<StockLot>().FindAsync(
-            l => productIds.Contains(l.ProductId) && l.Status == status.ToString());
+            l => productIds.Contains(l.ProductId) && l.Status == status);
 
         var result = new List<StockLotResponseDto>();
         foreach (var lot in lots)
@@ -1112,14 +1277,14 @@ public class ProductWorkflowService : IProductWorkflowService
             DaysToExpiry = (int)(lot.ExpiryDate - DateTime.UtcNow).TotalDays,
             Quantity = lot.Quantity,
             Weight = lot.Weight,
-            Status = Enum.TryParse<ProductState>(lot.Status, out var state) ? state : ProductState.Draft,
+            Status = lot.Status,
             CreatedAt = lot.CreatedAt,
             PublishedBy = lot.PublishedBy,
             PublishedAt = lot.PublishedAt,
-            OriginalPrice = priceHistory?.OriginalPrice,
-            SuggestedPrice = priceHistory?.SuggestedUnitPrice,
-            FinalPrice = priceHistory?.FinalPrice,
-            PricingConfidence = priceHistory?.AIConfidence
+            OriginalPrice = lot?.OriginalUnitPrice,
+            SuggestedPrice = priceHistory?.SuggestedPrice,
+            FinalPrice = null,
+            PricingConfidence = priceHistory != null ? (float?)priceHistory.AIConfidence : null
         };
     }
 
@@ -1175,4 +1340,6 @@ public class ProductWorkflowService : IProductWorkflowService
     }
 
 }
+
+
 

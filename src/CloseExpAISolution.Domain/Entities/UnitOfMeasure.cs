@@ -9,5 +9,5 @@ public class UnitOfMeasure
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    public ICollection<Product> Products { get; set; } = new List<Product>();
+    public ICollection<StockLot> StockLots { get; set; } = new List<StockLot>();
 }

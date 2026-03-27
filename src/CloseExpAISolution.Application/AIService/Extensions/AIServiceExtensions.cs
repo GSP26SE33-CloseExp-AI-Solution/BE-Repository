@@ -16,17 +16,14 @@ public static class AIServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Bind configuration
         var settingsSection = configuration.GetSection(AIServiceSettings.SectionName);
         services.Configure<AIServiceSettings>(settingsSection);
 
         var settings = settingsSection.Get<AIServiceSettings>() ?? new AIServiceSettings();
         settings.Validate();
 
-        // Register memory cache if not already registered
         services.AddMemoryCache();
 
-        // Register HttpClient with resilience policies
         var httpClientBuilder = services.AddHttpClient<IAIServiceClient, AIServiceClient>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<AIServiceSettings>>().Value;
@@ -35,23 +32,19 @@ public static class AIServiceExtensions
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            // Add API key if configured
             if (!string.IsNullOrEmpty(options.ApiKey))
             {
                 client.DefaultRequestHeaders.Add(options.ApiKeyHeader, options.ApiKey);
             }
 
-            // Add user agent
             client.DefaultRequestHeaders.UserAgent.ParseAdd("CloseExpAI-Backend/1.0");
         });
 
-        // Add Polly policies for resilience
         if (settings.RetryCount > 0)
         {
             httpClientBuilder.AddPolicyHandler(GetRetryPolicy(settings));
         }
 
-        // Also register as batch client interface
         services.AddScoped<IAIServiceBatchClient>(sp =>
             (AIServiceClient)sp.GetRequiredService<IAIServiceClient>());
 

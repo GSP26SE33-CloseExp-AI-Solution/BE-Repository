@@ -2,6 +2,8 @@ namespace CloseExpAISolution.Domain.Enums;
 
 public enum SupermarketState
 {
+    PendingApproval,
     Active,
-    Deleted
+    Suspended,
+    Closed
 }

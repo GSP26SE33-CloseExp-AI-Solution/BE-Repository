@@ -15,8 +15,8 @@ using CloseExpAISolution.Application.Email.Interfaces;
 
 namespace CloseExpAISolution.Application.ServiceProviders
 {
-    public class ServiceProviders : IServiceProviders
-    {
+        public class ServiceProviders : IServiceProviders
+        {
                 private readonly IUnitOfWork _unitOfWork;
                 private readonly IHttpContextAccessor _httpContextAccessor;
                 private readonly ApplicationDbContext _context;
@@ -51,6 +51,9 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IRefundService? _refundService;
                 private ICollectionPointService? _collectionPointService;
                 private ICustomerAddressService? _customerAddressService;
+                private IPromotionService? _promotionService;
+                private IPromotionUsageService? _promotionUsageService;
+                private IPromotionAnalyticsService? _promotionAnalyticsService;
 
                 public ServiceProviders(
                     IUnitOfWork unitOfWork,
@@ -87,13 +90,16 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IAdminService AdminService => _adminService ??= ActivatorUtilities.CreateInstance<AdminService>(_serviceProvider);
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
-                public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper);
+                public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper, PromotionService, PromotionUsageService);
                 public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
                 public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
                 public IRefundService RefundService => _refundService ??= new RefundService(_unitOfWork, _mapper);
                 public ICollectionPointService CollectionPointService => _collectionPointService ??= new CollectionPointService(_unitOfWork);
                 public ICustomerAddressService CustomerAddressService => _customerAddressService ??= new CustomerAddressService(_unitOfWork);
+                public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);
+                public IPromotionUsageService PromotionUsageService => _promotionUsageService ??= new PromotionUsageService(_unitOfWork);
+                public IPromotionAnalyticsService PromotionAnalyticsService => _promotionAnalyticsService ??= new PromotionAnalyticsService(_unitOfWork);
         }
 }
 

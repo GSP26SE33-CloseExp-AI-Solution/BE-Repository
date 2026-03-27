@@ -10,8 +10,5 @@ public interface IMarketPriceService
     Task<MarketPriceResult?> SearchMarketPriceAsync(string productName, CancellationToken cancellationToken = default);
     Task<CrawlResult> TriggerCrawlAsync(string barcode, string? productName = null, CancellationToken cancellationToken = default);
     Task<MarketPrice> SaveCrowdsourcePriceAsync(CrowdsourcePriceRequest request, CancellationToken cancellationToken = default);
-    Task<PriceFeedback> SavePriceFeedbackAsync(PriceFeedbackRequest request, CancellationToken cancellationToken = default);
-    Task<Dictionary<string, float>> GetAIAccuracyByCategoryAsync(CancellationToken cancellationToken = default);
     Task<int> CleanupExpiredPricesAsync(int daysOld = 30, CancellationToken cancellationToken = default);
 }
-

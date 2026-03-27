@@ -1,7 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -19,9 +22,22 @@ public class OrdersController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Get all orders with pagination
-    /// </summary>
+    [HttpGet("time-slots")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<DeliveryTimeSlotDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<DeliveryTimeSlotDto>>>> GetTimeSlots(CancellationToken cancellationToken = default)
+    {
+        var timeSlots = await _services.OrderService.GetDeliveryTimeSlotsAsync(cancellationToken);
+        return Ok(ApiResponse<IEnumerable<DeliveryTimeSlotDto>>.SuccessResponse(timeSlots));
+    }
+
+    [HttpGet("collection-points")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<PickupPointDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<PickupPointDto>>>> GetCollectionPoints(CancellationToken cancellationToken = default)
+    {
+        var collectionPoints = await _services.OrderService.GetCollectionPointsAsync(cancellationToken);
+        return Ok(ApiResponse<IEnumerable<PickupPointDto>>.SuccessResponse(collectionPoints));
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<OrderResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<OrderResponseDto>>>> GetAll(
@@ -44,9 +60,6 @@ public class OrdersController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<OrderResponseDto>>.SuccessResponse(result));
     }
 
-    /// <summary>
-    /// Get order by ID
-    /// </summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<OrderResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -58,9 +71,6 @@ public class OrdersController : ControllerBase
         return Ok(ApiResponse<OrderResponseDto>.SuccessResponse(order));
     }
 
-    /// <summary>
-    /// Get order by ID with full details (user, time slot, pickup point, order items with product/lot info)
-    /// </summary>
     [HttpGet("{id:guid}/details")]
     [ProducesResponseType(typeof(ApiResponse<OrderResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -72,9 +82,6 @@ public class OrdersController : ControllerBase
         return Ok(ApiResponse<OrderResponseDto>.SuccessResponse(order));
     }
 
-    /// <summary>
-    /// Create a new order
-    /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<OrderResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -94,56 +101,97 @@ public class OrdersController : ControllerBase
         }
     }
 
-    /// <summary>Set order status to Pending (one-click PUT, no body).</summary>
+    [HttpGet("my-orders")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<OrderResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<OrderResponseDto>>>> GetMyOrders(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid user token."));
+
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 100) pageSize = 100;
+
+        var (items, totalCount) = await _services.OrderService.GetByUserIdAsync(userId, pageNumber, pageSize, cancellationToken);
+        var result = new PaginatedResult<OrderResponseDto>
+        {
+            Items = items,
+            TotalResult = totalCount,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+        return Ok(ApiResponse<PaginatedResult<OrderResponseDto>>.SuccessResponse(result));
+    }
+
+    [HttpPost("my-orders")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<OrderResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<OrderResponseDto>>> CreateMyOrder(
+        [FromBody] CreateOwnOrderRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid user token."));
+
+        try
+        {
+            var created = await _services.OrderService.CreateForCustomerAsync(userId, request, cancellationToken);
+            return CreatedAtAction(nameof(GetById), new { id = created.OrderId }, ApiResponse<OrderResponseDto>.SuccessResponse(created, "Order created"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Create my-order failed");
+            return BadRequest(ApiResponse<OrderResponseDto>.ErrorResponse(ex.Message));
+        }
+    }
+
     [HttpPut("{id:guid}/pending")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ApiResponse<object>>> SetPending(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Pending, cancellationToken);
 
-    /// <summary>Set order status to Paid_Processing (one-click PUT, no body).</summary>
-    [HttpPut("{id:guid}/paid-processing")]
+    [HttpPut("{id}/paid-processing")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Paid_Processing, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.PaidProcessing, cancellationToken);
 
-    /// <summary>Set order status to Ready_To_Ship (one-click PUT, no body).</summary>
-    [HttpPut("{id:guid}/ready-to-ship")]
+    [HttpPut("{id}/ready-to-ship")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetReadyToShip(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Ready_To_Ship, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetReadyToShip(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.ReadyToShip, cancellationToken);
 
-    /// <summary>Set order status to Delivered_Wait_Confirm (one-click PUT, no body).</summary>
-    [HttpPut("{id:guid}/delivered-wait-confirm")]
+    [HttpPut("{id}/delivered-wait-confirm")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetDeliveredWaitConfirm(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Delivered_Wait_Confirm, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetDeliveredWaitConfirm(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.DeliveredWaitConfirm, cancellationToken);
 
-    /// <summary>Set order status to Completed (one-click PUT, no body).</summary>
     [HttpPut("{id:guid}/completed")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ApiResponse<object>>> SetCompleted(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Completed, cancellationToken);
 
-    /// <summary>Set order status to Canceled (one-click PUT, no body).</summary>
     [HttpPut("{id:guid}/canceled")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ApiResponse<object>>> SetCanceled(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Canceled, cancellationToken);
 
-    /// <summary>Set order status to Refunded (one-click PUT, no body).</summary>
     [HttpPut("{id:guid}/refunded")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ApiResponse<object>>> SetRefunded(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Refunded, cancellationToken);
 
-    /// <summary>Set order status to Failed (one-click PUT, no body).</summary>
     [HttpPut("{id:guid}/failed")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -168,9 +216,6 @@ public class OrdersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update an existing order
-    /// </summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -193,9 +238,6 @@ public class OrdersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Delete an order
-    /// </summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -215,5 +257,13 @@ public class OrdersController : ControllerBase
             _logger.LogWarning(ex, "Delete order {OrderId} failed", id);
             return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
+    }
+
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        userId = Guid.Empty;
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return Guid.TryParse(userIdString, out userId);
     }
 }

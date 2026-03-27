@@ -12,23 +12,15 @@ namespace CloseExpAISolution.Application.Email.Extensions
     {
         public static IServiceCollection AddEmailServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Bind EmailSettings from configuration; use defaults when missing (e.g. in Docker without appsettings)
             var emailSettings = configuration.GetSection("EmailSettings").Get<EmailSettings>()
                 ?? new EmailSettings();
 
-            // Register EmailSettings as singleton
             services.AddSingleton(emailSettings);
-
-            // Đăng ký IOptions<EmailSettings> nếu cần
             services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
-
-            // Đăng ký EmailService
             services.AddTransient<IEmailService, EmailService>();
 
-            // Cấu hình Quartz cho background jobs
             services.AddQuartz(q =>
             {
-                // Đăng ký CleanExpiredOtpJob - dọn dẹp OTP hết hạn mỗi 30 phút
                 var jobKey = new JobKey("CleanExpiredOtpJob");
                 q.AddJob<CleanExpiredOtpJob>(opts => opts.WithIdentity(jobKey));
                 q.AddTrigger(opts => opts

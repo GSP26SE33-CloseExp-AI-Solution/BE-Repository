@@ -109,7 +109,7 @@ public class RefundService : IRefundService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Pending → Approved | Rejected; Approved → Completed. Terminal: Rejected, Completed.</summary>
+    // Refund status is intentionally one-way to avoid invalid rollback states.
     private static bool CanTransition(RefundState from, RefundState to) => (from, to) switch
     {
         (RefundState.Pending, RefundState.Approved) => true,

@@ -5,9 +5,6 @@ using Quartz;
 
 namespace CloseExpAISolution.Application.Email.Jobs;
 
-/// <summary>
-/// Quantz job chạy mỗi 30 phút để dọn dẹp các mã OTP đã hết hạn khỏi bản ghi người dùng. 
-/// </summary>
 [DisallowConcurrentExecution]
 public class CleanExpiredOtpJob : IJob
 {
@@ -29,7 +26,6 @@ public class CleanExpiredOtpJob : IJob
             var userRepo = _unitOfWork.Repository<User>();
             var now = DateTime.UtcNow;
 
-            // Find users with expired OTP codes
             var usersWithExpiredOtp = await userRepo.FindAsync(
                 u => u.OtpCode != null && u.OtpExpiresAt != null && u.OtpExpiresAt < now
             );

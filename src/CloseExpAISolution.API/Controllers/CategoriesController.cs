@@ -17,7 +17,6 @@ public class CategoriesController : ControllerBase
         _services = services;
     }
 
-    /// <summary>Danh sách danh mục (mặc định chỉ <c>IsActive</c>).</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<CategoryResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] bool includeInactive = false, CancellationToken cancellationToken = default)
@@ -107,5 +106,14 @@ public class CategoriesController : ControllerBase
         {
             return Conflict(ApiResponse<object>.ErrorResponse(ex.Message));
         }
+    }
+    [HttpPost("get-all-with-parent-names")]
+    //[Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CategoryResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllWithParentNames([FromBody] string parentName, CancellationToken cancellationToken = default)
+    {
+        var items = await _services.CategoryService.GetAllWithParentNamesAsync(parentName, cancellationToken);
+        return Ok(ApiResponse<IEnumerable<CategoryResponseDto>>.SuccessResponse(items));
     }
 }

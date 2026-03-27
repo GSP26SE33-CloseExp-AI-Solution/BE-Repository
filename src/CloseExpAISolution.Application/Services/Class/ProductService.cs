@@ -74,7 +74,6 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == id);
@@ -93,10 +92,8 @@ public class ProductService : IProductService
         dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
         if (pricing != null)
         {
-            dto.OriginalPrice = pricing.OriginalPrice;
-            dto.SuggestedPrice = pricing.SuggestedUnitPrice;
-            dto.FinalPrice = pricing.FinalPrice ?? 0;
-            dto.PricingConfidence = pricing.AIConfidence;
+            dto.SuggestedPrice = pricing.SuggestedPrice;
+            dto.PricingConfidence = (float)pricing.AIConfidence;
             dto.PricedBy = pricing.ConfirmedBy;
             dto.PricedAt = pricing.ConfirmedAt;
         }
@@ -107,7 +104,6 @@ public class ProductService : IProductService
     {
         var products = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .ToListAsync();
@@ -131,10 +127,8 @@ public class ProductService : IProductService
             dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
             if (pricingLookup.TryGetValue(product.ProductId, out var pricing))
             {
-                dto.OriginalPrice = pricing.OriginalPrice;
-                dto.SuggestedPrice = pricing.SuggestedUnitPrice;
-                dto.FinalPrice = pricing.FinalPrice ?? 0;
-                dto.PricingConfidence = pricing.AIConfidence;
+                dto.SuggestedPrice = pricing.SuggestedPrice;
+                dto.PricingConfidence = (float)pricing.AIConfidence;
                 dto.PricedBy = pricing.ConfirmedBy;
                 dto.PricedAt = pricing.ConfirmedAt;
             }
@@ -148,9 +142,6 @@ public class ProductService : IProductService
         var product = _mapper.Map<Product>(request);
 
         var defaultUnit = await _context.UnitOfMeasures.FirstOrDefaultAsync(cancellationToken);
-        if (defaultUnit == null)
-            throw new InvalidOperationException("Không tìm thấy đơn vị đo mặc định. Vui lòng seed bảng Units trước.");
-        product.UnitId = defaultUnit.UnitId;
 
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
         {
@@ -160,7 +151,6 @@ public class ProductService : IProductService
             if (category != null)
             {
                 product.CategoryId = category.CategoryId;
-                product.IsFreshFood = category.IsFreshFood;
             }
         }
 
@@ -186,7 +176,6 @@ public class ProductService : IProductService
 
         var withDetail = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .FirstOrDefaultAsync(p => p.ProductId == added.ProductId, cancellationToken);
@@ -200,10 +189,8 @@ public class ProductService : IProductService
         dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
         if (pricing != null)
         {
-            dto.OriginalPrice = pricing.OriginalPrice;
-            dto.SuggestedPrice = pricing.SuggestedUnitPrice;
-            dto.FinalPrice = pricing.FinalPrice ?? 0;
-            dto.PricingConfidence = pricing.AIConfidence;
+            dto.SuggestedPrice = pricing.SuggestedPrice;
+            dto.PricingConfidence = (float)pricing.AIConfidence;
             dto.PricedBy = pricing.ConfirmedBy;
             dto.PricedAt = pricing.ConfirmedAt;
         }
@@ -228,7 +215,6 @@ public class ProductService : IProductService
             if (category != null)
             {
                 product.CategoryId = category.CategoryId;
-                product.IsFreshFood = category.IsFreshFood;
             }
         }
 
@@ -269,8 +255,6 @@ public class ProductService : IProductService
                 .ThenInclude(p => p!.Supermarket)
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.ProductDetail)
-            .Include(pl => pl.Product)
-                .ThenInclude(p => p!.Unit)
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.CategoryRef)
             .AsQueryable();
@@ -322,9 +306,10 @@ public class ProductService : IProductService
             }
             if (pricingLookup.TryGetValue(dto.ProductId, out var pricing))
             {
-                dto.OriginalUnitPrice = pricing.OriginalPrice;
-                dto.SuggestedUnitPrice = pricing.SuggestedUnitPrice;
-                dto.FinalUnitPrice = pricing.FinalPrice ?? 0;
+                if (pricing.SuggestedPrice > 0)
+                {
+                    dto.SuggestedUnitPrice = pricing.SuggestedPrice;
+                }
             }
         }
 
@@ -385,6 +370,76 @@ public class ProductService : IProductService
         return (pagedLots, totalCount);
     }
 
+    public async Task<(IEnumerable<AvailableStocklotDto> Items, int TotalCount)> GetAvailableStockLotsForCustomerAsync(
+        int pageNumber = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var now = DateTime.UtcNow;
+
+        var baseQuery = _context.StockLots
+            .AsNoTracking()
+            .Where(l =>
+                l.Status == ProductState.Published &&
+                l.Quantity > 0 &&
+                l.ExpiryDate > now);
+
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+        var items = await baseQuery
+            .OrderBy(l => l.ExpiryDate)
+            .Select(l => new AvailableStocklotDto
+            {
+                LotId = l.LotId,
+                ProductId = l.ProductId,
+                ProductName = l.Product != null ? l.Product.Name : string.Empty,
+                ProductImageUrl = l.Product != null
+                    ? l.Product.ProductImages
+                        .OrderByDescending(pi => pi.IsPrimary)
+                        .ThenBy(pi => pi.CreatedAt)
+                        .Select(pi => pi.ImageUrl)
+                        .FirstOrDefault()
+                    : null,
+                Barcode = l.Product != null ? l.Product.Barcode : string.Empty,
+                Brand = l.Product != null && l.Product.ProductDetail != null
+                    ? (l.Product.ProductDetail.Brand ?? string.Empty)
+                    : string.Empty,
+                SupermarketId = l.Product != null ? l.Product.SupermarketId : Guid.Empty,
+                SupermarketName = l.Product != null && l.Product.Supermarket != null
+                    ? l.Product.Supermarket.Name
+                    : string.Empty,
+                UnitId = l.UnitId,
+                UnitName = l.Unit != null ? l.Unit.Name : string.Empty,
+                Quantity = l.Quantity,
+                Weight = l.Weight,
+                Status = l.Status.ToString(),
+                ManufactureDate = l.ManufactureDate,
+                ExpiryDate = l.ExpiryDate,
+                CreatedAt = l.CreatedAt,
+                PublishedBy = l.PublishedBy,
+                PublishedAt = l.PublishedAt,
+                OriginalUnitPrice = l.OriginalUnitPrice,
+                SuggestedUnitPrice = l.SuggestedUnitPrice,
+                FinalUnitPrice = l.FinalUnitPrice,
+                SellingUnitPrice = l.FinalUnitPrice ?? l.SuggestedUnitPrice
+            })
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in items)
+        {
+            var remainingDays = (item.ExpiryDate.Date - now.Date).Days;
+            item.DaysRemaining = remainingDays < 0 ? 0 : remainingDays;
+        }
+
+        return (items, totalCount);
+    }
+
     public async Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(
         Guid supermarketId,
         string? searchTerm = null,
@@ -394,7 +449,6 @@ public class ProductService : IProductService
     {
         var query = _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.Unit)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
             .Where(p => p.SupermarketId == supermarketId)
@@ -441,10 +495,8 @@ public class ProductService : IProductService
             dto.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
             if (pricingLookup.TryGetValue(product.ProductId, out var pricing))
             {
-                dto.OriginalPrice = pricing.OriginalPrice;
-                dto.SuggestedPrice = pricing.SuggestedUnitPrice;
-                dto.FinalPrice = pricing.FinalPrice ?? 0;
-                dto.PricingConfidence = pricing.AIConfidence;
+                dto.SuggestedPrice = pricing.SuggestedPrice;
+                dto.PricingConfidence = (float)pricing.AIConfidence;
                 dto.PricedBy = pricing.ConfirmedBy;
                 dto.PricedAt = pricing.ConfirmedAt;
             }
@@ -458,7 +510,6 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.ProductDetail)
-            .Include(p => p.Unit)
             .Include(p => p.Supermarket)
             .Include(p => p.CategoryRef)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
@@ -473,14 +524,14 @@ public class ProductService : IProductService
         var pricing = await GetLatestPricingHistoryByProductIdAsync(productId, default);
 
         var detail = _mapper.Map<ProductDetailDto>(product);
-        detail.UnitName = product.Unit?.Name ?? "Đang cập nhật";
+        detail.UnitName = "Đang cập nhật";
         detail.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
         detail.TotalImages = images.Count;
         detail.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
 
-        if (pricing != null && pricing.OriginalPrice > 0 && pricing.FinalPrice > 0)
+        if (pricing != null && pricing.SuggestedPrice > 0)
         {
-            detail.DiscountPercent = Math.Round((1 - pricing.FinalPrice.Value / pricing.OriginalPrice) * 100, 1);
+            detail.SuggestedPrice = pricing.SuggestedPrice;
         }
 
         detail.Quantity = await _context.StockLots
@@ -572,3 +623,5 @@ public class ProductService : IProductService
                 g => g.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).First());
     }
 }
+
+

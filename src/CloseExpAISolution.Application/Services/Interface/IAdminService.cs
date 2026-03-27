@@ -27,10 +27,5 @@ public interface IAdminService
     Task<AdminUnitDto?> UpdateUnitAsync(Guid unitId, UpsertUnitRequestDto request, CancellationToken cancellationToken = default);
     Task<bool> DeleteUnitAsync(Guid unitId, CancellationToken cancellationToken = default);
 
-    Task<IEnumerable<AdminPromotionDto>> GetPromotionsAsync(CancellationToken cancellationToken = default);
-    Task<AdminPromotionDto> CreatePromotionAsync(CreatePromotionRequestDto request, CancellationToken cancellationToken = default);
-    Task<AdminPromotionDto?> UpdatePromotionAsync(Guid promotionId, UpdatePromotionRequestDto request, CancellationToken cancellationToken = default);
-    Task<AdminPromotionDto?> UpdatePromotionStatusAsync(Guid promotionId, string status, CancellationToken cancellationToken = default);
-
     Task<PaginatedResult<AdminAiPriceHistoryDto>> GetAiPriceHistoriesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 }

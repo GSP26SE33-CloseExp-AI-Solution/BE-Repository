@@ -68,7 +68,7 @@ public class SupermarketService : ISupermarketService
     public async Task<SupermarketResponseDto?> GetByIdWithDtoAsync(Guid id)
     {
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(
-            x => x.SupermarketId == id && x.Status != SupermarketState.Deleted.ToString());
+            x => x.SupermarketId == id && x.Status != SupermarketState.Closed);
         if (supermarket == null) return null;
 
         return _mapper.Map<SupermarketResponseDto>(supermarket);
@@ -77,22 +77,20 @@ public class SupermarketService : ISupermarketService
     public async Task<IEnumerable<SupermarketResponseDto>> GetAllWithDtoAsync()
     {
         var items = await _unitOfWork.SupermarketRepository.FindAsync(
-            x => x.Status != SupermarketState.Deleted.ToString());
+            x => x.Status != SupermarketState.Closed);
         return _mapper.Map<IEnumerable<SupermarketResponseDto>>(items);
     }
 
     public async Task<IEnumerable<SupermarketResponseDto>> GetAvailableWithDtoAsync()
     {
         var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(
-            x => x.Status != SupermarketState.Deleted.ToString());
+            x => x.Status != SupermarketState.Closed);
 
-        // Lấy danh sách SupermarketId đã có nhân viên đăng ký
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
             .Select(ms => ms.SupermarketId)
             .ToHashSet();
 
-        // Filter: chỉ trả về siêu thị chưa có nhân viên
         var availableSupermarkets = allSupermarkets
             .Where(s => !registeredSupermarketIds.Contains(s.SupermarketId));
 
@@ -107,15 +105,13 @@ public class SupermarketService : ISupermarketService
         var queryLower = query.Trim().ToLower();
 
         var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(
-            x => x.Status != SupermarketState.Deleted.ToString());
+            x => x.Status != SupermarketState.Closed);
 
-        // Lấy danh sách SupermarketId đã có nhân viên
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
             .Select(ms => ms.SupermarketId)
             .ToHashSet();
 
-        // Filter: tìm theo tên hoặc địa chỉ (case-insensitive)
         var searchResults = allSupermarkets
             .Where(s =>
                 s.Name.ToLower().Contains(queryLower) ||
@@ -128,10 +124,6 @@ public class SupermarketService : ISupermarketService
             .ToList();
 
         var dtos = _mapper.Map<List<SupermarketResponseDto>>(searchResults.Select(x => x.Supermarket));
-
-        // Gắn thêm thông tin HasStaff vào response nếu cần
-        // Hiện SupermarketResponseDto không có field HasStaff
-        // Nếu cần, có thể extend DTO hoặc trả về trong metadata
 
         return dtos;
     }
@@ -160,11 +152,11 @@ public class SupermarketService : ISupermarketService
     public async Task DeleteSupermarketAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(
-            x => x.SupermarketId == id && x.Status != SupermarketState.Deleted.ToString());
+            x => x.SupermarketId == id && x.Status != SupermarketState.Closed);
         if (supermarket == null) throw new KeyNotFoundException($"Không tìm thấy siêu thị với id {id}");
 
-        // Soft-delete: chuyển trạng thái sang Deleted thay vì xóa khỏi DB
-        supermarket.Status = SupermarketState.Deleted.ToString();
+        // Soft-delete: chuyển trạng thái sang Closed thay vì xóa khỏi DB
+        supermarket.Status = SupermarketState.Closed;
         _unitOfWork.SupermarketRepository.Update(supermarket);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

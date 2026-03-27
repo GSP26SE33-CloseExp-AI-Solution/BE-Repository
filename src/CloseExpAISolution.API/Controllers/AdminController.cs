@@ -202,7 +202,7 @@ public class AdminController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<AdminPromotionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPromotions(CancellationToken cancellationToken)
     {
-        var data = await _services.AdminService.GetPromotionsAsync(cancellationToken);
+        var data = await _services.PromotionService.GetPromotionsAsync(cancellationToken);
         return Ok(ApiResponse<IEnumerable<AdminPromotionDto>>.SuccessResponse(data));
     }
 
@@ -213,7 +213,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var data = await _services.AdminService.CreatePromotionAsync(request, cancellationToken);
+            var data = await _services.PromotionService.CreatePromotionAsync(request, cancellationToken);
             return CreatedAtAction(nameof(GetPromotions), ApiResponse<AdminPromotionDto>.SuccessResponse(data, "Tạo khuyến mãi thành công"));
         }
         catch (InvalidOperationException ex)
@@ -230,7 +230,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var data = await _services.AdminService.UpdatePromotionAsync(promotionId, request, cancellationToken);
+            var data = await _services.PromotionService.UpdatePromotionAsync(promotionId, request, cancellationToken);
             if (data == null)
                 return NotFound(ApiResponse<AdminPromotionDto>.ErrorResponse("Không tìm thấy khuyến mãi"));
 
@@ -250,7 +250,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var data = await _services.AdminService.UpdatePromotionStatusAsync(promotionId, request.Status, cancellationToken);
+            var data = await _services.PromotionService.UpdatePromotionStatusAsync(promotionId, request.Status, cancellationToken);
             if (data == null)
                 return NotFound(ApiResponse<AdminPromotionDto>.ErrorResponse("Không tìm thấy khuyến mãi"));
 

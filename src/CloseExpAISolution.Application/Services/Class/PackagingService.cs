@@ -10,10 +10,6 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class PackagingService : IPackagingService
 {
-    private const string PackagingConfirmed = "Confirmed";
-    private const string PackagingCollecting = "Collecting";
-    private const string PackagingPackaged = "Packaged";
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PackagingService> _logger;
 
@@ -32,7 +28,7 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var pendingOrders = await _unitOfWork.Repository<Order>()
-            .FindAsync(o => o.Status == OrderState.Paid_Processing.ToString());
+            .FindAsync(o => o.Status == OrderState.PaidProcessing);
 
         var allRecords = await _unitOfWork.Repository<OrderPackaging>()
             .GetAllAsync();
@@ -43,7 +39,7 @@ public class PackagingService : IPackagingService
 
         var filtered = pendingOrders
             .Where(o => !recordsByOrder.TryGetValue(o.OrderId, out var record)
-                     || record.Status != PackagingPackaged)
+                     || record.Status != PackagingState.Completed)
             .OrderBy(o => o.OrderDate)
             .ToList();
 
@@ -88,16 +84,16 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var order = await GetOrderForPackagingAsync(orderId);
-        if (order.Status != OrderState.Paid_Processing.ToString())
+        if (order.Status != OrderState.PaidProcessing)
             throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói.");
 
         var record = await GetOrCreatePackagingRecordAsync(orderId, packagingStaffId);
         EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
-        if (record.Status == PackagingPackaged)
+        if (record.Status == PackagingState.Completed)
             throw new InvalidOperationException("Đơn hàng đã được đóng gói hoàn tất.");
 
-        record.Status = PackagingConfirmed;
+        record.Status = PackagingState.Pending;
         _unitOfWork.Repository<OrderPackaging>().Update(record);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -118,10 +114,10 @@ public class PackagingService : IPackagingService
         var record = await RequirePackagingRecordAsync(orderId);
         EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
-        if (record.Status != PackagingConfirmed)
+        if (record.Status != PackagingState.Pending)
             throw new InvalidOperationException("Đơn hàng phải được xác nhận trước khi thu gom sản phẩm.");
 
-        record.Status = PackagingCollecting;
+        record.Status = PackagingState.Packaging;
         _unitOfWork.Repository<OrderPackaging>().Update(record);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -142,17 +138,17 @@ public class PackagingService : IPackagingService
         var record = await RequirePackagingRecordAsync(orderId);
         EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
-        if (record.Status != PackagingCollecting && record.Status != PackagingConfirmed)
+        if (record.Status != PackagingState.Packaging && record.Status != PackagingState.Pending)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái đã xác nhận hoặc đang thu gom để hoàn tất đóng gói.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            record.Status = PackagingPackaged;
+            record.Status = PackagingState.Completed;
             record.PackagedAt = DateTime.UtcNow;
             _unitOfWork.Repository<OrderPackaging>().Update(record);
 
-            order.Status = OrderState.Ready_To_Ship.ToString();
+            order.Status = OrderState.ReadyToShip;
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
 
@@ -160,7 +156,9 @@ public class PackagingService : IPackagingService
             {
                 NotificationId = Guid.NewGuid(),
                 UserId = order.UserId,
+                Title = "Đơn hàng sẵn sàng giao",
                 Content = $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
+                Type = NotificationType.OrderUpdate,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             };
@@ -173,7 +171,9 @@ public class PackagingService : IPackagingService
             {
                 NotificationId = Guid.NewGuid(),
                 UserId = staff.UserId,
+                Title = "Có đơn cần giao",
                 Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
+                Type = NotificationType.DeliveryUpdate,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             }).ToList();
@@ -236,11 +236,12 @@ public class PackagingService : IPackagingService
             PackagingId = Guid.NewGuid(),
             OrderId = orderId,
             UserId = packagingStaffId,
-            Status = PackagingConfirmed,
+            Status = PackagingState.Pending,
             PackagedAt = null
         };
 
         await _unitOfWork.Repository<OrderPackaging>().AddAsync(created);
+        await _unitOfWork.SaveChangesAsync();
         return created;
     }
 
@@ -271,7 +272,7 @@ public class PackagingService : IPackagingService
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
 
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.DeliveryTimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.TimeSlotId == order.TimeSlotId);
 
         var orderItems = await _unitOfWork.Repository<OrderItem>()
             .FindAsync(oi => oi.OrderId == order.OrderId);
@@ -280,8 +281,8 @@ public class PackagingService : IPackagingService
         {
             OrderId = order.OrderId,
             OrderCode = order.OrderCode,
-            OrderStatus = order.Status,
-            PackagingStatus = record?.Status ?? "Pending",
+            OrderStatus = order.Status.ToString(),
+            PackagingStatus = record?.Status.ToString() ?? "Pending",
             CustomerName = customer?.FullName ?? "N/A",
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
@@ -348,3 +349,9 @@ public class PackagingService : IPackagingService
         };
     }
 }
+
+
+
+
+
+

@@ -1,3 +1,5 @@
+using CloseExpAISolution.Domain.Enums;
+
 namespace CloseExpAISolution.Domain.Entities;
 
 public class StockLot
@@ -12,7 +14,7 @@ public class StockLot
     public decimal SuggestedUnitPrice { get; set; }
     public decimal? FinalUnitPrice { get; set; }
     public decimal Weight { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public ProductState Status { get; set; } = ProductState.Draft;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string? PublishedBy { get; set; }

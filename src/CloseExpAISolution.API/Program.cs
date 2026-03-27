@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Register all services using extension methods for clean organization
 builder.Services.AddControllers();
 builder.Services
     .AddSwaggerServices()
@@ -18,7 +17,6 @@ builder.Services
 
 var app = builder.Build();
 
-// Optionally apply migrations and seed on startup (Development only, with timeout to avoid freezing)
 var env = app.Services.GetRequiredService<IWebHostEnvironment>();
 var config = app.Services.GetRequiredService<IConfiguration>();
 var runMigrations = config.GetValue<bool>("Database:RunMigrationsOnStartup");
@@ -49,7 +47,6 @@ if (env.IsDevelopment() && runMigrations)
     }
 }
 
-// Configure the HTTP request pipeline using extension method
 app.UseApplicationPipeline();
 
 app.Run();

@@ -7,44 +7,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitalDatabase : Migration
+    public partial class InintialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.CreateTable(
-                name: "BarcodeProducts",
-                columns: table => new
-                {
-                    BarcodeProductId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Barcode = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    ProductName = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
-                    Brand = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    Category = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    Description = table.Column<string>(type: "text", nullable: true),
-                    ImageUrl = table.Column<string>(type: "text", nullable: true),
-                    Manufacturer = table.Column<string>(type: "text", nullable: true),
-                    Weight = table.Column<string>(type: "text", nullable: true),
-                    Ingredients = table.Column<string>(type: "text", nullable: true),
-                    NutritionFactsJson = table.Column<string>(type: "text", nullable: true),
-                    Country = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    Gs1Prefix = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: true),
-                    IsVietnameseProduct = table.Column<bool>(type: "boolean", nullable: false),
-                    Source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    Confidence = table.Column<float>(type: "real", nullable: false),
-                    ScanCount = table.Column<int>(type: "integer", nullable: false),
-                    IsVerified = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedBy = table.Column<string>(type: "text", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    UpdatedBy = table.Column<string>(type: "text", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_BarcodeProducts", x => x.BarcodeProductId);
-                });
-
             migrationBuilder.CreateTable(
                 name: "Categories",
                 columns: table => new
@@ -69,6 +36,53 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CollectionPoints",
+                columns: table => new
+                {
+                    CollectionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    AddressLine = table.Column<string>(type: "text", nullable: false),
+                    Latitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: true),
+                    Longitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CollectionPoints", x => x.CollectionId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DeliveryFeeConfigs",
+                columns: table => new
+                {
+                    ConfigId = table.Column<Guid>(type: "uuid", nullable: false),
+                    MinDistance = table.Column<decimal>(type: "numeric(10,2)", precision: 10, scale: 2, nullable: false),
+                    MaxDistance = table.Column<decimal>(type: "numeric(10,2)", precision: 10, scale: 2, nullable: false),
+                    BaseFee = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    FeePerKm = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    Area = table.Column<string>(type: "text", nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DeliveryFeeConfigs", x => x.ConfigId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DeliveryTimeSlots",
+                columns: table => new
+                {
+                    TimeSlotId = table.Column<Guid>(type: "uuid", nullable: false),
+                    StartTime = table.Column<TimeSpan>(type: "interval", nullable: false),
+                    EndTime = table.Column<TimeSpan>(type: "interval", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DeliveryTimeSlots", x => x.TimeSlotId);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "MarketPrices",
                 columns: table => new
                 {
@@ -86,53 +100,13 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     IsInStock = table.Column<bool>(type: "boolean", nullable: false),
                     CollectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     LastUpdated = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    Confidence = table.Column<float>(type: "real", nullable: false),
-                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    Confidence = table.Column<decimal>(type: "numeric(5,4)", precision: 5, scale: 4, nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     Notes = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_MarketPrices", x => x.MarketPriceId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "PickupPoints",
-                columns: table => new
-                {
-                    PickupPointId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Address = table.Column<string>(type: "text", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PickupPoints", x => x.PickupPointId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "PriceFeedbacks",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Barcode = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    ProductName = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
-                    OriginalPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
-                    SuggestedPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
-                    FinalPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
-                    ActualDiscountPercent = table.Column<float>(type: "real", nullable: false),
-                    DaysToExpire = table.Column<int>(type: "integer", nullable: false),
-                    Category = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    WasAccepted = table.Column<bool>(type: "boolean", nullable: false),
-                    StaffFeedback = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
-                    RejectionReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
-                    StaffId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    SupermarketId = table.Column<Guid>(type: "uuid", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    MarketPriceRef = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
-                    MarketPriceSource = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PriceFeedbacks", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -155,10 +129,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     SupermarketId = table.Column<Guid>(type: "uuid", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
                     Address = table.Column<string>(type: "text", nullable: false),
-                    Latitude = table.Column<decimal>(type: "numeric", nullable: false),
-                    Longitude = table.Column<decimal>(type: "numeric", nullable: false),
+                    Latitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: false),
+                    Longitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: false),
                     ContactPhone = table.Column<string>(type: "text", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -180,20 +154,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "TimeSlots",
-                columns: table => new
-                {
-                    TimeSlotId = table.Column<Guid>(type: "uuid", nullable: false),
-                    StartTime = table.Column<TimeSpan>(type: "interval", nullable: false),
-                    EndTime = table.Column<TimeSpan>(type: "interval", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TimeSlots", x => x.TimeSlotId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Units",
+                name: "UnitOfMeasures",
                 columns: table => new
                 {
                     UnitId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -205,7 +166,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Units", x => x.UnitId);
+                    table.PrimaryKey("PK_UnitOfMeasures", x => x.UnitId);
                 });
 
             migrationBuilder.CreateTable(
@@ -213,13 +174,19 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 columns: table => new
                 {
                     PromotionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Code = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     CategoryId = table.Column<Guid>(type: "uuid", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
-                    DiscountType = table.Column<string>(type: "text", nullable: false),
-                    DiscountValue = table.Column<decimal>(type: "numeric", nullable: false),
+                    DiscountType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    DiscountValue = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    MinOrderAmount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    MaxDiscountAmount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    MaxUsage = table.Column<int>(type: "integer", nullable: false),
+                    PerUserLimit = table.Column<int>(type: "integer", nullable: false),
+                    UsedCount = table.Column<int>(type: "integer", nullable: false),
                     StartDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     EndDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false)
+                    Status = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -229,7 +196,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         column: x => x.CategoryId,
                         principalTable: "Categories",
                         principalColumn: "CategoryId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -242,8 +209,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     Phone = table.Column<string>(type: "text", nullable: false),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
                     RoleId = table.Column<int>(type: "integer", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
-                    FailedLoginCount = table.Column<int>(type: "integer", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    FailedLoginCount = table.Column<short>(type: "smallint", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     OtpCode = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
@@ -270,11 +237,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     ProductId = table.Column<Guid>(type: "uuid", nullable: false),
                     CategoryId = table.Column<Guid>(type: "uuid", nullable: true),
                     SupermarketId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UnitId = table.Column<Guid>(type: "uuid", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
                     Barcode = table.Column<string>(type: "text", nullable: false),
                     Sku = table.Column<string>(type: "text", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedBy = table.Column<string>(type: "text", nullable: true),
@@ -282,14 +248,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     PublishedBy = table.Column<string>(type: "text", nullable: true),
                     PublishedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     IsFeatured = table.Column<bool>(type: "boolean", nullable: false),
-                    IsFreshFood = table.Column<bool>(type: "boolean", nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     VerifiedBy = table.Column<string>(type: "text", nullable: true),
-                    VerifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    OcrConfidenceScore = table.Column<decimal>(type: "numeric", nullable: true),
-                    OcrRawData = table.Column<string>(type: "text", nullable: true),
-                    QuantityType = table.Column<string>(type: "text", nullable: true),
-                    DefaultPricePerKg = table.Column<decimal>(type: "numeric", nullable: true)
+                    VerifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -306,12 +266,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         principalTable: "Supermarkets",
                         principalColumn: "SupermarketId",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_Products_Units_UnitId",
-                        column: x => x.UnitId,
-                        principalTable: "Units",
-                        principalColumn: "UnitId",
-                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -323,6 +277,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     Phone = table.Column<string>(type: "text", nullable: false),
                     RecipientName = table.Column<string>(type: "text", nullable: false),
                     AddressLine = table.Column<string>(type: "text", nullable: false),
+                    Latitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: false),
+                    Longitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: false),
                     IsDefault = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
@@ -346,7 +302,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     TimeSlotId = table.Column<Guid>(type: "uuid", nullable: false),
                     DeliveryType = table.Column<string>(type: "text", nullable: false),
                     DeliveryArea = table.Column<string>(type: "text", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    CenterLatitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: true),
+                    CenterLongitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: true),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     TotalOrders = table.Column<int>(type: "integer", nullable: false),
                     Notes = table.Column<string>(type: "text", nullable: true),
                     DeliveryDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -357,9 +315,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_DeliveryGroups", x => x.DeliveryGroupId);
                     table.ForeignKey(
-                        name: "FK_DeliveryGroups_TimeSlots_TimeSlotId",
+                        name: "FK_DeliveryGroups_DeliveryTimeSlots_TimeSlotId",
                         column: x => x.TimeSlotId,
-                        principalTable: "TimeSlots",
+                        principalTable: "DeliveryTimeSlots",
                         principalColumn: "TimeSlotId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -376,7 +334,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 {
                     NotificationId = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Title = table.Column<string>(type: "text", nullable: false),
                     Content = table.Column<string>(type: "text", nullable: false),
+                    Type = table.Column<int>(type: "integer", nullable: false),
                     IsRead = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
@@ -424,7 +384,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     SupermarketId = table.Column<Guid>(type: "uuid", nullable: false),
                     Position = table.Column<string>(type: "text", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -453,6 +413,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     ImageUrl = table.Column<string>(type: "text", nullable: false),
                     ImageType = table.Column<string>(type: "text", nullable: false),
                     IsPrimary = table.Column<bool>(type: "boolean", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     UploadedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -476,6 +437,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     ExtractedExpiryDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     ExtractedBarcode = table.Column<string>(type: "text", nullable: false),
                     ConfidenceScore = table.Column<decimal>(type: "numeric", nullable: false),
+                    RawData = table.Column<string>(type: "text", nullable: true),
                     VerifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     VerifiedBy = table.Column<string>(type: "text", nullable: true)
                 },
@@ -554,7 +516,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     SuggestedUnitPrice = table.Column<decimal>(type: "numeric", nullable: false),
                     FinalUnitPrice = table.Column<decimal>(type: "numeric", nullable: true),
                     Weight = table.Column<decimal>(type: "numeric", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     PublishedBy = table.Column<string>(type: "text", nullable: true),
@@ -570,9 +532,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         principalColumn: "ProductId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_StockLots_Units_UnitId",
+                        name: "FK_StockLots_UnitOfMeasures_UnitId",
                         column: x => x.UnitId,
-                        principalTable: "Units",
+                        principalTable: "UnitOfMeasures",
                         principalColumn: "UnitId",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -585,17 +547,16 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     OrderCode = table.Column<string>(type: "text", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     TimeSlotId = table.Column<Guid>(type: "uuid", nullable: false),
-                    PickupPointId = table.Column<Guid>(type: "uuid", nullable: true),
+                    CollectionId = table.Column<Guid>(type: "uuid", nullable: true),
                     DeliveryType = table.Column<string>(type: "text", nullable: false),
                     TotalAmount = table.Column<decimal>(type: "numeric", nullable: false),
                     DiscountAmount = table.Column<decimal>(type: "numeric", nullable: false),
                     FinalAmount = table.Column<decimal>(type: "numeric", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     OrderDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     AddressId = table.Column<Guid>(type: "uuid", nullable: true),
                     PromotionId = table.Column<Guid>(type: "uuid", nullable: true),
                     DeliveryGroupId = table.Column<Guid>(type: "uuid", nullable: true),
-                    DeliveryAddress = table.Column<string>(type: "text", nullable: true),
                     DeliveryNote = table.Column<string>(type: "text", nullable: true),
                     DeliveryFee = table.Column<decimal>(type: "numeric", nullable: false),
                     CancelDeadline = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -605,6 +566,12 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Orders", x => x.OrderId);
+                    table.ForeignKey(
+                        name: "FK_Orders_CollectionPoints_CollectionId",
+                        column: x => x.CollectionId,
+                        principalTable: "CollectionPoints",
+                        principalColumn: "CollectionId",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Orders_CustomerAddresses_AddressId",
                         column: x => x.AddressId,
@@ -618,10 +585,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         principalColumn: "DeliveryGroupId",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
-                        name: "FK_Orders_PickupPoints_PickupPointId",
-                        column: x => x.PickupPointId,
-                        principalTable: "PickupPoints",
-                        principalColumn: "PickupPointId",
+                        name: "FK_Orders_DeliveryTimeSlots_TimeSlotId",
+                        column: x => x.TimeSlotId,
+                        principalTable: "DeliveryTimeSlots",
+                        principalColumn: "TimeSlotId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Orders_Promotions_PromotionId",
@@ -630,48 +597,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         principalColumn: "PromotionId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Orders_TimeSlots_TimeSlotId",
-                        column: x => x.TimeSlotId,
-                        principalTable: "TimeSlots",
-                        principalColumn: "TimeSlotId",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
                         name: "FK_Orders_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "UserId",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AIPriceHistories",
-                columns: table => new
-                {
-                    AIPriceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    LotId = table.Column<Guid>(type: "uuid", nullable: false),
-                    OriginalPrice = table.Column<decimal>(type: "numeric", nullable: false),
-                    SuggestedUnitPrice = table.Column<decimal>(type: "numeric", nullable: false),
-                    FinalPrice = table.Column<decimal>(type: "numeric", nullable: true),
-                    MarketMinPrice = table.Column<decimal>(type: "numeric", nullable: true),
-                    MarketMaxPrice = table.Column<decimal>(type: "numeric", nullable: true),
-                    MarketAvgPrice = table.Column<decimal>(type: "numeric", nullable: true),
-                    AIConfidence = table.Column<float>(type: "real", nullable: false),
-                    Reason = table.Column<string>(type: "text", nullable: true),
-                    Source = table.Column<string>(type: "text", nullable: true),
-                    AcceptedSuggestion = table.Column<bool>(type: "boolean", nullable: false),
-                    StaffFeedback = table.Column<string>(type: "text", nullable: true),
-                    ConfirmedBy = table.Column<string>(type: "text", nullable: true),
-                    ConfirmedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AIPriceHistories", x => x.AIPriceId);
-                    table.ForeignKey(
-                        name: "FK_AIPriceHistories_StockLots_LotId",
-                        column: x => x.LotId,
-                        principalTable: "StockLots",
-                        principalColumn: "LotId",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -697,15 +626,57 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "PricingHistories",
+                columns: table => new
+                {
+                    AIPriceId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LotId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SuggestedPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    MarketMinPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    MarketMaxPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    MarketAvgPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    AIConfidence = table.Column<decimal>(type: "numeric(5,4)", precision: 5, scale: 4, nullable: false),
+                    Reason = table.Column<string>(type: "text", nullable: true),
+                    Source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    AcceptedSuggestion = table.Column<bool>(type: "boolean", nullable: false),
+                    Feedback = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    RejectionReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ConfirmedBy = table.Column<string>(type: "text", nullable: true),
+                    ConfirmedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    SupermarketStaffId = table.Column<Guid>(type: "uuid", nullable: true),
+                    SupermarketId = table.Column<Guid>(type: "uuid", nullable: true),
+                    MarketPriceRef = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PricingHistories", x => x.AIPriceId);
+                    table.ForeignKey(
+                        name: "FK_PricingHistories_StockLots_LotId",
+                        column: x => x.LotId,
+                        principalTable: "StockLots",
+                        principalColumn: "LotId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PricingHistories_Supermarkets_SupermarketId",
+                        column: x => x.SupermarketId,
+                        principalTable: "Supermarkets",
+                        principalColumn: "SupermarketId",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "DeliveryLogs",
                 columns: table => new
                 {
                     DeliveryId = table.Column<Guid>(type: "uuid", nullable: false),
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: true),
                     FailedReason = table.Column<string>(type: "text", nullable: true),
-                    DeliveredAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    DeliveredAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    DeliveryLatitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: true),
+                    DeliveryLongitude = table.Column<decimal>(type: "numeric(10,7)", precision: 10, scale: 7, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -731,7 +702,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     CustomerFeedbackId = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Rating = table.Column<int>(type: "integer", nullable: false),
+                    Rating = table.Column<short>(type: "smallint", nullable: false),
                     Comment = table.Column<string>(type: "text", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
@@ -759,7 +730,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     OrderItemId = table.Column<Guid>(type: "uuid", nullable: false),
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
                     LotId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Quantity = table.Column<int>(type: "integer", nullable: false),
+                    Quantity = table.Column<short>(type: "smallint", nullable: false),
                     UnitPrice = table.Column<decimal>(type: "numeric", nullable: false),
                     TotalPrice = table.Column<decimal>(type: "numeric", nullable: false)
                 },
@@ -781,26 +752,26 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PackagingRecords",
+                name: "OrderPackaging",
                 columns: table => new
                 {
                     PackagingId = table.Column<Guid>(type: "uuid", nullable: false),
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     PackagedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PackagingRecords", x => x.PackagingId);
+                    table.PrimaryKey("PK_OrderPackaging", x => x.PackagingId);
                     table.ForeignKey(
-                        name: "FK_PackagingRecords_Orders_OrderId",
+                        name: "FK_OrderPackaging_Orders_OrderId",
                         column: x => x.OrderId,
                         principalTable: "Orders",
                         principalColumn: "OrderId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_PackagingRecords_Users_UserId",
+                        name: "FK_OrderPackaging_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "UserId",
@@ -808,42 +779,123 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PaymentTransactions",
+                name: "OrderStatusLogs",
                 columns: table => new
                 {
-                    PaymentTransactionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LogId = table.Column<Guid>(type: "uuid", nullable: false),
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Amount = table.Column<decimal>(type: "numeric", nullable: false),
-                    PaymentMethod = table.Column<string>(type: "text", nullable: false),
-                    PaymentStatus = table.Column<string>(type: "text", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    FromStatus = table.Column<int>(type: "integer", nullable: false),
+                    ToStatus = table.Column<int>(type: "integer", nullable: false),
+                    ChangedBy = table.Column<string>(type: "text", nullable: true),
+                    Note = table.Column<string>(type: "text", nullable: true),
+                    ChangedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PaymentTransactions", x => x.PaymentTransactionId);
+                    table.PrimaryKey("PK_OrderStatusLogs", x => x.LogId);
                     table.ForeignKey(
-                        name: "FK_PaymentTransactions_Orders_OrderId",
+                        name: "FK_OrderStatusLogs_Orders_OrderId",
                         column: x => x.OrderId,
                         principalTable: "Orders",
                         principalColumn: "OrderId",
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_AIPriceHistories_LotId",
-                table: "AIPriceHistories",
-                column: "LotId");
+            migrationBuilder.CreateTable(
+                name: "PromotionUsages",
+                columns: table => new
+                {
+                    UsageId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PromotionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    DiscountAmount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    UsedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PromotionUsages", x => x.UsageId);
+                    table.ForeignKey(
+                        name: "FK_PromotionUsages_Orders_OrderId",
+                        column: x => x.OrderId,
+                        principalTable: "Orders",
+                        principalColumn: "OrderId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PromotionUsages_Promotions_PromotionId",
+                        column: x => x.PromotionId,
+                        principalTable: "Promotions",
+                        principalColumn: "PromotionId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_PromotionUsages_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "UserId",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Transactions",
+                columns: table => new
+                {
+                    TransactionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Amount = table.Column<decimal>(type: "numeric", nullable: false),
+                    PaymentMethod = table.Column<string>(type: "text", nullable: false),
+                    PaymentStatus = table.Column<int>(type: "integer", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    PayOSOrderCode = table.Column<long>(type: "bigint", nullable: true),
+                    PayOSPaymentLinkId = table.Column<string>(type: "text", nullable: true),
+                    CheckoutUrl = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Transactions", x => x.TransactionId);
+                    table.ForeignKey(
+                        name: "FK_Transactions_Orders_OrderId",
+                        column: x => x.OrderId,
+                        principalTable: "Orders",
+                        principalColumn: "OrderId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Refunds",
+                columns: table => new
+                {
+                    RefundId = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TransactionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Amount = table.Column<decimal>(type: "numeric", nullable: false),
+                    Reason = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    ProcessedBy = table.Column<string>(type: "text", nullable: true),
+                    ProcessedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Refunds", x => x.RefundId);
+                    table.ForeignKey(
+                        name: "FK_Refunds_Orders_OrderId",
+                        column: x => x.OrderId,
+                        principalTable: "Orders",
+                        principalColumn: "OrderId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Refunds_Transactions_TransactionId",
+                        column: x => x.TransactionId,
+                        principalTable: "Transactions",
+                        principalColumn: "TransactionId",
+                        onDelete: ReferentialAction.Restrict);
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AIVerificationLogs_ProductId",
                 table: "AIVerificationLogs",
                 column: "ProductId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_BarcodeProducts_Barcode",
-                table: "BarcodeProducts",
-                column: "Barcode",
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Categories_ParentCatId",
@@ -902,9 +954,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Notifications_UserId",
+                name: "IX_Notifications_UserId_IsRead",
                 table: "Notifications",
-                column: "UserId");
+                columns: new[] { "UserId", "IsRead" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_OrderItems_LotId",
@@ -917,9 +969,24 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 column: "OrderId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_OrderPackaging_OrderId",
+                table: "OrderPackaging",
+                column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OrderPackaging_UserId",
+                table: "OrderPackaging",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Orders_AddressId",
                 table: "Orders",
                 column: "AddressId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Orders_CollectionId",
+                table: "Orders",
+                column: "CollectionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_DeliveryGroupId",
@@ -927,14 +994,22 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 column: "DeliveryGroupId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Orders_PickupPointId",
+                name: "IX_Orders_OrderCode",
                 table: "Orders",
-                column: "PickupPointId");
+                column: "OrderCode",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Orders_OrderDate",
+                table: "Orders",
+                column: "OrderDate");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_PromotionId",
                 table: "Orders",
-                column: "PromotionId");
+                column: "PromotionId",
+                unique: true,
+                filter: "\"PromotionId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_TimeSlotId",
@@ -942,34 +1017,24 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 column: "TimeSlotId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Orders_UserId",
+                name: "IX_Orders_UserId_Status",
                 table: "Orders",
-                column: "UserId");
+                columns: new[] { "UserId", "Status" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PackagingRecords_OrderId",
-                table: "PackagingRecords",
+                name: "IX_OrderStatusLogs_OrderId",
+                table: "OrderStatusLogs",
                 column: "OrderId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PackagingRecords_UserId",
-                table: "PackagingRecords",
-                column: "UserId");
+                name: "IX_PricingHistories_LotId_CreatedAt",
+                table: "PricingHistories",
+                columns: new[] { "LotId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PaymentTransactions_OrderId",
-                table: "PaymentTransactions",
-                column: "OrderId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PriceFeedbacks_Barcode",
-                table: "PriceFeedbacks",
-                column: "Barcode");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PriceFeedbacks_CreatedAt",
-                table: "PriceFeedbacks",
-                column: "CreatedAt");
+                name: "IX_PricingHistories_SupermarketId",
+                table: "PricingHistories",
+                column: "SupermarketId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ProductDetails_ProductId",
@@ -983,19 +1048,20 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 column: "ProductId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Products_Barcode",
+                table: "Products",
+                column: "Barcode",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Products_CategoryId",
                 table: "Products",
                 column: "CategoryId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Products_SupermarketId",
+                name: "IX_Products_SupermarketId_Status",
                 table: "Products",
-                column: "SupermarketId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Products_UnitId",
-                table: "Products",
-                column: "UnitId");
+                columns: new[] { "SupermarketId", "Status" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Promotions_CategoryId",
@@ -1003,19 +1069,76 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 column: "CategoryId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Promotions_Code",
+                table: "Promotions",
+                column: "Code",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Promotions_Status_StartDate_EndDate",
+                table: "Promotions",
+                columns: new[] { "Status", "StartDate", "EndDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PromotionUsages_OrderId",
+                table: "PromotionUsages",
+                column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PromotionUsages_PromotionId_UsedAt",
+                table: "PromotionUsages",
+                columns: new[] { "PromotionId", "UsedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PromotionUsages_PromotionId_UserId",
+                table: "PromotionUsages",
+                columns: new[] { "PromotionId", "UserId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PromotionUsages_PromotionId_UserId_OrderId",
+                table: "PromotionUsages",
+                columns: new[] { "PromotionId", "UserId", "OrderId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PromotionUsages_UserId_UsedAt",
+                table: "PromotionUsages",
+                columns: new[] { "UserId", "UsedAt" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_UserId",
                 table: "RefreshTokens",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StockLots_ProductId",
+                name: "IX_Refunds_OrderId",
+                table: "Refunds",
+                column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Refunds_TransactionId",
+                table: "Refunds",
+                column: "TransactionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockLots_ExpiryDate",
                 table: "StockLots",
-                column: "ProductId");
+                column: "ExpiryDate");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockLots_ProductId_Status",
+                table: "StockLots",
+                columns: new[] { "ProductId", "Status" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_StockLots_UnitId",
                 table: "StockLots",
                 column: "UnitId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Supermarkets_Status",
+                table: "Supermarkets",
+                column: "Status");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SupermarketStaffs_SupermarketId",
@@ -1028,9 +1151,27 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Transactions_OrderId",
+                table: "Transactions",
+                column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Transactions_PayOSOrderCode",
+                table: "Transactions",
+                column: "PayOSOrderCode",
+                unique: true,
+                filter: "\"PayOSOrderCode\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_UserImages_UserId",
                 table: "UserImages",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Email",
+                table: "Users",
+                column: "Email",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_GoogleId",
@@ -1040,22 +1181,29 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 filter: "\"GoogleId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Users_Phone",
+                table: "Users",
+                column: "Phone");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Users_RoleId",
                 table: "Users",
                 column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Status",
+                table: "Users",
+                column: "Status");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AIPriceHistories");
-
-            migrationBuilder.DropTable(
                 name: "AIVerificationLogs");
 
             migrationBuilder.DropTable(
-                name: "BarcodeProducts");
+                name: "DeliveryFeeConfigs");
 
             migrationBuilder.DropTable(
                 name: "DeliveryLogs");
@@ -1076,13 +1224,13 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 name: "OrderItems");
 
             migrationBuilder.DropTable(
-                name: "PackagingRecords");
+                name: "OrderPackaging");
 
             migrationBuilder.DropTable(
-                name: "PaymentTransactions");
+                name: "OrderStatusLogs");
 
             migrationBuilder.DropTable(
-                name: "PriceFeedbacks");
+                name: "PricingHistories");
 
             migrationBuilder.DropTable(
                 name: "ProductDetails");
@@ -1091,7 +1239,13 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 name: "ProductImages");
 
             migrationBuilder.DropTable(
+                name: "PromotionUsages");
+
+            migrationBuilder.DropTable(
                 name: "RefreshTokens");
+
+            migrationBuilder.DropTable(
+                name: "Refunds");
 
             migrationBuilder.DropTable(
                 name: "SupermarketStaffs");
@@ -1106,10 +1260,22 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 name: "StockLots");
 
             migrationBuilder.DropTable(
-                name: "Orders");
+                name: "Transactions");
 
             migrationBuilder.DropTable(
                 name: "Products");
+
+            migrationBuilder.DropTable(
+                name: "UnitOfMeasures");
+
+            migrationBuilder.DropTable(
+                name: "Orders");
+
+            migrationBuilder.DropTable(
+                name: "Supermarkets");
+
+            migrationBuilder.DropTable(
+                name: "CollectionPoints");
 
             migrationBuilder.DropTable(
                 name: "CustomerAddresses");
@@ -1118,19 +1284,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                 name: "DeliveryGroups");
 
             migrationBuilder.DropTable(
-                name: "PickupPoints");
-
-            migrationBuilder.DropTable(
                 name: "Promotions");
 
             migrationBuilder.DropTable(
-                name: "Supermarkets");
-
-            migrationBuilder.DropTable(
-                name: "Units");
-
-            migrationBuilder.DropTable(
-                name: "TimeSlots");
+                name: "DeliveryTimeSlots");
 
             migrationBuilder.DropTable(
                 name: "Users");
