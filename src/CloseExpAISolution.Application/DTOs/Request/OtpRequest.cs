@@ -54,3 +54,10 @@ public class GoogleLoginRequest
     public Guid? SupermarketId { get; set; }
     public string? Position { get; set; }
 }
+
+public class RequestUnlockDto
+{
+    [Required(ErrorMessage = "Email là bắt buộc")]
+    [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    public string Email { get; set; } = string.Empty;
+}

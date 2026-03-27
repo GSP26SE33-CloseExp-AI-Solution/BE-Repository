@@ -30,10 +30,11 @@ public class UserService : IUserService
     public async Task<ApiResponse<IEnumerable<UserResponseDto>>> GetAllUsersAsync()
     {
         var users = await _unitOfWork.Repository<User>().GetAllAsync();
+        var filteredUsers = users.Where(u => u.RoleId != (int)RoleUser.Admin);
         var roleDictionary = await GetRoleDictionary();
 
         var userResponses = new List<UserResponseDto>();
-        foreach (var user in users)
+        foreach (var user in filteredUsers)
         {
             var dto = await MapUserWithRoleAndStaffInfoAsync(user, roleDictionary);
             userResponses.Add(dto);
@@ -136,19 +137,49 @@ public class UserService : IUserService
         if (user == null)
             return NotFound();
 
+        var oldStatus = user.Status;
+
+        if (oldStatus == request.Status.ToString())
+            return Error($"Tài khoản đã ở trạng thái {request.Status}");
+
         var statusValidation = ValidateStatusTransition(user, request.Status);
         if (statusValidation != null)
             return statusValidation;
 
-        var oldStatus = user.Status;
         user.Status = request.Status.ToString();
 
-        // Reset failed login count when verifying or unlocking
-        if (request.Status == UserState.Active)
+        // Reset FailedLoginCount khi Active / Admin lock
+        if (request.Status == UserState.Active || request.Status == UserState.Locked)
             user.FailedLoginCount = 0;
 
-        await SaveUserChanges(user);
-        // Send email notification on approve/reject
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            user.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<User>().Update(user);
+
+            // Revoke tất cả refresh token khi lock/ban
+            if (request.Status == UserState.Locked || request.Status == UserState.Banned)
+            {
+                await RevokeAllUserTokensInternalAsync(user.UserId);
+            }
+
+            // Auto-hide sản phẩm siêu thị khi ban SupermarketStaff
+            if (request.Status == UserState.Banned && user.RoleId == (int)RoleUser.SupermarketStaff)
+            {
+                await HideSupermarketProductsAsync(user.UserId);
+            }
+            // TODO: Xử lý MarketingStaff khi có entity liên kết với Supermarket
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to update status for user {UserId}", id);
+            return Error("Cập nhật trạng thái thất bại. Vui lòng thử lại sau");
+        }
+
         await SendStatusChangeEmailAsync(user, oldStatus, request.Status);
         var userResponse = await MapUserWithRoleAsync(user);
         var statusMessage = GetStatusChangeMessage(oldStatus, request.Status.ToString());
@@ -297,6 +328,44 @@ public class UserService : IUserService
         };
     }
 
+    private async Task RevokeAllUserTokensInternalAsync(Guid userId)
+    {
+        var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+        var activeTokens = await refreshTokenRepo.FindAsync(t => t.UserId == userId && t.RevokedAt == null);
+        foreach (var token in activeTokens)
+        {
+            token.RevokedAt = DateTime.UtcNow;
+            refreshTokenRepo.Update(token);
+        }
+    }
+
+    // TODO: Để ý lại logic khi xử lý ẩn product (liên quan đến order nữa)
+    private async Task HideSupermarketProductsAsync(Guid userId)
+    {
+        var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
+            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+
+        if (marketStaff == null) return;
+
+        var hiddenStatus = ProductState.Hidden.ToString();
+        var deletedStatus = ProductState.Deleted.ToString();
+        var products = await _unitOfWork.Repository<Product>()
+            .FindAsync(p => p.SupermarketId == marketStaff.SupermarketId
+                           && p.Status != hiddenStatus
+                           && p.Status != deletedStatus);
+
+        foreach (var product in products)
+        {
+            product.Status = hiddenStatus;
+            product.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<Product>().Update(product);
+        }
+
+        _logger.LogInformation(
+            "Auto-hidden {Count} products for supermarket {SupermarketId} due to staff {UserId} being banned",
+            products.Count(), marketStaff.SupermarketId, userId);
+    }
+
     private static void UpdateUserFields(User user, string? fullName, string? phone)
     {
         if (!string.IsNullOrEmpty(fullName))
@@ -321,11 +390,11 @@ public class UserService : IUserService
         if (!Enum.TryParse<UserState>(user.Status, out var currentStatus))
             return ApiResponse<UserResponseDto>.ErrorResponse("Trạng thái hiện tại của tài khoản không hợp lệ");
 
-        if (currentStatus != UserState.PendingApproval)
+        if (currentStatus != UserState.PendingApproval && currentStatus != UserState.Banned)
             return ApiResponse<UserResponseDto>.ErrorResponse(
-                "Chỉ có thể chuyển sang Active từ trạng thái PendingApproval (đang chờ phê duyệt)");
+                "Chỉ có thể chuyển sang Active từ trạng thái PendingApproval hoặc Banned");
 
-        if (user.EmailVerifiedAt == null)
+        if (currentStatus == UserState.PendingApproval && user.EmailVerifiedAt == null)
             return ApiResponse<UserResponseDto>.ErrorResponse(
                 "Tài khoản chưa xác minh email, không thể chuyển sang Active");
 
@@ -334,11 +403,11 @@ public class UserService : IUserService
 
     private static string GetStatusChangeMessage(string oldStatus, string newStatus) => newStatus switch
     {
-        nameof(UserState.Active) => "Phê duyệt tài khoản thành công",
+        nameof(UserState.Active) => "Kích hoạt tài khoản thành công",
         nameof(UserState.PendingApproval) => "Chuyển tài khoản sang chờ phê duyệt",
         nameof(UserState.Rejected) => "Từ chối phê duyệt tài khoản",
-        nameof(UserState.Locked) => "Khóa tạm thời tài khoản thành công (30 phút)",
-        nameof(UserState.Banned) => "Khóa vĩnh viễn tài khoản thành công",
+        nameof(UserState.Locked) => "Khóa tạm thời tài khoản thành công",
+        nameof(UserState.Banned) => "Cấm vĩnh viễn tài khoản thành công",
         nameof(UserState.Unverified) => "Hủy xác minh tài khoản thành công",
         nameof(UserState.Hidden) => "Ẩn tài khoản thành công",
         nameof(UserState.Deleted) => "Xóa tài khoản thành công",
@@ -355,49 +424,86 @@ public class UserService : IUserService
     {
         try
         {
-            if (oldStatus == UserState.PendingApproval.ToString() && newStatus == UserState.Active)
+            string? subject = null;
+            string? body = null;
+
+            if (newStatus == UserState.Active && oldStatus == UserState.PendingApproval.ToString())
             {
-                var subject = "CloseExp AI - Tài khoản đã được phê duyệt!";
-                var body = $@"
-                    <html>
-                    <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
-                        <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
-                            <h1 style='color: white; margin: 0;'>🎉 Tài Khoản Đã Được Phê Duyệt!</h1>
-                        </div>
-                        <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
-                            <h2>Xin chào {user.FullName}!</h2>
-                            <p>Tài khoản của bạn đã được <strong>Admin phê duyệt thành công</strong>.</p>
-                            <p>Bạn có thể đăng nhập vào hệ thống CloseExp AI ngay bây giờ!</p>
-                            <p style='color: #999; font-size: 12px;'>Cảm ơn bạn đã sử dụng CloseExp AI!</p>
-                        </div>
-                    </body>
-                    </html>";
-                await _emailService.SendEmailAsync(user.Email, subject, body);
+                subject = "CloseExp AI - Tài khoản đã được phê duyệt!";
+                body = BuildEmailBody(
+                    "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+                    "Tài Khoản Đã Được Phê Duyệt!",
+                    user.FullName,
+                    "Tài khoản của bạn đã được <strong>Admin phê duyệt thành công</strong>.",
+                    "Bạn có thể đăng nhập vào hệ thống CloseExp AI ngay bây giờ!");
             }
-            else if (oldStatus == UserState.PendingApproval.ToString() && newStatus == UserState.Rejected)
+            else if (newStatus == UserState.Active &&
+                     (oldStatus == UserState.Locked.ToString() || oldStatus == UserState.Banned.ToString()))
             {
-                var subject = "CloseExp AI - Tài khoản không được phê duyệt";
-                var body = $@"
-                    <html>
-                    <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
-                        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
-                            <h1 style='color: white; margin: 0;'>Thông Báo Về Tài Khoản</h1>
-                        </div>
-                        <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
-                            <h2>Xin chào {user.FullName},</h2>
-                            <p>Rất tiếc, tài khoản của bạn <strong>không được phê duyệt</strong> bởi Admin.</p>
-                            <p>Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ với đội ngũ hỗ trợ.</p>
-                            <p style='color: #999; font-size: 12px;'>CloseExp AI Team</p>
-                        </div>
-                    </body>
-                    </html>";
-                await _emailService.SendEmailAsync(user.Email, subject, body);
+                subject = "CloseExp AI - Tài khoản đã được mở khóa!";
+                body = BuildEmailBody(
+                    "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+                    "Tài Khoản Đã Được Mở Khóa!",
+                    user.FullName,
+                    "Tài khoản của bạn đã được <strong>Admin mở khóa thành công</strong>.",
+                    "Bạn có thể đăng nhập vào hệ thống CloseExp AI ngay bây giờ!");
             }
+            else if (newStatus == UserState.Rejected)
+            {
+                subject = "CloseExp AI - Tài khoản không được phê duyệt";
+                body = BuildEmailBody(
+                    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                    "Thông Báo Về Tài Khoản",
+                    user.FullName,
+                    "Rất tiếc, tài khoản của bạn <strong>không được phê duyệt</strong> bởi Admin.",
+                    "Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ với đội ngũ hỗ trợ.");
+            }
+            else if (newStatus == UserState.Locked)
+            {
+                subject = "CloseExp AI - Tài khoản đã bị khóa tạm thời";
+                body = BuildEmailBody(
+                    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                    "Tài Khoản Bị Khóa Tạm Thời",
+                    user.FullName,
+                    "Tài khoản của bạn đã bị <strong>khóa tạm thời</strong> bởi Admin.",
+                    "Nếu bạn cho rằng đây là nhầm lẫn, vui lòng đăng nhập và nhấn nút yêu cầu mở khóa hoặc liên hệ đội ngũ hỗ trợ.");
+            }
+            else if (newStatus == UserState.Banned)
+            {
+                subject = "CloseExp AI - Tài khoản đã bị cấm vĩnh viễn";
+                body = BuildEmailBody(
+                    "linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)",
+                    "Tài Khoản Bị Cấm Vĩnh Viễn",
+                    user.FullName,
+                    "Tài khoản của bạn đã bị <strong>cấm vĩnh viễn</strong> bởi Admin.",
+                    "Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ Admin qua email để được hỗ trợ.");
+            }
+
+            if (subject != null && body != null)
+                await _emailService.SendEmailAsync(user.Email, subject, body);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send status change email to {Email}", user.Email);
         }
+    }
+
+    private static string BuildEmailBody(string gradient, string title, string fullName, string mainMessage, string subMessage)
+    {
+        return $@"
+            <html>
+            <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: {gradient}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                    <h1 style='color: white; margin: 0;'>{title}</h1>
+                </div>
+                <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                    <h2>Xin chào {fullName}!</h2>
+                    <p>{mainMessage}</p>
+                    <p>{subMessage}</p>
+                    <p style='color: #999; font-size: 12px;'>CloseExp AI Team</p>
+                </div>
+            </body>
+            </html>";
     }
 
     #endregion

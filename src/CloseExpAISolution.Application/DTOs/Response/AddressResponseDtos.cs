@@ -14,5 +14,7 @@ public class CustomerAddressResponseDto
     public string Phone { get; set; } = string.Empty;
     public string RecipientName { get; set; } = string.Empty;
     public string AddressLine { get; set; } = string.Empty;
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
     public bool IsDefault { get; set; }
 }

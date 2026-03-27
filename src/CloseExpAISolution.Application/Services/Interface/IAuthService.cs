@@ -21,4 +21,7 @@ public interface IAuthService
 
     // Google OAuth
     Task<ApiResponse<AuthResponse>> GoogleLoginAsync(GoogleLoginRequest request, string? ipAddress = null, string? deviceInfo = null);
+
+    // Request unlock (public)
+    Task<ApiResponse<bool>> RequestUnlockAsync(string email);
 }

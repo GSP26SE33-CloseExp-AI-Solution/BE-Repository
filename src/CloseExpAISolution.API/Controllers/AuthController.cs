@@ -72,24 +72,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Refresh access token using a valid refresh token
     /// </summary>
-    /// <remarks>
-    /// Sample request:
-    /// 
-    ///     POST /api/auth/refresh-token
-    ///     {
-    ///         "refreshToken": "your_refresh_token_here"
-    ///     }
-    /// 
-    /// Flow:
-    /// 1. Client sends expired access token scenario
-    /// 2. Call this endpoint with the refresh token received during login
-    /// 3. Receive new access token and new refresh token (token rotation)
-    /// 4. Old refresh token is invalidated
-    /// 
-    /// Security Notes:
-    /// - Refresh tokens are rotated on each use
-    /// - If a revoked token is reused, all user sessions are invalidated (security measure)
-    /// </remarks>
     [HttpPost("refresh-token")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
@@ -118,17 +100,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Logout and invalidate the current refresh token
     /// </summary>
-    /// <remarks>
-    /// Sample request:
-    /// 
-    ///     POST /api/auth/logout
-    ///     {
-    ///         "refreshToken": "your_refresh_token_here"
-    ///     }
-    /// 
-    /// Note: This only invalidates the specific refresh token.
-    /// To logout from all devices, use /api/auth/logout-all endpoint.
-    /// </remarks>
     [HttpPost("logout")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
@@ -141,10 +112,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Logout from all devices (revoke all refresh tokens)
     /// </summary>
-    /// <remarks>
-    /// Requires authentication. Revokes all active refresh tokens for the current user.
-    /// Useful when user suspects their account is compromised.
-    /// </remarks>
     [Authorize]
     [HttpPost("logout-all")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -234,6 +201,18 @@ public class AuthController : ControllerBase
         }
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Request account unlock for locked users
+    /// </summary>
+    [HttpPost("request-unlock")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RequestUnlock([FromBody] RequestUnlockDto request)
+    {
+        var result = await _services.AuthService.RequestUnlockAsync(request.Email);
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
     #region Private Helpers

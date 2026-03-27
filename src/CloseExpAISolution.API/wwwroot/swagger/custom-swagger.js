@@ -4,8 +4,8 @@
 // ============================================================
 (function () {
     const AUTH_ENDPOINTS = [
-        '/api/authen/login',
-        '/api/authen/google-login',
+        '/api/auth/login',
+        '/api/auth/google-login',
     ];
 
     function normalizeRequestUrl(requestInfo) {
@@ -51,9 +51,26 @@
 
     function applyTokenToSwagger(token) {
         try {
-            if (window.ui && typeof window.ui.preauthorizeApiKey === 'function') {
-                window.ui.preauthorizeApiKey('Bearer', token);
-                return true;
+            if (window.ui) {
+                // For OpenAPI 3, type: 'http', scheme: 'bearer'
+                if (window.ui.authActions && typeof window.ui.authActions.authorize === 'function') {
+                    window.ui.authActions.authorize({
+                        Bearer: {
+                            name: 'Bearer',
+                            schema: {
+                                type: 'http',
+                                in: 'header',
+                                name: 'Authorization',
+                                description: ''
+                            },
+                            value: token
+                        }
+                    });
+                    return true;
+                } else if (typeof window.ui.preauthorizeApiKey === 'function') {
+                    window.ui.preauthorizeApiKey('Bearer', token);
+                    return true;
+                }
             }
         } catch (_) {
             // Fallback to DOM injection below
@@ -74,7 +91,7 @@
         authBtn.click();
 
         setTimeout(() => {
-            const input = document.querySelector('.auth-container input[type="text"]');
+            const input = document.querySelector('.auth-container input');
             if (!input) return;
 
             // React-compatible value setter

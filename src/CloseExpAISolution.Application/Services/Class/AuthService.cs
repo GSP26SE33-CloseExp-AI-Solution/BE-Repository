@@ -558,6 +558,30 @@ public class AuthService : IAuthService
         return Error("Email này chưa được đăng ký trong hệ thống. Vui lòng đăng ký tài khoản trước");
     }
 
+    public async Task<ApiResponse<bool>> RequestUnlockAsync(string email)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.Email == email);
+
+        if (user == null)
+            return ApiResponse<bool>.ErrorResponse("Email không tồn tại");
+
+        if (user.Status == UserState.Banned.ToString())
+            return ApiResponse<bool>.ErrorResponse(
+                "Tài khoản đã bị cấm vĩnh viễn. Vui lòng liên hệ Admin qua email để được hỗ trợ");
+
+        if (user.Status != UserState.Locked.ToString())
+            return ApiResponse<bool>.SuccessResponse(true, "Nếu tài khoản tồn tại, yêu cầu mở khóa đã được gửi");
+
+        // Locked -> PendingApproval
+        user.Status = UserState.PendingApproval.ToString();
+        user.UpdatedAt = DateTime.UtcNow;
+        userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResponse<bool>.SuccessResponse(true, "Yêu cầu mở khóa đã được gửi. Admin sẽ xem xét và phản hồi qua email");
+    }
+
     #endregion
 
     #region Login Helpers
@@ -577,13 +601,22 @@ public class AuthService : IAuthService
 
         if (status == UserState.Locked.ToString())
         {
-            var unlockResult = TryAutoUnlock(user);
-            if (!unlockResult.IsUnlocked)
-                return Error($"Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau {unlockResult.RemainingMinutes} phút");
+            // Phân biệt Auto-lock (FailedLoginCount >= 5) vs Admin lock (FailedLoginCount < 5)
+            if (user.FailedLoginCount >= MaxFailedLoginAttempts)
+            {
+                // Auto-lock do đăng nhập sai nhiều lần -> tự mở sau 30 phút
+                var unlockResult = TryAutoUnlock(user);
+                if (!unlockResult.IsUnlocked)
+                    return Error($"Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau {unlockResult.RemainingMinutes} phút");
 
-            // Save the unlock
-            userRepository.Update(user);
-            await _unitOfWork.SaveChangesAsync();
+                userRepository.Update(user);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            else
+            {
+                // Admin lock → không tự mở, hướng dẫn user request-unlock
+                return Error("Tài khoản đã bị Admin khóa. Vui lòng sử dụng chức năng yêu cầu mở khóa hoặc liên hệ Admin");
+            }
         }
 
         if (status == UserState.Banned.ToString())
