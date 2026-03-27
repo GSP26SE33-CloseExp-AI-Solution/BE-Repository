@@ -62,6 +62,31 @@ public class CreateOrderItemDto
     public decimal UnitPrice { get; set; }
 }
 
+public class CreateOwnOrderRequestDto
+{
+    [Required]
+    public Guid TimeSlotId { get; set; }
+
+    public Guid? CollectionId { get; set; }
+
+    [Required]
+    [MaxLength(50)]
+    public string DeliveryType { get; set; } = string.Empty;
+
+    public Guid? AddressId { get; set; }
+    public Guid? PromotionId { get; set; }
+    public string? DeliveryNote { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal DeliveryFee { get; set; }
+
+    public DateTime? CancelDeadline { get; set; }
+
+    [Required]
+    [MinLength(1, ErrorMessage = "Order must have at least one item")]
+    public List<CreateOrderItemDto> OrderItems { get; set; } = new();
+}
+
 public class UpdateOrderStatusRequestDto
 {
     [Required]

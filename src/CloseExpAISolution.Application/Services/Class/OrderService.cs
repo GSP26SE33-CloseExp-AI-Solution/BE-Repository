@@ -160,6 +160,9 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
+        await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
+        await TryCreateNotificationAsync(order.UserId, "Đơn hàng mới", $"Đơn {order.OrderCode} đã được tạo thành công.", NotificationType.OrderUpdate, cancellationToken);
+        await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await TryRecordPromotionUsageAsync(order, cancellationToken);
@@ -234,11 +237,47 @@ public class OrderService : IOrderService
     {
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
+        var oldStatus = order.Status;
         order.Status = status;
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
+        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", null, cancellationToken);
+        await TryCreateNotificationAsync(order.UserId, "Cập nhật đơn hàng", $"Đơn {order.OrderCode} đã chuyển sang trạng thái {status}.", NotificationType.OrderUpdate, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await TryRecordPromotionUsageAsync(order, cancellationToken);
+    }
+
+    public async Task<OrderResponseDto> CreateForCustomerAsync(Guid userId, CreateOwnOrderRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var totalAmount = request.OrderItems.Sum(x => x.UnitPrice * x.Quantity);
+        var model = new CreateOrderRequestDto
+        {
+            UserId = userId,
+            TimeSlotId = request.TimeSlotId,
+            CollectionId = request.CollectionId,
+            DeliveryType = request.DeliveryType,
+            TotalAmount = totalAmount,
+            DiscountAmount = 0m,
+            FinalAmount = totalAmount + request.DeliveryFee,
+            DeliveryFee = request.DeliveryFee,
+            Status = OrderState.Pending.ToString(),
+            AddressId = request.AddressId,
+            PromotionId = request.PromotionId,
+            DeliveryNote = request.DeliveryNote,
+            CancelDeadline = request.CancelDeadline,
+            OrderItems = request.OrderItems
+        };
+
+        return await CreateAsync(model, cancellationToken);
+    }
+
+    public async Task<(IEnumerable<OrderResponseDto> Items, int TotalCount)> GetByUserIdAsync(Guid userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var all = await _unitOfWork.OrderRepository.GetAllAsync(cancellationToken);
+        var list = all.Where(x => x.UserId == userId).OrderByDescending(x => x.OrderDate).ToList();
+        var total = list.Count;
+        var items = list.Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(x => _mapper.Map<OrderResponseDto>(x)).ToList();
+        return (items, total);
     }
 
     public async Task<OrderResponseDto> ApplyPromotionAsync(Guid orderId, Guid userId, ApplyPromotionToOrderRequestDto request, CancellationToken cancellationToken = default)
@@ -291,6 +330,74 @@ public class OrderService : IOrderService
             return;
 
         await _promotionUsageService.RecordUsageAsync(order.PromotionId.Value, order.UserId, order.OrderId, order.DiscountAmount, cancellationToken);
+    }
+
+    private async Task TryAutoAssignDeliveryGroupAsync(Order order, CancellationToken cancellationToken)
+    {
+        // Auto-group only for pickup orders by (TimeSlot + CollectionPoint + DeliveryDate).
+        // Home-delivery orders should be grouped by delivery planner/dispatch flow instead.
+        if (!order.CollectionId.HasValue)
+            return;
+
+        var deliveryArea = $"COLLECTION:{order.CollectionId.Value}";
+        var existing = await _unitOfWork.Repository<DeliveryGroup>().FirstOrDefaultAsync(g =>
+            g.TimeSlotId == order.TimeSlotId
+            && g.DeliveryDate.Date == order.OrderDate.Date
+            && g.DeliveryArea == deliveryArea
+            && g.Status != DeliveryGroupState.Completed);
+
+        if (existing == null)
+        {
+            existing = new DeliveryGroup
+            {
+                DeliveryGroupId = Guid.NewGuid(),
+                GroupCode = "DG-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
+                TimeSlotId = order.TimeSlotId,
+                DeliveryType = "Pickup",
+                DeliveryArea = deliveryArea,
+                DeliveryDate = order.OrderDate.Date,
+                Status = DeliveryGroupState.Pending,
+                TotalOrders = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<DeliveryGroup>().AddAsync(existing);
+        }
+
+        existing.TotalOrders += 1;
+        existing.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Repository<DeliveryGroup>().Update(existing);
+        order.DeliveryGroupId = existing.DeliveryGroupId;
+    }
+
+    private async Task TryCreateNotificationAsync(Guid userId, string title, string content, NotificationType type, CancellationToken cancellationToken)
+    {
+        var notification = new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = userId,
+            Title = title,
+            Content = content,
+            Type = type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+    }
+
+    private async Task TryCreateStatusLogAsync(Guid orderId, OrderState from, OrderState to, string? changedBy, string? note, CancellationToken cancellationToken)
+    {
+        var log = new OrderStatusLog
+        {
+            LogId = Guid.NewGuid(),
+            OrderId = orderId,
+            FromStatus = from,
+            ToStatus = to,
+            ChangedBy = changedBy,
+            Note = note,
+            ChangedAt = DateTime.UtcNow
+        };
+        await _unitOfWork.Repository<OrderStatusLog>().AddAsync(log);
     }
 }
 

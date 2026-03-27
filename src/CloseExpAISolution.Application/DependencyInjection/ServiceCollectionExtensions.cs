@@ -25,7 +25,10 @@ public static class ServiceCollectionExtensions
             cfg.AddProfile<ProductMappingProfile>();
             cfg.AddProfile<SupermarketMappingProfile>();
             cfg.AddProfile<MarketStaffMappingProfile>();
+            cfg.AddProfile<FeedbackMappingProfile>();
             cfg.AddProfile<OrderMappingProfile>();
+            cfg.AddProfile<CategoryMappingProfile>();
+            cfg.AddProfile<RefundMappingProfile>();
         });
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();

@@ -10,4 +10,5 @@ public interface ICategoryService
     Task<CategoryResponseDto> CreateAsync(CreateCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task UpdateAsync(Guid id, UpdateCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CategoryResponseDto>> GetAllWithParentNamesAsync(string parentName, CancellationToken cancellationToken = default);
 }

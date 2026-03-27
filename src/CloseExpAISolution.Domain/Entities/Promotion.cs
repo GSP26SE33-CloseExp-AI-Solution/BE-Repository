@@ -19,7 +19,7 @@ public class Promotion
     public DateTime EndDate { get; set; }
     public PromotionState Status { get; set; } = PromotionState.Draft;
 
-    public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public Order? Order { get; set; }
     public ICollection<PromotionUsage> PromotionUsages { get; set; } = new List<PromotionUsage>();
     public Category? Category { get; set; }
 }

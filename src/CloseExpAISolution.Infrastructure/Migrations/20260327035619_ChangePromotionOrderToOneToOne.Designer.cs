@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260326120520_InitialSchema")]
-    partial class InitialSchema
+    [Migration("20260327035619_ChangePromotionOrderToOneToOne")]
+    partial class ChangePromotionOrderToOneToOne
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -554,7 +554,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("OrderDate");
 
-                    b.HasIndex("PromotionId");
+                    b.HasIndex("PromotionId")
+                        .IsUnique()
+                        .HasFilter("\"PromotionId\" IS NOT NULL");
 
                     b.HasIndex("TimeSlotId");
 
@@ -1520,8 +1522,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("CloseExpAISolution.Domain.Entities.Promotion", "Promotion")
-                        .WithMany("Orders")
-                        .HasForeignKey("PromotionId")
+                        .WithOne("Order")
+                        .HasForeignKey("CloseExpAISolution.Domain.Entities.Order", "PromotionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", "DeliveryTimeSlot")
@@ -1843,7 +1845,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Promotion", b =>
                 {
-                    b.Navigation("Orders");
+                    b.Navigation("Order");
 
                     b.Navigation("PromotionUsages");
                 });

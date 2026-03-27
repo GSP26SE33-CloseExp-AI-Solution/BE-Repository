@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialSchema : Migration
+    public partial class InintialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -1007,7 +1007,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_PromotionId",
                 table: "Orders",
-                column: "PromotionId");
+                column: "PromotionId",
+                unique: true,
+                filter: "\"PromotionId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_TimeSlotId",

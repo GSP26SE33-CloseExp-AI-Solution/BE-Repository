@@ -156,4 +156,15 @@ public class CategoryService : ICategoryService
 
         return dtos;
     }
+    public async Task<IEnumerable<CategoryResponseDto>> GetAllWithParentNamesAsync(
+        string parentName,
+        CancellationToken cancellationToken = default)
+    {
+        var all = (await _unitOfWork.Repository<Category>().GetAllAsync()).ToList();
+        var filtered = all
+            .Where(c => c.ParentCatId.HasValue
+                     && all.Any(p => p.CategoryId == c.ParentCatId.Value && p.Name == parentName))
+            .ToList();
+        return MapWithParentNames(filtered, all);
+    }
 }

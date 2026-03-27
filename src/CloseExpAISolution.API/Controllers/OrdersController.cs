@@ -1,7 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -94,6 +97,55 @@ public class OrdersController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Create order failed");
+            return BadRequest(ApiResponse<OrderResponseDto>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [HttpGet("my-orders")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<OrderResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<OrderResponseDto>>>> GetMyOrders(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid user token."));
+
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 100) pageSize = 100;
+
+        var (items, totalCount) = await _services.OrderService.GetByUserIdAsync(userId, pageNumber, pageSize, cancellationToken);
+        var result = new PaginatedResult<OrderResponseDto>
+        {
+            Items = items,
+            TotalResult = totalCount,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+        return Ok(ApiResponse<PaginatedResult<OrderResponseDto>>.SuccessResponse(result));
+    }
+
+    [HttpPost("my-orders")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<OrderResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<OrderResponseDto>>> CreateMyOrder(
+        [FromBody] CreateOwnOrderRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid user token."));
+
+        try
+        {
+            var created = await _services.OrderService.CreateForCustomerAsync(userId, request, cancellationToken);
+            return CreatedAtAction(nameof(GetById), new { id = created.OrderId }, ApiResponse<OrderResponseDto>.SuccessResponse(created, "Order created"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Create my-order failed");
             return BadRequest(ApiResponse<OrderResponseDto>.ErrorResponse(ex.Message));
         }
     }
@@ -205,5 +257,13 @@ public class OrdersController : ControllerBase
             _logger.LogWarning(ex, "Delete order {OrderId} failed", id);
             return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
+    }
+
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        userId = Guid.Empty;
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return Guid.TryParse(userIdString, out userId);
     }
 }

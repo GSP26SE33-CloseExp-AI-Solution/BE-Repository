@@ -237,8 +237,8 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Order>()
             .HasOne(o => o.Promotion)
-            .WithMany(p => p.Orders)
-            .HasForeignKey(o => o.PromotionId)
+            .WithOne(p => p.Order)
+            .HasForeignKey<Order>(o => o.PromotionId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Order>(entity =>
         {
@@ -246,6 +246,9 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(o => o.OrderCode).IsUnique();
             entity.HasIndex(o => o.OrderDate);
             entity.HasIndex(o => o.DeliveryGroupId);
+            entity.HasIndex(o => o.PromotionId)
+                .IsUnique()
+                .HasFilter("\"PromotionId\" IS NOT NULL");
         });
 
         modelBuilder.Entity<CustomerAddress>()
