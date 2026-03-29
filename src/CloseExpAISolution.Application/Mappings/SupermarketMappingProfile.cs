@@ -19,6 +19,15 @@ public class SupermarketMappingProfile : Profile
             .ForMember(dest => dest.SupermarketId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => SupermarketState.Active))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
+            .ForMember(dest => dest.ContactEmail, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicantUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.SubmittedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedByUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.AdminReviewNote, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicationReference, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicantUser, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedByUser, opt => opt.Ignore())
             .ForMember(dest => dest.Products, opt => opt.Ignore())
             .ForMember(dest => dest.SupermarketStaffs, opt => opt.Ignore());
 
@@ -26,6 +35,14 @@ public class SupermarketMappingProfile : Profile
             .ForMember(dest => dest.SupermarketId, opt => opt.Ignore()) // Will be set manually
             .ForMember(dest => dest.Status, opt => opt.Ignore()) // Will be set manually
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore()) // Will be set manually
+            .ForMember(dest => dest.ApplicantUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.SubmittedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedByUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.AdminReviewNote, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicationReference, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicantUser, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedByUser, opt => opt.Ignore())
             .ForMember(dest => dest.Products, opt => opt.Ignore())
             .ForMember(dest => dest.SupermarketStaffs, opt => opt.Ignore());
 
@@ -33,6 +50,15 @@ public class SupermarketMappingProfile : Profile
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
             .ForMember(dest => dest.SupermarketId, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ContactEmail, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicantUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.SubmittedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedByUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.AdminReviewNote, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicationReference, opt => opt.Ignore())
+            .ForMember(dest => dest.ApplicantUser, opt => opt.Ignore())
+            .ForMember(dest => dest.ReviewedByUser, opt => opt.Ignore())
             .ForMember(dest => dest.Products, opt => opt.Ignore())
             .ForMember(dest => dest.SupermarketStaffs, opt => opt.Ignore());
     }

@@ -1,8 +1,10 @@
 using System.Linq.Expressions;
 using AutoMapper;
+using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -108,8 +110,35 @@ public class SupermarketStaffService : ISupermarketStaffService
 
     public async Task<Guid?> GetSupermarketIdByUserIdAsync(Guid userId)
     {
-        var marketStaff = await _unitOfWork.SupermarketStaffRepository.FirstOrDefaultAsync(ms => ms.UserId == userId);
-        return marketStaff?.SupermarketId;
+        var resolved = await ResolveStaffContextAsync(userId, null, null);
+        return resolved.Success ? resolved.SupermarketId : null;
+    }
+
+    public async Task<StaffContextResult> ResolveStaffContextAsync(Guid userId, Guid? jwtSupermarketStaffId, Guid? jwtSupermarketId)
+    {
+        var rows = (await _unitOfWork.SupermarketStaffRepository.FindAsync(ms =>
+                ms.UserId == userId && ms.Status == SupermarketStaffState.Active))
+            .ToList();
+
+        if (rows.Count == 0)
+            return StaffContextResult.Fail("Bạn chưa được gán vào siêu thị nào");
+
+        if (jwtSupermarketStaffId.HasValue && jwtSupermarketId.HasValue)
+        {
+            var row = rows.FirstOrDefault(r => r.SupermarketStaffId == jwtSupermarketStaffId.Value);
+            if (row == null || row.SupermarketId != jwtSupermarketId.Value)
+                return StaffContextResult.Fail("Ngữ cảnh nhân viên trên token không hợp lệ");
+            return StaffContextResult.Ok(row.SupermarketId, row.SupermarketStaffId);
+        }
+
+        var distinctMarkets = rows.Select(r => r.SupermarketId).Distinct().ToList();
+        if (distinctMarkets.Count > 1)
+            return StaffContextResult.Fail("Tài khoản gắn nhiều siêu thị; vui lòng liên hệ quản trị.");
+
+        if (rows.Count == 1)
+            return StaffContextResult.Ok(rows[0].SupermarketId, rows[0].SupermarketStaffId);
+
+        return StaffContextResult.Fail("Vui lòng chọn mã nhân viên (select-staff-context) trước khi thực hiện thao tác này.");
     }
 }
 

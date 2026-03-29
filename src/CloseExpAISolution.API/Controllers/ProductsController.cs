@@ -1,3 +1,4 @@
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -451,21 +452,14 @@ public class ProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
-        }
-
-        var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
-        if (supermarketId == null)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào"));
-        }
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+            return supermarketIdResult.ErrorResult!;
+        var supermarketId = supermarketIdResult.SupermarketId!.Value;
 
         var filter = new StockLotFilterDto
         {
-            SupermarketId = supermarketId.Value,
+            SupermarketId = supermarketId,
             ExpiryStatus = expiryStatus,
             WeightType = weightType,
             IsFreshFood = isFreshFood,
@@ -501,24 +495,17 @@ public class ProductsController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
-        }
-
-        var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
-        if (supermarketId == null)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào"));
-        }
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+            return supermarketIdResult.ErrorResult!;
+        var supermarketId = supermarketIdResult.SupermarketId!.Value;
 
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 200) pageSize = 200;
 
         var (items, totalCount) = await _services.ProductService.GetProductsBySupermarketAsync(
-            supermarketId.Value, searchTerm, category, pageNumber, pageSize);
+            supermarketId, searchTerm, category, pageNumber, pageSize);
 
         var result = new PaginatedResult<ProductResponseDto>
         {
@@ -888,19 +875,16 @@ public class ProductsController : ControllerBase
 
     private async Task<(bool Success, Guid? SupermarketId, ActionResult? ErrorResult)> GetCurrentStaffSupermarketIdAsync()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
             return (false, null, Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng")));
-        }
 
-        var supermarketId = await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
-        if (!supermarketId.HasValue)
-        {
-            return (false, null, BadRequest(ApiResponse<object>.ErrorResponse("Bạn chưa được gán vào siêu thị nào")));
-        }
+        var (jwtStaff, jwtMarket) = StaffClaimsParser.Read(User);
+        var resolution = await _services.MarketStaffService.ResolveStaffContextAsync(userId.Value, jwtStaff, jwtMarket);
+        if (!resolution.Success)
+            return (false, null, BadRequest(ApiResponse<object>.ErrorResponse(resolution.ErrorMessage!)));
 
-        return (true, supermarketId.Value, null);
+        return (true, resolution.SupermarketId, null);
     }
 
     private string GetCurrentStaffDisplayName()

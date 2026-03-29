@@ -1,5 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -206,14 +205,15 @@ public class SupermarketStaffController : ControllerBase
 
     private async Task<Guid?> ResolveCurrentSupermarketIdAsync()
     {
-        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                          ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (!Guid.TryParse(userIdValue, out var userId))
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
         {
             _logger.LogWarning("Cannot resolve current user id from claims");
             return null;
         }
 
-        return await _services.MarketStaffService.GetSupermarketIdByUserIdAsync(userId);
+        var (jwtStaff, jwtMarket) = StaffClaimsParser.Read(User);
+        var resolution = await _services.MarketStaffService.ResolveStaffContextAsync(userId.Value, jwtStaff, jwtMarket);
+        return resolution.Success ? resolution.SupermarketId : null;
     }
 }

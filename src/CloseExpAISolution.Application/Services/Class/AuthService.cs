@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using AutoMapper;
+using CloseExpAISolution.Application.Auth;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
@@ -100,51 +101,6 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
-        // XỬ LÝ ĐĂNG KÝ SUPERMARKETSTAFF
-        Guid? finalSupermarketId = null;
-        if (roleId == (int)RoleUser.SupermarketStaff)
-        {
-            if (request.NewSupermarket == null)
-                return Error("Vui lòng nhập thông tin siêu thị/cơ sở");
-
-            var existingSupermarket = await _unitOfWork.Repository<Supermarket>()
-                .FirstOrDefaultAsync(s =>
-                    s.Name.ToLower() == request.NewSupermarket.Name.ToLower() &&
-                    s.Address.ToLower() == request.NewSupermarket.Address.ToLower() &&
-                    s.Latitude == request.NewSupermarket.Latitude &&
-                    s.Longitude == request.NewSupermarket.Longitude);
-
-            if (existingSupermarket != null)
-                return Error($"Cơ sở '{existingSupermarket.Name} - {existingSupermarket.Address}' đã tồn tại trong hệ thống");
-
-            // Tạo tọa độ nếu chỉ nhập địa chỉ
-            if (request.NewSupermarket.Latitude == 0 && request.NewSupermarket.Longitude == 0
-                && !string.IsNullOrWhiteSpace(request.NewSupermarket.Address))
-            {
-                try
-                {
-                    var geocodeResult = await _mapboxService.ForwardGeocodeAsync(request.NewSupermarket.Address);
-                    if (geocodeResult != null)
-                    {
-                        request.NewSupermarket.Latitude = (decimal)geocodeResult.Latitude;
-                        request.NewSupermarket.Longitude = (decimal)geocodeResult.Longitude;
-                        _logger.LogInformation("Auto-geocoded address '{Address}' → ({Lat}, {Lng})",
-                            request.NewSupermarket.Address, geocodeResult.Latitude, geocodeResult.Longitude);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Mapbox geocoding returned no result for '{Address}'", request.NewSupermarket.Address);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Mapbox geocoding failed for '{Address}', continuing with Lat=0/Lng=0", request.NewSupermarket.Address);
-                }
-            }
-
-            finalSupermarketId = Guid.NewGuid();
-        }
-
         var user = CreateNewUser(request, roleId);
 
         var otp = GenerateOtp();
@@ -155,26 +111,6 @@ public class AuthService : IAuthService
         try
         {
             await userRepository.AddAsync(user);
-
-            if (roleId == (int)RoleUser.SupermarketStaff && finalSupermarketId.HasValue)
-            {
-                var newSupermarket = _mapper.Map<Supermarket>(request.NewSupermarket);
-                newSupermarket.SupermarketId = finalSupermarketId.Value;
-                newSupermarket.Status = SupermarketState.Active;
-                newSupermarket.CreatedAt = DateTime.UtcNow;
-                await _unitOfWork.Repository<Supermarket>().AddAsync(newSupermarket);
-
-                // Tạo MarketStaff link
-                var marketStaff = new SupermarketStaff
-                {
-                    SupermarketStaffId = Guid.NewGuid(),
-                    UserId = user.UserId,
-                    SupermarketId = finalSupermarketId.Value,
-                    Position = request.Position ?? "Nhân viên",
-                    CreatedAt = DateTime.UtcNow
-                };
-                await _unitOfWork.Repository<SupermarketStaff>().AddAsync(marketStaff);
-            }
 
             await _unitOfWork.CommitTransactionAsync();
         }
@@ -245,6 +181,63 @@ public class AuthService : IAuthService
         var authResponse = await GenerateAuthResponseAsync(user, roleName, newRefreshToken);
 
         return ApiResponse<AuthResponse>.SuccessResponse(authResponse, "Làm mới token thành công");
+    }
+
+    public async Task<ApiResponse<AuthResponse>> SelectStaffContextAsync(Guid userId, string employeeCode)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var user = await userRepository.FirstOrDefaultAsync(u => u.UserId == userId);
+        if (user == null)
+            return Error("Người dùng không tồn tại");
+        if (user.Status != UserState.Active)
+            return Error("Tài khoản không còn hoạt động");
+        if (user.RoleId != (int)RoleUser.SupermarketStaff)
+            return Error("Chỉ nhân viên siêu thị mới cần chọn mã nhân viên.");
+
+        var staffRepo = _unitOfWork.Repository<SupermarketStaff>();
+        var rows = (await staffRepo.FindAsync(ms =>
+                ms.UserId == userId && ms.Status == SupermarketStaffState.Active))
+            .ToList();
+
+        if (rows.Count <= 1)
+            return Error("Tài khoản không cần chọn mã nhân viên.");
+
+        if (rows.Select(r => r.SupermarketId).Distinct().Count() > 1)
+            return Error("Tài khoản gắn nhiều siêu thị; vui lòng liên hệ quản trị.");
+
+        SupermarketStaff? matched = null;
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrEmpty(row.EmployeeCodeHash))
+                continue;
+            if (BCrypt.Net.BCrypt.Verify(employeeCode, row.EmployeeCodeHash))
+            {
+                matched = row;
+                break;
+            }
+        }
+
+        if (matched == null)
+            return Error("Mã nhân viên không đúng.");
+
+        var roleName = await GetRoleName(user.RoleId);
+        var jwtSettings = _configuration.GetSection("Jwt");
+        var expiryMinutes = int.Parse(jwtSettings["ExpiryInMinutes"] ?? "60");
+        var expiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes);
+        var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt, matched.SupermarketStaffId, matched.SupermarketId);
+
+        var memberships = await GetMarketStaffMembershipsAsync(user.UserId);
+        var primary = memberships.FirstOrDefault(m => m.MarketStaffId == matched.SupermarketStaffId)
+                      ?? PickPrimaryMarketStaffInfo(memberships);
+
+        return ApiResponse<AuthResponse>.SuccessResponse(new AuthResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = string.Empty,
+            ExpiresAt = expiresAt,
+            User = MapToUserResponse(user, roleName, primary, memberships),
+            RequiresStaffContext = false
+        }, "Đã chọn ngữ cảnh nhân viên.");
     }
 
     public async Task<ApiResponse<bool>> LogoutAsync(string refreshToken)
@@ -695,9 +688,8 @@ public class AuthService : IAuthService
         if (role == null)
             return Error("Loại đăng ký không hợp lệ");
 
-        // Only Vendor and SupermarketStaff can register publicly
-        if (roleId != (int)RoleUser.Vendor && roleId != (int)RoleUser.SupermarketStaff)
-            return Error("Loại đăng ký này không được phép. Chỉ Vendor và SupermarketStaff (nhân viên siêu thị) mới có thể đăng ký công khai.");
+        if (roleId != (int)RoleUser.Vendor)
+            return Error("Loại đăng ký này không được phép. Chỉ Vendor mới có thể đăng ký công khai. Để mở siêu thị, hãy đăng nhập và nộp hồ sơ đăng ký siêu thị.");
 
         return null;
     }
@@ -738,13 +730,15 @@ public class AuthService : IAuthService
         var expiryMinutes = int.Parse(jwtSettings["ExpiryInMinutes"] ?? "60");
         var expiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
-        var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt);
+        var (embeddedStaffId, embeddedMarketId, requiresStaffContext) = await ComputeStaffTokenContextAsync(user);
+        var accessToken = GenerateAccessToken(user, roleName, jwtSettings, expiresAt, embeddedStaffId, embeddedMarketId);
 
-        // Load MarketStaffInfo if user is SupermarketStaff
+        List<MarketStaffInfoDto>? memberships = null;
         MarketStaffInfoDto? marketStaffInfo = null;
         if (user.RoleId == (int)RoleUser.SupermarketStaff)
         {
-            marketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+            memberships = await GetMarketStaffMembershipsAsync(user.UserId);
+            marketStaffInfo = PickPrimaryMarketStaffInfo(memberships);
         }
 
         return new AuthResponse
@@ -752,8 +746,33 @@ public class AuthService : IAuthService
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
-            User = MapToUserResponse(user, roleName, marketStaffInfo)
+            User = MapToUserResponse(user, roleName, marketStaffInfo, memberships),
+            RequiresStaffContext = requiresStaffContext
         };
+    }
+
+    private async Task<(Guid? StaffId, Guid? SupermarketId, bool RequiresStaffContext)> ComputeStaffTokenContextAsync(User user)
+    {
+        if (user.RoleId != (int)RoleUser.SupermarketStaff)
+            return (null, null, false);
+
+        var rows = (await _unitOfWork.Repository<SupermarketStaff>().FindAsync(ms =>
+                ms.UserId == user.UserId && ms.Status == SupermarketStaffState.Active))
+            .ToList();
+
+        if (rows.Count == 0)
+            return (null, null, false);
+
+        if (rows.Select(r => r.SupermarketId).Distinct().Count() > 1)
+        {
+            _logger.LogWarning("User {UserId} has active staff rows in multiple supermarkets", user.UserId);
+            return (null, null, true);
+        }
+
+        if (rows.Count == 1)
+            return (rows[0].SupermarketStaffId, rows[0].SupermarketId, false);
+
+        return (null, null, true);
     }
 
     private static string GenerateRefreshTokenString()
@@ -775,25 +794,37 @@ public class AuthService : IAuthService
         DeviceInfo = deviceInfo
     };
 
-    private static string GenerateAccessToken(User user, string roleName, IConfigurationSection jwtSettings, DateTime expiresAt)
+    private static string GenerateAccessToken(
+        User user,
+        string roleName,
+        IConfigurationSection jwtSettings,
+        DateTime expiresAt,
+        Guid? supermarketStaffId = null,
+        Guid? supermarketId = null)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        var claimList = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(ClaimTypes.Name, user.FullName),
-            new Claim(ClaimTypes.Role, roleName),
-            new Claim("RoleId", user.RoleId.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new(ClaimTypes.Name, user.FullName),
+            new(ClaimTypes.Role, roleName),
+            new("RoleId", user.RoleId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        if (supermarketStaffId.HasValue && supermarketId.HasValue)
+        {
+            claimList.Add(new Claim(JwtStaffClaims.SupermarketStaffId, supermarketStaffId.Value.ToString()));
+            claimList.Add(new Claim(JwtStaffClaims.SupermarketId, supermarketId.Value.ToString()));
+        }
 
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],
-            claims: claims,
+            claims: claimList,
             expires: expiresAt,
             signingCredentials: credentials
         );
@@ -801,43 +832,72 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static UserResponseDto MapToUserResponse(User user, string roleName, MarketStaffInfoDto? marketStaffInfo = null) => new()
-    {
-        UserId = user.UserId,
-        FullName = user.FullName,
-        Email = user.Email,
-        Phone = user.Phone,
-        RoleName = roleName,
-        RoleId = user.RoleId,
-        Status = Enum.TryParse<UserState>(user.Status.ToString(), out var status) ? status : UserState.Unverified,
-        CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdatedAt,
-        MarketStaffInfo = marketStaffInfo
-    };
+    private static UserResponseDto MapToUserResponse(
+        User user,
+        string roleName,
+        MarketStaffInfoDto? marketStaffInfo = null,
+        List<MarketStaffInfoDto>? marketStaffMemberships = null) => new()
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            Email = user.Email,
+            Phone = user.Phone,
+            RoleName = roleName,
+            RoleId = user.RoleId,
+            Status = Enum.TryParse<UserState>(user.Status.ToString(), out var status) ? status : UserState.Unverified,
+            CreatedAt = user.CreatedAt,
+            UpdatedAt = user.UpdatedAt,
+            MarketStaffInfo = marketStaffInfo,
+            MarketStaffMemberships = marketStaffMemberships
+        };
 
     private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
     {
-        var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
-            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+        var list = await GetMarketStaffMembershipsAsync(userId);
+        return PickPrimaryMarketStaffInfo(list);
+    }
 
-        if (marketStaff == null) return null;
+    private async Task<List<MarketStaffInfoDto>> GetMarketStaffMembershipsAsync(Guid userId)
+    {
+        var staffRepo = _unitOfWork.Repository<SupermarketStaff>();
+        var marketRepo = _unitOfWork.Repository<Supermarket>();
+        var rows = (await staffRepo.FindAsync(ms =>
+                ms.UserId == userId && ms.Status == SupermarketStaffState.Active))
+            .OrderByDescending(ms => ms.IsManager)
+            .ThenBy(ms => ms.CreatedAt)
+            .ToList();
 
-        var supermarket = await _unitOfWork.Repository<Supermarket>()
-            .FirstOrDefaultAsync(s => s.SupermarketId == marketStaff.SupermarketId);
-
-        return new MarketStaffInfoDto
+        var list = new List<MarketStaffInfoDto>();
+        foreach (var ms in rows)
         {
-            MarketStaffId = marketStaff.SupermarketStaffId,
-            Position = marketStaff.Position ?? "Nhân viên",
-            JoinedAt = marketStaff.CreatedAt,
-            Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto
+            var supermarket = await marketRepo.FirstOrDefaultAsync(s => s.SupermarketId == ms.SupermarketId);
+            list.Add(new MarketStaffInfoDto
             {
-                SupermarketId = supermarket.SupermarketId,
-                Name = supermarket.Name,
-                Address = supermarket.Address,
-                ContactPhone = supermarket.ContactPhone
-            }
-        };
+                MarketStaffId = ms.SupermarketStaffId,
+                Position = ms.Position ?? "Nhân viên",
+                JoinedAt = ms.CreatedAt,
+                IsManager = ms.IsManager,
+                EmployeeCodeHint = ms.EmployeeCodeHint,
+                Supermarket = supermarket == null
+                    ? null
+                    : new SupermarketBasicInfoDto
+                    {
+                        SupermarketId = supermarket.SupermarketId,
+                        Name = supermarket.Name,
+                        Address = supermarket.Address,
+                        ContactPhone = supermarket.ContactPhone
+                    }
+            });
+        }
+
+        return list;
+    }
+
+    private static MarketStaffInfoDto? PickPrimaryMarketStaffInfo(IReadOnlyList<MarketStaffInfoDto>? memberships)
+    {
+        if (memberships == null || memberships.Count == 0)
+            return null;
+        return memberships.FirstOrDefault(m => m.IsManager) ?? memberships[0];
     }
 
     #endregion
@@ -930,14 +990,14 @@ public class AuthService : IAuthService
     private async Task SendEmailVerifiedNotificationAsync(string email, string fullName, bool? isVendor = false)
     {
         var msgForPendingApproval = "";
-        if (isVendor == true)
+        if (isVendor != true)
             msgForPendingApproval = "Tài khoản của bạn hiện đang <strong>chờ quản trị viên phê duyệt</strong>. Bạn sẽ nhận được thông báo qua email khi tài khoản được phê duyệt.";
         var subject = "CloseExp AI - Email đã được xác minh!";
         var body = $@"
             <html>
             <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
                 <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
-                    <h1 style='color: white; margin: 0;'>✓ Email Đã Xác Minh</h1>
+                    <h1 style='color: white; margin: 0;'>Email Đã Xác Minh</h1>
                 </div>
                 <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
                     <h2>Xin chào {fullName}!</h2>

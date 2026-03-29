@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -268,5 +269,47 @@ public class AdminController : ControllerBase
     {
         var data = await _services.AdminService.GetAiPriceHistoriesAsync(pageNumber, pageSize, cancellationToken);
         return Ok(ApiResponse<PaginatedResult<AdminAiPriceHistoryDto>>.SuccessResponse(data));
+    }
+
+    [HttpGet("supermarkets/applications/pending")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminPendingSupermarketApplicationDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingSupermarketApplications(CancellationToken cancellationToken)
+    {
+        var result = await _services.SupermarketRegistrationService.GetPendingApplicationsForAdminAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("supermarkets/applications/{supermarketId:guid}/approve")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ApproveSupermarketApplication(Guid supermarketId, CancellationToken cancellationToken)
+    {
+        var adminIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(adminIdStr, out var adminUserId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định quản trị viên"));
+
+        var result = await _services.SupermarketRegistrationService.ApproveApplicationAsync(supermarketId, adminUserId, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
+    [HttpPost("supermarkets/applications/{supermarketId:guid}/reject")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RejectSupermarketApplication(
+        Guid supermarketId,
+        [FromBody] RejectSupermarketApplicationRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        var adminIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(adminIdStr, out var adminUserId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định quản trị viên"));
+
+        var result = await _services.SupermarketRegistrationService.RejectApplicationAsync(
+            supermarketId, adminUserId, request?.AdminReviewNote, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
     }
 }

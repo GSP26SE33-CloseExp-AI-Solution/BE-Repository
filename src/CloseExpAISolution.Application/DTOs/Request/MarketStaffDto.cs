@@ -44,4 +44,6 @@ public class MarketStaffResponseDto
     public Guid SupermarketId { get; set; }
     public string Position { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public bool IsManager { get; set; }
+    public string? EmployeeCodeHint { get; set; }
 }

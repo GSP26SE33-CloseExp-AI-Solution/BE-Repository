@@ -275,7 +275,9 @@ public class UserService : IUserService
         // Nếu là SupermarketStaff (RoleId = 4) - nhân viên siêu thị thì load thông tin siêu thị
         if (user.RoleId == (int)RoleUser.SupermarketStaff)
         {
-            dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+            var memberships = await GetMarketStaffMembershipsAsync(user.UserId);
+            dto.MarketStaffMemberships = memberships;
+            dto.MarketStaffInfo = PickPrimaryMarketStaffInfo(memberships);
         }
 
         return dto;
@@ -296,36 +298,55 @@ public class UserService : IUserService
         // Nếu là SupermarketStaff (nhân viên siêu thị) thì load thông tin siêu thị
         if (user.RoleId == (int)RoleUser.SupermarketStaff)
         {
-            dto.MarketStaffInfo = await GetMarketStaffInfoAsync(user.UserId);
+            var memberships = await GetMarketStaffMembershipsAsync(user.UserId);
+            dto.MarketStaffMemberships = memberships;
+            dto.MarketStaffInfo = PickPrimaryMarketStaffInfo(memberships);
         }
 
         return dto;
     }
 
-    private async Task<MarketStaffInfoDto?> GetMarketStaffInfoAsync(Guid userId)
+    private async Task<List<MarketStaffInfoDto>> GetMarketStaffMembershipsAsync(Guid userId)
     {
-        var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
-            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+        var staffRepo = _unitOfWork.Repository<SupermarketStaff>();
+        var marketRepo = _unitOfWork.Repository<Supermarket>();
+        var rows = (await staffRepo.FindAsync(ms =>
+                ms.UserId == userId && ms.Status == SupermarketStaffState.Active))
+            .OrderByDescending(ms => ms.IsManager)
+            .ThenBy(ms => ms.CreatedAt)
+            .ToList();
 
-        if (marketStaff == null)
-            return null;
-
-        var supermarket = await _unitOfWork.Repository<Supermarket>()
-            .FirstOrDefaultAsync(s => s.SupermarketId == marketStaff.SupermarketId);
-
-        return new MarketStaffInfoDto
+        var list = new List<MarketStaffInfoDto>();
+        foreach (var ms in rows)
         {
-            MarketStaffId = marketStaff.SupermarketStaffId,
-            Position = marketStaff.Position,
-            JoinedAt = marketStaff.CreatedAt,
-            Supermarket = supermarket == null ? null : new SupermarketBasicInfoDto
+            var supermarket = await marketRepo.FirstOrDefaultAsync(s => s.SupermarketId == ms.SupermarketId);
+            list.Add(new MarketStaffInfoDto
             {
-                SupermarketId = supermarket.SupermarketId,
-                Name = supermarket.Name,
-                Address = supermarket.Address,
-                ContactPhone = supermarket.ContactPhone
-            }
-        };
+                MarketStaffId = ms.SupermarketStaffId,
+                Position = ms.Position,
+                JoinedAt = ms.CreatedAt,
+                IsManager = ms.IsManager,
+                EmployeeCodeHint = ms.EmployeeCodeHint,
+                Supermarket = supermarket == null
+                    ? null
+                    : new SupermarketBasicInfoDto
+                    {
+                        SupermarketId = supermarket.SupermarketId,
+                        Name = supermarket.Name,
+                        Address = supermarket.Address,
+                        ContactPhone = supermarket.ContactPhone
+                    }
+            });
+        }
+
+        return list;
+    }
+
+    private static MarketStaffInfoDto? PickPrimaryMarketStaffInfo(IReadOnlyList<MarketStaffInfoDto> memberships)
+    {
+        if (memberships.Count == 0)
+            return null;
+        return memberships.FirstOrDefault(m => m.IsManager) ?? memberships[0];
     }
 
     private async Task RevokeAllUserTokensInternalAsync(Guid userId)

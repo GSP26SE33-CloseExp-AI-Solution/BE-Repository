@@ -43,7 +43,7 @@ public static class AuthenticationServiceExtensions
                     var result = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         success = false,
-                        message = "You are not authorized. Please authenticate.",
+                        message = "Bạn không có quyền truy cập tài nguyên này. Vui lòng đăng nhập để tiếp tục.",
                         error = new[] { "unauthorized" }
                     });
                     return context.Response.WriteAsync(result);

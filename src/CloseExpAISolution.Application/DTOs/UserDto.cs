@@ -82,6 +82,9 @@ public class UserResponseDto
     public DateTime UpdatedAt { get; set; }
 
     public MarketStaffInfoDto? MarketStaffInfo { get; set; }
+
+    /// <summary>All active staff personas for this user (shared login / multiple employee codes).</summary>
+    public List<MarketStaffInfoDto>? MarketStaffMemberships { get; set; }
 }
 
 public class MarketStaffInfoDto
@@ -89,6 +92,8 @@ public class MarketStaffInfoDto
     public Guid MarketStaffId { get; set; }
     public string Position { get; set; } = string.Empty;
     public DateTime JoinedAt { get; set; }
+    public bool IsManager { get; set; }
+    public string? EmployeeCodeHint { get; set; }
 
     public SupermarketBasicInfoDto? Supermarket { get; set; }
 }

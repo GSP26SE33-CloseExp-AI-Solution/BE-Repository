@@ -421,7 +421,8 @@ public static class DataSeeder
                 UserId = SupermarketStaffUserId1,
                 SupermarketId = SupermarketCoopMartId,
                 Position = "Nhân viên kho",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                IsManager = true
             },
             new()
             {
@@ -429,7 +430,8 @@ public static class DataSeeder
                 UserId = SupermarketStaffUserId2,
                 SupermarketId = SupermarketBigCId,
                 Position = "Nhân viên quầy thịt",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                IsManager = true
             },
             new()
             {
@@ -437,7 +439,8 @@ public static class DataSeeder
                 UserId = SupermarketStaffUserId3,
                 SupermarketId = SupermarketVinMartId,
                 Position = "Quản lý kho",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                IsManager = true
             }
         };
 

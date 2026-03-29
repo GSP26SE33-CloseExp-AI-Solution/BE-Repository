@@ -11,6 +11,7 @@ public interface IServiceProviders
     IProductService ProductService { get; }
     ISupermarketStaffService MarketStaffService { get; }
     ISupermarketService SupermarketService { get; }
+    ISupermarketRegistrationService SupermarketRegistrationService { get; }
     IProductImageService ProductImageService { get; }
     IAIVerificationLogService AIVerificationLogService { get; }
     IAuthService AuthService { get; }

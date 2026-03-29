@@ -13,7 +13,6 @@ public class SupermarketService : ISupermarketService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
-
     public SupermarketService(IUnitOfWork unitOfWork, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
@@ -68,7 +67,8 @@ public class SupermarketService : ISupermarketService
     public async Task<SupermarketResponseDto?> GetByIdWithDtoAsync(Guid id)
     {
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(
-            x => x.SupermarketId == id && x.Status != SupermarketState.Closed);
+            x => x.SupermarketId == id &&
+                 (x.Status == SupermarketState.Active || x.Status == SupermarketState.Suspended));
         if (supermarket == null) return null;
 
         return _mapper.Map<SupermarketResponseDto>(supermarket);
@@ -76,15 +76,13 @@ public class SupermarketService : ISupermarketService
 
     public async Task<IEnumerable<SupermarketResponseDto>> GetAllWithDtoAsync()
     {
-        var items = await _unitOfWork.SupermarketRepository.FindAsync(
-            x => x.Status != SupermarketState.Closed);
+        var items = await _unitOfWork.SupermarketRepository.FindAsync(PublicCatalogInDb());
         return _mapper.Map<IEnumerable<SupermarketResponseDto>>(items);
     }
 
     public async Task<IEnumerable<SupermarketResponseDto>> GetAvailableWithDtoAsync()
     {
-        var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(
-            x => x.Status != SupermarketState.Closed);
+        var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(PublicCatalogInDb());
 
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
@@ -104,8 +102,7 @@ public class SupermarketService : ISupermarketService
 
         var queryLower = query.Trim().ToLower();
 
-        var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(
-            x => x.Status != SupermarketState.Closed);
+        var allSupermarkets = await _unitOfWork.SupermarketRepository.FindAsync(PublicCatalogInDb());
 
         var registeredSupermarketIds = (await _unitOfWork.Repository<SupermarketStaff>()
             .GetAllAsync())
@@ -160,5 +157,9 @@ public class SupermarketService : ISupermarketService
         _unitOfWork.SupermarketRepository.Update(supermarket);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
+
+    private static Expression<Func<Supermarket, bool>> PublicCatalogInDb() =>
+        s => s.Status == SupermarketState.Active || s.Status == SupermarketState.Suspended;
+
 }
 

@@ -1,3 +1,4 @@
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -143,6 +144,22 @@ public class AuthController : ControllerBase
     {
         var result = await _services.AuthService.ResetPasswordAsync(request);
         return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [Authorize]
+    [HttpPost("select-staff-context")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SelectStaffContext([FromBody] SelectStaffContextRequestDto request)
+    {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
+            return Unauthorized(ApiResponse<AuthResponse>.ErrorResponse("Không thể xác định người dùng"));
+
+        var result = await _services.AuthService.SelectStaffContextAsync(userId.Value, request.EmployeeCode);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
     }
 
     [HttpPost("google-login")]

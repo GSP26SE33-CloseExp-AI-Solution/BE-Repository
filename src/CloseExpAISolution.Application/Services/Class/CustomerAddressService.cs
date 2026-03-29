@@ -1,18 +1,27 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
 public class CustomerAddressService : ICustomerAddressService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapboxService _mapboxService;
+    private readonly ILogger<CustomerAddressService> _logger;
 
-    public CustomerAddressService(IUnitOfWork unitOfWork)
+    public CustomerAddressService(
+        IUnitOfWork unitOfWork,
+        IMapboxService mapboxService,
+        ILogger<CustomerAddressService> logger)
     {
         _unitOfWork = unitOfWork;
+        _mapboxService = mapboxService;
+        _logger = logger;
     }
 
     public async Task<IEnumerable<CustomerAddressResponseDto>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -46,6 +55,19 @@ public class CustomerAddressService : ICustomerAddressService
     {
         var repo = _unitOfWork.Repository<CustomerAddress>();
 
+        // Auto-geocode nếu không truyền tọa độ
+        var latitude = request.Latitude;
+        var longitude = request.Longitude;
+        if (latitude == 0 && longitude == 0 && !string.IsNullOrWhiteSpace(request.AddressLine))
+        {
+            var geocodeResult = await TryGeocodeAddressAsync(request.AddressLine);
+            if (geocodeResult.HasValue)
+            {
+                latitude = geocodeResult.Value.Latitude;
+                longitude = geocodeResult.Value.Longitude;
+            }
+        }
+
         await _unitOfWork.BeginTransactionAsync();
         try
         {
@@ -69,8 +91,8 @@ public class CustomerAddressService : ICustomerAddressService
                 Phone = request.Phone,
                 RecipientName = request.RecipientName,
                 AddressLine = request.AddressLine,
-                Latitude = request.Latitude,
-                Longitude = request.Longitude,
+                Latitude = latitude,
+                Longitude = longitude,
                 IsDefault = request.IsDefault
             };
 
@@ -103,8 +125,21 @@ public class CustomerAddressService : ICustomerAddressService
         if (!string.IsNullOrEmpty(request.RecipientName))
             address.RecipientName = request.RecipientName;
 
-        if (!string.IsNullOrEmpty(request.AddressLine))
+        // Nếu đổi AddressLine và không truyền lat/long mới → auto-geocode
+        if (!string.IsNullOrEmpty(request.AddressLine) && request.AddressLine != address.AddressLine)
+        {
             address.AddressLine = request.AddressLine;
+
+            if (!request.Latitude.HasValue && !request.Longitude.HasValue)
+            {
+                var geocodeResult = await TryGeocodeAddressAsync(request.AddressLine);
+                if (geocodeResult.HasValue)
+                {
+                    address.Latitude = geocodeResult.Value.Latitude;
+                    address.Longitude = geocodeResult.Value.Longitude;
+                }
+            }
+        }
 
         if (request.Latitude.HasValue)
             address.Latitude = request.Latitude.Value;
@@ -198,6 +233,23 @@ public class CustomerAddressService : ICustomerAddressService
             addr.IsDefault = false;
             repo.Update(addr);
         }
+    }
+
+    private async Task<(decimal Latitude, decimal Longitude)?> TryGeocodeAddressAsync(string addressLine)
+    {
+        try
+        {
+            var result = await _mapboxService.ForwardGeocodeAsync(addressLine);
+            if (result != null)
+            {
+                return ((decimal)result.Latitude, (decimal)result.Longitude);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to geocode address: {Address}", addressLine);
+        }
+        return null;
     }
 
     private static CustomerAddressResponseDto MapToDto(CustomerAddress x) => new()
