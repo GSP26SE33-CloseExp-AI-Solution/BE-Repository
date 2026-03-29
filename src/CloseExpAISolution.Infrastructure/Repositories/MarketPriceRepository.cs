@@ -43,69 +43,36 @@ public class MarketPriceRepository : IMarketPriceRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<MarketPrice> UpsertAsync(MarketPrice marketPrice, CancellationToken cancellationToken = default)
+    public async Task<MarketPrice> InsertObservationAsync(MarketPrice marketPrice, DateTime? batchTimestamp = null, CancellationToken cancellationToken = default)
     {
-        var existing = await _context.MarketPrices
-            .FirstOrDefaultAsync(mp => 
-                mp.Barcode == marketPrice.Barcode && 
-                mp.Source == marketPrice.Source,
-                cancellationToken);
-
-        if (existing != null)
-        {
-            existing.Price = marketPrice.Price;
-            existing.OriginalPrice = marketPrice.OriginalPrice;
-            existing.SourceUrl = marketPrice.SourceUrl;
-            existing.IsInStock = marketPrice.IsInStock;
-            existing.LastUpdated = DateTime.UtcNow;
-            existing.Confidence = marketPrice.Confidence;
-            existing.Notes = marketPrice.Notes;
-            _context.MarketPrices.Update(existing);
-        }
-        else
-        {
-            marketPrice.MarketPriceId = Guid.NewGuid();
-            marketPrice.CollectedAt = DateTime.UtcNow;
-            await _context.MarketPrices.AddAsync(marketPrice, cancellationToken);
-        }
-
+        marketPrice.MarketPriceId = Guid.NewGuid();
+        marketPrice.CollectedAt = batchTimestamp ?? DateTime.UtcNow;
+        marketPrice.LastUpdated = marketPrice.CollectedAt;
+        await _context.MarketPrices.AddAsync(marketPrice, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
-        return existing ?? marketPrice;
+        return marketPrice;
     }
 
-    public async Task BulkUpsertAsync(IEnumerable<MarketPrice> marketPrices, CancellationToken cancellationToken = default)
+    public async Task BulkInsertObservationsAsync(IEnumerable<MarketPrice> marketPrices, DateTime? batchTimestamp = null, CancellationToken cancellationToken = default)
     {
-        // Group by Barcode + Source + StoreName to handle duplicates from same crawl
+        var collectedAt = batchTimestamp ?? DateTime.UtcNow;
+        // Dedupe within one crawl batch to prevent duplicated observations.
         var uniquePrices = marketPrices
-            .GroupBy(p => new { p.Barcode, p.Source, p.StoreName })
-            .Select(g => g.First()) // Take first if duplicates
+            .GroupBy(p => new
+            {
+                Barcode = p.Barcode.Trim(),
+                Source = p.Source.Trim(),
+                Store = (p.StoreName ?? string.Empty).Trim().ToLowerInvariant()
+            })
+            .Select(g => g.First())
             .ToList();
 
         foreach (var price in uniquePrices)
         {
-            var existing = await _context.MarketPrices
-                .FirstOrDefaultAsync(mp => 
-                    mp.Barcode == price.Barcode && 
-                    mp.Source == price.Source &&
-                    mp.StoreName == price.StoreName,
-                    cancellationToken);
-
-            if (existing != null)
-            {
-                existing.Price = price.Price;
-                existing.OriginalPrice = price.OriginalPrice;
-                existing.SourceUrl = price.SourceUrl;
-                existing.IsInStock = price.IsInStock;
-                existing.LastUpdated = DateTime.UtcNow;
-                existing.ProductName = price.ProductName;
-                existing.Confidence = price.Confidence;
-            }
-            else
-            {
-                price.MarketPriceId = Guid.NewGuid();
-                price.CollectedAt = DateTime.UtcNow;
-                await _context.MarketPrices.AddAsync(price, cancellationToken);
-            }
+            price.MarketPriceId = Guid.NewGuid();
+            price.CollectedAt = collectedAt;
+            price.LastUpdated = collectedAt;
+            await _context.MarketPrices.AddAsync(price, cancellationToken);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -126,10 +93,14 @@ public class MarketPriceRepository : IMarketPriceRepository
         return expiredPrices.Count;
     }
 
-    public async Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, CancellationToken cancellationToken = default)
+    public async Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
     {
         var prices = await _context.MarketPrices
-            .Where(mp => mp.Barcode == barcode && mp.Status == MarketPriceState.Active)
+            .Where(mp =>
+                mp.Barcode == barcode &&
+                mp.Status == MarketPriceState.Active &&
+                mp.CollectedAt >= fromUtc &&
+                mp.CollectedAt <= toUtc)
             .ToListAsync(cancellationToken);
 
         if (!prices.Any())
@@ -145,6 +116,55 @@ public class MarketPriceRepository : IMarketPriceRepository
             Sources = prices.Select(p => p.Source).Distinct().ToList(),
             LastUpdated = prices.Max(p => p.LastUpdated ?? p.CollectedAt)
         };
+    }
+
+    public async Task<List<MarketPrice>> GetLatestDetailsAsync(string barcode, DateTime fromUtc, CancellationToken cancellationToken = default)
+    {
+        var prices = await _context.MarketPrices
+            .Where(mp =>
+                mp.Barcode == barcode &&
+                mp.Status == MarketPriceState.Active &&
+                mp.CollectedAt >= fromUtc)
+            .OrderByDescending(mp => mp.CollectedAt)
+            .ToListAsync(cancellationToken);
+
+        return prices
+            .GroupBy(mp => new { mp.Source, StoreName = mp.StoreName ?? string.Empty })
+            .Select(g => g.First())
+            .OrderBy(mp => mp.Price)
+            .ToList();
+    }
+
+    public async Task<DateTime?> GetLatestCollectedAtAsync(string barcode, CancellationToken cancellationToken = default)
+    {
+        return await _context.MarketPrices
+            .Where(mp => mp.Barcode == barcode)
+            .MaxAsync(mp => (DateTime?)mp.CollectedAt, cancellationToken);
+    }
+
+    public async Task<List<string>> GetDistinctBarcodesNeedingRefreshAsync(DateTime staleBeforeUtc, int take = 200, CancellationToken cancellationToken = default)
+    {
+        var activeBarcodes = _context.StockLots
+            .Where(s => s.Status == ProductState.Published && s.Quantity > 0)
+            .Join(_context.Products, s => s.ProductId, p => p.ProductId, (_, p) => p.Barcode)
+            .Where(b => b != null && b != "")
+            .Distinct();
+
+        var latestByBarcode = _context.MarketPrices
+            .GroupBy(mp => mp.Barcode)
+            .Select(g => new { Barcode = g.Key, Latest = g.Max(x => x.CollectedAt) });
+
+        return await activeBarcodes
+            .GroupJoin(
+                latestByBarcode,
+                b => b!,
+                m => m.Barcode,
+                (b, m) => new { Barcode = b!, Latest = m.Select(x => (DateTime?)x.Latest).FirstOrDefault() })
+            .Where(x => !x.Latest.HasValue || x.Latest.Value < staleBeforeUtc)
+            .OrderBy(x => x.Latest)
+            .Take(Math.Clamp(take, 1, 1000))
+            .Select(x => x.Barcode)
+            .ToListAsync(cancellationToken);
     }
 }
 

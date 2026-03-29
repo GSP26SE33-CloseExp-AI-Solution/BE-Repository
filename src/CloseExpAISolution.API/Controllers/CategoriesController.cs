@@ -25,6 +25,30 @@ public class CategoriesController : ControllerBase
         return Ok(ApiResponse<IEnumerable<CategoryResponseDto>>.SuccessResponse(items));
     }
 
+    [HttpGet("parents")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CategoryResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetParents([FromQuery] bool includeInactive = false, CancellationToken cancellationToken = default)
+    {
+        var items = await _services.CategoryService.GetParentCategoriesAsync(includeInactive, cancellationToken);
+        return Ok(ApiResponse<IEnumerable<CategoryResponseDto>>.SuccessResponse(items));
+    }
+
+    [HttpGet("{parentId:guid}/children")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CategoryResponseDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetChildren(Guid parentId, [FromQuery] bool includeInactive = false, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var items = await _services.CategoryService.GetChildrenByParentIdAsync(parentId, includeInactive, cancellationToken);
+            return Ok(ApiResponse<IEnumerable<CategoryResponseDto>>.SuccessResponse(items));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<IEnumerable<CategoryResponseDto>>.ErrorResponse(ex.Message));
+        }
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<CategoryResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

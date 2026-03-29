@@ -131,13 +131,15 @@ public class AdminService : IAdminService
     public async Task<IEnumerable<AdminTimeSlotDto>> GetTimeSlotsAsync(CancellationToken cancellationToken = default)
     {
         var slots = await _unitOfWork.Repository<DeliveryTimeSlot>().GetAllAsync();
+        var orderCountBySlot = await GetOrderTimeSlotCountsAsync(cancellationToken);
         return slots
             .OrderBy(x => x.StartTime)
             .Select(x => new AdminTimeSlotDto
             {
                 TimeSlotId = x.TimeSlotId,
                 StartTime = x.StartTime,
-                EndTime = x.EndTime
+                EndTime = x.EndTime,
+                RelatedOrderCount = orderCountBySlot.TryGetValue(x.TimeSlotId, out var c) ? c : 0
             });
     }
 
@@ -160,7 +162,8 @@ public class AdminService : IAdminService
         {
             TimeSlotId = entity.TimeSlotId,
             StartTime = entity.StartTime,
-            EndTime = entity.EndTime
+            EndTime = entity.EndTime,
+            RelatedOrderCount = 0
         };
     }
 
@@ -182,11 +185,14 @@ public class AdminService : IAdminService
         _unitOfWork.Repository<DeliveryTimeSlot>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var relatedOrders = await _unitOfWork.Repository<Order>().CountAsync(o => o.TimeSlotId == timeSlotId);
+
         return new AdminTimeSlotDto
         {
             TimeSlotId = entity.TimeSlotId,
             StartTime = entity.StartTime,
-            EndTime = entity.EndTime
+            EndTime = entity.EndTime,
+            RelatedOrderCount = relatedOrders
         };
     }
 
@@ -198,6 +204,17 @@ public class AdminService : IAdminService
         if (entity == null)
             return false;
 
+        var orderRefCount = await _unitOfWork.Repository<Order>()
+            .CountAsync(o => o.TimeSlotId == timeSlotId);
+        var deliveryGroupRefCount = await _unitOfWork.Repository<DeliveryGroup>()
+            .CountAsync(g => g.TimeSlotId == timeSlotId);
+
+        if (orderRefCount > 0 || deliveryGroupRefCount > 0)
+        {
+            throw new InvalidOperationException(
+                $"Không thể xóa khung giờ vì đang được sử dụng bởi {orderRefCount} đơn hàng và {deliveryGroupRefCount} nhóm giao.");
+        }
+
         _unitOfWork.Repository<DeliveryTimeSlot>().Delete(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return true;
@@ -206,6 +223,7 @@ public class AdminService : IAdminService
     public async Task<IEnumerable<AdminCollectionPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
     {
         var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
+        var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
         return points
             .OrderBy(x => x.Name)
             .Select(x => new AdminCollectionPointDto
@@ -214,7 +232,8 @@ public class AdminService : IAdminService
                 Name = x.Name,
                 AddressLine = x.AddressLine,
                 Latitude = x.Latitude ?? 0,
-                Longitude = x.Longitude ?? 0
+                Longitude = x.Longitude ?? 0,
+                RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0
             });
     }
 
@@ -238,7 +257,8 @@ public class AdminService : IAdminService
             Name = entity.Name,
             AddressLine = entity.AddressLine,
             Latitude = entity.Latitude ?? 0,
-            Longitude = entity.Longitude ?? 0
+            Longitude = entity.Longitude ?? 0,
+            RelatedOrderCount = 0
         };
     }
 
@@ -258,13 +278,16 @@ public class AdminService : IAdminService
         _unitOfWork.Repository<CollectionPoint>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var relatedOrders = await _unitOfWork.Repository<Order>().CountAsync(o => o.CollectionId == collectionId);
+
         return new AdminCollectionPointDto
         {
             CollectionId = entity.CollectionId,
             Name = entity.Name,
             AddressLine = entity.AddressLine,
             Latitude = entity.Latitude ?? 0,
-            Longitude = entity.Longitude ?? 0
+            Longitude = entity.Longitude ?? 0,
+            RelatedOrderCount = relatedOrders
         };
     }
 
@@ -275,6 +298,15 @@ public class AdminService : IAdminService
 
         if (entity == null)
             return false;
+
+        var orderRefCount = await _unitOfWork.Repository<Order>()
+            .CountAsync(o => o.CollectionId == collectionId);
+
+        if (orderRefCount > 0)
+        {
+            throw new InvalidOperationException(
+                $"Không thể xóa điểm tập kết vì đang được sử dụng bởi {orderRefCount} đơn hàng.");
+        }
 
         _unitOfWork.Repository<CollectionPoint>().Delete(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -333,16 +365,27 @@ public class AdminService : IAdminService
     public async Task<IEnumerable<AdminUnitDto>> GetUnitsAsync(CancellationToken cancellationToken = default)
     {
         var units = await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync();
+        var stockLots = await _unitOfWork.Repository<StockLot>().GetAllAsync();
+        var lotCountByUnit = stockLots
+            .GroupBy(s => s.UnitId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
         return units
             .OrderBy(x => x.Name)
-            .Select(x => new AdminUnitDto
+            .Select(x =>
             {
-                UnitId = x.UnitId,
-                Name = x.Name,
-                Type = x.Type,
-                Symbol = x.Symbol,
-                CreatedAt = x.CreatedAt,
-                UpdatedAt = x.UpdatedAt
+                var count = lotCountByUnit.TryGetValue(x.UnitId, out var c) ? c : 0;
+                return new AdminUnitDto
+                {
+                    UnitId = x.UnitId,
+                    Name = x.Name,
+                    Type = x.Type,
+                    Symbol = x.Symbol,
+                    CreatedAt = x.CreatedAt,
+                    UpdatedAt = x.UpdatedAt,
+                    RelatedStockLotCount = count,
+                    IsInUse = count > 0
+                };
             });
     }
 
@@ -369,7 +412,9 @@ public class AdminService : IAdminService
             Type = entity.Type,
             Symbol = entity.Symbol,
             CreatedAt = entity.CreatedAt,
-            UpdatedAt = entity.UpdatedAt
+            UpdatedAt = entity.UpdatedAt,
+            RelatedStockLotCount = 0,
+            IsInUse = false
         };
     }
 
@@ -389,6 +434,8 @@ public class AdminService : IAdminService
         _unitOfWork.Repository<UnitOfMeasure>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var relatedLotCount = await _unitOfWork.Repository<StockLot>().CountAsync(s => s.UnitId == unitId);
+
         return new AdminUnitDto
         {
             UnitId = entity.UnitId,
@@ -396,7 +443,9 @@ public class AdminService : IAdminService
             Type = entity.Type,
             Symbol = entity.Symbol,
             CreatedAt = entity.CreatedAt,
-            UpdatedAt = entity.UpdatedAt
+            UpdatedAt = entity.UpdatedAt,
+            RelatedStockLotCount = relatedLotCount,
+            IsInUse = relatedLotCount > 0
         };
     }
 
@@ -446,6 +495,21 @@ public class AdminService : IAdminService
             Page = safePage,
             PageSize = safeSize
         };
+    }
+
+    private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
+        return orders.GroupBy(o => o.TimeSlotId).ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private async Task<Dictionary<Guid, int>> GetOrderCollectionCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
+        return orders
+            .Where(o => o.CollectionId.HasValue)
+            .GroupBy(o => o.CollectionId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
     }
 
     private async Task EnsureNoOverlappingTimeSlotAsync(Guid? currentId, TimeSpan start, TimeSpan end)

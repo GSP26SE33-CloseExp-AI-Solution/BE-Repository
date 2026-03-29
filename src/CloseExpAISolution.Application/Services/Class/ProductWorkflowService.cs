@@ -1145,6 +1145,9 @@ public class ProductWorkflowService : IProductWorkflowService
         priceHistory.SuggestedPrice = suggestion.SuggestedPrice;
         priceHistory.AIConfidence = (decimal)suggestion.Confidence;
         priceHistory.Reason = string.Join("; ", suggestion.Reasons);
+        priceHistory.MarketMinPrice = suggestion.MinMarketPrice;
+        priceHistory.MarketAvgPrice = suggestion.AvgMarketPrice;
+        priceHistory.MarketMaxPrice = suggestion.MaxMarketPrice;
         _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

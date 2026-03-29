@@ -3,6 +3,8 @@ using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using System.Security.Claims;
 
 namespace CloseExpAISolution.API.Controllers;
 
@@ -13,13 +15,16 @@ public class MarketPricesController : ControllerBase
 {
     private readonly IMarketPriceService _marketPriceService;
     private readonly ILogger<MarketPricesController> _logger;
+    private readonly IMemoryCache _cache;
 
     public MarketPricesController(
         IMarketPriceService marketPriceService,
-        ILogger<MarketPricesController> logger)
+        ILogger<MarketPricesController> logger,
+        IMemoryCache cache)
     {
         _marketPriceService = marketPriceService;
         _logger = logger;
+        _cache = cache;
     }
 
     [HttpGet("{barcode}")]
@@ -67,6 +72,15 @@ public class MarketPricesController : ControllerBase
             return BadRequest(new { message = "Barcode is required" });
         }
 
+        var limiterKey = BuildRateLimitKey();
+        if (!TryAcquireCrawlPermit(limiterKey, TimeSpan.FromMinutes(1)))
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new
+            {
+                message = "Too many crawl requests. Please wait before retrying."
+            });
+        }
+
         var result = await _marketPriceService.TriggerCrawlAsync(
             request.Barcode,
             request.ProductName,
@@ -108,5 +122,20 @@ public class MarketPricesController : ControllerBase
     {
         var deletedCount = await _marketPriceService.CleanupExpiredPricesAsync(daysOld, cancellationToken);
         return Ok(new { message = $"Deleted {deletedCount} expired prices" });
+    }
+
+    private string BuildRateLimitKey()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return string.IsNullOrWhiteSpace(userId) ? "anonymous-crawl" : $"crawl:{userId}";
+    }
+
+    private bool TryAcquireCrawlPermit(string key, TimeSpan minInterval)
+    {
+        if (_cache.TryGetValue<DateTime>(key, out var lastTime) && DateTime.UtcNow - lastTime < minInterval)
+            return false;
+
+        _cache.Set(key, DateTime.UtcNow, minInterval);
+        return true;
     }
 }

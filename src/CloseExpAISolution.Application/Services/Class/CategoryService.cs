@@ -167,4 +167,30 @@ public class CategoryService : ICategoryService
             .ToList();
         return MapWithParentNames(filtered, all);
     }
+
+    public async Task<IEnumerable<CategoryResponseDto>> GetParentCategoriesAsync(
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default)
+    {
+        var all = (await _unitOfWork.Repository<Category>().GetAllAsync()).ToList();
+        var filtered = all.Where(c => c.ParentCatId == null).ToList();
+        if (!includeInactive)
+            filtered = filtered.Where(c => c.IsActive).ToList();
+        return MapWithParentNames(filtered, all);
+    }
+
+    public async Task<IEnumerable<CategoryResponseDto>> GetChildrenByParentIdAsync(
+        Guid parentId,
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default)
+    {
+        var all = (await _unitOfWork.Repository<Category>().GetAllAsync()).ToList();
+        if (!all.Any(c => c.CategoryId == parentId))
+            throw new KeyNotFoundException($"Parent category not found: {parentId}");
+
+        var filtered = all.Where(c => c.ParentCatId == parentId).ToList();
+        if (!includeInactive)
+            filtered = filtered.Where(c => c.IsActive).ToList();
+        return MapWithParentNames(filtered, all);
+    }
 }

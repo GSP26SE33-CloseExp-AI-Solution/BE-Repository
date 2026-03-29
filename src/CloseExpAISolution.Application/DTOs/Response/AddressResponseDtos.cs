@@ -5,6 +5,7 @@ public class CollectionPointResponseDto
     public Guid CollectionId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string AddressLine { get; set; } = string.Empty;
+    public int RelatedOrderCount { get; set; }
 }
 
 public class CustomerAddressResponseDto
