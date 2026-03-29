@@ -464,7 +464,7 @@ public class AuthService : IAuthService
         catch (InvalidJwtException ex)
         {
             _logger.LogWarning(ex, "Invalid Google IdToken");
-            return Error("Google token không hợp lệ hoặc đã hết hạn");
+            return Error("Chưa đăng ký tài khoản với email này. Vui lòng đăng ký tài khoản trước");
         }
 
         var email = payload.Email;
