@@ -327,7 +327,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MarketPrice>(entity =>
         {
             entity.HasIndex(mp => mp.Barcode);
-            entity.HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName }).IsUnique();
+            entity.HasIndex(mp => new { mp.Barcode, mp.CollectedAt });
+            entity.HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName, mp.CollectedAt });
             entity.Property(mp => mp.Barcode).HasMaxLength(20);
             entity.Property(mp => mp.ProductName).HasMaxLength(500);
             entity.Property(mp => mp.Source).HasMaxLength(50);

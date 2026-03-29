@@ -7,10 +7,13 @@ public interface IMarketPriceRepository
     Task<List<MarketPrice>> GetByBarcodeAsync(string barcode, CancellationToken cancellationToken = default);
     Task<MarketPrice?> GetMinPriceByBarcodeAsync(string barcode, CancellationToken cancellationToken = default);
     Task<List<MarketPrice>> SearchByProductNameAsync(string productName, CancellationToken cancellationToken = default);
-    Task<MarketPrice> UpsertAsync(MarketPrice marketPrice, CancellationToken cancellationToken = default);
-    Task BulkUpsertAsync(IEnumerable<MarketPrice> marketPrices, CancellationToken cancellationToken = default);
+    Task<MarketPrice> InsertObservationAsync(MarketPrice marketPrice, DateTime? batchTimestamp = null, CancellationToken cancellationToken = default);
+    Task BulkInsertObservationsAsync(IEnumerable<MarketPrice> marketPrices, DateTime? batchTimestamp = null, CancellationToken cancellationToken = default);
     Task<int> DeleteExpiredAsync(int olderThanDays = 7, CancellationToken cancellationToken = default);
-    Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, CancellationToken cancellationToken = default);
+    Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
+    Task<List<MarketPrice>> GetLatestDetailsAsync(string barcode, DateTime fromUtc, CancellationToken cancellationToken = default);
+    Task<DateTime?> GetLatestCollectedAtAsync(string barcode, CancellationToken cancellationToken = default);
+    Task<List<string>> GetDistinctBarcodesNeedingRefreshAsync(DateTime staleBeforeUtc, int take = 200, CancellationToken cancellationToken = default);
 }
 
 

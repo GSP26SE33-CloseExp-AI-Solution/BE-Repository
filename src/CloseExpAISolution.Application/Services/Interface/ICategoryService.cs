@@ -11,4 +11,6 @@ public interface ICategoryService
     Task UpdateAsync(Guid id, UpdateCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IEnumerable<CategoryResponseDto>> GetAllWithParentNamesAsync(string parentName, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CategoryResponseDto>> GetParentCategoriesAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CategoryResponseDto>> GetChildrenByParentIdAsync(Guid parentId, bool includeInactive = false, CancellationToken cancellationToken = default);
 }

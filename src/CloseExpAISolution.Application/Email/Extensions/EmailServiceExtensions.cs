@@ -30,6 +30,16 @@ namespace CloseExpAISolution.Application.Email.Extensions
                         .WithIntervalInMinutes(30)
                         .RepeatForever())
                 );
+
+                var marketJobKey = new JobKey("MarketPriceRefreshJob");
+                q.AddJob<MarketPriceRefreshJob>(opts => opts.WithIdentity(marketJobKey));
+                q.AddTrigger(opts => opts
+                    .ForJob(marketJobKey)
+                    .WithIdentity("MarketPriceRefreshJob-trigger")
+                    .WithSimpleSchedule(x => x
+                        .WithIntervalInMinutes(30)
+                        .RepeatForever())
+                );
             });
             services.AddQuartzHostedService(options =>
             {

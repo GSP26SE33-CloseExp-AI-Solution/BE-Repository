@@ -32,6 +32,7 @@ public class AdminTimeSlotDto
     public Guid TimeSlotId { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
+    public int RelatedOrderCount { get; set; }
 }
 
 public class AdminCollectionPointDto
@@ -41,6 +42,7 @@ public class AdminCollectionPointDto
     public string AddressLine { get; set; } = string.Empty;
     public decimal Latitude { get; set; }
     public decimal Longitude { get; set; }
+    public int RelatedOrderCount { get; set; }
 }
 
 public class AdminSystemConfigDto
@@ -58,6 +60,8 @@ public class AdminUnitDto
     public string Symbol { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public int RelatedStockLotCount { get; set; }
+    public bool IsInUse { get; set; }
 }
 
 public class AdminPromotionDto

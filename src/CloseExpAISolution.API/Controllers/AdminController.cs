@@ -90,13 +90,21 @@ public class AdminController : ControllerBase
     [HttpDelete("system-config/time-slots/{timeSlotId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteTimeSlot(Guid timeSlotId, CancellationToken cancellationToken)
     {
-        var ok = await _services.AdminService.DeleteTimeSlotAsync(timeSlotId, cancellationToken);
-        if (!ok)
-            return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy khung giờ"));
+        try
+        {
+            var ok = await _services.AdminService.DeleteTimeSlotAsync(timeSlotId, cancellationToken);
+            if (!ok)
+                return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy khung giờ"));
 
-        return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa khung giờ thành công"));
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa khung giờ thành công"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
     }
 
     [HttpGet("system-config/collection-points")]
@@ -130,13 +138,21 @@ public class AdminController : ControllerBase
     [HttpDelete("system-config/collection-points/{collectionId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteCollectionPoint(Guid collectionId, CancellationToken cancellationToken)
     {
-        var ok = await _services.AdminService.DeleteCollectionPointAsync(collectionId, cancellationToken);
-        if (!ok)
-            return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy điểm tập kết"));
+        try
+        {
+            var ok = await _services.AdminService.DeleteCollectionPointAsync(collectionId, cancellationToken);
+            if (!ok)
+                return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy điểm tập kết"));
 
-        return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa điểm tập kết thành công"));
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa điểm tập kết thành công"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
     }
 
     [HttpGet("system-config/parameters")]
