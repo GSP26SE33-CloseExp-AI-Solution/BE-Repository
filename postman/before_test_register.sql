@@ -1,5 +1,5 @@
 -- Browse TempEmail for temp email
--- email: 
+-- email: xapaw40576@smkanba.com , padix86801@smkanba.com
 -- role: Vendor - 6
 -- Pass: Test@1234
 
