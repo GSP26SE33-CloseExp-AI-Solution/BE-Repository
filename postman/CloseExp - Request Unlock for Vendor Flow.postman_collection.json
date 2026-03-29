@@ -1,0 +1,961 @@
+{
+  "info": {
+    "_postman_id": "727d98a7-f9bf-49a4-bab8-14a3abc7cb8c",
+    "name": "CloseExp - Request Unlock for Vendor Flow",
+    "description": "Test flow cho API request-unlock va admin duyet.\n\n## Huong dan:\n\n1. Sua bien `baseUrl` cho dung moi truong\n    \n2. Sua `adminEmail`, `adminPassword` cho dung\n    \n3. Chay `0. [Setup] Admin Login` truoc\n    \n4. Chay theo thu tu hoac dung Runner chay tu dong\n    \n\n## Luu y:\n\n- Cac request co script tu dong luu token, userId\n    \n- Kiem tra tab Tests de xem ket qua",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "38344843"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:7001/api",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@closeexp.com",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "Admin@123",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testUserEmail",
+      "value": "testuser@example.com",
+      "type": "string"
+    },
+    {
+      "key": "testUserPassword",
+      "value": "User@123",
+      "type": "string"
+    },
+    {
+      "key": "testUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bannedUserEmail",
+      "value": "banned@example.com",
+      "type": "string"
+    },
+    {
+      "key": "bannUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "LockState",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ActiveState",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. [Setup] Admin Login",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Clear old token before login",
+              "pm.collectionVariables.set('adminToken', '');",
+              "pm.collectionVariables.set('adminUserId', '');",
+              "",
+              "console.log('Pre-request: Clearing old admin token...');"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Test response status",
+              "pm.test('Status code is 200', function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has success = true', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "});",
+              "",
+              "pm.test('Response contains accessToken', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data).to.have.property('accessToken');",
+              "    pm.expect(jsonData.data.accessToken).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "// Save token and userId for subsequent requests",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.success && jsonData.data) {",
+              "        pm.collectionVariables.set('adminToken', jsonData.data.accessToken);",
+              "        ",
+              "        // Decode JWT to get userId",
+              "        var token = jsonData.data.accessToken;",
+              "        var payload = token.split('.')[1];",
+              "        var decoded = JSON.parse(atob(payload));",
+              "        var userId = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || decoded.sub || decoded.nameid;",
+              "        ",
+              "        if (userId) {",
+              "            pm.collectionVariables.set('adminUserId', userId);",
+              "            console.log('Admin userId saved: ' + userId);",
+              "        }",
+              "        console.log('Admin token saved successfully!');",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Dang nhap Admin de lay token.\n\n**Auto-save:** adminToken, adminUserId"
+      },
+      "response": []
+    },
+    {
+      "name": "1. [Setup] Get All Users - Find Test User",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Ensure we have admin token",
+              "var token = pm.collectionVariables.get('adminToken');",
+              "if (!token) {",
+              "    console.warn('WARNING: adminToken is empty. Run \"0. Admin Login\" first!');",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Admin accounts are NOT in the list', function() {",
+              "    var jsonData = pm.response.json();",
+              "    var users = jsonData.data || [];",
+              "    var adminUsers = users.filter(u => u.roleName === 'Admin' || u.roleId === 1);",
+              "    pm.expect(adminUsers.length).to.equal(0, 'Admin accounts should be filtered out');",
+              "});",
+              "",
+              "// Find a non-admin user to use for testing",
+              "var jsonData = pm.response.json();",
+              "var users = jsonData.data || [];",
+              "var testUserEmail = pm.collectionVariables.get('testUserEmail');",
+              "var bannedUserEmail = pm.collectionVariables.get('bannedUserEmail');",
+              "",
+              "// Try to find user by email first",
+              "var testUser = users.find(u => u.email === testUserEmail);",
+              "var bannUser = users.find(u => u.email === bannedUserEmail);",
+              "",
+              "if (testUser) {",
+              "    pm.collectionVariables.set('testUserId', testUser.userId);",
+              "    pm.collectionVariables.set('testUserEmail', testUser.email);",
+              "    console.log('Test user found: ' + testUser.email + ' (ID: ' + testUser.userId + ')');",
+              "} else {",
+              "    console.warn('No suitable test user found. Create one manually.');",
+              "}",
+              "",
+              "if (bannUser) {",
+              "    pm.collectionVariables.set('bannUserId', bannUser.userId);",
+              "    console.log('Ban user found: ' + bannUser.email + ' (ID: ' + bannUser.userId + ')');",
+              "} else {",
+              "    console.warn('Banned user not found. Make sure bannedUserEmail variable is set correctly.');",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/users",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users"
+          ]
+        },
+        "description": "Lay danh sach users, tim user de test.\n\n**Auto-save:** testUserId, testUserEmail\n**Validate:** Admin khong co trong list"
+      },
+      "response": []
+    },
+    {
+      "name": "2. [Prep] Admin Lock Test User",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "var testUserId = pm.collectionVariables.get('testUserId');",
+              "if (!testUserId) {",
+              "    console.error('ERROR: testUserId is empty. Run step 1 first!');",
+              "}",
+              "console.log('Locking user: ' + testUserId);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('User status is now Locked', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.data.status).to.equal(4);",
+              "});",
+              "",
+              "pm.test('Response message confirms lock', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.include('thành công');",
+              "});",
+              "",
+              "console.log('User locked. Refresh tokens should be revoked. Email notification sent.');"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": {{LockState}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/users/{{testUserId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users",
+            "{{testUserId}}",
+            "status"
+          ]
+        },
+        "description": "Admin khoa user de test.\n\n**Side effects:**\n- Revoke tat ca refresh token\n- Gui email thong bao"
+      },
+      "response": []
+    },
+    {
+      "name": "3. [Test] Locked User Cannot Login",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Testing login with locked account: ' + pm.collectionVariables.get('testUserEmail'));"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 400 (Bad Request)', function() {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response has success = false', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "});",
+              "",
+              "pm.test('Error message indicates account is locked', function() {",
+              "    var jsonData = pm.response.json();",
+              "    var msg = (jsonData.message || '').toLowerCase();",
+              "    pm.expect(msg).to.satisfy(function(m) {",
+              "        return m.includes('khóa') || m.includes('locked') || m.includes('bị khóa');",
+              "    }, 'Message should mention locked status');",
+              "});",
+              "",
+              "console.log('Expected behavior: Locked user cannot login. FE should show unlock request button.');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "User bi Locked co gang dang nhap.\n\n**Expected:** 400 + message \"bi khoa\""
+      },
+      "response": []
+    },
+    {
+      "name": "4. [Test] Request Unlock - Happy Path",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Sending unlock request for: ' + pm.collectionVariables.get('testUserEmail'));"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has success = true', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "});",
+              "",
+              "pm.test('Message confirms request sent', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "console.log('SUCCESS: User status should now be PendingApproval');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testUserEmail}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/request-unlock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "request-unlock"
+          ]
+        },
+        "description": "**API PUBLIC** - Khong can auth.\n\nUser bi Locked gui yeu cau mo khoa.\n\n**Expected:**\n- 200 OK\n- DB: Locked -> PendingApproval"
+      },
+      "response": []
+    },
+    {
+      "name": "5. [Test] Request Unlock - Banned User (Should Fail)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Testing request-unlock with banned account: ' + pm.collectionVariables.get('bannedUserEmail'));"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 400', function() {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response has success = false', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "});",
+              "",
+              "pm.test('Message guides user to contact admin via email', function() {",
+              "    var jsonData = pm.response.json();",
+              "    var msg = (jsonData.message || '').toLowerCase();",
+              "    pm.expect(msg).to.satisfy(function(m) {",
+              "        return m.includes('liên hệ') || m.includes('email') || m.includes('banned') || m.includes('cấm');",
+              "    }, 'Message should guide to contact admin');",
+              "});",
+              "",
+              "console.log('Expected: Banned users must contact admin directly via email.');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{bannedUserEmail}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/request-unlock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "request-unlock"
+          ]
+        },
+        "description": "User bi Banned gui yeu cau.\n\n**Expected:** 400 + huong dan lien he admin"
+      },
+      "response": []
+    },
+    {
+      "name": "6. [Test] Request Unlock - Email Not Found",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Testing with non-existent email...');"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 400', function() {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response has success = false', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"notexist_random_12345@example.com\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/request-unlock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "request-unlock"
+          ]
+        },
+        "description": "Email khong ton tai.\n\n**Expected:** 400"
+      },
+      "response": []
+    },
+    {
+      "name": "7. [Test] Admin Approve - PendingApproval to Active",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Admin approving unlock for user: ' + pm.collectionVariables.get('testUserId'));"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('User status is now Active', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.data.status).to.equal(2);",
+              "});",
+              "",
+              "console.log('User unlocked! Email notification should be sent.');"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": {{ActiveState}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/users/{{testUserId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users",
+            "{{testUserId}}",
+            "status"
+          ]
+        },
+        "description": "Admin duyet: PendingApproval -> Active\n\n**Side effect:** Email thong bao mo khoa"
+      },
+      "response": []
+    },
+    {
+      "name": "8. [Test] User Login After Unlock",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Testing login after unlock for: ' + pm.collectionVariables.get('testUserEmail'));"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has success = true', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "});",
+              "",
+              "pm.test('Response contains accessToken', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data).to.have.property('accessToken');",
+              "});",
+              "",
+              "pm.test('Response contains refreshToken', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data).to.have.property('refreshToken');",
+              "});",
+              "",
+              "console.log('SUCCESS: User can login after being unlocked!');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "User da duoc mo khoa dang nhap lai.\n\n**Expected:** 200 + tokens"
+      },
+      "response": []
+    },
+    {
+      "name": "9. [Guard] Admin Cannot Self-Update Status",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "var adminId = pm.collectionVariables.get('adminUserId');",
+              "if (!adminId) {",
+              "    console.error('adminUserId is empty!');",
+              "}",
+              "console.log('Testing self-lock with admin ID: ' + adminId);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 400 (Blocked)', function() {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response has success = false', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "});",
+              "",
+              "pm.test('Error message mentions self-operation not allowed', function() {",
+              "    var jsonData = pm.response.json();",
+              "    var msg = (jsonData.message || '').toLowerCase();",
+              "    pm.expect(msg).to.satisfy(function(m) {",
+              "        return m.includes('chính') || m.includes('self') || m.includes('không thể');",
+              "    });",
+              "});",
+              "",
+              "console.log('GUARD OK: Admin cannot lock/ban themselves.');"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": {{LockState}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/users/{{adminUserId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users",
+            "{{adminUserId}}",
+            "status"
+          ]
+        },
+        "description": "Guard test: Admin khong the tu khoa chinh minh.\n\n**Expected:** 400"
+      },
+      "response": []
+    },
+    {
+      "name": "10. [Guard] Admin Cannot Self-Delete",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "console.log('Testing self-delete with admin ID: ' + pm.collectionVariables.get('adminUserId'));"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 400 (Blocked)', function() {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response has success = false', function() {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "});",
+              "",
+              "console.log('GUARD OK: Admin cannot delete themselves.');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/users/{{adminUserId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users",
+            "{{adminUserId}}"
+          ]
+        },
+        "description": "Guard test: Admin khong the tu xoa chinh minh.\n\n**Expected:** 400"
+      },
+      "response": []
+    },
+    {
+      "name": "11. [Bonus] Admin Direct Unban (Banned -> Active)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// You need to manually set a banned user ID here or via collection variable",
+              "var bannedUserId = pm.collectionVariables.get('bannedUserId');",
+              "if (!bannedUserId) {",
+              "    console.warn('bannedUserId not set. Set it manually in collection variables.');",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// This test is optional - only runs if you have a banned user",
+              "if (pm.response.code === 200) {",
+              "    pm.test('User unbanned successfully', function() {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData.success).to.be.true;",
+              "        pm.expect(jsonData.data.status).to.equal(2);",
+              "    });",
+              "    console.log('SUCCESS: Banned user is now Active!');",
+              "} else if (pm.response.code === 404) {",
+              "    console.log('User not found - set bannedUserId variable');",
+              "}"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": {{ActiveState}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/users/{{bannUserId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users",
+            "{{bannUserId}}",
+            "status"
+          ]
+        },
+        "description": "Admin truc tiep mo ban: Banned -> Active\n\n**Luu y:** Set `bannedUserId` trong collection variables"
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ]
+}
