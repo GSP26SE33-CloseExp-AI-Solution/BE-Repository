@@ -93,13 +93,46 @@ public class AuthService : IAuthService
     {
         var userRepository = _unitOfWork.Repository<User>();
 
-        if (await EmailExists(request.Email))
-            return Error("Email đã được đăng ký");
-
         var roleId = (int)request.RegistrationType;
         var roleValidation = await ValidatePublicRegistrationRole(roleId);
         if (roleValidation != null)
             return roleValidation;
+
+        var existing = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (existing != null)
+        {
+            // Chỉ cho phép "đăng ký lại" cùng email khi tài khoản chưa xác minh OTP — tránh chiếm email vĩnh viễn do nhập nhầm / OTP đi sai hộp thư
+            if (existing.Status != UserState.Unverified)
+                return Error("Email đã được đăng ký");
+
+            var otpRetry = GenerateOtp();
+            existing.FullName = request.FullName;
+            existing.Phone = request.Phone;
+            existing.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            existing.RoleId = roleId;
+            existing.OtpCode = HashOtp(otpRetry);
+            existing.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+            existing.OtpFailedCount = 0;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                userRepository.Update(existing);
+                await _unitOfWork.CommitTransactionAsync();
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Failed to refresh unverified registration for {Email}", request.Email);
+                return Error("Đăng ký thất bại. Vui lòng thử lại sau");
+            }
+
+            await SendOtpEmailAsync(existing.Email, otpRetry, existing.FullName);
+
+            return ApiResponse<AuthResponse>.SuccessWithMessage(
+                "Đã cập nhật thông tin đăng ký. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
+        }
 
         var user = CreateNewUser(request, roleId);
 
@@ -672,13 +705,6 @@ public class AuthService : IAuthService
     #endregion
 
     #region Registration Helpers
-
-    private async Task<bool> EmailExists(string email)
-    {
-        var userRepository = _unitOfWork.Repository<User>();
-        var existingUser = await userRepository.FirstOrDefaultAsync(u => u.Email == email);
-        return existingUser != null;
-    }
 
     private async Task<ApiResponse<AuthResponse>?> ValidatePublicRegistrationRole(int roleId)
     {
