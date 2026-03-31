@@ -32,11 +32,11 @@ public class OrderService : IOrderService
             .OrderBy(x => x.StartTime)
             .Select(x => new DeliveryTimeSlotDto
             {
-                TimeSlotId = x.TimeSlotId,
+                TimeSlotId = x.DeliveryTimeSlotId,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
                 DisplayTimeRange = $"{x.StartTime:hh\\:mm} - {x.EndTime:hh\\:mm}",
-                RelatedOrderCount = orderCountBySlot.TryGetValue(x.TimeSlotId, out var c) ? c : 0
+                RelatedOrderCount = orderCountBySlot.TryGetValue(x.DeliveryTimeSlotId, out var c) ? c : 0
             })
             .ToList();
     }

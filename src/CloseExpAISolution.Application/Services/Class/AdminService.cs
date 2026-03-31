@@ -136,10 +136,10 @@ public class AdminService : IAdminService
             .OrderBy(x => x.StartTime)
             .Select(x => new AdminTimeSlotDto
             {
-                TimeSlotId = x.TimeSlotId,
+                TimeSlotId = x.DeliveryTimeSlotId,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
-                RelatedOrderCount = orderCountBySlot.TryGetValue(x.TimeSlotId, out var c) ? c : 0
+                RelatedOrderCount = orderCountBySlot.TryGetValue(x.DeliveryTimeSlotId, out var c) ? c : 0
             });
     }
 
@@ -150,7 +150,7 @@ public class AdminService : IAdminService
 
         var entity = new DeliveryTimeSlot
         {
-            TimeSlotId = Guid.NewGuid(),
+            DeliveryTimeSlotId = Guid.NewGuid(),
             StartTime = request.StartTime,
             EndTime = request.EndTime
         };
@@ -160,7 +160,7 @@ public class AdminService : IAdminService
 
         return new AdminTimeSlotDto
         {
-            TimeSlotId = entity.TimeSlotId,
+            TimeSlotId = entity.DeliveryTimeSlotId,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime,
             RelatedOrderCount = 0
@@ -172,7 +172,7 @@ public class AdminService : IAdminService
         ValidateTimeSlot(request.StartTime, request.EndTime);
 
         var entity = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(x => x.TimeSlotId == timeSlotId);
+            .FirstOrDefaultAsync(x => x.DeliveryTimeSlotId == timeSlotId);
 
         if (entity == null)
             return null;
@@ -189,7 +189,7 @@ public class AdminService : IAdminService
 
         return new AdminTimeSlotDto
         {
-            TimeSlotId = entity.TimeSlotId,
+            TimeSlotId = entity.DeliveryTimeSlotId,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime,
             RelatedOrderCount = relatedOrders
@@ -199,7 +199,7 @@ public class AdminService : IAdminService
     public async Task<bool> DeleteTimeSlotAsync(Guid timeSlotId, CancellationToken cancellationToken = default)
     {
         var entity = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(x => x.TimeSlotId == timeSlotId);
+            .FirstOrDefaultAsync(x => x.DeliveryTimeSlotId == timeSlotId);
 
         if (entity == null)
             return false;
@@ -517,7 +517,7 @@ public class AdminService : IAdminService
         var slots = await _unitOfWork.Repository<DeliveryTimeSlot>().GetAllAsync();
 
         var hasOverlap = slots.Any(slot =>
-            (!currentId.HasValue || slot.TimeSlotId != currentId.Value) &&
+            (!currentId.HasValue || slot.DeliveryTimeSlotId != currentId.Value) &&
             start < slot.EndTime &&
             end > slot.StartTime);
 

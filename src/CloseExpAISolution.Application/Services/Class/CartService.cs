@@ -170,5 +170,5 @@ public class CartService : ICartService
         public Guid CartItemId { get; set; }
         public Guid LotId { get; set; }
         public decimal Quantity { get; set; }
-    }
+     }
 }

@@ -272,7 +272,7 @@ public class PackagingService : IPackagingService
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
 
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.TimeSlotId == order.TimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.TimeSlotId);
 
         var orderItems = await _unitOfWork.Repository<OrderItem>()
             .FindAsync(oi => oi.OrderId == order.OrderId);

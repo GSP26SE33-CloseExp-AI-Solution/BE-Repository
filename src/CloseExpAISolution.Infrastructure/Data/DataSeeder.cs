@@ -1383,13 +1383,13 @@ public static class DataSeeder
         {
             new()
             {
-                TimeSlotId = TimeSlotMorningId,
+                DeliveryTimeSlotId = TimeSlotMorningId,
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(11, 0, 0)
             },
             new()
             {
-                TimeSlotId = TimeSlotAfternoonId,
+                DeliveryTimeSlotId = TimeSlotAfternoonId,
                 StartTime = new TimeSpan(14, 0, 0),
                 EndTime = new TimeSpan(17, 0, 0)
             }

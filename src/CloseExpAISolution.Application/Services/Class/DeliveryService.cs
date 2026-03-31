@@ -38,7 +38,7 @@ public class DeliveryService : IDeliveryService
         foreach (var group in groups.OrderBy(g => g.DeliveryDate).ThenBy(g => g.CreatedAt))
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
@@ -105,7 +105,7 @@ public class DeliveryService : IDeliveryService
         foreach (var group in pagedGroups)
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
             var orders = await _unitOfWork.Repository<Order>()
                 .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
@@ -636,7 +636,7 @@ public class DeliveryService : IDeliveryService
     private async Task<DeliveryGroupResponseDto> MapToDeliveryGroupResponseAsync(DeliveryGroup group)
     {
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.TimeSlotId == group.TimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
         var staff = group.DeliveryStaffId.HasValue
             ? await _unitOfWork.Repository<User>()
@@ -689,7 +689,7 @@ public class DeliveryService : IDeliveryService
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
 
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(ts => ts.TimeSlotId == order.TimeSlotId);
+            .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.TimeSlotId);
 
         string? collectionPointName = null;
         string? addressLine = null;
