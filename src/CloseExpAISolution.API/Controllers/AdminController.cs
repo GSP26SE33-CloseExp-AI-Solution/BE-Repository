@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -89,13 +90,21 @@ public class AdminController : ControllerBase
     [HttpDelete("system-config/time-slots/{timeSlotId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteTimeSlot(Guid timeSlotId, CancellationToken cancellationToken)
     {
-        var ok = await _services.AdminService.DeleteTimeSlotAsync(timeSlotId, cancellationToken);
-        if (!ok)
-            return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy khung giờ"));
+        try
+        {
+            var ok = await _services.AdminService.DeleteTimeSlotAsync(timeSlotId, cancellationToken);
+            if (!ok)
+                return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy khung giờ"));
 
-        return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa khung giờ thành công"));
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa khung giờ thành công"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
     }
 
     [HttpGet("system-config/collection-points")]
@@ -129,13 +138,21 @@ public class AdminController : ControllerBase
     [HttpDelete("system-config/collection-points/{collectionId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteCollectionPoint(Guid collectionId, CancellationToken cancellationToken)
     {
-        var ok = await _services.AdminService.DeleteCollectionPointAsync(collectionId, cancellationToken);
-        if (!ok)
-            return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy điểm tập kết"));
+        try
+        {
+            var ok = await _services.AdminService.DeleteCollectionPointAsync(collectionId, cancellationToken);
+            if (!ok)
+                return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy điểm tập kết"));
 
-        return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa điểm tập kết thành công"));
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa điểm tập kết thành công"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
     }
 
     [HttpGet("system-config/parameters")]
@@ -268,5 +285,47 @@ public class AdminController : ControllerBase
     {
         var data = await _services.AdminService.GetAiPriceHistoriesAsync(pageNumber, pageSize, cancellationToken);
         return Ok(ApiResponse<PaginatedResult<AdminAiPriceHistoryDto>>.SuccessResponse(data));
+    }
+
+    [HttpGet("supermarkets/applications/pending")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminPendingSupermarketApplicationDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingSupermarketApplications(CancellationToken cancellationToken)
+    {
+        var result = await _services.SupermarketRegistrationService.GetPendingApplicationsForAdminAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("supermarkets/applications/{supermarketId:guid}/approve")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ApproveSupermarketApplication(Guid supermarketId, CancellationToken cancellationToken)
+    {
+        var adminIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(adminIdStr, out var adminUserId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định quản trị viên"));
+
+        var result = await _services.SupermarketRegistrationService.ApproveApplicationAsync(supermarketId, adminUserId, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
+    [HttpPost("supermarkets/applications/{supermarketId:guid}/reject")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RejectSupermarketApplication(
+        Guid supermarketId,
+        [FromBody] RejectSupermarketApplicationRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        var adminIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(adminIdStr, out var adminUserId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định quản trị viên"));
+
+        var result = await _services.SupermarketRegistrationService.RejectApplicationAsync(
+            supermarketId, adminUserId, request?.AdminReviewNote, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
     }
 }

@@ -26,6 +26,7 @@ public class OrderService : IOrderService
     public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
     {
         var slots = await _unitOfWork.Repository<DeliveryTimeSlot>().GetAllAsync();
+        var orderCountBySlot = await GetOrderTimeSlotCountsAsync(cancellationToken);
 
         return slots
             .OrderBy(x => x.StartTime)
@@ -34,7 +35,8 @@ public class OrderService : IOrderService
                 TimeSlotId = x.TimeSlotId,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
-                DisplayTimeRange = $"{x.StartTime:hh\\:mm} - {x.EndTime:hh\\:mm}"
+                DisplayTimeRange = $"{x.StartTime:hh\\:mm} - {x.EndTime:hh\\:mm}",
+                RelatedOrderCount = orderCountBySlot.TryGetValue(x.TimeSlotId, out var c) ? c : 0
             })
             .ToList();
     }
@@ -42,6 +44,7 @@ public class OrderService : IOrderService
     public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
     {
         var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
+        var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
         return points
             .OrderBy(x => x.Name)
@@ -49,7 +52,8 @@ public class OrderService : IOrderService
             {
                 PickupPointId = x.CollectionId,
                 Name = x.Name,
-                Address = x.AddressLine
+                Address = x.AddressLine,
+                RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0
             })
             .ToList();
     }
@@ -398,6 +402,21 @@ public class OrderService : IOrderService
             ChangedAt = DateTime.UtcNow
         };
         await _unitOfWork.Repository<OrderStatusLog>().AddAsync(log);
+    }
+
+    private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
+        return orders.GroupBy(o => o.TimeSlotId).ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private async Task<Dictionary<Guid, int>> GetOrderCollectionCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
+        return orders
+            .Where(o => o.CollectionId.HasValue)
+            .GroupBy(o => o.CollectionId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
     }
 }
 

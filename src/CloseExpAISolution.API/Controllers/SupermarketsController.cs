@@ -1,7 +1,9 @@
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mapbox.DTOs;
 using CloseExpAISolution.Application.ServiceProviders;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -135,5 +137,52 @@ public class SupermarketsController : ControllerBase
 
         var results = await _services.MapboxService.SearchAddressAsync(query, limit, ct);
         return Ok(ApiResponse<IEnumerable<GeocodingResultDto>>.SuccessResponse(results));
+    }
+
+    [Authorize(Roles = "Vendor")]
+    [HttpPost("applications")]
+    [ProducesResponseType(typeof(ApiResponse<MySupermarketApplicationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<MySupermarketApplicationDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SubmitSupermarketApplication([FromBody] NewSupermarketRequest request, CancellationToken cancellationToken)
+    {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
+            return Unauthorized(ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Không thể xác định người dùng"));
+
+        var result = await _services.SupermarketRegistrationService.SubmitApplicationAsync(userId.Value, request, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "Vendor")]
+    [HttpGet("applications/my")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<MySupermarketApplicationDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMySupermarketApplications(CancellationToken cancellationToken)
+    {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
+            return Unauthorized(ApiResponse<IReadOnlyList<MySupermarketApplicationDto>>.ErrorResponse("Không thể xác định người dùng"));
+
+        var result = await _services.SupermarketRegistrationService.GetMyApplicationsAsync(userId.Value, cancellationToken);
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
+    [HttpPost("{id:guid}/staff/personas")]
+    [ProducesResponseType(typeof(ApiResponse<CreatedStaffPersonaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CreatedStaffPersonaDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateStaffPersona(Guid id, [FromBody] CreateStaffPersonaRequestDto request, CancellationToken cancellationToken)
+    {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
+            return Unauthorized(ApiResponse<CreatedStaffPersonaDto>.ErrorResponse("Không thể xác định người dùng"));
+
+        var (jwtStaff, jwtMarket) = StaffClaimsParser.Read(User);
+        var result = await _services.SupermarketRegistrationService.CreateStaffPersonaAsync(
+            id, userId.Value, jwtStaff, jwtMarket, request, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
     }
 }

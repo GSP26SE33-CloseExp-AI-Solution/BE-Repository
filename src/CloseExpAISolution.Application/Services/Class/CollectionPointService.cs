@@ -17,13 +17,15 @@ public class CollectionPointService : ICollectionPointService
     public async Task<IEnumerable<CollectionPointResponseDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
+        var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
         return points
             .OrderBy(x => x.Name)
             .Select(x => new CollectionPointResponseDto
             {
                 CollectionId = x.CollectionId,
                 Name = x.Name,
-                AddressLine = x.AddressLine
+                AddressLine = x.AddressLine,
+                RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0
             });
     }
 
@@ -35,11 +37,23 @@ public class CollectionPointService : ICollectionPointService
         if (point == null)
             return null;
 
+        var relatedOrders = await _unitOfWork.Repository<Order>().CountAsync(o => o.CollectionId == collectionId);
+
         return new CollectionPointResponseDto
         {
             CollectionId = point.CollectionId,
             Name = point.Name,
-            AddressLine = point.AddressLine
+            AddressLine = point.AddressLine,
+            RelatedOrderCount = relatedOrders
         };
+    }
+
+    private async Task<Dictionary<Guid, int>> GetOrderCollectionCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
+        return orders
+            .Where(o => o.CollectionId.HasValue)
+            .GroupBy(o => o.CollectionId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
     }
 }

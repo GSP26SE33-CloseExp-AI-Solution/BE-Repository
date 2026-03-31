@@ -137,6 +137,10 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequestDto request)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == id)
+            return BadRequest(ApiResponse<UserResponseDto>.ErrorResponse("Admin không thể thực hiện thao tác này trên chính tài khoản của mình"));
+
         var result = await _services.UserService.UpdateUserAsync(id, request);
 
         if (!result.Success)
@@ -157,6 +161,10 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteUser(Guid id)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == id)
+            return BadRequest(ApiResponse<bool>.ErrorResponse("Admin không thể xóa chính tài khoản của mình"));
+
         var result = await _services.UserService.DeleteUserAsync(id);
 
         if (!result.Success)
@@ -174,6 +182,10 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateUserStatus(Guid id, [FromBody] UpdateUserStatusRequestDto request)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == id)
+            return BadRequest(ApiResponse<UserResponseDto>.ErrorResponse("Admin không thể thay đổi trạng thái chính tài khoản của mình"));
+
         var result = await _services.UserService.UpdateUserStatusAsync(id, request);
 
         if (!result.Success)

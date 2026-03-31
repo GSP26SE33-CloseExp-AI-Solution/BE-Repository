@@ -1,3 +1,4 @@
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -145,6 +146,22 @@ public class AuthController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    [Authorize]
+    [HttpPost("select-staff-context")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SelectStaffContext([FromBody] SelectStaffContextRequestDto request)
+    {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
+            return Unauthorized(ApiResponse<AuthResponse>.ErrorResponse("Không thể xác định người dùng"));
+
+        var result = await _services.AuthService.SelectStaffContextAsync(userId.Value, request.EmployeeCode);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
     [HttpPost("google-login")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
@@ -167,6 +184,18 @@ public class AuthController : ControllerBase
         }
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Request account unlock for locked users
+    /// </summary>
+    [HttpPost("request-unlock")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RequestUnlock([FromBody] RequestUnlockDto request)
+    {
+        var result = await _services.AuthService.RequestUnlockAsync(request.Email);
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
     #region Private Helpers

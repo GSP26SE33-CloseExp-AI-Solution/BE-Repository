@@ -2,11 +2,23 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "C#: CloseExpAISolution.API [https]",
+      "name": "BackEnd [https]",
       "type": "dotnet",
       "request": "launch",
-      "projectPath": "${workspaceFolder}\\src\\CloseExpAISolution.API\\CloseExpAISolution.API.csproj",
-      "launchConfigurationId": "TargetFramework=;https"
+        "projectPath": "${workspaceFolder}/src/CloseExpAISolution.API/CloseExpAISolution.API.csproj",
+      "launchConfigurationId": "TargetFramework=;https",
+      "env": {
+      "DOTNET_WATCH_RESTART_ON_RUDE_EDIT": "true"
+      }
+    }
+    },
+    {
+      "name": "Backend [http]",
+      "type": "dotnet",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "projectPath": "${workspaceFolder}/src/CloseExpAISolution.API/CloseExpAISolution.API.csproj",
+      "launchConfigurationId": "TargetFramework=;http"
     }
   ]
 }

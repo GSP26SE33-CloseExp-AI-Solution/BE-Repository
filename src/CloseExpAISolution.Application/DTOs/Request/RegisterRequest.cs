@@ -24,12 +24,13 @@ public class RegisterRequest
         ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one number and one special character")]
     public string Password { get; set; } = string.Empty;
 
+    /// <summary>Public registration is Vendor only; value must be Vendor.</summary>
     [Required(ErrorMessage = "Registration type is required")]
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public RegistrationType RegistrationType { get; set; }
-    public NewSupermarketRequest? NewSupermarket { get; set; }
-    public string? Position { get; set; }
 }
+
+/// <summary>Payload for supermarket registration application (Vendor authenticated).</summary>
 public class NewSupermarketRequest
 {
     [Required(ErrorMessage = "Tên siêu thị không được để trống")]
@@ -57,6 +58,5 @@ public class NewSupermarketRequest
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum RegistrationType
 {
-    Vendor = (int)RoleUser.Vendor,
-    SupermarketStaff = (int)RoleUser.SupermarketStaff
+    Vendor = (int)RoleUser.Vendor
 }

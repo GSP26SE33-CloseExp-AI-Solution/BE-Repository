@@ -277,6 +277,31 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(s => s.Status);
             entity.Property(s => s.Latitude).HasPrecision(10, 7);
             entity.Property(s => s.Longitude).HasPrecision(10, 7);
+            entity.Property(s => s.ApplicationReference).HasMaxLength(32);
+            entity.HasIndex(s => s.ApplicationReference)
+                .IsUnique()
+                .HasFilter("\"ApplicationReference\" IS NOT NULL");
+            entity.HasIndex(s => s.ApplicantUserId);
+            entity.HasOne(s => s.ApplicantUser)
+                .WithMany()
+                .HasForeignKey(s => s.ApplicantUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(s => s.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.Property(s => s.AdminReviewNote).HasMaxLength(2000);
+        });
+
+        modelBuilder.Entity<SupermarketStaff>(entity =>
+        {
+            entity.HasIndex(ss => new { ss.SupermarketId, ss.UserId });
+            entity.HasOne(ss => ss.ParentSuperStaff)
+                .WithMany(ss => ss.SubordinateStaff)
+                .HasForeignKey(ss => ss.ParentSuperStaffId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Property(ss => ss.EmployeeCodeHash).HasMaxLength(200);
+            entity.Property(ss => ss.EmployeeCodeHint).HasMaxLength(20);
         });
 
         modelBuilder.Entity<Transaction>(entity =>
@@ -302,7 +327,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MarketPrice>(entity =>
         {
             entity.HasIndex(mp => mp.Barcode);
-            entity.HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName }).IsUnique();
+            entity.HasIndex(mp => new { mp.Barcode, mp.CollectedAt });
+            entity.HasIndex(mp => new { mp.Barcode, mp.Source, mp.StoreName, mp.CollectedAt });
             entity.Property(mp => mp.Barcode).HasMaxLength(20);
             entity.Property(mp => mp.ProductName).HasMaxLength(500);
             entity.Property(mp => mp.Source).HasMaxLength(50);

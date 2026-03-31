@@ -8,6 +8,7 @@ using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Infrastructure.Context;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using CloseExpAISolution.Application.Email.Clients;
@@ -27,6 +28,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IProductService? _productService;
                 private ISupermarketStaffService? _marketStaffService;
                 private ISupermarketService? _supermarketService;
+                private ISupermarketRegistrationService? _supermarketRegistrationService;
                 private IProductImageService? _productImageService;
                 private IAIVerificationLogService? _aIVerificationLogService;
                 private IAuthService? _authService;
@@ -74,6 +76,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context, _mapper);
                 public ISupermarketStaffService MarketStaffService => _marketStaffService ??= new SupermarketStaffService(_unitOfWork, _mapper);
                 public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
+                public ISupermarketRegistrationService SupermarketRegistrationService => _supermarketRegistrationService ??= ActivatorUtilities.CreateInstance<SupermarketRegistrationService>(_serviceProvider);
                 public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
                 public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
                 public IAuthService AuthService => _authService ??= ActivatorUtilities.CreateInstance<AuthService>(_serviceProvider);
@@ -97,7 +100,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
                 public IRefundService RefundService => _refundService ??= new RefundService(_unitOfWork, _mapper);
                 public ICollectionPointService CollectionPointService => _collectionPointService ??= new CollectionPointService(_unitOfWork);
-                public ICustomerAddressService CustomerAddressService => _customerAddressService ??= new CustomerAddressService(_unitOfWork);
+                public ICustomerAddressService CustomerAddressService => _customerAddressService ??= new CustomerAddressService(_unitOfWork, MapboxService, _serviceProvider.GetRequiredService<ILogger<CustomerAddressService>>());
                 public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);
                 public IPromotionUsageService PromotionUsageService => _promotionUsageService ??= new PromotionUsageService(_unitOfWork);
                 public IPromotionAnalyticsService PromotionAnalyticsService => _promotionAnalyticsService ??= new PromotionAnalyticsService(_unitOfWork);

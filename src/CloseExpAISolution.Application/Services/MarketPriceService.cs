@@ -5,6 +5,7 @@ using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CloseExpAISolution.Application.Services;
 
@@ -13,35 +14,47 @@ public class MarketPriceService : IMarketPriceService
     private readonly IMarketPriceRepository _marketPriceRepository;
     private readonly IAIServiceClient _aiClient;
     private readonly ILogger<MarketPriceService> _logger;
+    private readonly IMemoryCache _cache;
 
     public MarketPriceService(
         IMarketPriceRepository marketPriceRepository,
         IAIServiceClient aiClient,
-        ILogger<MarketPriceService> logger)
+        ILogger<MarketPriceService> logger,
+        IMemoryCache cache)
     {
         _marketPriceRepository = marketPriceRepository;
         _aiClient = aiClient;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task<MarketPriceResult?> GetMarketPriceAsync(string barcode, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting market price for barcode: {Barcode}", barcode);
-
-        var stats = await _marketPriceRepository.GetPriceStatsAsync(barcode, cancellationToken);
-
-        if (stats != null)
+        var cacheKey = $"market-feature:{barcode}";
+        if (_cache.TryGetValue(cacheKey, out MarketPriceResult? cached) && cached != null)
         {
-            var prices = await _marketPriceRepository.GetByBarcodeAsync(barcode, cancellationToken);
+            return cached;
+        }
 
-            return new MarketPriceResult
+        var now = DateTime.UtcNow;
+        var stats24h = await _marketPriceRepository.GetPriceStatsAsync(barcode, now.AddHours(-24), now, cancellationToken);
+        var stats7d = await _marketPriceRepository.GetPriceStatsAsync(barcode, now.AddDays(-7), now, cancellationToken);
+        var selectedStats = SelectStatsByFreshness(stats24h, stats7d, now);
+
+        if (selectedStats != null)
+        {
+            var detailsFrom = selectedStats == stats24h ? now.AddHours(-24) : now.AddDays(-7);
+            var prices = await _marketPriceRepository.GetLatestDetailsAsync(barcode, detailsFrom, cancellationToken);
+
+            var result = new MarketPriceResult
             {
-                MinPrice = stats.MinPrice,
-                MaxPrice = stats.MaxPrice,
-                AvgPrice = stats.AvgPrice,
-                SourceCount = stats.SourceCount,
-                Sources = stats.Sources,
-                LastUpdated = stats.LastUpdated,
+                MinPrice = selectedStats.MinPrice,
+                MaxPrice = selectedStats.MaxPrice,
+                AvgPrice = selectedStats.AvgPrice,
+                SourceCount = selectedStats.SourceCount,
+                Sources = selectedStats.Sources,
+                LastUpdated = selectedStats.LastUpdated,
                 Details = prices.Select(p => new MarketPriceDetail
                 {
                     Source = p.Source,
@@ -53,6 +66,8 @@ public class MarketPriceService : IMarketPriceService
                     CollectedAt = p.CollectedAt
                 }).ToList()
             };
+            _cache.Set(cacheKey, result, TimeSpan.FromMinutes(20));
+            return result;
         }
 
         _logger.LogInformation("No cached price for barcode {Barcode}, will need to crawl", barcode);
@@ -127,7 +142,9 @@ public class MarketPriceService : IMarketPriceService
                 Status = MarketPriceState.Active
             }).ToList();
 
-            await _marketPriceRepository.BulkUpsertAsync(marketPrices, cancellationToken);
+            var crawlAt = DateTime.UtcNow;
+            await _marketPriceRepository.BulkInsertObservationsAsync(marketPrices, crawlAt, cancellationToken);
+            _logger.LogInformation("Market crawl inserted {Count} observations for barcode {Barcode}", marketPrices.Count, barcode);
 
             return new CrawlResult
             {
@@ -169,13 +186,50 @@ public class MarketPriceService : IMarketPriceService
             Notes = $"Entered by staff {request.StaffId} at supermarket {request.SupermarketId}. {request.Note}"
         };
 
-        return await _marketPriceRepository.UpsertAsync(marketPrice, cancellationToken);
+        return await _marketPriceRepository.InsertObservationAsync(marketPrice, DateTime.UtcNow, cancellationToken);
     }
 
     public async Task<int> CleanupExpiredPricesAsync(int daysOld = 30, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Cleaning up market prices older than {Days} days", daysOld);
         return await _marketPriceRepository.DeleteExpiredAsync(daysOld, cancellationToken);
+    }
+
+    public async Task<int> RefreshStaleBarcodesAsync(DateTime staleBeforeUtc, int take = 200, int concurrency = 3, CancellationToken cancellationToken = default)
+    {
+        var barcodes = await _marketPriceRepository.GetDistinctBarcodesNeedingRefreshAsync(staleBeforeUtc, take, cancellationToken);
+        if (!barcodes.Any())
+            return 0;
+
+        var successCount = 0;
+        using var throttle = new SemaphoreSlim(Math.Clamp(concurrency, 1, 10));
+        var tasks = barcodes.Select(async barcode =>
+        {
+            await throttle.WaitAsync(cancellationToken);
+            try
+            {
+                var result = await TriggerCrawlAsync(barcode, null, cancellationToken);
+                if (result.Success) Interlocked.Increment(ref successCount);
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        });
+        await Task.WhenAll(tasks);
+
+        _logger.LogInformation("Market refresh job processed {Total} stale barcodes, success={Success}", barcodes.Count, successCount);
+        return successCount;
+    }
+
+    private static MarketPriceStats? SelectStatsByFreshness(MarketPriceStats? stats24h, MarketPriceStats? stats7d, DateTime now)
+    {
+        if (stats24h != null && stats24h.SourceCount > 0 && stats24h.LastUpdated >= now.AddHours(-24))
+        {
+            return stats24h;
+        }
+
+        return stats7d;
     }
 }
 

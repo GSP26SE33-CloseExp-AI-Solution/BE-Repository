@@ -7,7 +7,9 @@ public interface ICustomerAddressService
 {
     Task<IEnumerable<CustomerAddressResponseDto>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<CustomerAddressResponseDto?> GetByIdAsync(Guid customerAddressId, CancellationToken cancellationToken = default);
-    Task<CustomerAddressResponseDto> CreateAsync(Guid userId, UpsertCustomerAddressRequestDto request, CancellationToken cancellationToken = default);
-    Task<CustomerAddressResponseDto?> UpdateAsync(Guid customerAddressId, Guid userId, UpsertCustomerAddressRequestDto request, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync(Guid customerAddressId, Guid userId, CancellationToken cancellationToken = default);
+    Task<CustomerAddressResponseDto?> GetDefaultAddressAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CustomerAddressResponseDto>> CreateAsync(Guid userId, CreateCustomerAddressDto request);
+    Task<ApiResponse<CustomerAddressResponseDto>> UpdateAsync(Guid userId, Guid addressId, UpdateCustomerAddressDto request);
+    Task<ApiResponse<bool>> DeleteAsync(Guid userId, Guid addressId);
+    Task<ApiResponse<bool>> SetDefaultAsync(Guid userId, Guid addressId);
 }

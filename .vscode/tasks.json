@@ -5,9 +5,9 @@
       "label": "Docker: Compose Up",
       "type": "shell",
       "command": "docker compose up --build",
+      "isBackground": true,
       "options": {
-        "cwd": "${workspaceFolder}",
-        "isBackground": true
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [],
       "presentation": {
@@ -25,6 +25,16 @@
       },
       "problemMatcher": [],
       "group": "build"
+    },
+    {
+      "type": "process",
+      "label": "build",
+      "command": "dotnet build",
+      "args": [
+        "${workspaceFolder}/src/CloseExpAISolution.API/CloseExpAISolution.API.csproj"
+      ],
+      "group": "build",
+      "problemMatcher": ["$msCompile"]
     }
   ]
 }

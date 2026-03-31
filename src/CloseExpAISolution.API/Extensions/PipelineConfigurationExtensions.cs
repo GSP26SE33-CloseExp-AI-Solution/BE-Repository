@@ -1,3 +1,5 @@
+using CloseExpAISolution.API.Middleware;
+
 namespace CloseExpAISolution.API.Extensions;
 
 public static class PipelineConfigurationExtensions
@@ -25,6 +27,7 @@ public static class PipelineConfigurationExtensions
         app.UseCors("CorsPolicy");
 
         app.UseAuthentication();
+        app.UseMiddleware<JwtRoleConsistencyMiddleware>();
         app.UseAuthorization();
 
         app.UseEndpoints(endpoints => endpoints.MapControllers());

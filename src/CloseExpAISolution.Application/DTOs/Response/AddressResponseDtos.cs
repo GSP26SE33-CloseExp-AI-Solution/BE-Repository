@@ -5,6 +5,7 @@ public class CollectionPointResponseDto
     public Guid CollectionId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string AddressLine { get; set; } = string.Empty;
+    public int RelatedOrderCount { get; set; }
 }
 
 public class CustomerAddressResponseDto
@@ -14,5 +15,7 @@ public class CustomerAddressResponseDto
     public string Phone { get; set; } = string.Empty;
     public string RecipientName { get; set; } = string.Empty;
     public string AddressLine { get; set; } = string.Empty;
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
     public bool IsDefault { get; set; }
 }

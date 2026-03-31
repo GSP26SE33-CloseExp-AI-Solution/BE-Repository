@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328082727_SupermarketRegistrationAndStaffExtensions")]
+    partial class SupermarketRegistrationAndStaffExtensions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -58,7 +61,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("AIVerificationLogs", (string)null);
+                    b.ToTable("AIVerificationLogs");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Category", b =>
@@ -90,7 +93,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("ParentCatId");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.CollectionPoint", b =>
@@ -156,7 +159,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("CustomerAddresses", (string)null);
+                    b.ToTable("CustomerAddresses");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.CustomerFeedback", b =>
@@ -186,7 +189,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Feedbacks", (string)null);
+                    b.ToTable("Feedbacks");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryFeeConfig", b =>
@@ -225,7 +228,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("ConfigId");
 
-                    b.ToTable("DeliveryFeeConfigs", (string)null);
+                    b.ToTable("DeliveryFeeConfigs");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryGroup", b =>
@@ -284,7 +287,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("TimeSlotId");
 
-                    b.ToTable("DeliveryGroups", (string)null);
+                    b.ToTable("DeliveryGroups");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryLog", b =>
@@ -322,7 +325,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("DeliveryLogs", (string)null);
+                    b.ToTable("DeliveryLogs");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", b =>
@@ -440,7 +443,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasIndex("Barcode", "Source", "StoreName")
                         .IsUnique();
 
-                    b.ToTable("MarketPrices", (string)null);
+                    b.ToTable("MarketPrices");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Notification", b =>
@@ -473,7 +476,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "IsRead");
 
-                    b.ToTable("Notifications", (string)null);
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Order", b =>
@@ -559,7 +562,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "Status");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.OrderItem", b =>
@@ -589,7 +592,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("OrderItems", (string)null);
+                    b.ToTable("OrderItems");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.OrderPackaging", b =>
@@ -647,7 +650,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("OrderStatusLogs", (string)null);
+                    b.ToTable("OrderStatusLogs");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PricingHistory", b =>
@@ -722,7 +725,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("LotId", "CreatedAt");
 
-                    b.ToTable("PricingHistories", (string)null);
+                    b.ToTable("PricingHistories");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Product", b =>
@@ -789,7 +792,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("SupermarketId", "Status");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.ProductDetail", b =>
@@ -839,7 +842,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasIndex("ProductId")
                         .IsUnique();
 
-                    b.ToTable("ProductDetails", (string)null);
+                    b.ToTable("ProductDetails");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.ProductImage", b =>
@@ -865,7 +868,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("ProductImages", (string)null);
+                    b.ToTable("ProductImages");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Promotion", b =>
@@ -930,7 +933,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("Status", "StartDate", "EndDate");
 
-                    b.ToTable("Promotions", (string)null);
+                    b.ToTable("Promotions");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.PromotionUsage", b =>
@@ -968,7 +971,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasIndex("PromotionId", "UserId", "OrderId")
                         .IsUnique();
 
-                    b.ToTable("PromotionUsages", (string)null);
+                    b.ToTable("PromotionUsages");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.RefreshToken", b =>
@@ -1006,7 +1009,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Refund", b =>
@@ -1046,7 +1049,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("TransactionId");
 
-                    b.ToTable("Refunds", (string)null);
+                    b.ToTable("Refunds");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Role", b =>
@@ -1063,7 +1066,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("RoleId");
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.StockLot", b =>
@@ -1122,7 +1125,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("ProductId", "Status");
 
-                    b.ToTable("StockLots", (string)null);
+                    b.ToTable("StockLots");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Supermarket", b =>
@@ -1192,7 +1195,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("Supermarkets", (string)null);
+                    b.ToTable("Supermarkets");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.SupermarketStaff", b =>
@@ -1256,7 +1259,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("ConfigKey");
 
-                    b.ToTable("SystemConfigs", (string)null);
+                    b.ToTable("SystemConfigs");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Transaction", b =>
@@ -1301,7 +1304,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"PayOSOrderCode\" IS NOT NULL");
 
-                    b.ToTable("Transactions", (string)null);
+                    b.ToTable("Transactions");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.UnitOfMeasure", b =>
@@ -1330,7 +1333,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("UnitId");
 
-                    b.ToTable("UnitOfMeasures", (string)null);
+                    b.ToTable("UnitOfMeasures");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.User", b =>
@@ -1402,7 +1405,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.UserImage", b =>
@@ -1435,7 +1438,7 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("UserImages", (string)null);
+                    b.ToTable("UserImages");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.AIVerificationLog", b =>

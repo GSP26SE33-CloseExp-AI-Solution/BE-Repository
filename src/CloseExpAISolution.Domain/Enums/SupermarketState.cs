@@ -5,5 +5,6 @@ public enum SupermarketState
     PendingApproval,
     Active,
     Suspended,
-    Closed
+    Closed,
+    Rejected
 }

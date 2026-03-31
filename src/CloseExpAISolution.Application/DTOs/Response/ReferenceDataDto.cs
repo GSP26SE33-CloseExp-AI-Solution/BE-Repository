@@ -6,6 +6,7 @@ public class DeliveryTimeSlotDto
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public string DisplayTimeRange { get; set; } = string.Empty;
+    public int RelatedOrderCount { get; set; }
 }
 
 public class PickupPointDto
@@ -13,6 +14,7 @@ public class PickupPointDto
     public Guid PickupPointId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public int RelatedOrderCount { get; set; }
 }
 
 public class CustomerAddressDto
