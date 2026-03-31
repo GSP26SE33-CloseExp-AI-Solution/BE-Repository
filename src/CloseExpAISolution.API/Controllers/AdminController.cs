@@ -287,6 +287,14 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<AdminAiPriceHistoryDto>>.SuccessResponse(data));
     }
 
+    [HttpGet("orders")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AdminOrderListItemDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOrders([FromQuery] AdminOrderQueryRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var data = await _services.AdminService.GetOrdersAsync(request, cancellationToken);
+        return Ok(ApiResponse<PaginatedResult<AdminOrderListItemDto>>.SuccessResponse(data));
+    }
+
     [HttpGet("supermarkets/applications/pending")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminPendingSupermarketApplicationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPendingSupermarketApplications(CancellationToken cancellationToken)

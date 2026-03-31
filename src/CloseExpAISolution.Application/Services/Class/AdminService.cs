@@ -497,6 +497,59 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<PaginatedResult<AdminOrderListItemDto>> GetOrdersAsync(
+        AdminOrderQueryRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var (orders, total) = await _unitOfWork.OrderRepository.GetAdminPagedAsync(
+            request.FromUtc,
+            request.ToUtc,
+            request.Status,
+            request.DeliveryType,
+            request.UserId,
+            request.TimeSlotId,
+            request.CollectionId,
+            request.DeliveryGroupId,
+            request.Search,
+            request.SortBy,
+            request.SortDir,
+            request.PageNumber,
+            request.PageSize,
+            cancellationToken);
+
+        var items = orders.Select(o => new AdminOrderListItemDto
+        {
+            OrderId = o.OrderId,
+            OrderCode = o.OrderCode,
+            Status = o.Status.ToString(),
+            OrderDate = o.OrderDate,
+            CreatedAt = o.CreatedAt,
+            UpdatedAt = o.UpdatedAt,
+            DeliveryType = o.DeliveryType,
+            TotalAmount = o.TotalAmount,
+            DiscountAmount = o.DiscountAmount,
+            FinalAmount = o.FinalAmount,
+            DeliveryFee = o.DeliveryFee,
+            UserId = o.UserId,
+            UserName = o.User?.FullName,
+            TimeSlotId = o.TimeSlotId,
+            TimeSlotDisplay = o.DeliveryTimeSlot != null
+                ? $"{o.DeliveryTimeSlot.StartTime:hh\\:mm} - {o.DeliveryTimeSlot.EndTime:hh\\:mm}"
+                : null,
+            CollectionId = o.CollectionId,
+            CollectionPointName = o.CollectionPoint?.Name,
+            DeliveryGroupId = o.DeliveryGroupId
+        }).ToList();
+
+        return new PaginatedResult<AdminOrderListItemDto>
+        {
+            Items = items,
+            TotalResult = total,
+            Page = Math.Max(1, request.PageNumber),
+            PageSize = Math.Clamp(request.PageSize, 1, 200)
+        };
+    }
+
     private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)
     {
         var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
