@@ -54,6 +54,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IPromotionService? _promotionService;
                 private IPromotionUsageService? _promotionUsageService;
                 private IPromotionAnalyticsService? _promotionAnalyticsService;
+                private ICartService? _cartService;
 
                 public ServiceProviders(
                     IUnitOfWork unitOfWork,
@@ -100,6 +101,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);
                 public IPromotionUsageService PromotionUsageService => _promotionUsageService ??= new PromotionUsageService(_unitOfWork);
                 public IPromotionAnalyticsService PromotionAnalyticsService => _promotionAnalyticsService ??= new PromotionAnalyticsService(_unitOfWork);
+                public ICartService CartService => _cartService ??= ActivatorUtilities.CreateInstance<CartService>(_serviceProvider, _unitOfWork);
         }
 }
 

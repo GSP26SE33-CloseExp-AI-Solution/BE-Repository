@@ -10,6 +10,7 @@ using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Mapbox.Extensions;
 using CloseExpAISolution.Application.Email.Extensions;
+using StackExchange.Redis;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
 
@@ -32,6 +33,12 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
+
+        var redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+        }
 
         services.AddAIService(configuration);
 
