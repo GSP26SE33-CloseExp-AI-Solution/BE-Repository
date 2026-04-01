@@ -44,6 +44,7 @@ CodeCoverage/
 
 # Allow shared VS Code / Cursor config (override *.json above)
 !.vscode/*.json
+!*.postman_collection.json
 
 # MSBuild Binary and Structured Log
 *.binlog
