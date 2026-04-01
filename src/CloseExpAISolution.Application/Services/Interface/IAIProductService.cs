@@ -20,21 +20,6 @@ public interface IAIProductService
         decimal originalPrice,
         string? brand = null,
         CancellationToken cancellationToken = default);
-    Task<ShelfAnalysisResult> AnalyzeShelfImageAsync(
-        string imageUrl,
-        CancellationToken cancellationToken = default);
-    Task<ProductProcessingResult> ProcessProductAsync(
-        Guid productId,
-        string imageUrl,
-        CancellationToken cancellationToken = default);
     Task<bool> IsServiceAvailableAsync(CancellationToken cancellationToken = default);
-    Task<SmartScanResult> SmartScanAsync(
-        string imageUrl,
-        string productTypeHint = "auto",
-        bool lookupBarcode = true,
-        CancellationToken cancellationToken = default);
-    Task<FreshProduceResult> IdentifyFreshProduceAsync(
-        string imageUrl,
-        CancellationToken cancellationToken = default);
 }
 

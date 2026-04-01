@@ -27,7 +27,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.MainImageUrl, opt => opt.MapFrom(_ => (string?)null))
             .ForMember(dest => dest.TotalImages, opt => opt.MapFrom(_ => 0))
             .ForMember(dest => dest.ProductImages, opt => opt.MapFrom(_ => new List<ProductImageDto>()))
-            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? src.Product.ProductDetail.Ingredients : null))
+            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? ParseIngredients(src.Product.ProductDetail.Ingredients) : new List<string>()))
             .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? ParseNutritionFacts(src.Product.ProductDetail.NutritionFacts) : null))
             // Expiry status fields - set after mapping manually
             .ForMember(dest => dest.DaysRemaining, opt => opt.Ignore())
@@ -41,7 +41,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.Weight, opt => opt.MapFrom(src => src.StockLots != null && src.StockLots.Any()
                 ? src.StockLots.OrderByDescending(pl => pl.ExpiryDate).First().Weight.ToString()
                 : "Đang cập nhật"))
-            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Ingredients ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
+            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseIngredients(src.ProductDetail.Ingredients) : new List<string>()))
             .ForMember(dest => dest.UsageInstructions, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.UsageInstructions ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.StorageInstructions, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.StorageInstructions ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.ManufactureDate, opt => opt.MapFrom(src => src.StockLots != null && src.StockLots.Any()
@@ -77,7 +77,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.MainImageUrl, opt => opt.MapFrom(_ => (string?)null))
             .ForMember(dest => dest.TotalImages, opt => opt.MapFrom(_ => 0))
             .ForMember(dest => dest.ProductImages, opt => opt.MapFrom(_ => new List<ProductImageDto>()))
-            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.ProductDetail != null ? src.ProductDetail.Ingredients : null))
+            .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseIngredients(src.ProductDetail.Ingredients) : new List<string>()))
             .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseNutritionFacts(src.ProductDetail.NutritionFacts) : null))
             .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.CategoryRef != null ? src.CategoryRef.Name ?? "" : ""))
             .ForMember(dest => dest.IsFreshFood, opt => opt.MapFrom(src => src.CategoryRef != null && src.CategoryRef.IsFreshFood))
@@ -149,6 +149,35 @@ public class ProductMappingProfile : Profile
         {
             return null;
         }
+    }
+
+    private static List<string> ParseIngredients(string? ingredientsRaw)
+    {
+        if (string.IsNullOrWhiteSpace(ingredientsRaw))
+            return new List<string>();
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<List<string>>(ingredientsRaw);
+            if (parsed != null)
+            {
+                return parsed.Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+        catch
+        {
+            // Fallback to comma/newline split for legacy plain text data.
+        }
+
+        return ingredientsRaw
+            .Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }
 

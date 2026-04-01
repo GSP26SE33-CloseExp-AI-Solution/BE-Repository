@@ -41,16 +41,16 @@ public class OrderService : IOrderService
             .ToList();
     }
 
-    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<CollectionPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
     {
         var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
         return points
             .OrderBy(x => x.Name)
-            .Select(x => new PickupPointDto
+            .Select(x => new CollectionPointDto
             {
-                PickupPointId = x.CollectionId,
+                CollectionPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
                 RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0

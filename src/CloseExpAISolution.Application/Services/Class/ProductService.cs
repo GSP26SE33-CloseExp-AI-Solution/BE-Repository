@@ -162,7 +162,7 @@ public class ProductService : IProductService
             ProductDetailId = Guid.NewGuid(),
             ProductId = added.ProductId,
             Brand = request.Detail.Brand,
-            Ingredients = request.Detail.Ingredients,
+            Ingredients = SerializeIngredientsForStorage(ParseIngredients(request.Detail.Ingredients)),
             NutritionFacts = request.Detail.NutritionFactsJson,
             UsageInstructions = request.Detail.UsageInstructions,
             StorageInstructions = request.Detail.StorageInstructions,
@@ -220,7 +220,7 @@ public class ProductService : IProductService
 
         var detail = product.ProductDetail ?? new ProductDetail { ProductDetailId = Guid.NewGuid(), ProductId = product.ProductId };
         detail.Brand = request.Detail.Brand;
-        detail.Ingredients = request.Detail.Ingredients;
+        detail.Ingredients = SerializeIngredientsForStorage(ParseIngredients(request.Detail.Ingredients));
         detail.NutritionFacts = request.Detail.NutritionFactsJson;
         detail.UsageInstructions = request.Detail.UsageInstructions;
         detail.StorageInstructions = request.Detail.StorageInstructions;
@@ -621,6 +621,37 @@ public class ProductService : IProductService
             .ToDictionary(
                 g => g.Key,
                 g => g.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).First());
+    }
+
+    private static List<string> ParseIngredients(string? ingredientsRaw)
+    {
+        if (string.IsNullOrWhiteSpace(ingredientsRaw))
+            return new List<string>();
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<List<string>>(ingredientsRaw);
+            if (parsed != null)
+                return parsed.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList();
+        }
+        catch
+        {
+            // Legacy format: plain text separated by comma/semicolon.
+        }
+
+        return ingredientsRaw
+            .Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+    }
+
+    private static string SerializeIngredientsForStorage(List<string> ingredients)
+    {
+        return JsonSerializer.Serialize(ingredients
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToList());
     }
 }
 

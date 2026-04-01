@@ -29,24 +29,6 @@ public interface IAIServiceClient
 
     #endregion
 
-    #region Vision Operations
-    Task<VisionResponse?> AnalyzeImageAsync(VisionRequest request, CancellationToken cancellationToken = default);
-    Task<VisionResponse?> AnalyzeImageFromUrlAsync(string imageUrl, CancellationToken cancellationToken = default);
-    Task<byte[]?> GetAnnotatedImageAsync(string imageUrl, CancellationToken cancellationToken = default);
-
-    #endregion
-
-    #region Fresh Produce Operations
-    Task<FreshProduceResponse?> IdentifyFreshProduceAsync(FreshProduceRequest request, CancellationToken cancellationToken = default);
-    Task<FreshProduceResponse?> IdentifyFreshProduceFromUrlAsync(string imageUrl, CancellationToken cancellationToken = default);
-
-    #endregion
-
-    #region Smart Scan Operations
-    Task<SmartScanResponse> SmartScanAsync(SmartScanRequest request, CancellationToken cancellationToken = default);
-
-    #endregion
-
     #region Market Price Operations
     Task<MarketPriceCrawlResponse?> CrawlMarketPricesAsync(
         string barcode,

@@ -45,7 +45,7 @@ public class ProductResponseDto
     public string? MainImageUrl { get; set; }
     public int TotalImages { get; set; }
     public ICollection<ProductImageDto> ProductImages { get; set; } = new List<ProductImageDto>();
-    public string? Ingredients { get; set; }
+    public List<string> Ingredients { get; set; } = new();
     public Dictionary<string, string>? NutritionFacts { get; set; }
     public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
 }
@@ -60,7 +60,7 @@ public class BarcodeLookupInfoDto
     public string? ImageUrl { get; set; }
     public string? Manufacturer { get; set; }
     public string? Weight { get; set; }
-    public string? Ingredients { get; set; }
+    public List<string> Ingredients { get; set; } = new();
     public Dictionary<string, string>? NutritionFacts { get; set; }
     public string? Country { get; set; }
     public string Source { get; set; } = string.Empty;
@@ -115,7 +115,7 @@ public class ExistingProductInfoDto
     public string? MainImageUrl { get; set; }
 
     public string? Manufacturer { get; set; }
-    public string? Ingredients { get; set; }
+    public List<string> Ingredients { get; set; } = new();
     public decimal? LastPrice { get; set; }
     public int TotalLotsSold { get; set; }
 }
@@ -129,7 +129,7 @@ public class CreateNewProductResponseDto
     public string Category { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public string? Manufacturer { get; set; }
-    public string? Ingredients { get; set; }
+    public List<string> Ingredients { get; set; } = new();
     public string? MainImageUrl { get; set; }
     public ProductState Status { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
@@ -156,7 +156,7 @@ public class OcrExtractedInfoDto
     public DateTime? ExpiryDate { get; set; }
     public DateTime? ManufactureDate { get; set; }
     public string? Weight { get; set; }
-    public string? Ingredients { get; set; }
+    public List<string> Ingredients { get; set; } = new();
     public string? Manufacturer { get; set; }
     public string? Origin { get; set; }
     public Dictionary<string, string>? NutritionFacts { get; set; }

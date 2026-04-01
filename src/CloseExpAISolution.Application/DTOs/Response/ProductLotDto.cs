@@ -31,7 +31,7 @@ public class StockLotDetailDto
     public int DaysRemaining { get; set; }
     public int? HoursRemaining { get; set; }
     public string ExpiryStatusText { get; set; } = string.Empty;
-    public string? Ingredients { get; set; }
+    public List<string> Ingredients { get; set; } = new();
     public Dictionary<string, string>? NutritionFacts { get; set; }
     public DateTime CreatedAt { get; set; }
 }

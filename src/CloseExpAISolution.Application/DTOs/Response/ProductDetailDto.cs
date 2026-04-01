@@ -10,7 +10,7 @@ public class ProductDetailDto
     public string Brand { get; set; } = string.Empty;
     public string? Origin { get; set; }
     public string Weight { get; set; } = "Đang cập nhật";
-    public string Ingredients { get; set; } = "Chưa có mô tả chi tiết";
+    public List<string> Ingredients { get; set; } = new();
     public string UsageInstructions { get; set; } = "Chưa có mô tả chi tiết";
     public string StorageInstructions { get; set; } = "Chưa có mô tả chi tiết";
     public string ManufactureDate { get; set; } = "Xem trên bao bì";

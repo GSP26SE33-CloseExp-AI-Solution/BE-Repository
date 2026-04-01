@@ -72,7 +72,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
         if (request.Detail != null)
         {
-            if (!string.IsNullOrEmpty(request.Detail.Ingredients)) detail.Ingredients = request.Detail.Ingredients;
+            if (!string.IsNullOrEmpty(request.Detail.Ingredients)) detail.Ingredients = SerializeIngredientsForStorage(ParseIngredients(request.Detail.Ingredients));
             if (!string.IsNullOrEmpty(request.Detail.NutritionFactsJson)) detail.NutritionFacts = request.Detail.NutritionFactsJson;
             if (!string.IsNullOrEmpty(request.Detail.UsageInstructions)) detail.UsageInstructions = request.Detail.UsageInstructions;
             if (!string.IsNullOrEmpty(request.Detail.StorageInstructions)) detail.StorageInstructions = request.Detail.StorageInstructions;
@@ -230,6 +230,11 @@ public class ProductWorkflowService : IProductWorkflowService
                 ProductName = product.Name,
                 Barcode = product.Barcode
             };
+
+            var latestVerificationLog = await GetLatestVerificationLogByProductIdAsync(product.ProductId);
+            var (freshnessLevel, freshnessScore) = ExtractFreshnessFromRawData(latestVerificationLog?.RawData);
+            pricingRequest.FreshnessLevel = freshnessLevel;
+            pricingRequest.FreshnessScore = freshnessScore;
 
             var pricingResult = await _aiClient.GetPriceSuggestionAsync(pricingRequest, cancellationToken);
 
@@ -389,7 +394,7 @@ public class ProductWorkflowService : IProductWorkflowService
                 ImageUrl = barcodeLookupInfo.ImageUrl,
                 Manufacturer = barcodeLookupInfo.Manufacturer,
                 Weight = barcodeLookupInfo.Weight,
-                Ingredients = barcodeLookupInfo.Ingredients,
+                Ingredients = ParseIngredients(barcodeLookupInfo.Ingredients),
                 NutritionFacts = barcodeLookupInfo.NutritionFacts,
                 Country = barcodeLookupInfo.Country,
                 Source = barcodeLookupInfo.Source,
@@ -597,7 +602,7 @@ public class ProductWorkflowService : IProductWorkflowService
                     Barcode = existingProduct.Barcode,
                     MainImageUrl = mainImage,
                     Manufacturer = existingProduct.ProductDetail?.Manufacturer,
-                    Ingredients = existingProduct.ProductDetail?.Ingredients,
+                    Ingredients = ParseIngredients(existingProduct.ProductDetail?.Ingredients),
                     LastPrice = latestPricing?.SuggestedPrice,
                     TotalLotsSold = totalLotsSold
                 },
@@ -632,7 +637,7 @@ public class ProductWorkflowService : IProductWorkflowService
                 ImageUrl = barcodeLookupInfo.ImageUrl,
                 Manufacturer = barcodeLookupInfo.Manufacturer,
                 Weight = barcodeLookupInfo.Weight,
-                Ingredients = barcodeLookupInfo.Ingredients,
+                Ingredients = ParseIngredients(barcodeLookupInfo.Ingredients),
                 NutritionFacts = barcodeLookupInfo.NutritionFacts,
                 Country = barcodeLookupInfo.Country,
                 Source = barcodeLookupInfo.Source,
@@ -732,7 +737,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductDetailId = Guid.NewGuid(),
             ProductId = product.ProductId,
             Brand = detail.Brand,
-            Ingredients = detail.Ingredients,
+            Ingredients = SerializeIngredientsForStorage(ParseIngredients(detail.Ingredients)),
             NutritionFacts = detail.NutritionFactsJson,
             Manufacturer = detail.Manufacturer,
             Origin = detail.Origin,
@@ -742,6 +747,18 @@ public class ProductWorkflowService : IProductWorkflowService
             SafetyWarning = detail.SafetyWarnings
         };
         await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
+
+        await _unitOfWork.Repository<AIVerificationLog>().AddAsync(new AIVerificationLog
+        {
+            VerificationId = Guid.NewGuid(),
+            ProductId = product.ProductId,
+            RawData = request.OcrExtractedData,
+            ConfidenceScore = (decimal)(request.OcrConfidence ?? 0),
+            ExtractedName = request.Name,
+            ExtractedBarcode = request.Barcode,
+            VerifiedAt = DateTime.UtcNow,
+            VerifiedBy = staffName
+        });
 
         if (!string.IsNullOrWhiteSpace(request.OcrImageUrl))
         {
@@ -766,7 +783,7 @@ public class ProductWorkflowService : IProductWorkflowService
             Category = category?.Name ?? request.CategoryName,
             Barcode = product.Barcode,
             Manufacturer = productDetail.Manufacturer,
-            Ingredients = productDetail.Ingredients,
+            Ingredients = ParseIngredients(productDetail.Ingredients),
             MainImageUrl = request.OcrImageUrl,
             Status = ProductState.Verified,
             CreatedBy = product.CreatedBy,
@@ -954,7 +971,7 @@ public class ProductWorkflowService : IProductWorkflowService
                     ExpiryDate = ocrResult.ExpiryDate?.Value,
                     ManufactureDate = ocrResult.ManufacturedDate?.Value,
                     Weight = ocrResult.ProductInfo?.Weight ?? ocrResult.ProductInfo?.WeightInfo?.Raw,
-                    Ingredients = ingredientsStr,
+                    Ingredients = ParseIngredients(ingredientsStr),
                     Manufacturer = manufacturerStr,
                     Origin = ocrResult.ProductInfo?.Origin,
                     NutritionFacts = nutritionFacts
@@ -977,7 +994,7 @@ public class ProductWorkflowService : IProductWorkflowService
                                 ImageUrl = barcodeLookupInfo.ImageUrl,
                                 Manufacturer = barcodeLookupInfo.Manufacturer,
                                 Weight = barcodeLookupInfo.Weight,
-                                Ingredients = barcodeLookupInfo.Ingredients,
+                                Ingredients = ParseIngredients(barcodeLookupInfo.Ingredients),
                                 NutritionFacts = barcodeLookupInfo.NutritionFacts,
                                 Country = barcodeLookupInfo.Country,
                                 Source = barcodeLookupInfo.Source,
@@ -1057,7 +1074,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ProductDetailId = Guid.NewGuid(),
             ProductId = product.ProductId,
             Brand = request.Detail.Brand,
-            Ingredients = request.Detail.Ingredients,
+            Ingredients = SerializeIngredientsForStorage(ParseIngredients(request.Detail.Ingredients)),
             NutritionFacts = request.Detail.NutritionFactsJson,
             Manufacturer = request.Detail.Manufacturer,
             Origin = request.Detail.Origin,
@@ -1096,7 +1113,7 @@ public class ProductWorkflowService : IProductWorkflowService
             Category = category?.Name ?? request.CategoryName,
             Barcode = product.Barcode,
             Manufacturer = productDetail.Manufacturer,
-            Ingredients = productDetail.Ingredients,
+            Ingredients = ParseIngredients(productDetail.Ingredients),
             MainImageUrl = mainImageUrl,
             Status = ProductState.Draft,
             CreatedBy = product.CreatedBy,
@@ -1340,6 +1357,84 @@ public class ProductWorkflowService : IProductWorkflowService
 
         var histories = await _unitOfWork.Repository<PricingHistory>().FindAsync(h => h.LotId == lotId.Value);
         return histories.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).FirstOrDefault();
+    }
+
+    private async Task<AIVerificationLog?> GetLatestVerificationLogByProductIdAsync(Guid productId)
+    {
+        var logs = await _unitOfWork.Repository<AIVerificationLog>().FindAsync(x => x.ProductId == productId);
+        return logs.OrderByDescending(x => x.VerifiedAt ?? DateTime.MinValue).FirstOrDefault();
+    }
+
+    private static List<string> ParseIngredients(string? ingredientsRaw)
+    {
+        if (string.IsNullOrWhiteSpace(ingredientsRaw))
+            return new List<string>();
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<List<string>>(ingredientsRaw);
+            if (parsed != null)
+            {
+                return parsed.Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+        catch
+        {
+            // Fallback to plain text split for legacy rows.
+        }
+
+        return ingredientsRaw
+            .Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string SerializeIngredientsForStorage(List<string> ingredients)
+    {
+        return JsonSerializer.Serialize(ingredients
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList());
+    }
+
+    private static (string FreshnessLevel, float? FreshnessScore) ExtractFreshnessFromRawData(string? rawData)
+    {
+        const string defaultLevel = "acceptable";
+        if (string.IsNullOrWhiteSpace(rawData))
+            return (defaultLevel, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawData);
+            if (!doc.RootElement.TryGetProperty("freshness", out var freshnessNode) || freshnessNode.ValueKind != JsonValueKind.Object)
+                return (defaultLevel, null);
+
+            var level = defaultLevel;
+            float? score = null;
+
+            if (freshnessNode.TryGetProperty("level", out var levelNode) && levelNode.ValueKind == JsonValueKind.String)
+            {
+                level = levelNode.GetString() ?? defaultLevel;
+            }
+
+            if (freshnessNode.TryGetProperty("score", out var scoreNode))
+            {
+                if (scoreNode.ValueKind == JsonValueKind.Number && scoreNode.TryGetSingle(out var scoreValue))
+                    score = scoreValue;
+            }
+
+            return (level, score);
+        }
+        catch
+        {
+            return (defaultLevel, null);
+        }
     }
 
 }

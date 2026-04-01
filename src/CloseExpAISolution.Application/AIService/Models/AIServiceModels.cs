@@ -26,6 +26,7 @@ public class OcrResponse
     public float Confidence { get; set; }
     public float? ProcessingTimeMs { get; set; }
     public List<string>? Warnings { get; set; }
+    public FreshnessAssessment? Freshness { get; set; }
 }
 
 public class DateInfo
@@ -135,6 +136,15 @@ public class PricingRequest
     public string? MarketPriceSource { get; set; }
     public string? ProductName { get; set; }
     public string? Barcode { get; set; }
+    public string? FreshnessLevel { get; set; }
+    public float? FreshnessScore { get; set; }
+}
+
+public class FreshnessAssessment
+{
+    public string? Level { get; set; }
+    public float? Score { get; set; }
+    public Dictionary<string, object>? Indicators { get; set; }
 }
 
 public class PricingResponse

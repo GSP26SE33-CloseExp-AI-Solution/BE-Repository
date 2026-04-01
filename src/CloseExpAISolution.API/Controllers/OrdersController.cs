@@ -31,11 +31,11 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet("collection-points")]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<PickupPointDto>>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<IEnumerable<PickupPointDto>>>> GetCollectionPoints(CancellationToken cancellationToken = default)
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CollectionPointDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CollectionPointDto>>>> GetCollectionPoints(CancellationToken cancellationToken = default)
     {
         var collectionPoints = await _services.OrderService.GetCollectionPointsAsync(cancellationToken);
-        return Ok(ApiResponse<IEnumerable<PickupPointDto>>.SuccessResponse(collectionPoints));
+        return Ok(ApiResponse<IEnumerable<CollectionPointDto>>.SuccessResponse(collectionPoints));
     }
 
     [HttpGet]
