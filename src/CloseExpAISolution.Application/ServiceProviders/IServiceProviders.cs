@@ -39,4 +39,5 @@ public interface IServiceProviders
     IPromotionService PromotionService { get; }
     IPromotionUsageService PromotionUsageService { get; }
     IPromotionAnalyticsService PromotionAnalyticsService { get; }
+    ICartService CartService { get; }
 }

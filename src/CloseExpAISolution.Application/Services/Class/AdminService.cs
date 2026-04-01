@@ -136,10 +136,10 @@ public class AdminService : IAdminService
             .OrderBy(x => x.StartTime)
             .Select(x => new AdminTimeSlotDto
             {
-                TimeSlotId = x.TimeSlotId,
+                TimeSlotId = x.DeliveryTimeSlotId,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
-                RelatedOrderCount = orderCountBySlot.TryGetValue(x.TimeSlotId, out var c) ? c : 0
+                RelatedOrderCount = orderCountBySlot.TryGetValue(x.DeliveryTimeSlotId, out var c) ? c : 0
             });
     }
 
@@ -150,7 +150,7 @@ public class AdminService : IAdminService
 
         var entity = new DeliveryTimeSlot
         {
-            TimeSlotId = Guid.NewGuid(),
+            DeliveryTimeSlotId = Guid.NewGuid(),
             StartTime = request.StartTime,
             EndTime = request.EndTime
         };
@@ -160,7 +160,7 @@ public class AdminService : IAdminService
 
         return new AdminTimeSlotDto
         {
-            TimeSlotId = entity.TimeSlotId,
+            TimeSlotId = entity.DeliveryTimeSlotId,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime,
             RelatedOrderCount = 0
@@ -172,7 +172,7 @@ public class AdminService : IAdminService
         ValidateTimeSlot(request.StartTime, request.EndTime);
 
         var entity = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(x => x.TimeSlotId == timeSlotId);
+            .FirstOrDefaultAsync(x => x.DeliveryTimeSlotId == timeSlotId);
 
         if (entity == null)
             return null;
@@ -189,7 +189,7 @@ public class AdminService : IAdminService
 
         return new AdminTimeSlotDto
         {
-            TimeSlotId = entity.TimeSlotId,
+            TimeSlotId = entity.DeliveryTimeSlotId,
             StartTime = entity.StartTime,
             EndTime = entity.EndTime,
             RelatedOrderCount = relatedOrders
@@ -199,7 +199,7 @@ public class AdminService : IAdminService
     public async Task<bool> DeleteTimeSlotAsync(Guid timeSlotId, CancellationToken cancellationToken = default)
     {
         var entity = await _unitOfWork.Repository<DeliveryTimeSlot>()
-            .FirstOrDefaultAsync(x => x.TimeSlotId == timeSlotId);
+            .FirstOrDefaultAsync(x => x.DeliveryTimeSlotId == timeSlotId);
 
         if (entity == null)
             return false;
@@ -497,6 +497,59 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<PaginatedResult<AdminOrderListItemDto>> GetOrdersAsync(
+        AdminOrderQueryRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var (orders, total) = await _unitOfWork.OrderRepository.GetAdminPagedAsync(
+            request.FromUtc,
+            request.ToUtc,
+            request.Status,
+            request.DeliveryType,
+            request.UserId,
+            request.TimeSlotId,
+            request.CollectionId,
+            request.DeliveryGroupId,
+            request.Search,
+            request.SortBy,
+            request.SortDir,
+            request.PageNumber,
+            request.PageSize,
+            cancellationToken);
+
+        var items = orders.Select(o => new AdminOrderListItemDto
+        {
+            OrderId = o.OrderId,
+            OrderCode = o.OrderCode,
+            Status = o.Status.ToString(),
+            OrderDate = o.OrderDate,
+            CreatedAt = o.CreatedAt,
+            UpdatedAt = o.UpdatedAt,
+            DeliveryType = o.DeliveryType,
+            TotalAmount = o.TotalAmount,
+            DiscountAmount = o.DiscountAmount,
+            FinalAmount = o.FinalAmount,
+            DeliveryFee = o.DeliveryFee,
+            UserId = o.UserId,
+            UserName = o.User?.FullName,
+            TimeSlotId = o.TimeSlotId,
+            TimeSlotDisplay = o.DeliveryTimeSlot != null
+                ? $"{o.DeliveryTimeSlot.StartTime:hh\\:mm} - {o.DeliveryTimeSlot.EndTime:hh\\:mm}"
+                : null,
+            CollectionId = o.CollectionId,
+            CollectionPointName = o.CollectionPoint?.Name,
+            DeliveryGroupId = o.DeliveryGroupId
+        }).ToList();
+
+        return new PaginatedResult<AdminOrderListItemDto>
+        {
+            Items = items,
+            TotalResult = total,
+            Page = Math.Max(1, request.PageNumber),
+            PageSize = Math.Clamp(request.PageSize, 1, 200)
+        };
+    }
+
     private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)
     {
         var orders = await _unitOfWork.Repository<Order>().GetAllAsync();
@@ -517,7 +570,7 @@ public class AdminService : IAdminService
         var slots = await _unitOfWork.Repository<DeliveryTimeSlot>().GetAllAsync();
 
         var hasOverlap = slots.Any(slot =>
-            (!currentId.HasValue || slot.TimeSlotId != currentId.Value) &&
+            (!currentId.HasValue || slot.DeliveryTimeSlotId != currentId.Value) &&
             start < slot.EndTime &&
             end > slot.StartTime);
 
