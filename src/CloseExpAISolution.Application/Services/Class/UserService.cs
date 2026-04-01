@@ -164,10 +164,11 @@ public class UserService : IUserService
                 await RevokeAllUserTokensInternalAsync(user.UserId);
             }
 
-            // Auto-hide sản phẩm siêu thị khi ban SupermarketStaff
+            // Auto-hide sản phẩm siêu thị khi ban SupermarketStaff; hủy đơn đang mở có lô thuộc các siêu thị đó
             if (request.Status == UserState.Banned && user.RoleId == (int)RoleUser.SupermarketStaff)
             {
-                await HideSupermarketProductsAsync(user.UserId);
+                var supermarketIds = await HideSupermarketProductsAsync(user.UserId);
+                await CancelOpenOrdersForSupermarketsAsync(supermarketIds);
             }
             // TODO: Xử lý MarketingStaff khi có entity liên kết với Supermarket
 
@@ -193,9 +194,23 @@ public class UserService : IUserService
         if (user == null)
             return ApiResponse<bool>.ErrorResponse("Không tìm thấy người dùng");
 
-        // Soft delete
-        user.Status = UserState.Deleted;
-        await SaveUserChanges(user);
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await RevokeAllUserTokensInternalAsync(user.UserId);
+
+            user.Status = UserState.Deleted;
+            user.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<User>().Update(user);
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to delete user {UserId}", id);
+            return ApiResponse<bool>.ErrorResponse("Xóa người dùng thất bại. Vui lòng thử lại sau");
+        }
 
         return ApiResponse<bool>.SuccessResponse(true, "Xóa người dùng thành công");
     }
@@ -360,29 +375,116 @@ public class UserService : IUserService
         }
     }
 
-    // TODO: Để ý lại logic khi xử lý ẩn product (liên quan đến order nữa)
-    private async Task HideSupermarketProductsAsync(Guid userId)
+    /// <summary>
+    /// Ẩn sản phẩm (Hidden) trên mọi siêu thị mà nhân viên đang gắn; trả về danh sách siêu thị để xử lý đơn.
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> HideSupermarketProductsAsync(Guid userId)
     {
-        var marketStaff = await _unitOfWork.Repository<SupermarketStaff>()
-            .FirstOrDefaultAsync(ms => ms.UserId == userId);
+        var staffRows = await _unitOfWork.Repository<SupermarketStaff>().FindAsync(ms => ms.UserId == userId);
+        var supermarketIds = staffRows.Select(s => s.SupermarketId).Distinct().ToList();
+        if (supermarketIds.Count == 0)
+            return supermarketIds;
 
-        if (marketStaff == null) return;
-
-        var products = await _unitOfWork.Repository<Product>()
-            .FindAsync(p => p.SupermarketId == marketStaff.SupermarketId
-                           && p.Status != ProductState.Hidden
-                           && p.Status != ProductState.Deleted);
-
-        foreach (var product in products)
+        var totalHidden = 0;
+        foreach (var smId in supermarketIds)
         {
-            product.Status = ProductState.Hidden;
-            product.UpdatedAt = DateTime.UtcNow;
-            _unitOfWork.Repository<Product>().Update(product);
+            var products = await _unitOfWork.Repository<Product>()
+                .FindAsync(p => p.SupermarketId == smId
+                               && p.Status != ProductState.Hidden
+                               && p.Status != ProductState.Deleted);
+
+            foreach (var product in products)
+            {
+                product.Status = ProductState.Hidden;
+                product.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<Product>().Update(product);
+            }
+
+            totalHidden += products.Count();
         }
 
         _logger.LogInformation(
-            "Auto-hidden {Count} products for supermarket {SupermarketId} due to staff {UserId} being banned",
-            products.Count(), marketStaff.SupermarketId, userId);
+            "Auto-hidden {Count} products across {SupermarketCount} supermarkets due to staff {UserId} being banned",
+            totalHidden, supermarketIds.Count, userId);
+
+        return supermarketIds;
+    }
+
+    /// <summary>
+    /// Hủy các đơn chưa kết thúc nếu đơn chứa ít nhất một dòng hàng thuộc lô của sản phẩm siêu thị trong danh sách.
+    /// </summary>
+    private async Task CancelOpenOrdersForSupermarketsAsync(IReadOnlyList<Guid> supermarketIds)
+    {
+        if (supermarketIds.Count == 0)
+            return;
+
+        var terminal = new[]
+        {
+            OrderState.Completed,
+            OrderState.Canceled,
+            OrderState.Refunded,
+            OrderState.Failed
+        };
+
+        var productIds = (await _unitOfWork.Repository<Product>()
+                .FindAsync(p => supermarketIds.Contains(p.SupermarketId)))
+            .Select(p => p.ProductId)
+            .ToHashSet();
+
+        if (productIds.Count == 0)
+            return;
+
+        var lotIds = (await _unitOfWork.Repository<StockLot>()
+                .FindAsync(l => productIds.Contains(l.ProductId)))
+            .Select(l => l.LotId)
+            .ToHashSet();
+
+        if (lotIds.Count == 0)
+            return;
+
+        var orderItems = await _unitOfWork.Repository<OrderItem>().FindAsync(oi => lotIds.Contains(oi.LotId));
+        var orderIds = orderItems.Select(oi => oi.OrderId).Distinct().ToList();
+        if (orderIds.Count == 0)
+            return;
+
+        var orders = await _unitOfWork.Repository<Order>().FindAsync(o => orderIds.Contains(o.OrderId));
+        var orderRepo = _unitOfWork.Repository<Order>();
+
+        foreach (var order in orders.Where(o => !terminal.Contains(o.Status)))
+        {
+            var oldStatus = order.Status;
+            order.Status = OrderState.Canceled;
+            order.UpdatedAt = DateTime.UtcNow;
+            orderRepo.Update(order);
+
+            var log = new OrderStatusLog
+            {
+                LogId = Guid.NewGuid(),
+                OrderId = order.OrderId,
+                FromStatus = oldStatus,
+                ToStatus = OrderState.Canceled,
+                ChangedBy = "system",
+                Note = "Canceled: supermarket staff banned (products hidden)",
+                ChangedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<OrderStatusLog>().AddAsync(log);
+
+            var notification = new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = order.UserId,
+                Title = "Đơn hàng đã bị hủy",
+                Content = $"Đơn {order.OrderCode} đã bị hủy do siêu thị ngừng cung cấp (tài khoản nhân viên bị cấm).",
+                Type = NotificationType.OrderUpdate,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        }
+
+        _logger.LogInformation(
+            "Canceled open orders tied to supermarkets {SupermarketIds} after staff ban",
+            string.Join(',', supermarketIds));
     }
 
     private static void UpdateUserFields(User user, string? fullName, string? phone)

@@ -28,6 +28,7 @@ public static class PipelineConfigurationExtensions
 
         app.UseAuthentication();
         app.UseMiddleware<JwtRoleConsistencyMiddleware>();
+        app.UseMiddleware<UserAccountActiveMiddleware>();
         app.UseAuthorization();
 
         app.UseEndpoints(endpoints => endpoints.MapControllers());

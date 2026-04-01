@@ -1,10 +1,12 @@
 using AutoMapper;
+using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
@@ -14,13 +16,20 @@ public class OrderService : IOrderService
     private readonly IMapper _mapper;
     private readonly IPromotionService _promotionService;
     private readonly IPromotionUsageService _promotionUsageService;
+    private readonly IOptions<PickupSearchOptions> _pickupSearchOptions;
 
-    public OrderService(IUnitOfWork unitOfWork, IMapper mapper, IPromotionService promotionService, IPromotionUsageService promotionUsageService)
+    public OrderService(
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        IPromotionService promotionService,
+        IPromotionUsageService promotionUsageService,
+        IOptions<PickupSearchOptions> pickupSearchOptions)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _promotionService = promotionService;
         _promotionUsageService = promotionUsageService;
+        _pickupSearchOptions = pickupSearchOptions;
     }
 
     public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
@@ -53,9 +62,69 @@ public class OrderService : IOrderService
                 PickupPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
-                RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0
+                RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
+                Latitude = x.Latitude,
+                Longitude = x.Longitude
             })
             .ToList();
+    }
+
+    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsNearbyAsync(
+        NearbyCollectionPointsRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var opts = _pickupSearchOptions.Value;
+        var radiusKm = request.RadiusKm ?? opts.DefaultRadiusKm;
+        if (radiusKm <= 0)
+            radiusKm = opts.DefaultRadiusKm;
+        if (radiusKm > opts.MaxRadiusKm)
+            radiusKm = opts.MaxRadiusKm;
+
+        var refLat = (double)request.Latitude;
+        var refLng = (double)request.Longitude;
+
+        var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
+        var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
+
+        var list = new List<PickupPointDto>();
+        foreach (var x in points)
+        {
+            if (x.Latitude is null || x.Longitude is null)
+                continue;
+
+            var dKm = HaversineDistanceKm(refLat, refLng, (double)x.Latitude.Value, (double)x.Longitude.Value);
+            if (dKm > radiusKm)
+                continue;
+
+            list.Add(new PickupPointDto
+            {
+                PickupPointId = x.CollectionId,
+                Name = x.Name,
+                Address = x.AddressLine,
+                RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
+                DistanceKm = dKm,
+                Latitude = x.Latitude,
+                Longitude = x.Longitude
+            });
+        }
+
+        return list
+            .OrderBy(p => p.DistanceKm ?? double.MaxValue)
+            .ThenBy(p => p.Name)
+            .ToList();
+    }
+
+    private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthKm = 6371.0;
+        static double ToRad(double deg) => deg * (Math.PI / 180.0);
+
+        var dLat = ToRad(lat2 - lat1);
+        var dLon = ToRad(lon2 - lon1);
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
+                + Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        return earthKm * c;
     }
 
     public async Task<IEnumerable<CustomerAddressDto>> GetCustomerAddressesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -253,6 +322,11 @@ public class OrderService : IOrderService
 
     public async Task<OrderResponseDto> CreateForCustomerAsync(Guid userId, CreateOwnOrderRequestDto request, CancellationToken cancellationToken = default)
     {
+        var customer = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == userId)
+            ?? throw new InvalidOperationException("Không tìm thấy tài khoản.");
+        if (customer.Status != UserState.Active)
+            throw new InvalidOperationException("Tài khoản không ở trạng thái hoạt động, không thể đặt hàng.");
+
         var totalAmount = request.OrderItems.Sum(x => x.UnitPrice * x.Quantity);
         var model = new CreateOrderRequestDto
         {

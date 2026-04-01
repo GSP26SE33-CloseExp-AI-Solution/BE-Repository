@@ -38,6 +38,17 @@ public class OrdersController : ControllerBase
         return Ok(ApiResponse<IEnumerable<PickupPointDto>>.SuccessResponse(collectionPoints));
     }
 
+    /// <summary>Trả điểm tập kết trong bán kính (km); bán kính bị giới hạn bởi cấu hình PickupSearch.</summary>
+    [HttpPost("collection-points/nearby")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<PickupPointDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<PickupPointDto>>>> GetCollectionPointsNearby(
+        [FromBody] NearbyCollectionPointsRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var items = await _services.OrderService.GetCollectionPointsNearbyAsync(request, cancellationToken);
+        return Ok(ApiResponse<IEnumerable<PickupPointDto>>.SuccessResponse(items));
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<OrderResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<OrderResponseDto>>>> GetAll(

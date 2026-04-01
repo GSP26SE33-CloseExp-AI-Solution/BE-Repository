@@ -147,7 +147,7 @@ public class ProductsController : ControllerBase
             }
         }
 
-        var result = await _services.ProductService.GetByIdWithImagesAsync(created.ProductId);
+        var result = await _services.ProductService.GetByIdWithImagesAsync(created.ProductId, includeHiddenDeletedProducts: true);
         return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(result!, "Product created with images"));
     }
 
@@ -469,7 +469,9 @@ public class ProductsController : ControllerBase
             PageSize = pageSize
         };
 
-        var (items, totalCount) = await _services.ProductService.GetStockLotsBySupermarketAsync(filter);
+        var (items, totalCount) = await _services.ProductService.GetStockLotsBySupermarketAsync(
+            filter,
+            includeHiddenDeletedProducts: true);
 
         var result = new PaginatedResult<StockLotDetailDto>
         {
@@ -505,7 +507,12 @@ public class ProductsController : ControllerBase
         if (pageSize > 200) pageSize = 200;
 
         var (items, totalCount) = await _services.ProductService.GetProductsBySupermarketAsync(
-            supermarketId, searchTerm, category, pageNumber, pageSize);
+            supermarketId,
+            searchTerm,
+            category,
+            pageNumber,
+            pageSize,
+            includeHiddenDeletedProducts: true);
 
         var result = new PaginatedResult<ProductResponseDto>
         {

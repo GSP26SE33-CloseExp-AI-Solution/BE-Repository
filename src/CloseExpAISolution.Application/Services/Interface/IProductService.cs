@@ -19,13 +19,21 @@ public interface IProductService
     Task DeleteRangeAsync(IEnumerable<Product> entities, CancellationToken cancellationToken = default);
     Task<int> CountAsync(Expression<Func<Product, bool>>? predicate = null);
     Task<bool> ExistsAsync(Expression<Func<Product, bool>> predicate);
-    Task<ProductResponseDto?> GetByIdWithImagesAsync(Guid id);
-    Task<IEnumerable<ProductResponseDto>> GetAllWithImagesAsync();
+    Task<ProductResponseDto?> GetByIdWithImagesAsync(Guid id, bool includeHiddenDeletedProducts = false);
+    Task<IEnumerable<ProductResponseDto>> GetAllWithImagesAsync(bool includeHiddenDeletedProducts = false);
     Task<ProductResponseDto> CreateProductAsync(CreateProductRequestDto request, CancellationToken cancellationToken = default);
     Task UpdateProductAsync(Guid id, UpdateProductRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteProductAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(StockLotFilterDto filter);
+    Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(
+        StockLotFilterDto filter,
+        bool includeHiddenDeletedProducts = false);
     Task<(IEnumerable<AvailableStocklotDto> Items, int TotalCount)> GetAvailableStockLotsForCustomerAsync(int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default);
-    Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(Guid supermarketId, string? searchTerm = null, string? category = null, int pageNumber = 1, int pageSize = 20);
-    Task<ProductDetailDto?> GetProductDetailAsync(Guid productId);
+    Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(
+        Guid supermarketId,
+        string? searchTerm = null,
+        string? category = null,
+        int pageNumber = 1,
+        int pageSize = 20,
+        bool includeHiddenDeletedProducts = false);
+    Task<ProductDetailDto?> GetProductDetailAsync(Guid productId, bool includeHiddenDeletedProducts = false);
 }

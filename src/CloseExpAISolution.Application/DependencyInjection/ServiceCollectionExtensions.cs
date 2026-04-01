@@ -10,6 +10,7 @@ using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Mapbox.Extensions;
 using CloseExpAISolution.Application.Email.Extensions;
+using CloseExpAISolution.Application.Configuration;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
 
@@ -17,6 +18,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<PickupSearchOptions>(configuration.GetSection(PickupSearchOptions.SectionName));
+
         services.AddHttpContextAccessor();
 
         services.AddAutoMapper(cfg =>
