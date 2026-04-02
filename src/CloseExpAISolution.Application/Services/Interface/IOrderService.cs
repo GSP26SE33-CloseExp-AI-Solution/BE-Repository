@@ -7,8 +7,8 @@ namespace CloseExpAISolution.Application.Services.Interface;
 public interface IOrderService
 {
     Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default);
-    Task<IEnumerable<CollectionPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default);
-    Task<IEnumerable<CollectionPointDto>> GetCollectionPointsNearbyAsync(
+    Task<IEnumerable<PickupPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<PickupPointDto>> GetCollectionPointsNearbyAsync(
         NearbyCollectionPointsRequestDto request,
         CancellationToken cancellationToken = default);
     Task<IEnumerable<CustomerAddressDto>> GetCustomerAddressesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);

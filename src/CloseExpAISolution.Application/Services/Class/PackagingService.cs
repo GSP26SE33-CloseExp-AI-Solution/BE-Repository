@@ -28,7 +28,7 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var pendingOrders = await _unitOfWork.Repository<Order>()
-            .FindAsync(o => o.Status == OrderState.PaidProcessing);
+            .FindAsync(o => o.Status == OrderState.Paid);
 
         var allRecords = await _unitOfWork.Repository<OrderPackaging>()
             .GetAllAsync();
@@ -84,7 +84,7 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var order = await GetOrderForPackagingAsync(orderId);
-        if (order.Status != OrderState.PaidProcessing)
+        if (order.Status != OrderState.Paid)
             throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói.");
 
         var record = await GetOrCreatePackagingRecordAsync(orderId, packagingStaffId);
@@ -163,6 +163,7 @@ public class PackagingService : IPackagingService
                 CreatedAt = DateTime.UtcNow
             };
             await _unitOfWork.Repository<Notification>().AddAsync(customerNotification);
+            // TODO: Send email of QR code of order confirmation to customer
 
             var deliveryStaffs = await _unitOfWork.Repository<User>()
                 .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);

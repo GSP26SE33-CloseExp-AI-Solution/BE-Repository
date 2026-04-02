@@ -51,16 +51,16 @@ public class OrderService : IOrderService
             .ToList();
     }
 
-    public async Task<IEnumerable<CollectionPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
     {
         var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
         return points
             .OrderBy(x => x.Name)
-            .Select(x => new CollectionPointDto
+            .Select(x => new PickupPointDto
             {
-                CollectionPointId = x.CollectionId,
+                PickupPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
                 RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
@@ -70,7 +70,7 @@ public class OrderService : IOrderService
             .ToList();
     }
 
-    public async Task<IEnumerable<CollectionPointDto>> GetCollectionPointsNearbyAsync(
+    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsNearbyAsync(
         NearbyCollectionPointsRequestDto request,
         CancellationToken cancellationToken = default)
     {
@@ -99,7 +99,7 @@ public class OrderService : IOrderService
             && p.Longitude <= maxLng);
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
-        var list = new List<CollectionPointDto>();
+        var list = new List<PickupPointDto>();
         foreach (var x in points)
         {
             if (x.Latitude is null || x.Longitude is null)
@@ -109,9 +109,9 @@ public class OrderService : IOrderService
             if (dKm > radiusKm)
                 continue;
 
-            list.Add(new CollectionPointDto
+            list.Add(new PickupPointDto
             {
-                CollectionPointId = x.CollectionId,
+                PickupPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
                 RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
@@ -233,6 +233,7 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
+        // TODO: Sugge
         await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
         await TryCreateNotificationAsync(order.UserId, "Đơn hàng mới", $"Đơn {order.OrderCode} đã được tạo thành công.", NotificationType.OrderUpdate, cancellationToken);
         await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);
@@ -404,7 +405,7 @@ public class OrderService : IOrderService
         if (!order.PromotionId.HasValue || order.DiscountAmount <= 0)
             return;
 
-        if (order.Status is not (OrderState.PaidProcessing or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm or OrderState.Completed))
+        if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm or OrderState.Completed))
             return;
 
         await _promotionUsageService.RecordUsageAsync(order.PromotionId.Value, order.UserId, order.OrderId, order.DiscountAmount, cancellationToken);
@@ -415,6 +416,11 @@ public class OrderService : IOrderService
         // Auto-group only for pickup orders by (TimeSlot + CollectionPoint + DeliveryDate).
         // Home-delivery orders should be grouped by delivery planner/dispatch flow instead.
         if (!order.CollectionId.HasValue)
+            return;
+
+        // Only auto-group paid orders in active fulfillment flow.
+        // Pending (unpaid) orders are excluded to avoid reserving delivery capacity too early.
+        if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
             return;
 
         var deliveryArea = $"COLLECTION:{order.CollectionId.Value}";
