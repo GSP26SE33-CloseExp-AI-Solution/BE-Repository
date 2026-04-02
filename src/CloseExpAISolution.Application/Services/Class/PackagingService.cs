@@ -145,6 +145,9 @@ public class PackagingService : IPackagingService
         if (record.Status != PackagingState.Packaging && record.Status != PackagingState.Pending)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái đã xác nhận hoặc đang thu gom để hoàn tất đóng gói.");
 
+        if (order.Status != OrderState.Paid)
+            throw new InvalidOperationException($"Không thể hoàn tất đóng gói vì đơn hàng đang ở trạng thái {order.Status}, không phải Paid.");
+
         await _unitOfWork.BeginTransactionAsync();
         try
         {

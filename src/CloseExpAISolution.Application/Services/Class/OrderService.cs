@@ -13,6 +13,8 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class OrderService : IOrderService
 {
+    private const string CancelWindowConfigKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IPromotionService _promotionService;
@@ -51,16 +53,16 @@ public class OrderService : IOrderService
             .ToList();
     }
 
-    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<CollectionPointDto>> GetCollectionPointsAsync(CancellationToken cancellationToken = default)
     {
         var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
         return points
             .OrderBy(x => x.Name)
-            .Select(x => new PickupPointDto
+            .Select(x => new CollectionPointDto
             {
-                PickupPointId = x.CollectionId,
+                CollectionPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
                 RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
@@ -70,7 +72,7 @@ public class OrderService : IOrderService
             .ToList();
     }
 
-    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsNearbyAsync(
+    public async Task<IEnumerable<CollectionPointDto>> GetCollectionPointsNearbyAsync(
         NearbyCollectionPointsRequestDto request,
         CancellationToken cancellationToken = default)
     {
@@ -99,7 +101,7 @@ public class OrderService : IOrderService
             && p.Longitude <= maxLng);
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
-        var list = new List<PickupPointDto>();
+        var list = new List<CollectionPointDto>();
         foreach (var x in points)
         {
             if (x.Latitude is null || x.Longitude is null)
@@ -109,9 +111,9 @@ public class OrderService : IOrderService
             if (dKm > radiusKm)
                 continue;
 
-            list.Add(new PickupPointDto
+            list.Add(new CollectionPointDto
             {
-                PickupPointId = x.CollectionId,
+                CollectionPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
                 RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
@@ -312,8 +314,36 @@ public class OrderService : IOrderService
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
         var oldStatus = order.Status;
+        var now = DateTime.UtcNow;
+
+        if (status == OrderState.Canceled)
+        {
+            if (order.Status == OrderState.Pending)
+            {
+                // Allowed to cancel freely.
+            }
+            else if (order.Status == OrderState.Paid)
+            {
+                if (!order.CancelDeadline.HasValue)
+                    throw new InvalidOperationException("Đơn hàng đã thanh toán nhưng chưa có hạn hủy (CancelDeadline). Không thể hủy.");
+
+                if (now > order.CancelDeadline.Value)
+                    throw new InvalidOperationException("Đã quá thời gian cho phép hủy đơn sau khi thanh toán.");
+            }
+            else
+            {
+                throw new InvalidOperationException($"Không thể hủy đơn ở trạng thái {order.Status}.");
+            }
+        }
+
+        if (status == OrderState.Paid && !order.CancelDeadline.HasValue)
+        {
+            var windowMinutes = await GetCancelWindowMinutesAfterPaidAsync(cancellationToken);
+            order.CancelDeadline = now.AddMinutes(windowMinutes);
+        }
+
         order.Status = status;
-        order.UpdatedAt = DateTime.UtcNow;
+        order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
         await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", null, cancellationToken);
         await TryCreateNotificationAsync(order.UserId, "Cập nhật đơn hàng", $"Đơn {order.OrderCode} đã chuyển sang trạng thái {status}.", NotificationType.OrderUpdate, cancellationToken);
@@ -482,6 +512,22 @@ public class OrderService : IOrderService
             ChangedAt = DateTime.UtcNow
         };
         await _unitOfWork.Repository<OrderStatusLog>().AddAsync(log);
+    }
+
+    private async Task<int> GetCancelWindowMinutesAfterPaidAsync(CancellationToken cancellationToken)
+    {
+        var config = await _unitOfWork.Repository<SystemConfig>()
+            .FirstOrDefaultAsync(x => x.ConfigKey == CancelWindowConfigKey);
+
+        if (config == null)
+            throw new InvalidOperationException(
+                $"Thiếu SystemConfig '{CancelWindowConfigKey}'. Vui lòng cấu hình số phút cho phép hủy sau khi thanh toán.");
+
+        if (!int.TryParse(config.ConfigValue, out var minutes) || minutes <= 0)
+            throw new InvalidOperationException(
+                $"SystemConfig '{CancelWindowConfigKey}' không hợp lệ. Giá trị phải là số nguyên dương.");
+
+        return minutes;
     }
 
     private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)

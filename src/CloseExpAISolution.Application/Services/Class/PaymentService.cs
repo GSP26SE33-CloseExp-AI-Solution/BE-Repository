@@ -17,6 +17,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
     private const string PayOSMethod = "PayOS";
     private const long MinimumAmount = 1;
     private const string AlreadyPaidMessage = "This order has already been paid.";
+    private const string CancelWindowConfigKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly PayOsSettings _settings;
@@ -177,11 +178,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         transaction.UpdatedAt = DateTime.UtcNow;
 
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
-        if (order != null && order.Status != OrderState.Paid)
+        if (order != null)
         {
-            order.Status = OrderState.Paid;
-            order.UpdatedAt = DateTime.UtcNow;
-            _unitOfWork.OrderRepository.Update(order);
+            await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
         }
 
         _unitOfWork.Repository<Transaction>().Update(transaction);
@@ -227,11 +226,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         if (success)
         {
             var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
-            if (order != null && order.Status != OrderState.Paid)
+            if (order != null)
             {
-                order.Status = OrderState.Paid;
-                order.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.OrderRepository.Update(order);
+                await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
             }
         }
 
@@ -254,6 +251,56 @@ public sealed class PaymentService : IPaymentService, IDisposable
         }
 
         throw new InvalidOperationException("Could not generate a unique PayOS order code.");
+    }
+
+    private async Task ApplyPaidTransitionSafelyAsync(Order order, CancellationToken cancellationToken)
+    {
+        if (order.Status is not (OrderState.Pending or OrderState.Paid))
+        {
+            _logger.LogInformation(
+                "Skip paid transition for order {OrderId} because status is {Status}",
+                order.OrderId,
+                order.Status);
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var windowMinutes = await GetCancelWindowMinutesAfterPaidAsync(cancellationToken);
+        var changed = false;
+
+        if (order.Status == OrderState.Pending)
+        {
+            order.Status = OrderState.Paid;
+            changed = true;
+        }
+
+        if (!order.CancelDeadline.HasValue)
+        {
+            order.CancelDeadline = now.AddMinutes(windowMinutes);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            order.UpdatedAt = now;
+            _unitOfWork.OrderRepository.Update(order);
+        }
+    }
+
+    private async Task<int> GetCancelWindowMinutesAfterPaidAsync(CancellationToken cancellationToken)
+    {
+        var config = await _unitOfWork.Repository<SystemConfig>()
+            .FirstOrDefaultAsync(x => x.ConfigKey == CancelWindowConfigKey);
+
+        if (config == null)
+            throw new InvalidOperationException(
+                $"Thiếu SystemConfig '{CancelWindowConfigKey}'. Vui lòng cấu hình số phút cho phép hủy sau khi thanh toán.");
+
+        if (!int.TryParse(config.ConfigValue, out var minutes) || minutes <= 0)
+            throw new InvalidOperationException(
+                $"SystemConfig '{CancelWindowConfigKey}' không hợp lệ. Giá trị phải là số nguyên dương.");
+
+        return minutes;
     }
 
     public void Dispose() => _client.Dispose();
