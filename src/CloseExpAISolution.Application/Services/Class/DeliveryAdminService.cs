@@ -345,6 +345,102 @@ public class DeliveryAdminService : IDeliveryAdminService
         return result;
     }
 
+    public async Task<MoveOrderToDraftGroupResultDto> MoveOrderToDraftGroupAsync(
+        Guid orderId,
+        MoveOrderToDraftGroupRequestDto request,
+        Guid adminId,
+        CancellationToken cancellationToken = default)
+    {
+        if (adminId == Guid.Empty)
+            throw new UnauthorizedAccessException("Không thể xác định quản trị viên hiện tại.");
+
+        var admin = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == adminId);
+        if (admin == null || admin.RoleId != (int)RoleUser.Admin)
+            throw new UnauthorizedAccessException("Người dùng không có quyền điều phối giao hàng.");
+
+        var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId);
+        if (order == null)
+            throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
+
+        var targetId = request.DeliveryGroupId;
+        if (targetId.HasValue && targetId.Value == Guid.Empty)
+            throw new ArgumentException("Mã nhóm giao hàng không hợp lệ.", nameof(request.DeliveryGroupId));
+
+        if (targetId == order.DeliveryGroupId)
+        {
+            return new MoveOrderToDraftGroupResultDto
+            {
+                OrderId = order.OrderId,
+                OrderCode = order.OrderCode,
+                DeliveryGroupId = order.DeliveryGroupId
+            };
+        }
+
+        DeliveryGroup? oldGroup = null;
+        if (order.DeliveryGroupId.HasValue)
+        {
+            oldGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+            if (oldGroup != null && oldGroup.Status != DeliveryGroupState.Draft)
+                throw new InvalidOperationException("Chỉ có thể chỉnh đơn đang thuộc nhóm ở trạng thái Draft.");
+        }
+
+        DeliveryGroup? newGroup = null;
+        if (targetId.HasValue)
+        {
+            newGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == targetId.Value);
+            if (newGroup == null)
+                throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
+            if (newGroup.Status != DeliveryGroupState.Draft)
+                throw new InvalidOperationException("Chỉ có thể gán đơn vào nhóm Draft.");
+            if (newGroup.TimeSlotId != order.TimeSlotId || newGroup.DeliveryDate.Date != order.OrderDate.Date)
+                throw new InvalidOperationException("Đơn và nhóm Draft phải cùng khung giờ và cùng ngày giao.");
+        }
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            if (oldGroup != null)
+            {
+                oldGroup.TotalOrders = Math.Max(0, oldGroup.TotalOrders - 1);
+                oldGroup.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<DeliveryGroup>().Update(oldGroup);
+            }
+
+            if (newGroup != null)
+            {
+                newGroup.TotalOrders += 1;
+                newGroup.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<DeliveryGroup>().Update(newGroup);
+            }
+
+            order.DeliveryGroupId = targetId;
+            order.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<Order>().Update(order);
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+
+        _logger.LogInformation(
+            "Admin {AdminId} moved order {OrderId} to draft group {GroupId}",
+            adminId,
+            orderId,
+            targetId);
+
+        return new MoveOrderToDraftGroupResultDto
+        {
+            OrderId = order.OrderId,
+            OrderCode = order.OrderCode,
+            DeliveryGroupId = order.DeliveryGroupId
+        };
+    }
+
     private async Task<(double Lat, double Lng)?> ResolveOrderPointAsync(Order order)
     {
         if (order.CollectionId.HasValue)

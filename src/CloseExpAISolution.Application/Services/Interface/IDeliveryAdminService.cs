@@ -31,4 +31,10 @@ public interface IDeliveryAdminService
         Guid deliveryGroupId,
         Guid adminId,
         CancellationToken cancellationToken = default);
+
+    Task<MoveOrderToDraftGroupResultDto> MoveOrderToDraftGroupAsync(
+        Guid orderId,
+        MoveOrderToDraftGroupRequestDto request,
+        Guid adminId,
+        CancellationToken cancellationToken = default);
 }

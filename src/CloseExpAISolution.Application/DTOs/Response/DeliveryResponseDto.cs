@@ -104,3 +104,10 @@ public class DeliveryGroupSummaryDto
     public int CompletedOrders { get; set; }
     public DateTime DeliveryDate { get; set; }
 }
+
+public class MoveOrderToDraftGroupResultDto
+{
+    public Guid OrderId { get; set; }
+    public string OrderCode { get; set; } = string.Empty;
+    public Guid? DeliveryGroupId { get; set; }
+}

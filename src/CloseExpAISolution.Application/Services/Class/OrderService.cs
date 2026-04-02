@@ -235,8 +235,8 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
-        // TODO: Sugge
-        await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
+        // Delivery grouping is not auto-assigned here. Admin uses draft flow:
+        // POST /api/delivery/groups/drafts/generate, then confirm, then assign staff.
         await TryCreateNotificationAsync(order.UserId, "Đơn hàng mới", $"Đơn {order.OrderCode} đã được tạo thành công.", NotificationType.OrderUpdate, cancellationToken);
         await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -439,49 +439,6 @@ public class OrderService : IOrderService
             return;
 
         await _promotionUsageService.RecordUsageAsync(order.PromotionId.Value, order.UserId, order.OrderId, order.DiscountAmount, cancellationToken);
-    }
-
-    private async Task TryAutoAssignDeliveryGroupAsync(Order order, CancellationToken cancellationToken)
-    {
-        // Auto-group only for pickup orders by (TimeSlot + CollectionPoint + DeliveryDate).
-        // Home-delivery orders should be grouped by delivery planner/dispatch flow instead.
-        if (!order.CollectionId.HasValue)
-            return;
-
-        // Only auto-group paid orders in active fulfillment flow.
-        // Pending (unpaid) orders are excluded to avoid reserving delivery capacity too early.
-        if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
-            return;
-
-        var deliveryArea = $"COLLECTION:{order.CollectionId.Value}";
-        var existing = await _unitOfWork.Repository<DeliveryGroup>().FirstOrDefaultAsync(g =>
-            g.TimeSlotId == order.TimeSlotId
-            && g.DeliveryDate.Date == order.OrderDate.Date
-            && g.DeliveryArea == deliveryArea
-            && g.Status != DeliveryGroupState.Completed);
-
-        if (existing == null)
-        {
-            existing = new DeliveryGroup
-            {
-                DeliveryGroupId = Guid.NewGuid(),
-                GroupCode = "DG-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
-                TimeSlotId = order.TimeSlotId,
-                DeliveryType = "Pickup",
-                DeliveryArea = deliveryArea,
-                DeliveryDate = order.OrderDate.Date,
-                Status = DeliveryGroupState.Pending,
-                TotalOrders = 0,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            await _unitOfWork.Repository<DeliveryGroup>().AddAsync(existing);
-        }
-
-        existing.TotalOrders += 1;
-        existing.UpdatedAt = DateTime.UtcNow;
-        _unitOfWork.Repository<DeliveryGroup>().Update(existing);
-        order.DeliveryGroupId = existing.DeliveryGroupId;
     }
 
     private async Task TryCreateNotificationAsync(Guid userId, string title, string content, NotificationType type, CancellationToken cancellationToken)

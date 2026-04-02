@@ -510,6 +510,7 @@ public class AdminService : IAdminService
             request.TimeSlotId,
             request.CollectionId,
             request.DeliveryGroupId,
+            request.UnassignedOnly,
             request.Search,
             request.SortBy,
             request.SortDir,

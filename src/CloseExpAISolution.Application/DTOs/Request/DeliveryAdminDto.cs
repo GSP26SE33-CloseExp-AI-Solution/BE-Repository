@@ -36,3 +36,10 @@ public class DraftDeliveryGroupQueryDto
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
 }
+
+/// <summary>Move an order between draft groups or clear draft assignment (null).</summary>
+public class MoveOrderToDraftGroupRequestDto
+{
+    /// <summary>Target draft group id, or null to remove the order from its current draft group.</summary>
+    public Guid? DeliveryGroupId { get; set; }
+}

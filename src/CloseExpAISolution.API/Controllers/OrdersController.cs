@@ -166,11 +166,11 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ApiResponse<object>>> SetPending(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Pending, cancellationToken);
 
-    [HttpPut("{id}/paid-processing")]
+    [HttpPut("{id}/paid")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Paid, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetPaid(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Paid, cancellationToken);
 
     [HttpPut("{id}/ready-to-ship")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

@@ -372,7 +372,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ExpiryDate = expiryDate,
             ManufactureDate = manufactureDate,
             DaysToExpiry = daysToExpiry,
-            PricingConfidence = (float)pricing?.AIConfidence,
+            PricingConfidence = pricing != null ? (float)pricing.AIConfidence : 0f,
             PricingReasons = pricing?.Reason,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
@@ -564,8 +564,8 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
         }
 
-            var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
-            p => p.Barcode == barcode && p.Status != ProductState.Hidden);
+        var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+        p => p.Barcode == barcode && p.Status != ProductState.Hidden);
         if (existingProduct != null)
         {
             existingProduct = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(existingProduct.ProductId) ?? existingProduct;
@@ -1153,7 +1153,7 @@ public class ProductWorkflowService : IProductWorkflowService
             };
             await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
         }
-            _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
+        _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

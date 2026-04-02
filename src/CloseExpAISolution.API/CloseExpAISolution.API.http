@@ -199,3 +199,13 @@ GET {{CloseExpAISolution.API_HostAddress}}/api/Upload/presign?key=products/xxx_f
 Accept: application/json
 
 ###
+
+### --- Admin delivery grouping (Draft → Pending → assign staff) ---
+### 1) GET admin orders unassigned: GET /api/Admin/orders?unassignedOnly=true (Bearer Admin)
+### 2) POST /api/delivery/groups/drafts/generate
+### 3) GET /api/delivery/groups/drafts
+### 4) Optional: PUT /api/delivery/orders/{orderId}/draft-group  body: { "deliveryGroupId": "<draftGuid>" | null }
+### 5) POST /api/delivery/groups/{deliveryGroupId}/confirm
+### 6) PUT /api/delivery/groups/{deliveryGroupId}/assignment  body: { "deliveryStaffId": "..." }
+
+###
