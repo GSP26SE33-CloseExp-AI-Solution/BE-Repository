@@ -10,6 +10,8 @@ using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Mapbox.Extensions;
 using CloseExpAISolution.Application.Email.Extensions;
+using StackExchange.Redis;
+using CloseExpAISolution.Application.Configuration;
 
 namespace CloseExpAISolution.Application.DependencyInjection;
 
@@ -17,6 +19,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<PickupSearchOptions>(configuration.GetSection(PickupSearchOptions.SectionName));
+
         services.AddHttpContextAccessor();
 
         services.AddAutoMapper(cfg =>
@@ -32,6 +36,12 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
+
+        var redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+        }
 
         services.AddAIService(configuration);
 

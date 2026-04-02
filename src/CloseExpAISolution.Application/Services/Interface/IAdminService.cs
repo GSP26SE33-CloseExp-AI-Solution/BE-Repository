@@ -28,4 +28,6 @@ public interface IAdminService
     Task<bool> DeleteUnitAsync(Guid unitId, CancellationToken cancellationToken = default);
 
     Task<PaginatedResult<AdminAiPriceHistoryDto>> GetAiPriceHistoriesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+
+    Task<PaginatedResult<AdminOrderListItemDto>> GetOrdersAsync(AdminOrderQueryRequestDto request, CancellationToken cancellationToken = default);
 }

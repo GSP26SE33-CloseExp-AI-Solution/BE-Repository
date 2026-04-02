@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using CloseExpAISolution.Application.Email.Clients;
 using CloseExpAISolution.Application.Email.Interfaces;
+using CloseExpAISolution.Application.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.ServiceProviders
 {
@@ -56,6 +58,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IPromotionService? _promotionService;
                 private IPromotionUsageService? _promotionUsageService;
                 private IPromotionAnalyticsService? _promotionAnalyticsService;
+                private ICartService? _cartService;
 
                 public ServiceProviders(
                     IUnitOfWork unitOfWork,
@@ -93,7 +96,14 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IAdminService AdminService => _adminService ??= ActivatorUtilities.CreateInstance<AdminService>(_serviceProvider);
                 public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
                 public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
-                public IOrderService OrderService => _orderService ??= new OrderService(_unitOfWork, _mapper, PromotionService, PromotionUsageService);
+                public IOrderService OrderService => _orderService ??= new OrderService(
+                    _unitOfWork,
+                    _mapper,
+                    PromotionService,
+                    PromotionUsageService,
+                    Options.Create(
+                        _configuration.GetSection(PickupSearchOptions.SectionName).Get<PickupSearchOptions>()
+                        ?? new PickupSearchOptions()));
                 public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
                 public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
@@ -103,6 +113,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);
                 public IPromotionUsageService PromotionUsageService => _promotionUsageService ??= new PromotionUsageService(_unitOfWork);
                 public IPromotionAnalyticsService PromotionAnalyticsService => _promotionAnalyticsService ??= new PromotionAnalyticsService(_unitOfWork);
+                public ICartService CartService => _cartService ??= ActivatorUtilities.CreateInstance<CartService>(_serviceProvider, _unitOfWork);
         }
 }
 

@@ -22,6 +22,12 @@ public class ConfirmDeliveryRequestDto
     public string? ProofImageUrl { get; set; }
 
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Mã quét từ QR (phải khớp <see cref="Order.OrderCode"/> khi gửi lên).
+    /// Để null khi xác nhận thủ công không quét QR.
+    /// </summary>
+    public string? VerificationCode { get; set; }
 }
 
 public class ReportDeliveryFailureRequestDto

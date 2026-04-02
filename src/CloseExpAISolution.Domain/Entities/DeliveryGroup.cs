@@ -8,7 +8,7 @@ public class DeliveryGroup
 
     public string GroupCode { get; set; } = string.Empty;
     public Guid? DeliveryStaffId { get; set; }
-    public Guid TimeSlotId { get; set; }
+    public Guid TimeSlotId { get; set; }    
     public string DeliveryType { get; set; } = string.Empty;
     public string DeliveryArea { get; set; } = string.Empty;
     public decimal? CenterLatitude { get; set; }

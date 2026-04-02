@@ -39,7 +39,12 @@ public class SupermarketStaffController : ControllerBase
         if (pageSize > 200) pageSize = 200;
 
         var (items, total) = await _services.ProductService.GetProductsBySupermarketAsync(
-            supermarketId.Value, searchTerm, category, pageNumber, pageSize);
+            supermarketId.Value,
+            searchTerm,
+            category,
+            pageNumber,
+            pageSize,
+            includeHiddenDeletedProducts: true);
 
         var result = new PaginatedResult<ProductResponseDto>
         {
@@ -58,7 +63,7 @@ public class SupermarketStaffController : ControllerBase
         if (!supermarketId.HasValue)
             return Forbid();
 
-        var item = await _services.ProductService.GetByIdWithImagesAsync(id);
+        var item = await _services.ProductService.GetByIdWithImagesAsync(id, includeHiddenDeletedProducts: true);
         if (item == null)
             return NotFound(ApiResponse<ProductResponseDto>.ErrorResponse("Không tìm thấy sản phẩm"));
         if (item.SupermarketId != supermarketId.Value)
@@ -92,7 +97,7 @@ public class SupermarketStaffController : ControllerBase
         if (!supermarketId.HasValue)
             return Forbid();
 
-        var existing = await _services.ProductService.GetByIdWithImagesAsync(id);
+        var existing = await _services.ProductService.GetByIdWithImagesAsync(id, includeHiddenDeletedProducts: true);
         if (existing == null)
             return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
         if (existing.SupermarketId != supermarketId.Value)
@@ -112,7 +117,7 @@ public class SupermarketStaffController : ControllerBase
         if (!supermarketId.HasValue)
             return Forbid();
 
-        var existing = await _services.ProductService.GetByIdWithImagesAsync(id);
+        var existing = await _services.ProductService.GetByIdWithImagesAsync(id, includeHiddenDeletedProducts: true);
         if (existing == null)
             return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy sản phẩm"));
         if (existing.SupermarketId != supermarketId.Value)
@@ -134,7 +139,7 @@ public class SupermarketStaffController : ControllerBase
         if (!supermarketId.HasValue)
             return Forbid();
 
-        var existingProduct = await _services.ProductService.GetByIdWithImagesAsync(id);
+        var existingProduct = await _services.ProductService.GetByIdWithImagesAsync(id, includeHiddenDeletedProducts: true);
         if (existingProduct == null)
             return NotFound(ApiResponse<ProductResponseDto>.ErrorResponse("Không tìm thấy sản phẩm"));
         if (existingProduct.SupermarketId != supermarketId.Value)
@@ -172,7 +177,7 @@ public class SupermarketStaffController : ControllerBase
                 cancellationToken);
         }
 
-        var updated = await _services.ProductService.GetByIdWithImagesAsync(id);
+        var updated = await _services.ProductService.GetByIdWithImagesAsync(id, includeHiddenDeletedProducts: true);
         return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(updated!, "Cập nhật ảnh sản phẩm thành công"));
     }
 

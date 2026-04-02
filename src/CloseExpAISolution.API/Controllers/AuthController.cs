@@ -74,9 +74,7 @@ public class AuthController : ControllerBase
 
         if (!result.Success)
         {
-            if (result.Message != null && (result.Message.Contains("không hợp lệ") ||
-                result.Message.Contains("hết hạn") ||
-                result.Message.Contains("thu hồi")))
+            if (result.Message != null && (result.Errors?.Contains("SESSION_REVOKED") ?? false))
             {
                 return Unauthorized(result);
             }

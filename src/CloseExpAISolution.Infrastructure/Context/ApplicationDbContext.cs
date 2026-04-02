@@ -70,7 +70,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryDisposal>().HasKey(x => x.DisposalId);
         modelBuilder.Entity<UnitOfMeasure>().HasKey(x => x.UnitId);
         modelBuilder.Entity<CollectionPoint>().HasKey(x => x.CollectionId);
-        modelBuilder.Entity<DeliveryTimeSlot>().HasKey(x => x.TimeSlotId);
+        modelBuilder.Entity<DeliveryTimeSlot>().HasKey(x => x.DeliveryTimeSlotId);
+        // Keep existing DB column name from older migrations (`TimeSlotId`)
+        // while the CLR property was renamed to `DeliveryTimeSlotId`.
+        modelBuilder.Entity<DeliveryTimeSlot>().Property(x => x.DeliveryTimeSlotId).HasColumnName("TimeSlotId");
         modelBuilder.Entity<DeliveryGroup>().HasKey(dg => dg.DeliveryGroupId);
         modelBuilder.Entity<MarketPrice>().HasKey(mp => mp.MarketPriceId);
         modelBuilder.Entity<Refund>().HasKey(r => r.RefundId);
@@ -270,6 +273,9 @@ public class ApplicationDbContext : DbContext
         {
             entity.Property(cp => cp.Latitude).HasPrecision(10, 7);
             entity.Property(cp => cp.Longitude).HasPrecision(10, 7);
+            entity.HasIndex(cp => new { cp.Latitude, cp.Longitude })
+                .HasDatabaseName("IX_CollectionPoints_Latitude_Longitude")
+                .HasFilter("\"Latitude\" IS NOT NULL AND \"Longitude\" IS NOT NULL");
         });
 
         modelBuilder.Entity<Supermarket>(entity =>

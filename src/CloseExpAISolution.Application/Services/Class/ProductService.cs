@@ -70,7 +70,7 @@ public class ProductService : IProductService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<ProductResponseDto?> GetByIdWithImagesAsync(Guid id)
+    public async Task<ProductResponseDto?> GetByIdWithImagesAsync(Guid id, bool includeHiddenDeletedProducts = false)
     {
         var product = await _context.Products
             .Include(p => p.ProductDetail)
@@ -79,6 +79,10 @@ public class ProductService : IProductService
             .FirstOrDefaultAsync(p => p.ProductId == id);
 
         if (product == null) return null;
+
+        if (!includeHiddenDeletedProducts &&
+            (product.Status == ProductState.Hidden || product.Status == ProductState.Deleted))
+            return null;
 
         var dto = _mapper.Map<ProductResponseDto>(product);
         var images = await _context.ProductImages
@@ -100,13 +104,20 @@ public class ProductService : IProductService
         return dto;
     }
 
-    public async Task<IEnumerable<ProductResponseDto>> GetAllWithImagesAsync()
+    public async Task<IEnumerable<ProductResponseDto>> GetAllWithImagesAsync(bool includeHiddenDeletedProducts = false)
     {
-        var products = await _context.Products
+        var query = _context.Products
             .Include(p => p.ProductDetail)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
-            .ToListAsync();
+            .AsQueryable();
+
+        if (!includeHiddenDeletedProducts)
+        {
+            query = query.Where(p => p.Status != ProductState.Hidden && p.Status != ProductState.Deleted);
+        }
+
+        var products = await query.ToListAsync();
 
         var productIds = products.Select(p => p.ProductId).ToList();
         var imagesByProduct = await _context.ProductImages
@@ -248,7 +259,9 @@ public class ProductService : IProductService
         await DeleteAsync(product, cancellationToken);
     }
 
-    public async Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(StockLotFilterDto filter)
+    public async Task<(IEnumerable<StockLotDetailDto> Items, int TotalCount)> GetStockLotsBySupermarketAsync(
+        StockLotFilterDto filter,
+        bool includeHiddenDeletedProducts = false)
     {
         var query = _context.StockLots
             .Include(pl => pl.Product)
@@ -262,6 +275,14 @@ public class ProductService : IProductService
         if (filter.SupermarketId.HasValue)
         {
             query = query.Where(pl => pl.Product!.SupermarketId == filter.SupermarketId.Value);
+        }
+
+        if (!includeHiddenDeletedProducts)
+        {
+            query = query.Where(pl =>
+                pl.Product != null
+                && pl.Product.Status != ProductState.Hidden
+                && pl.Product.Status != ProductState.Deleted);
         }
 
         if (filter.IsFreshFood.HasValue)
@@ -384,7 +405,10 @@ public class ProductService : IProductService
         var baseQuery = _context.StockLots
             .AsNoTracking()
             .Where(l =>
-                l.Status == ProductState.Published &&
+                l.Product != null
+                && l.Product.Status != ProductState.Hidden
+                && l.Product.Status != ProductState.Deleted
+                && l.Status == ProductState.Published &&
                 l.Quantity > 0 &&
                 l.ExpiryDate > now);
 
@@ -445,7 +469,8 @@ public class ProductService : IProductService
         string? searchTerm = null,
         string? category = null,
         int pageNumber = 1,
-        int pageSize = 20)
+        int pageSize = 20,
+        bool includeHiddenDeletedProducts = false)
     {
         var query = _context.Products
             .Include(p => p.ProductDetail)
@@ -453,6 +478,11 @@ public class ProductService : IProductService
             .Include(p => p.Supermarket)
             .Where(p => p.SupermarketId == supermarketId)
             .AsQueryable();
+
+        if (!includeHiddenDeletedProducts)
+        {
+            query = query.Where(p => p.Status != ProductState.Hidden && p.Status != ProductState.Deleted);
+        }
 
         if (!string.IsNullOrEmpty(searchTerm))
         {
@@ -506,7 +536,7 @@ public class ProductService : IProductService
         return (productDtos, totalCount);
     }
 
-    public async Task<ProductDetailDto?> GetProductDetailAsync(Guid productId)
+    public async Task<ProductDetailDto?> GetProductDetailAsync(Guid productId, bool includeHiddenDeletedProducts = false)
     {
         var product = await _context.Products
             .Include(p => p.ProductDetail)
@@ -515,6 +545,10 @@ public class ProductService : IProductService
             .FirstOrDefaultAsync(p => p.ProductId == productId);
 
         if (product == null)
+            return null;
+
+        if (!includeHiddenDeletedProducts &&
+            (product.Status == ProductState.Hidden || product.Status == ProductState.Deleted))
             return null;
 
         var images = await _context.ProductImages

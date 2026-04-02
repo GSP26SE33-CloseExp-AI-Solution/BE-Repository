@@ -27,6 +27,10 @@ public class DeliveryGroupResponseDto
 public class DeliveryOrderResponseDto
 {
     public Guid OrderId { get; set; }
+
+    /// <summary>Nhóm giao chứa đơn (để app gọi start-delivery trước khi xác nhận).</summary>
+    public Guid? DeliveryGroupId { get; set; }
+
     public string OrderCode { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string DeliveryType { get; set; } = string.Empty;
