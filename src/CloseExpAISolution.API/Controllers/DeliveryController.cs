@@ -80,6 +80,96 @@ public class DeliveryController : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [HttpGet("groups/drafts")]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>>> GetDraftGroups(
+        [FromQuery] DraftDeliveryGroupQueryDto query)
+    {
+        try
+        {
+            var (items, totalCount) = await _services.DeliveryAdminService.GetDraftDeliveryGroupsAsync(query);
+            var (pageNumber, pageSize) = NormalizePaging(query.PageNumber, query.PageSize);
+            var result = new PaginatedResult<DeliveryGroupSummaryDto>
+            {
+                Items = items,
+                TotalResult = totalCount,
+                Page = pageNumber,
+                PageSize = pageSize
+            };
+            return Ok(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.SuccessResponse(result));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
+                "Lỗi khi lấy danh sách draft delivery groups."));
+        }
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("groups/drafts/generate")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DeliveryGroupSummaryDto>>>> GenerateDraftGroups(
+        [FromBody] GenerateDeliveryGroupDraftRequestDto request)
+    {
+        try
+        {
+            if (!TryGetCurrentUserId(out var adminId))
+            {
+                return Unauthorized(ApiResponse<IReadOnlyList<DeliveryGroupSummaryDto>>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var result = await _services.DeliveryAdminService.GenerateDraftGroupsAsync(request, adminId);
+            return Ok(ApiResponse<IReadOnlyList<DeliveryGroupSummaryDto>>.SuccessResponse(result, "Tạo draft delivery groups thành công."));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<IReadOnlyList<DeliveryGroupSummaryDto>>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<IReadOnlyList<DeliveryGroupSummaryDto>>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<IReadOnlyList<DeliveryGroupSummaryDto>>.ErrorResponse(
+                "Lỗi khi tạo draft delivery groups."));
+        }
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("groups/{deliveryGroupId:guid}/confirm")]
+    public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> ConfirmDraftGroup(Guid deliveryGroupId)
+    {
+        try
+        {
+            if (!TryGetCurrentUserId(out var adminId))
+            {
+                return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var group = await _services.DeliveryAdminService.ConfirmDraftGroupAsync(deliveryGroupId, adminId);
+            return Ok(ApiResponse<DeliveryGroupResponseDto>.SuccessResponse(group, "Xác nhận draft group thành công."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<DeliveryGroupResponseDto>.ErrorResponse(
+                "Lỗi khi xác nhận draft group."));
+        }
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpPut("groups/{deliveryGroupId:guid}/assignment")]
     [HttpPost("groups/{deliveryGroupId:guid}/assign")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> AssignGroupToDeliveryStaff(

@@ -18,3 +18,21 @@ public class PendingDeliveryGroupQueryDto
 
     public int PageSize { get; set; } = 20;
 }
+
+public class GenerateDeliveryGroupDraftRequestDto
+{
+    public DateTime? DeliveryDate { get; set; }
+    public Guid? TimeSlotId { get; set; }
+    public Guid? CollectionId { get; set; }
+    public decimal MaxDistanceKm { get; set; } = 5m;
+    public int MaxOrdersPerGroup { get; set; } = 20;
+}
+
+public class DraftDeliveryGroupQueryDto
+{
+    public DateTime? DeliveryDate { get; set; }
+    public Guid? TimeSlotId { get; set; }
+    public Guid? CollectionId { get; set; }
+    public int PageNumber { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
