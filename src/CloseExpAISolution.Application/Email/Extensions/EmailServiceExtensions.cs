@@ -40,6 +40,9 @@ namespace CloseExpAISolution.Application.Email.Extensions
                         .WithIntervalInMinutes(30)
                         .RepeatForever())
                 );
+
+                var deliveryQrJobKey = new JobKey("SendOrderDeliveryQrEmailJob");
+                q.AddJob<SendOrderDeliveryQrEmailJob>(opts => opts.WithIdentity(deliveryQrJobKey).StoreDurably());
             });
             services.AddQuartzHostedService(options =>
             {

@@ -211,7 +211,7 @@ public class DeliveryAdminService : IDeliveryAdminService
 
         var candidates = allOrders
             .Where(o => o.DeliveryGroupId == null)
-            .Where(o => o.Status is OrderState.PaidProcessing or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm)
+            .Where(o => o.Status is OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm)
             .Where(o => !request.DeliveryDate.HasValue || o.OrderDate.Date == request.DeliveryDate.Value.Date)
             .Where(o => !request.TimeSlotId.HasValue || o.TimeSlotId == request.TimeSlotId.Value)
             .Where(o => !request.CollectionId.HasValue || o.CollectionId == request.CollectionId.Value)

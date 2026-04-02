@@ -405,7 +405,9 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
 
     private static string GeneratePricingCacheKey(PricingRequest request)
     {
-        return $"pricing:{request.ProductType}:{request.DaysToExpire}:{request.BasePrice}:{request.Strategy}:{request.FreshnessLevel}:{request.FreshnessScore}";
+        var barcode = request.Barcode ?? "";
+        var name = request.ProductName ?? "";
+        return $"pricing:{request.ProductType}:{request.DaysToExpire}:{request.BasePrice}:{request.Strategy}:{request.FreshnessLevel}:{request.FreshnessScore}:{request.MinMarketPrice}:{request.AvgMarketPrice}:{barcode}:{name}";
     }
 
     #endregion

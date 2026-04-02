@@ -7,6 +7,9 @@ namespace CloseExpAISolution.Infrastructure.Data;
 
 public static class DataSeeder
 {
+    private const string OrderCancelWindowMinutesAfterPaidKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
+    private const string OrderCancelWindowMinutesAfterPaidValue = "30";
+
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid SupermarketVinMartId = Guid.Parse("33333333-3333-3333-3333-333333333333");
@@ -107,6 +110,7 @@ public static class DataSeeder
     {
         await SeedRolesAsync(context);
         await SeedUsersAsync(context);
+        await SeedSystemConfigsAsync(context);
         await SeedSupermarketsAsync(context);
         await SeedMarketStaffAsync(context);
         await SeedUnitsAsync(context);
@@ -121,6 +125,34 @@ public static class DataSeeder
         await SeedVendorUser3SampleOrderAsync(context);
         await SeedDeliveryStaffHomeOrdersAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
+    }
+
+    private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
+    {
+        var now = DateTime.UtcNow;
+        var existing = await context.SystemConfigs
+            .FirstOrDefaultAsync(x => x.ConfigKey == OrderCancelWindowMinutesAfterPaidKey);
+
+        if (existing == null)
+        {
+            await context.SystemConfigs.AddAsync(new SystemConfig
+            {
+                ConfigKey = OrderCancelWindowMinutesAfterPaidKey,
+                ConfigValue = OrderCancelWindowMinutesAfterPaidValue,
+                UpdatedAt = now
+            });
+            await context.SaveChangesAsync();
+            return;
+        }
+
+        // Ensure key is always valid for runtime services that require SystemConfig
+        if (!int.TryParse(existing.ConfigValue, out var minutes) || minutes <= 0)
+        {
+            existing.ConfigValue = OrderCancelWindowMinutesAfterPaidValue;
+            existing.UpdatedAt = now;
+            context.SystemConfigs.Update(existing);
+            await context.SaveChangesAsync();
+        }
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
