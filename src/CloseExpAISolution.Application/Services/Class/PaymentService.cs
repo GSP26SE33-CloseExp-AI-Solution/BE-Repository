@@ -19,6 +19,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
     private const string AlreadyPaidMessage = "This order has already been paid.";
     private const string CancelWindowConfigKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
 
+    /// <summary>PayOS CreatePaymentLink validates description length (error: "Mô tả tối đa 25 kí tự").</summary>
+    private const int PayOsMaxDescriptionLength = 25;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly PayOsSettings _settings;
     private readonly ILogger<PaymentService> _logger;
@@ -69,7 +72,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             throw new InvalidOperationException("ReturnUrl and CancelUrl are required in the request body.");
 
         var payOsOrderCode = await GenerateUniquePayOSOrderCodeAsync(cancellationToken);
-        var description = $"Pay order {order.OrderCode}";
+        var description = BuildPayOsDescription(order.OrderCode);
 
         var tx = new Transaction
         {
@@ -301,6 +304,20 @@ public sealed class PaymentService : IPaymentService, IDisposable
                 $"SystemConfig '{CancelWindowConfigKey}' không hợp lệ. Giá trị phải là số nguyên dương.");
 
         return minutes;
+    }
+
+    /// <summary>
+    /// Dùng mã đơn nội bộ làm mô tả PayOS; cắt chuỗi nếu vượt giới hạn 25 ký tự của API.
+    /// </summary>
+    private static string BuildPayOsDescription(string orderCode)
+    {
+        if (string.IsNullOrWhiteSpace(orderCode))
+            return "CloseExp";
+
+        var trimmed = orderCode.Trim();
+        return trimmed.Length <= PayOsMaxDescriptionLength
+            ? trimmed
+            : trimmed[..PayOsMaxDescriptionLength];
     }
 
     public void Dispose() => _client.Dispose();

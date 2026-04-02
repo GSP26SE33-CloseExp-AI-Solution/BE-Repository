@@ -13,6 +13,9 @@ public class DeliveryLog
     public decimal? DeliveryLatitude { get; set; }
     public decimal? DeliveryLongitude { get; set; }
 
+    /// <summary>URL ảnh chứng minh giao hàng (http/https), thường từ R2 sau khi shipper upload.</summary>
+    public string? ProofImageUrl { get; set; }
+
     public User? User { get; set; }
     public Order? Order { get; set; }
 }

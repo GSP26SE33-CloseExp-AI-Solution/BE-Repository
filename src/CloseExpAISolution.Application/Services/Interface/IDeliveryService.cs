@@ -5,7 +5,9 @@ namespace CloseExpAISolution.Application.Services.Interface;
 
 public interface IDeliveryService
 {
+    /// <summary>Nhóm đang chờ shipper xác nhận nhận (Pending + đã gán đúng staff).</summary>
     Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
+        Guid deliveryStaffId,
         DateTime? deliveryDate = null,
         CancellationToken cancellationToken = default);
 
@@ -42,6 +44,15 @@ public interface IDeliveryService
         Guid orderId,
         Guid deliveryStaffId,
         ConfirmDeliveryRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Shipper upload ảnh chứng minh lên R2; trả về URL để gửi vào <see cref="ConfirmDeliveryRequestDto.ProofImageUrl"/>.</summary>
+    Task<DeliveryProofUploadResponseDto> UploadDeliveryProofImageAsync(
+        Guid orderId,
+        Guid deliveryStaffId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
         CancellationToken cancellationToken = default);
 
     Task<DeliveryOrderResponseDto> ReportDeliveryFailureAsync(

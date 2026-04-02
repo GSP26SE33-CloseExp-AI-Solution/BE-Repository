@@ -13,7 +13,7 @@ public class DeliveryGroup
     public string DeliveryArea { get; set; } = string.Empty;
     public decimal? CenterLatitude { get; set; }
     public decimal? CenterLongitude { get; set; }
-    public DeliveryGroupState Status { get; set; } = DeliveryGroupState.Pending;
+    public DeliveryGroupState Status { get; set; } = DeliveryGroupState.Draft;
     public int TotalOrders { get; set; }
     public string? Notes { get; set; }
     public DateTime DeliveryDate { get; set; }

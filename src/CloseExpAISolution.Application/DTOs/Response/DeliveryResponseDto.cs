@@ -74,6 +74,15 @@ public class DeliveryRecordResponseDto
     public DateTime? DeliveredAt { get; set; }
     public decimal? DeliveryLatitude { get; set; }
     public decimal? DeliveryLongitude { get; set; }
+
+    /// <summary>URL ảnh chứng minh giao hàng (nếu có).</summary>
+    public string? ProofImageUrl { get; set; }
+}
+
+/// <summary>Kết quả upload ảnh chứng minh trước khi gọi confirm-delivery.</summary>
+public class DeliveryProofUploadResponseDto
+{
+    public string ProofImageUrl { get; set; } = string.Empty;
 }
 
 public class DeliveryStatsResponseDto

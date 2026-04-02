@@ -323,6 +323,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DeliveryLog>(entity =>
         {
             entity.HasIndex(dl => dl.OrderId);
+            entity.Property(dl => dl.ProofImageUrl).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<ProductImage>(entity =>

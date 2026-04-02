@@ -78,6 +78,18 @@ public class R2StorageService : IR2StorageService
         return new { Key = key, Url = url };
     }
 
+    public async Task<string> UploadDeliveryProofImageAsync(
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        Guid orderId,
+        Guid deliveryStaffId,
+        CancellationToken cancellationToken = default)
+    {
+        var key = $"deliveries/{orderId:N}/{deliveryStaffId:N}/{Guid.NewGuid():N}_{SanitizeFileName(fileName)}";
+        return await UploadFileToR2(fileStream, key, contentType, cancellationToken);
+    }
+
     public string GeneratePreSignedUrl(string key, TimeSpan expiry)
     {
         AWSConfigsS3.UseSignatureVersion4 = true;
@@ -136,7 +148,7 @@ public class R2StorageService : IR2StorageService
     {
         if (string.IsNullOrEmpty(url)) return null;
 
-        var paths = new[] { "/products/", "/users/", "/uploads/" };
+        var paths = new[] { "/products/", "/users/", "/uploads/", "/deliveries/" };
         foreach (var path in paths)
         {
             var index = url.IndexOf(path, StringComparison.OrdinalIgnoreCase);

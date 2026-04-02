@@ -1,8 +1,11 @@
+using System.Linq;
 using System.Security.Claims;
+using Amazon.S3;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -45,22 +48,17 @@ public class DeliveryController : ControllerBase
     [HttpGet("groups")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>>> GetGroupsForAdmin(
         [FromQuery] PendingDeliveryGroupQueryDto query,
-        [FromQuery] string status = "Pending")
+        [FromQuery] string? status = null)
     {
         try
         {
-            if (!status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
-                    "Hiện tại chỉ hỗ trợ truy vấn nhóm giao hàng ở trạng thái Pending."));
-            }
-
             var (pageNumber, pageSize) = NormalizePaging(query.PageNumber, query.PageSize);
 
-            var (items, totalCount) = await _services.DeliveryAdminService.GetPendingDeliveryGroupsAsync(
+            var (items, totalCount) = await _services.DeliveryAdminService.GetDeliveryGroupsForAdminAsync(
                 query.DeliveryDate,
                 pageNumber,
-                pageSize);
+                pageSize,
+                string.IsNullOrWhiteSpace(status) ? null : status);
 
             var result = new PaginatedResult<DeliveryGroupSummaryDto>
             {
@@ -72,10 +70,14 @@ public class DeliveryController : ControllerBase
 
             return Ok(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.SuccessResponse(result));
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(ex.Message));
+        }
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
-                "Lỗi khi lấy danh sách nhóm giao hàng chờ điều phối."));
+                "Lỗi khi lấy danh sách nhóm giao hàng."));
         }
     }
 
@@ -171,7 +173,7 @@ public class DeliveryController : ControllerBase
 
     /// <summary>
     /// Chỉnh đơn giữa các nhóm Draft hoặc gỡ đơn khỏi nhóm Draft (body deliveryGroupId null).
-    /// Luồng gợi ý: generate draft → (GET drafts) → chỉnh tay đơn nếu cần → confirm → assign staff.
+    /// Luồng: draft → confirm (Confirmed) → PUT assignment (Pending, chờ Accept) → shipper Accept (Assigned).
     /// </summary>
     [Authorize(Roles = "Admin")]
     [HttpPut("orders/{orderId:guid}/draft-group")]
@@ -277,7 +279,13 @@ public class DeliveryController : ControllerBase
     {
         try
         {
-            var groups = await _services.DeliveryService.GetAvailableDeliveryGroupsAsync(deliveryDate);
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var groups = await _services.DeliveryService.GetAvailableDeliveryGroupsAsync(staffId, deliveryDate);
             return Ok(ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.SuccessResponse(groups));
         }
         catch (Exception)
@@ -490,13 +498,85 @@ public class DeliveryController : ControllerBase
     }
 
     [Authorize(Roles = "DeliveryStaff")]
-    [HttpPost("orders/{orderId:guid}/confirm-delivery")]
-    public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ConfirmDelivery(
+    [HttpPost("orders/{orderId:guid}/proof-image")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<DeliveryProofUploadResponseDto>>> UploadDeliveryProofImage(
         Guid orderId,
-        [FromBody] ConfirmDeliveryRequestDto? request)
+        IFormFile? file,
+        CancellationToken cancellationToken)
     {
         try
         {
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(
+                    "Vui lòng gửi file ảnh (form field: file)."));
+            }
+
+            await using var stream = file.OpenReadStream();
+            var result = await _services.DeliveryService.UploadDeliveryProofImageAsync(
+                orderId,
+                staffId,
+                stream,
+                file.FileName,
+                file.ContentType,
+                cancellationToken);
+
+            return Ok(ApiResponse<DeliveryProofUploadResponseDto>.SuccessResponse(
+                result,
+                "Tải ảnh chứng minh thành công. Dùng proofImageUrl khi gọi confirm-delivery."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (AmazonS3Exception ex)
+        {
+            return StatusCode(502, ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(
+                $"Lỗi lưu trữ ảnh: {ex.Message}"));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<DeliveryProofUploadResponseDto>.ErrorResponse(
+                "Lỗi khi tải ảnh chứng minh."));
+        }
+    }
+
+    [Authorize(Roles = "DeliveryStaff")]
+    [HttpPost("orders/{orderId:guid}/confirm-delivery")]
+    public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> ConfirmDelivery(
+        Guid orderId,
+        [FromBody] ConfirmDeliveryRequestDto request)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .Where(m => !string.IsNullOrEmpty(m))
+                    .ToList();
+                return BadRequest(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
+                    "Dữ liệu không hợp lệ.",
+                    errors.Count > 0 ? errors : null));
+            }
+
             if (!TryGetCurrentUserId(out var staffId))
             {
                 return Unauthorized(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse(
@@ -506,7 +586,7 @@ public class DeliveryController : ControllerBase
             var order = await _services.DeliveryService.ConfirmDeliveryAsync(
                 orderId,
                 staffId,
-                request ?? new ConfirmDeliveryRequestDto());
+                request);
 
             return Ok(ApiResponse<DeliveryOrderResponseDto>.SuccessResponse(order, "Xác nhận giao hàng thành công."));
         }

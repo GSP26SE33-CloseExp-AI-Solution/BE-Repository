@@ -200,12 +200,15 @@ Accept: application/json
 
 ###
 
-### --- Admin delivery grouping (Draft → Pending → assign staff) ---
+### --- Admin delivery grouping (Draft → Confirmed → assign → Pending → shipper Accept → Assigned) ---
 ### 1) GET admin orders unassigned: GET /api/Admin/orders?unassignedOnly=true (Bearer Admin)
 ### 2) POST /api/delivery/groups/drafts/generate
 ### 3) GET /api/delivery/groups/drafts
 ### 4) Optional: PUT /api/delivery/orders/{orderId}/draft-group  body: { "deliveryGroupId": "<draftGuid>" | null }
-### 5) POST /api/delivery/groups/{deliveryGroupId}/confirm
-### 6) PUT /api/delivery/groups/{deliveryGroupId}/assignment  body: { "deliveryStaffId": "..." }
+### 5) POST /api/delivery/groups/{deliveryGroupId}/confirm  → nhóm = Confirmed (chờ gán shipper)
+### 6) GET /api/delivery/groups?status=Confirmed  → danh sách chờ gán; GET ?status=Pending → chờ shipper Accept
+### 7) PUT /api/delivery/groups/{deliveryGroupId}/assignment  body: { "deliveryStaffId": "..." }  → Pending
+### Shipper: GET /api/delivery/groups/available (nhóm Pending đã gán đúng mình) → POST .../accept → Assigned
+### Shipper: POST multipart /api/delivery/orders/{orderId}/proof-image (field file) → use data.proofImageUrl in POST .../confirm-delivery
 
 ###

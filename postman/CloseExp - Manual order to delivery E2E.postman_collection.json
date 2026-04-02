@@ -1,0 +1,1551 @@
+{
+  "info": {
+    "_postman_id": "080f8590-4b8a-4021-b906-b5af73b81507",
+    "name": "CloseExp - Manual order to delivery E2E",
+    "description": "Luồng test tay: chuẩn bị slot/lot → đăng nhập theo role → tạo đơn (customer) → thanh toán hoặc ép Paid → đóng gói → admin gom nhóm & assign shipper → shipper giao → (tùy chọn) xác nhận nhận hàng.\n\n**Biến collection:** `baseUrl` = gốc API có `/api` (vd `http://localhost:5014/api`). Folder **0 — Chuẩn bị**: **GET time-slots** lưu `timeSlotId` (slot đầu tiên); **GET collection-points** lưu `collectionId` (điểm đầu tiên) cho request **PICKUP**. Đơn **DELIVERY** dùng `POST .../my-orders (customer)` với `collectionId: null`. Điền `lotId` từ DB/catalog. `deliveryStaffUserId` = Guid user DeliveryStaff khi assign.\n\n**Shipper / JWT:** `deliveryToken` (login shipper) phải thuộc user có cùng `UserId` với `deliveryStaffUserId` trong **PUT assignment**; nếu không, folder shipper sẽ không thấy nhóm hoặc accept thất bại.\n\n**Lưu ý BE:** `PUT /Orders/{id}/paid` và các `PUT .../status` không có `[Authorize]` — chỉ dùng trên môi trường dev.\n\n**customer-confirmation:** controller yêu cầu role **Vendor** nhưng service kiểm tra `order.userId ==` user trong JWT — cần token của chính chủ đơn; nếu role thực tế là Customer thì request sẽ 403 (có thể dùng shortcut `PUT .../completed`).\n\n**deliveryType:** đồng bộ FE dùng `DELIVERY` hoặc `PICKUP`.\n\n**confirm-delivery:** `verificationCode` phải khớp `orderCode` (QR). Upload proof trước, script lưu `proofImageUrl`.\n\n**Thanh toán PayOS:** `create-payment-link` cần `paymentReturnUrl` / `paymentCancelUrl` (URL thật mà PayOS redirect về; sửa biến collection cho khớp FE hoặc tunnel). Cần cấu hình `PayOsSettings` trong appsettings / user-secrets.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "38344843"
+  },
+  "item": [
+    {
+      "name": "0 — Chuẩn bị (public)",
+      "item": [
+        {
+          "name": "GET time-slots",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "const list = j.success && Array.isArray(j.data) ? j.data : [];",
+                  "if (list.length && list[0].timeSlotId) {",
+                  "  pm.collectionVariables.set('timeSlotId', list[0].timeSlotId);",
+                  "  console.log('Saved timeSlotId (first slot):', list[0].timeSlotId, list[0].displayTimeRange || '');",
+                  "} else {",
+                  "  console.warn('No time slots in data; keep or set timeSlotId manually.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Orders/time-slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders",
+                "time-slots"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET collection-points",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "const list = j.success && Array.isArray(j.data) ? j.data : [];",
+                  "if (list.length && list[0].collectionPointId) {",
+                  "  const id = list[0].collectionPointId;",
+                  "  pm.collectionVariables.set('collectionId', id);",
+                  "  console.log('Saved collectionId (first point):', id, list[0].name || '');",
+                  "} else {",
+                  "  console.warn('No collection points in data.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Orders/collection-points",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders",
+                "collection-points"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1 — Auth",
+      "item": [
+        {
+          "name": "Login Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data && j.data.accessToken) {",
+                  "  pm.collectionVariables.set('customerToken', j.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data && j.data.accessToken) {",
+                  "  pm.collectionVariables.set('adminToken', j.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login PackagingStaff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data && j.data.accessToken) {",
+                  "  pm.collectionVariables.set('packagingToken', j.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{packagingEmail}}\",\n  \"password\": \"{{packagingPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login DeliveryStaff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data && j.data.accessToken) {",
+                  "  pm.collectionVariables.set('deliveryToken', j.data.accessToken);",
+                  "  pm.collectionVariables.set('deliveryStaffUserId', j.data.user.userId);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{deliveryEmail}}\",\n  \"password\": \"{{deliveryPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 — Tạo đơn",
+      "item": [
+        {
+          "name": "POST Orders/my-orders (customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data) {",
+                  "  if (j.data.orderId) pm.collectionVariables.set('orderId', j.data.orderId);",
+                  "  if (j.data.orderCode) pm.collectionVariables.set('orderCode', j.data.orderCode);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timeSlotId\": \"{{timeSlotId}}\",\n  \"collectionId\": null,\n  \"deliveryType\": \"DELIVERY\",\n  \"addressId\": null,\n  \"deliveryFee\": 0,\n  \"deliveryNote\": \"Postman manual test\",\n  \"orderItems\": [\n    {\n      \"lotId\": \"{{lotId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 10000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Orders/my-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders",
+                "my-orders"
+              ]
+            },
+            "description": "Cần lấy lotId có thực trong DB"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Orders/my-orders (PICKUP — dùng collectionId từ folder 0)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data) {",
+                  "  if (j.data.orderId) pm.collectionVariables.set('orderId', j.data.orderId);",
+                  "  if (j.data.orderCode) pm.collectionVariables.set('orderCode', j.data.orderCode);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timeSlotId\": \"{{timeSlotId}}\",\n  \"collectionId\": \"{{collectionId}}\",\n  \"deliveryType\": \"PICKUP\",\n  \"addressId\": null,\n  \"deliveryFee\": 0,\n  \"deliveryNote\": \"Postman PICKUP test\",\n  \"orderItems\": [\n    {\n      \"lotId\": \"{{lotId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 10000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Orders/my-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders",
+                "my-orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Orders (manual userId — không Bearer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{manualUserId}}\",\n  \"timeSlotId\": \"{{timeSlotId}}\",\n  \"collectionId\": null,\n  \"deliveryType\": \"DELIVERY\",\n  \"totalAmount\": 10000,\n  \"discountAmount\": 0,\n  \"finalAmount\": 10000,\n  \"deliveryFee\": 0,\n  \"status\": \"Pending\",\n  \"orderItems\": [\n    {\n      \"lotId\": \"{{lotId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 10000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders"
+              ]
+            },
+            "description": "StartFragmMục tiêu của `POST /Orders` (không Bearer)\n\nĐó là endpoint `POST /api/Orders` trong `OrdersController`: không có `[Authorize]`, body dùng `CreateOrderRequestDto` và phải gửi kèm `userId` — server tạo đơn đúng cho user đó, không cần token của chính user đó.\n\nTrong collection Postman, request đó nhằm:\n\n1. Test / seed nhanh — Bạn có sẵn `manualUserId` (từ DB, admin tool, v.v.) thì tạo đơn ngay, không cần login customer và không cần `customerToken`.\n    \n2. Tách với luồng thật của app — `POST /Orders/my-orders` có `[Authorize]` và `userId` lấy từ JWT; còn `POST /Orders` là kiểu “tạo đơn theo body”, thường dùng cho dev, script, hoặc tích hợp nội bộ (nếu sau này team bảo vệ bằng role Admin thì sẽ khác).\n    \n\nLưu ý bảo mật: Hiện tại ai gọi được API này cũng có thể gán đơn cho bất kỳ `userId` nào — không an toàn cho production nếu endpoint public. Trên môi trường thật thường nên khóa bằng `[Authorize(Roles = \"Admin\")]` hoặc tương đương.  \n  \nTóm lại : mục tiêu Postman là cho phép tạo đơn tay theo `userId` cố định, không phụ thuộc Bearer — tiện test; không phải luồng khách đặt hàng chuẩn (luồng chuẩn là `POST .../my-orders` + token)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 — Thanh toán",
+      "item": [
+        {
+          "name": "POST Payment/create-payment-link",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();\r",
+                  "if (j.checkoutUrl) {\r",
+                  "  pm.collectionVariables.set(\"payOsCheckoutUrl\", j.checkoutUrl);\r",
+                  "  console.log(\"Mở trình duyệt:\", j.checkoutUrl);\r",
+                  "}\r",
+                  "pm.test(\"Có checkout URL\", function () {\r",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const oid = pm.collectionVariables.get(\"orderId\");\r",
+                  "const tok = pm.collectionVariables.get(\"customerToken\");\r",
+                  "if (!oid || oid.includes(\"{{\")) {\r",
+                  "  throw new Error(\"Chưa có orderId — chạy tạo đơn trước hoặc gán biến.\");\r",
+                  "}\r",
+                  "if (!tok) {\r",
+                  "  throw new Error(\"Chưa có customerToken — login trước.\");\r",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"returnUrl\": \"{{paymentReturnUrl}}\",\n  \"cancelUrl\": \"{{paymentCancelUrl}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Payment/create-payment-link",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Payment",
+                "create-payment-link"
+              ]
+            },
+            "description": "Sau đó bạn mở link bằng tay,\n\n- thanh toán xong → copy `orderCode` từ URL success (hoặc cancel)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Payment/confirm (sau PayOS — orderCode số)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// add a set value for us to put in url :\r",
+                  "// http://localhost:5173/payment/success?code=00&id=0aea9d96d314424d8105adbbfa6e9067&cancel=false&status=PAID&orderCode=1775163505208450  \r",
+                  "\r",
+                  "\r",
+                  "const code = pm.collectionVariables.get(\"payOsOrderCode\");\r",
+                  "if (!code) {\r",
+                  "  throw new Error(\"Dán payOsOrderCode từ URL redirect (orderCode=...) sau khi thanh toán.\");\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();\r",
+                  "if (j.success === true || j.success === undefined && j.success !== false) {\r",
+                  "  // tuỳ envelope BE\r",
+                  "}\r",
+                  "pm.test(\"Confirm 200\", () => pm.response.to.have.status(200));\r",
+                  "if (pm.response.code === 200) {\r",
+                  "  console.log(\"Đồng bộ Paid (nếu BE xử lý OK)\");\r",
+                  "}\r",
+                  "\r",
+                  "// ** Test case thanh toán thất bại\r",
+                  "// pm.test(\"Chưa paid hoặc lỗi\", function () {\r",
+                  "//   pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);\r",
+                  "// });\r",
+                  "// const j = pm.response.json();\r",
+                  "// if (j.success === false) {\r",
+                  "//   console.log(\"Expected failure:\", j.message || j);\r",
+                  "// }"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderCode\": \"{{payOsOrderCode}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Payment/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Payment",
+                "confirm"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DEV — PUT Orders/{orderId}/paid",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Orders/{{orderId}}/paid",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders",
+                "{{orderId}}",
+                "paid"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4 — Đóng gói (PackagingStaff)",
+      "item": [
+        {
+          "name": "GET Packaging/orders/pending",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{packagingToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Packaging/orders/pending?pageNumber=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Packaging",
+                "orders",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "pageNumber",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Packaging/orders/{orderId}/confirm",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{packagingToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Packaging/orders/{{orderId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Packaging",
+                "orders",
+                "{{orderId}}",
+                "confirm"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Packaging/orders/{orderId}/collect",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{packagingToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Thu gom Postman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Packaging/orders/{{orderId}}/collect",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Packaging",
+                "orders",
+                "{{orderId}}",
+                "collect"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Packaging/orders/{orderId}/package",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{packagingToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/Packaging/orders/{{orderId}}/package",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Packaging",
+                "orders",
+                "{{orderId}}",
+                "package"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5 — Admin gom nhóm & assign",
+      "item": [
+        {
+          "name": "GET admin/orders (unassigned ReadyToShip)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/orders?unassignedOnly=true&status=ReadyToShip&pageNumber=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "unassignedOnly",
+                  "value": "true"
+                },
+                {
+                  "key": "status",
+                  "value": "ReadyToShip"
+                },
+                {
+                  "key": "pageNumber",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/groups/drafts/generate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && Array.isArray(j.data) && j.data.length && j.data[0].deliveryGroupId) {",
+                  "  pm.collectionVariables.set('deliveryGroupId', j.data[0].deliveryGroupId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timeSlotId\": \"{{timeSlotId}}\",\n  \"maxDistanceKm\": 5,\n  \"maxOrdersPerGroup\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/drafts/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "drafts",
+                "generate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET delivery/groups/drafts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "const items = j.data && j.data.items;",
+                  "if (j.success && items && items.length && items[0].deliveryGroupId) {",
+                  "  pm.collectionVariables.set('deliveryGroupId', items[0].deliveryGroupId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/drafts?pageNumber=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "drafts"
+              ],
+              "query": [
+                {
+                  "key": "pageNumber",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT delivery/orders/{orderId}/draft-group (tùy chọn — gán đơn vào draft)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryGroupId\": \"{{deliveryGroupId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/orders/{{orderId}}/draft-group",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "orders",
+                "{{orderId}}",
+                "draft-group"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/groups/{deliveryGroupId}/confirm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is Confirmed\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql(\"Confirmed\");",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/{{deliveryGroupId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "{{deliveryGroupId}}",
+                "confirm"
+              ]
+            },
+            "description": "Chỉ nhóm **Draft**. Sau khi gọi, trạng thái nhóm là **Confirmed** (chưa có shipper). Bước tiếp: **PUT assignment**."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT delivery/groups/{deliveryGroupId}/assignment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is Pending\", function () {\r",
+                  "    var jsonData = pm.response.json();\r",
+                  "    pm.expect(jsonData.data.status).to.eql(\"Pending\");\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryStaffId\": \"{{deliveryStaffUserId}}\",\n  \"reason\": \"Postman assign\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/{{deliveryGroupId}}/assignment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "{{deliveryGroupId}}",
+                "assignment"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Máy trạng thái nhóm (BE hiện tại): **Draft** → **POST confirm** → **Confirmed** (đã khóa nhóm, chưa shipper) → **PUT assignment** → **Pending** (đã gán `deliveryStaffId`, chờ shipper **Accept**) → **POST accept** → **Assigned** → **POST start** → **InTransit** → …\n\n**Lưu ý:** `PUT assignment` **không** đặt Assigned; nó đặt **Pending** + shipper. Shipper **phải** gọi **accept** rồi mới **start**.\n\n**PUT …/draft-group** (tùy chọn): chỉ khi đơn/nhóm còn **Draft** — kéo đơn giữa draft hoặc `deliveryGroupId: null` để gỡ khỏi draft.\n\n---\n\n## 🛡️ Máy trạng thái nhóm (Backend Workflow)\n\nHệ thống quản lý trạng thái nhóm đơn hàng theo luồng tuyến tính sau:\n\n**Draft** 　\n\n↓ _(POST confirm)_ **Confirmed** (Nhóm đã khóa, chưa có tài xế)\n\n↓ _(PUT assignment)_ **Pending** (Đã gán `deliveryStaffId`, đang chờ shipper **Accept**)\n\n↓ _(POST accept)_ **Assigned** (Shipper đã tiếp nhận)\n\n↓ _(POST start)_ **InTransit** (Đang trong quá trình giao hàng)\n\n↓ ...\n\n---\n\n### ⚠️ Lưu ý quan trọng\n\n- **Cơ chế Gán (Assignment):** Khi thực hiện `PUT assignment`, trạng thái **không** chuyển thẳng sang _Assigned_. Hệ thống sẽ đặt là **Pending** kèm theo thông tin `deliveryStaffId`.\n    \n- **Trách nhiệm của Shipper:** Tài xế **bắt buộc** phải gọi API `accept` để xác nhận, sau đó mới có thể gọi `start` để bắt đầu giao.\n    \n\n---\n\n### 📝 Thao tác với Nhóm Nháp (Draft Group)\n\n**API:** `PUT …/draft-group` (Tùy chọn)\n\n- **Điều kiện:** Chỉ áp dụng khi đơn hàng hoặc nhóm đang ở trạng thái **Draft**.\n    \n- **Chức năng:** \\* Điều chuyển đơn hàng giữa các nhóm nháp với nhau.\n    \n    - Gán `deliveryGroupId: null` để gỡ bỏ hoàn toàn đơn hàng ra khỏi nhóm nháp hiện tại."
+    },
+    {
+      "name": "6 — Shipper giao hàng",
+      "item": [
+        {
+          "name": "GET delivery/groups/my",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "my"
+              ]
+            },
+            "description": "### 🚚 Luồng Hiển thị & Tiếp nhận (Shipper)\n\nHệ thống lọc dữ liệu dựa trên **JWT Token** và trạng thái nhóm để đảm bảo tính riêng tư và quy trình:\n\n- **Điều kiện hiển thị:** Nhóm đơn hàng sẽ xuất hiện trong danh sách của Shipper khi:\n    \n    1. Trạng thái nhóm là **Pending**.\n        \n    2. `DeliveryStaffId` trong cơ sở dữ liệu **trùng khớp** với `UserId` trích xuất từ JWT.\n        \n- **Quy trình nghiệp vụ:**\n    \n    - Sau khi điều phối viên thực hiện **Assignment** (Folder 5), nhóm đơn hàng mới bắt đầu được gán định danh tài xế.\n        \n    - **Chỉ duy nhất** tài khoản Shipper được chỉ định mới có quyền nhìn thấy và thực hiện thao tác tiếp theo trên nhóm này.\n        \n\n---\n\n### 🔄 Trạng thái chuyển đổi của Shipper\n\n| **Hành động** | **Trạng thái trước** | **Trạng thái sau** | **Ghi chú** |\n| **Assignment** | `Confirmed` | **Pending** | Hệ thống gán `DeliveryStaffId`. |\n| **Accept** | `Pending` | **Assigned** | Shipper xác nhận nhận đơn qua API. |\n| **Start** | `Assigned` | **InTransit** | Bắt đầu quá trình đi giao thực tế. |\n\n---\n\n**Lưu ý kỹ thuật:** Khi code API lấy danh sách cho Shipper, bạn cần thực hiện Query Filter:\n\n`WHERE Status = 'Pending' AND DeliveryStaffId = @UserIdFromJWT`\n\nBạn có muốn tôi hỗ trợ viết câu truy vấn LINQ hoặc SQL chuẩn cho phần lọc này không?"
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/groups/{deliveryGroupId}/accept",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/{{deliveryGroupId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "{{deliveryGroupId}}",
+                "accept"
+              ]
+            },
+            "description": "Chỉ nhóm **Pending** gán đúng shipper trong JWT. Chuyển **Assigned**."
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/groups/{deliveryGroupId}/start",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/{{deliveryGroupId}}/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "{{deliveryGroupId}}",
+                "start"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/orders/{orderId}/proof-image (form file)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.success && j.data && j.data.proofImageUrl) {",
+                  "  pm.collectionVariables.set('proofImageUrl', j.data.proofImageUrl);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Chọn file ảnh nhỏ trong Postman",
+                  "src": [
+                    "",
+                    "/D:/Pictures/Background/IMG_20260207_075307380.jpg"
+                  ]
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/orders/{{orderId}}/proof-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "orders",
+                "{{orderId}}",
+                "proof-image"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/orders/{orderId}/confirm-delivery",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proofImageUrl\": \"{{proofImageUrl}}\",\n  \"verificationCode\": \"{{orderCode}}\",\n  \"notes\": \"Giao xong\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/orders/{{orderId}}/confirm-delivery",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "orders",
+                "{{orderId}}",
+                "confirm-delivery"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/groups/{deliveryGroupId}/complete",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/{{deliveryGroupId}}/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "{{deliveryGroupId}}",
+                "complete"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "**Bắt buộc đồng bộ JWT:** `deliveryToken` phải là token của đúng user có `UserId` = `deliveryStaffUserId` đã dùng trong **PUT assignment** (folder 5). Nếu đăng nhập shipper khác: **GET available** trả rỗng, **POST accept** có thể 403.\n\n**GET available:** nhóm đã được admin gán cho mình, trạng thái **Pending**, chưa **Accept**.\n\nThứ tự E2E: **available** → (tùy chọn **GET my** để debug) → **accept** → **start** → …"
+    },
+    {
+      "name": "7 — Xác nhận / shortcut",
+      "item": [
+        {
+          "name": "POST delivery/orders/{orderId}/customer-confirmation (JWT = chủ đơn; role Vendor trên BE)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/orders/{{orderId}}/customer-confirmation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "orders",
+                "{{orderId}}",
+                "customer-confirmation"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DEV — PUT Orders/{orderId}/completed",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Orders/{{orderId}}/completed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Orders",
+                "{{orderId}}",
+                "completed"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5014/api"
+    },
+    {
+      "key": "customerEmail",
+      "value": ""
+    },
+    {
+      "key": "customerPassword",
+      "value": ""
+    },
+    {
+      "key": "adminEmail",
+      "value": ""
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "packagingEmail",
+      "value": ""
+    },
+    {
+      "key": "packagingPassword",
+      "value": ""
+    },
+    {
+      "key": "deliveryEmail",
+      "value": ""
+    },
+    {
+      "key": "deliveryPassword",
+      "value": ""
+    },
+    {
+      "key": "customerToken",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "packagingToken",
+      "value": ""
+    },
+    {
+      "key": "deliveryToken",
+      "value": ""
+    },
+    {
+      "key": "timeSlotId",
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "lotId",
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "collectionId",
+      "value": ""
+    },
+    {
+      "key": "addressId",
+      "value": ""
+    },
+    {
+      "key": "manualUserId",
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "orderCode",
+      "value": ""
+    },
+    {
+      "key": "deliveryGroupId",
+      "value": ""
+    },
+    {
+      "key": "deliveryStaffUserId",
+      "value": ""
+    },
+    {
+      "key": "proofImageUrl",
+      "value": ""
+    },
+    {
+      "key": "payOsOrderCode",
+      "value": ""
+    },
+    {
+      "key": "paymentReturnUrl",
+      "value": "http://localhost:5173/payment/success"
+    },
+    {
+      "key": "paymentCancelUrl",
+      "value": "http://localhost:5173/payment/cancel"
+    },
+    {
+      "key": "paymentReturnCallbackUrl",
+      "value": ""
+    },
+    {
+      "key": "payOsReturnCode",
+      "value": ""
+    },
+    {
+      "key": "payOsCheckoutUrl",
+      "value": ""
+    }
+  ]
+}
