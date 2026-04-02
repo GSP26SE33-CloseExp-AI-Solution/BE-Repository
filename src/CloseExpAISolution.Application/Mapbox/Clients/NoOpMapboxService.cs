@@ -13,4 +13,12 @@ public class NoOpMapboxService : IMapboxService
 
     public Task<IEnumerable<GeocodingResultDto>> SearchAddressAsync(string query, int limit = 5, CancellationToken ct = default) =>
         Task.FromResult(Enumerable.Empty<GeocodingResultDto>());
+
+    public Task<double?> GetDrivingDistanceKmAsync(
+        double fromLatitude,
+        double fromLongitude,
+        double toLatitude,
+        double toLongitude,
+        CancellationToken ct = default) =>
+        Task.FromResult<double?>(null);
 }

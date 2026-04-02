@@ -417,6 +417,11 @@ public class OrderService : IOrderService
         if (!order.CollectionId.HasValue)
             return;
 
+        // Only auto-group paid orders in active fulfillment flow.
+        // Pending (unpaid) orders are excluded to avoid reserving delivery capacity too early.
+        if (order.Status is not (OrderState.PaidProcessing or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
+            return;
+
         var deliveryArea = $"COLLECTION:{order.CollectionId.Value}";
         var existing = await _unitOfWork.Repository<DeliveryGroup>().FirstOrDefaultAsync(g =>
             g.TimeSlotId == order.TimeSlotId

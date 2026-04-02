@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.Mapbox.DTOs;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace CloseExpAISolution.Application.Mapbox.Clients;
 
@@ -73,6 +74,46 @@ public class MapboxService : IMapboxService
             return Enumerable.Empty<GeocodingResultDto>();
 
         return response.Features.Select(MapToResult);
+    }
+
+    public async Task<double?> GetDrivingDistanceKmAsync(
+        double fromLatitude,
+        double fromLongitude,
+        double toLatitude,
+        double toLongitude,
+        CancellationToken ct = default)
+    {
+        var url = $"/directions/v5/mapbox/driving/{fromLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture)},{fromLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture)};{toLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture)},{toLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}" +
+                  $"?alternatives=false&geometries=geojson&overview=simplified&access_token={_settings.AccessToken}";
+
+        try
+        {
+            _logger.LogDebug("Mapbox directions request: {BaseUrl}{Path}", _settings.BaseUrl, SanitizeUrl(url));
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Mapbox Directions returned {StatusCode}: {Error}", (int)response.StatusCode, errorBody);
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0)
+                return null;
+
+            var firstRoute = routes[0];
+            if (!firstRoute.TryGetProperty("distance", out var distMeters))
+                return null;
+
+            return distMeters.GetDouble() / 1000d;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _logger.LogWarning(ex, "Mapbox driving distance request failed");
+            return null;
+        }
     }
 
     #region Private Helpers
