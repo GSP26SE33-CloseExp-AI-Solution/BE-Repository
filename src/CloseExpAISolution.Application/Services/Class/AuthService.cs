@@ -166,7 +166,7 @@ public class AuthService : IAuthService
         var storedToken = await refreshTokenRepo.FirstOrDefaultAsync(t => t.Token == refreshToken);
 
         if (storedToken == null)
-            return Error("Refresh token không hợp lệ");
+            return ApiResponse<AuthResponse>.ErrorResponse(message: "Refresh token không hợp lệ");
 
         if (!storedToken.IsActive)
         {
@@ -174,9 +174,9 @@ public class AuthService : IAuthService
             if (storedToken.IsRevoked)
             {
                 await RevokeAllUserTokensAsync(storedToken.UserId);
-                return Error("Phát hiện token đã bị thu hồi được sử dụng lại. Tất cả phiên đăng nhập đã bị vô hiệu hóa");
+                return ApiResponse<AuthResponse>.ErrorResponse(message: "Phiên đăng nhập của bạn đã bị thu hồi. Vui lòng đăng nhập lại", errors: ["SESSION_REVOKED"]);
             }
-            return Error("Refresh token đã hết hạn");
+            return ApiResponse<AuthResponse>.ErrorResponse(message: "Refresh token đã hết hạn");
         }
 
         var userRepository = _unitOfWork.Repository<User>();

@@ -1,0 +1,986 @@
+{
+  "info": {
+    "_postman_id": "2c25732b-a4f7-4f8b-88e5-d2dd69aedce8",
+    "name": "CloseExp BE - Verification (transcript fef6f179)",
+    "description": "Checklist Khối 1–3 theo plan kiểm tra BE-API.\n\n**Cách dùng:** đặt `baseUrl` (vd `https://localhost:7001/api`), `adminEmail`/`adminPassword`, và các biến user phụ (`testUserEmail`, `staffToken`, …). Một số bước cần thao tác thủ công (khóa user rồi dán `lockedUserAccessToken`).\n\n**Luồng đầy đủ request-unlock:** dùng thêm `CloseExp - Request Unlock for Vendor Flow.postman_collection.json`.\n\n**UserState (số):** Active=2, Locked=4, Banned=5, PendingApproval=1.\n\n---\n\n**K3 — Điểm tập kết gần (`GET/POST .../orders/collection-points`):**\n- **Không cần đăng nhập**; phù hợp kiểm thử với **Vendor/Customer** (giống FE `DeliveryGateModal`). **SupermarketStaff không bắt buộc** cho luồng này.\n- Chạy **3.1 trước** để lưu danh sách ID phục vụ test *subset* (3.5).\n- Đồng bộ `pickupMaxRadiusKm` / `pickupDefaultRadiusKm` với `appsettings` → `PickupSearch:MaxRadiusKm` / `DefaultRadiusKm`.\n- Đặt `pickupSearchLat` / `pickupSearchLng` gần tọa độ điểm tập kết trong DB (seed) để nearby trả dữ liệu có ý nghĩa.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "38344843"
+  },
+  "item": [
+    {
+      "name": "K1 — User management",
+      "item": [
+        {
+          "name": "1.1 Admin login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Login OK', () => pm.expect(j.success).to.be.true);",
+                  "if (j.success && j.data) {",
+                  "  pm.collectionVariables.set('adminToken', j.data.accessToken || '');",
+                  "  if (j.data.user && j.data.user.userId) {",
+                  "    pm.collectionVariables.set('adminUserId', j.data.user.userId);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 GET users — no Admin (roleId 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const users = j.data || [];",
+                  "pm.test('List hides Admin role', () => {",
+                  "  users.forEach((u) => pm.expect(u.roleId).to.not.eql(1));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 PATCH self status — expect 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 self-guard', () => pm.response.code === 400);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{adminUserId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{adminUserId}}",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 PUT self — expect 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.code === 400);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"SelfUpdateTest\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{adminUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{adminUserId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 DELETE self — expect 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.code === 400);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{adminUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{adminUserId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 Test user login (for refresh / middleware)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "",
+                  "if (j.success && j.data) {",
+                  "  pm.collectionVariables.set('testUserToken', j.data.accessToken || '');",
+                  "  pm.collectionVariables.set('testUserRefresh', j.data.refreshToken || '');",
+                  "  pm.collectionVariables.set('testUserId', j.data.user.userId);",
+                  "} else {",
+                  "    console.warn('No suitable test user found. Create one manually.');",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.7.0 [Prep] Admin Lock Test User",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var testUserId = pm.collectionVariables.get('testUserId');",
+                  "if (!testUserId) {",
+                  "    console.error('ERROR: testUserId is empty. Run step 1 first!');",
+                  "}",
+                  "console.log('Locking user: ' + testUserId);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User status is now Locked', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.status).to.equal(4);",
+                  "});",
+                  "",
+                  "pm.test('Response message confirms lock', function() {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include('thành công');",
+                  "});",
+                  "",
+                  "console.log('User locked. Refresh tokens should be revoked. Email notification sent.');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": {{LockState}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{testUserId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{testUserId}}",
+                "status"
+              ]
+            },
+            "description": "Admin khoa user de test.\n\n**Side effects:**\n- Revoke tat ca refresh token\n- Gui email thong bao"
+          },
+          "response": []
+        },
+        {
+          "name": "1.7 POST refresh after revoke — expect 401 (chạy sau khi admin lock/ban user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Refresh revoked is 401', () => pm.response.to.have.status(401));\r",
+                  "\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{testUserRefresh}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh-token"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.8 POST request-unlock — Locked email (anonymous)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{lockedUserEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/request-unlock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "request-unlock"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.9 POST request-unlock — Banned email — expect 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Banned => 400', () => pm.response.code === 400);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{bannedUserEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/request-unlock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "request-unlock"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "K2 — Middleware + catalog",
+      "item": [
+        {
+          "name": "2.1 GET users/current-user — locked token — expect 401 + account_inactive",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inactive account 401', () => pm.response.code === 401);",
+                  "const j = pm.response.json();",
+                  "const errs = j.errors || [];",
+                  "pm.test('errors mention account_inactive', () => errs.join('').includes('account_inactive'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{lockedUserAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/current-user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "current-user"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 GET products (public) — no Hidden/Deleted in listing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const items = (j.data && j.data.items) || [];",
+                  "pm.test('Public list excludes Hidden(6)/Deleted(7)', () => {",
+                  "  items.forEach((p) => {",
+                  "    if (p.status !== undefined) {",
+                  "      pm.expect(p.status).to.not.eql(6);",
+                  "      pm.expect(p.status).to.not.eql(7);",
+                  "    }",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?pageNumber=1&pageSize=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "pageNumber",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 GET products/my-supermarket (staff) — includes hidden lots path",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staffToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/my-supermarket?pageNumber=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "my-supermarket"
+              ],
+              "query": [
+                {
+                  "key": "pageNumber",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "K3 — Điểm tập kết gần (public / Vendor–Customer)",
+      "item": [
+        {
+          "name": "3.1 GET collection-points — full list + lưu ID (chạy trước 3.5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const pts = j.data || [];",
+                  "pm.test('Mỗi điểm có pickupPointId và name', () => {",
+                  "  pts.forEach((p) => {",
+                  "    pm.expect(p.pickupPointId).to.be.a('string');",
+                  "    pm.expect(p.name).to.be.a('string');",
+                  "  });",
+                  "});",
+                  "const ids = pts.map((p) => String(p.pickupPointId));",
+                  "pm.collectionVariables.set('pickupFullIdsJson', JSON.stringify(ids));",
+                  "pm.collectionVariables.set('pickupFullCount', String(pts.length));"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders/collection-points",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "collection-points"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 POST nearby — radiusKm rất lớn (clamp theo PickupSearch:MaxRadiusKm)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const pts = j.data || [];",
+                  "const maxKm = parseFloat(pm.collectionVariables.get('pickupMaxRadiusKm') || '50');",
+                  "pm.test('Mọi distanceKm <= MaxRadiusKm (sau clamp)', () => {",
+                  "  pts.forEach((p) => {",
+                  "    pm.expect(p.distanceKm).to.be.a('number');",
+                  "    pm.expect(p.distanceKm).to.be.at.most(maxKm + 0.002);",
+                  "  });",
+                  "});",
+                  "const dists = pts.map((p) => p.distanceKm).filter((d) => d != null);",
+                  "pm.test('Sắp xếp không giảm theo distanceKm (BE: OrderBy distance)', () => {",
+                  "  for (let i = 1; i < dists.length; i++) {",
+                  "    pm.expect(dists[i]).to.be.at.least(dists[i - 1] - 1e-6);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": {{pickupSearchLat}},\n  \"longitude\": {{pickupSearchLng}},\n  \"radiusKm\": 999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/collection-points/nearby",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "collection-points",
+                "nearby"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 POST nearby — bán kính nhỏ (pickupSmallRadiusKm)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const pts = j.data || [];",
+                  "const r = parseFloat(pm.collectionVariables.get('pickupSmallRadiusKm') || '2');",
+                  "pm.test('Mọi điểm trong vòng tròn bán kính nhỏ', () => {",
+                  "  pts.forEach((p) => {",
+                  "    pm.expect(p.distanceKm).to.be.at.most(r + 0.002);",
+                  "  });",
+                  "});",
+                  "const fullC = parseInt(pm.collectionVariables.get('pickupFullCount') || '0', 10);",
+                  "if (fullC > 0) {",
+                  "  pm.test('Số điểm nearby <= full list', () => pm.expect(pts.length).to.be.at.most(fullC));",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": {{pickupSearchLat}},\n  \"longitude\": {{pickupSearchLng}},\n  \"radiusKm\": {{pickupSmallRadiusKm}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/collection-points/nearby",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "collection-points",
+                "nearby"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 POST nearby — bỏ radiusKm (dùng PickupSearch:DefaultRadiusKm)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const pts = j.data || [];",
+                  "const defKm = parseFloat(pm.collectionVariables.get('pickupDefaultRadiusKm') || '5');",
+                  "pm.test('Mọi distanceKm <= DefaultRadiusKm', () => {",
+                  "  pts.forEach((p) => {",
+                  "    pm.expect(p.distanceKm).to.be.at.most(defKm + 0.002);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": {{pickupSearchLat}},\n  \"longitude\": {{pickupSearchLng}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/collection-points/nearby",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "collection-points",
+                "nearby"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.5 POST nearby — mọi pickupPointId thuộc full list (cần 3.1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('OK', () => pm.expect(j.success).to.be.true);",
+                  "const raw = pm.collectionVariables.get('pickupFullIdsJson') || '[]';",
+                  "let fullIds = [];",
+                  "try { fullIds = JSON.parse(raw); } catch (e) { fullIds = []; }",
+                  "if (fullIds.length === 0) {",
+                  "  console.warn('Chạy 3.1 trước để kiểm tra subset pickupPointId.');",
+                  "} else {",
+                  "  const nearby = j.data || [];",
+                  "  pm.test('Nearby là tập con của GET full list', () => {",
+                  "    nearby.forEach((p) => pm.expect(fullIds).to.include(String(p.pickupPointId)));",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": {{pickupSearchLat}},\n  \"longitude\": {{pickupSearchLng}},\n  \"radiusKm\": {{pickupMaxRadiusKm}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orders/collection-points/nearby",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "collection-points",
+                "nearby"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5014/api"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@closeexp.com"
+    },
+    {
+      "key": "adminPassword",
+      "value": "123456"
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "adminUserId",
+      "value": ""
+    },
+    {
+      "key": "testUserEmail",
+      "value": "customer@example.com"
+    },
+    {
+      "key": "testUserPassword",
+      "value": "User@123"
+    },
+    {
+      "key": "testUserId",
+      "value": ""
+    },
+    {
+      "key": "testUserToken",
+      "value": ""
+    },
+    {
+      "key": "testUserRefresh",
+      "value": ""
+    },
+    {
+      "key": "lockedUserAccessToken",
+      "value": ""
+    },
+    {
+      "key": "staffToken",
+      "value": ""
+    },
+    {
+      "key": "bannedUserEmail",
+      "value": "banned@example.com"
+    },
+    {
+      "key": "lockedUserEmail",
+      "value": "locked@example.com"
+    },
+    {
+      "key": "pickupSearchLat",
+      "value": "10.7769"
+    },
+    {
+      "key": "pickupSearchLng",
+      "value": "106.7009"
+    },
+    {
+      "key": "pickupMaxRadiusKm",
+      "value": "50"
+    },
+    {
+      "key": "pickupDefaultRadiusKm",
+      "value": "5"
+    },
+    {
+      "key": "pickupSmallRadiusKm",
+      "value": "2"
+    },
+    {
+      "key": "pickupFullIdsJson",
+      "value": ""
+    },
+    {
+      "key": "pickupFullCount",
+      "value": ""
+    },
+    {
+      "key": "LockState",
+      "value": "4"
+    },
+    {
+      "key": "ActiveState",
+      "value": "2"
+    }
+  ]
+}

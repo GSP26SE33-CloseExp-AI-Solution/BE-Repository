@@ -2,6 +2,7 @@ using AutoMapper;
 using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Geo;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -83,7 +84,19 @@ public class OrderService : IOrderService
         var refLat = (double)request.Latitude;
         var refLng = (double)request.Longitude;
 
-        var points = await _unitOfWork.Repository<CollectionPoint>().GetAllAsync();
+        var (minLat, maxLat, minLng, maxLng) = PickupSearchGeo.ComputeBoundingBox(
+            request.Latitude,
+            request.Longitude,
+            radiusKm);
+
+        // Step 1: EF-translatable bounding box (superset of the circle).
+        var points = await _unitOfWork.Repository<CollectionPoint>().FindAsync(p =>
+            p.Latitude != null
+            && p.Longitude != null
+            && p.Latitude >= minLat
+            && p.Latitude <= maxLat
+            && p.Longitude >= minLng
+            && p.Longitude <= maxLng);
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
         var list = new List<PickupPointDto>();
@@ -92,7 +105,7 @@ public class OrderService : IOrderService
             if (x.Latitude is null || x.Longitude is null)
                 continue;
 
-            var dKm = HaversineDistanceKm(refLat, refLng, (double)x.Latitude.Value, (double)x.Longitude.Value);
+            var dKm = PickupSearchGeo.HaversineDistanceKm(refLat, refLng, (double)x.Latitude.Value, (double)x.Longitude.Value);
             if (dKm > radiusKm)
                 continue;
 
@@ -112,19 +125,6 @@ public class OrderService : IOrderService
             .OrderBy(p => p.DistanceKm ?? double.MaxValue)
             .ThenBy(p => p.Name)
             .ToList();
-    }
-
-    private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)
-    {
-        const double earthKm = 6371.0;
-        static double ToRad(double deg) => deg * (Math.PI / 180.0);
-
-        var dLat = ToRad(lat2 - lat1);
-        var dLon = ToRad(lon2 - lon1);
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
-                + Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return earthKm * c;
     }
 
     public async Task<IEnumerable<CustomerAddressDto>> GetCustomerAddressesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)

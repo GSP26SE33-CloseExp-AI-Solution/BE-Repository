@@ -273,6 +273,9 @@ public class ApplicationDbContext : DbContext
         {
             entity.Property(cp => cp.Latitude).HasPrecision(10, 7);
             entity.Property(cp => cp.Longitude).HasPrecision(10, 7);
+            entity.HasIndex(cp => new { cp.Latitude, cp.Longitude })
+                .HasDatabaseName("IX_CollectionPoints_Latitude_Longitude")
+                .HasFilter("\"Latitude\" IS NOT NULL AND \"Longitude\" IS NOT NULL");
         });
 
         modelBuilder.Entity<Supermarket>(entity =>

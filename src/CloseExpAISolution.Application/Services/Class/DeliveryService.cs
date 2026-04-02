@@ -206,6 +206,10 @@ public class DeliveryService : IDeliveryService
         if (group.DeliveryStaffId != deliveryStaffId)
             throw new UnauthorizedAccessException("Bạn không được phân công nhóm giao hàng này.");
 
+        // Đã đang giao — idempotent (tránh lỗi khi app gọi lại hoặc xác nhận đơn tự start).
+        if (group.Status == DeliveryGroupState.InTransit)
+            return await MapToDeliveryGroupResponseAsync(group);
+
         if (group.Status != DeliveryGroupState.Assigned)
             throw new InvalidOperationException("Nhóm giao hàng phải ở trạng thái 'Đã nhận' để bắt đầu giao.");
 
@@ -287,6 +291,15 @@ public class DeliveryService : IDeliveryService
 
         if (order.Status != OrderState.ReadyToShip)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để xác nhận giao hàng.");
+
+        if (!string.IsNullOrWhiteSpace(request.VerificationCode))
+        {
+            if (!string.Equals(
+                    request.VerificationCode.Trim(),
+                    order.OrderCode.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Mã QR / mã xác nhận không khớp với mã đơn hàng.");
+        }
 
         await _unitOfWork.BeginTransactionAsync();
         try
@@ -745,6 +758,7 @@ public class DeliveryService : IDeliveryService
         return new DeliveryOrderResponseDto
         {
             OrderId = order.OrderId,
+            DeliveryGroupId = order.DeliveryGroupId,
             OrderCode = order.OrderCode,
             Status = order.Status.ToString(),
             DeliveryType = order.DeliveryType,
