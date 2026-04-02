@@ -14,13 +14,13 @@ public class PackagingService : IPackagingService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PackagingService> _logger;
-    private readonly IScheduler _scheduler;
+    private readonly ISchedulerFactory _schedulerFactory;
 
-    public PackagingService(IUnitOfWork unitOfWork, ILogger<PackagingService> logger, IScheduler scheduler)
+    public PackagingService(IUnitOfWork unitOfWork, ILogger<PackagingService> logger, ISchedulerFactory schedulerFactory)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
-        _scheduler = scheduler;
+        _schedulerFactory = schedulerFactory;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -232,7 +232,8 @@ public class PackagingService : IPackagingService
 
         try
         {
-            await _scheduler.ScheduleJob(jobDetail, trigger);
+            var scheduler = await _schedulerFactory.GetScheduler();
+            await scheduler.ScheduleJob(jobDetail, trigger);
         }
         catch (Quartz.ObjectAlreadyExistsException)
         {
