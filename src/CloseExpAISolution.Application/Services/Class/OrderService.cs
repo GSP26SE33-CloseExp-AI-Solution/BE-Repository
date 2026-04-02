@@ -70,7 +70,7 @@ public class OrderService : IOrderService
             .ToList();
     }
 
-    public async Task<IEnumerable<PickupPointDto>> GetCollectionPointsNearbyAsync(
+    public async Task<IEnumerable<CollectionPointDto>> GetCollectionPointsNearbyAsync(
         NearbyCollectionPointsRequestDto request,
         CancellationToken cancellationToken = default)
     {
@@ -99,7 +99,7 @@ public class OrderService : IOrderService
             && p.Longitude <= maxLng);
         var orderCountByCollection = await GetOrderCollectionCountsAsync(cancellationToken);
 
-        var list = new List<PickupPointDto>();
+        var list = new List<CollectionPointDto>();
         foreach (var x in points)
         {
             if (x.Latitude is null || x.Longitude is null)
@@ -109,9 +109,9 @@ public class OrderService : IOrderService
             if (dKm > radiusKm)
                 continue;
 
-            list.Add(new PickupPointDto
+            list.Add(new CollectionPointDto
             {
-                PickupPointId = x.CollectionId,
+                CollectionPointId = x.CollectionId,
                 Name = x.Name,
                 Address = x.AddressLine,
                 RelatedOrderCount = orderCountByCollection.TryGetValue(x.CollectionId, out var c) ? c : 0,
