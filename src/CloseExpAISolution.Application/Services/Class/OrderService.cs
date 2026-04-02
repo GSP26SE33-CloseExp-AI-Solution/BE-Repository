@@ -420,7 +420,7 @@ public class OrderService : IOrderService
 
         // Only auto-group paid orders in active fulfillment flow.
         // Pending (unpaid) orders are excluded to avoid reserving delivery capacity too early.
-        if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
+        if (order.Status is not (OrderState.PaidProcessing or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
             return;
 
         var deliveryArea = $"COLLECTION:{order.CollectionId.Value}";
