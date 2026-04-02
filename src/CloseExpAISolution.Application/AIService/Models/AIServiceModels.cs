@@ -27,6 +27,8 @@ public class OcrResponse
     public float? ProcessingTimeMs { get; set; }
     public List<string>? Warnings { get; set; }
     public FreshnessAssessment? Freshness { get; set; }
+    public bool? YoloRoiApplied { get; set; }
+    public string? YoloRoiNote { get; set; }
 }
 
 public class DateInfo

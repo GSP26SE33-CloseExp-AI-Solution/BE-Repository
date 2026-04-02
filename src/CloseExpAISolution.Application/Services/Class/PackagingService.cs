@@ -1,10 +1,12 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Email.Jobs;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.Extensions.Logging;
+using Quartz;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
@@ -12,11 +14,13 @@ public class PackagingService : IPackagingService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PackagingService> _logger;
+    private readonly IScheduler _scheduler;
 
-    public PackagingService(IUnitOfWork unitOfWork, ILogger<PackagingService> logger)
+    public PackagingService(IUnitOfWork unitOfWork, ILogger<PackagingService> logger, IScheduler scheduler)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _scheduler = scheduler;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -184,6 +188,17 @@ public class PackagingService : IPackagingService
             }
 
             await _unitOfWork.CommitTransactionAsync();
+
+            try
+            {
+                await TryScheduleDeliveryQrEmailJobAsync(order.OrderId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to schedule SendOrderDeliveryQrEmailJob. orderId={OrderId}",
+                    order.OrderId);
+            }
         }
         catch
         {
@@ -194,6 +209,31 @@ public class PackagingService : IPackagingService
         _logger.LogInformation("Packaging staff {StaffId} completed packaging for order {OrderId}. Notes: {Notes}", packagingStaffId, orderId, request.Notes);
 
         return await MapToDetailAsync(order, record);
+    }
+
+    private async Task TryScheduleDeliveryQrEmailJobAsync(Guid orderId)
+    {
+        var jobKey = new JobKey($"SendOrderDeliveryQrEmailJob:{orderId}", "delivery-qr-email");
+        var triggerKey = new TriggerKey($"SendOrderDeliveryQrEmailJobTrigger:{orderId}", "delivery-qr-email");
+
+        var jobDetail = JobBuilder.Create<SendOrderDeliveryQrEmailJob>()
+            .WithIdentity(jobKey)
+            .UsingJobData("orderId", orderId.ToString())
+            .Build();
+
+        var trigger = TriggerBuilder.Create()
+            .WithIdentity(triggerKey)
+            .StartNow()
+            .Build();
+
+        try
+        {
+            await _scheduler.ScheduleJob(jobDetail, trigger);
+        }
+        catch (Quartz.ObjectAlreadyExistsException)
+        {
+            _logger.LogInformation("SendOrderDeliveryQrEmailJob already scheduled. orderId={OrderId}", orderId);
+        }
     }
 
     private async Task EnsurePackagingStaffAsync(Guid userId)
