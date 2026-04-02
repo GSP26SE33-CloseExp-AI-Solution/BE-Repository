@@ -11,7 +11,7 @@ public class AdminService : IAdminService
 {
     private static readonly HashSet<string> RevenueStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
-        OrderState.PaidProcessing.ToString(),
+        OrderState.Paid.ToString(),
         OrderState.ReadyToShip.ToString(),
         OrderState.DeliveredWaitConfirm.ToString(),
         OrderState.Completed.ToString()

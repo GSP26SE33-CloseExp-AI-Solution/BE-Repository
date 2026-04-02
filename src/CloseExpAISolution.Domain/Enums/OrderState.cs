@@ -3,7 +3,7 @@ namespace CloseExpAISolution.Domain.Enums;
 public enum OrderState
 {
     Pending,
-    PaidProcessing,
+    Paid,
     ReadyToShip,
     DeliveredWaitConfirm,
     Completed,

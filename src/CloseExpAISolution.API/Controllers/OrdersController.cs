@@ -31,11 +31,11 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet("collection-points")]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CollectionPointDto>>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<IEnumerable<CollectionPointDto>>>> GetCollectionPoints(CancellationToken cancellationToken = default)
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<PickupPointDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<PickupPointDto>>>> GetCollectionPoints(CancellationToken cancellationToken = default)
     {
         var collectionPoints = await _services.OrderService.GetCollectionPointsAsync(cancellationToken);
-        return Ok(ApiResponse<IEnumerable<CollectionPointDto>>.SuccessResponse(collectionPoints));
+        return Ok(ApiResponse<IEnumerable<PickupPointDto>>.SuccessResponse(collectionPoints));
     }
 
     [HttpPost("collection-points/nearby")]
@@ -170,7 +170,7 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.PaidProcessing, cancellationToken);
+    public Task<ActionResult<ApiResponse<object>>> SetPaidProcessing(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Paid, cancellationToken);
 
     [HttpPut("{id}/ready-to-ship")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

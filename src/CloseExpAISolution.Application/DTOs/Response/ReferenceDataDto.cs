@@ -9,9 +9,9 @@ public class DeliveryTimeSlotDto
     public int RelatedOrderCount { get; set; }
 }
 
-public class CollectionPointDto
+public class PickupPointDto
 {
-    public Guid CollectionPointId { get; set; }
+    public Guid PickupPointId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public int RelatedOrderCount { get; set; }

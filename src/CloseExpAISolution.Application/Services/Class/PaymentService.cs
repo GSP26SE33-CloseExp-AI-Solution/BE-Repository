@@ -177,9 +177,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         transaction.UpdatedAt = DateTime.UtcNow;
 
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
-        if (order != null && order.Status != OrderState.PaidProcessing)
+        if (order != null && order.Status != OrderState.Paid)
         {
-            order.Status = OrderState.PaidProcessing;
+            order.Status = OrderState.Paid;
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.OrderRepository.Update(order);
         }
@@ -206,7 +206,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
     private static bool IsOrderAlreadyPaid(OrderState orderStatus)
     {
-        return orderStatus is OrderState.PaidProcessing
+        return orderStatus is OrderState.Paid
             or OrderState.ReadyToShip
             or OrderState.DeliveredWaitConfirm
             or OrderState.Completed
@@ -227,9 +227,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         if (success)
         {
             var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
-            if (order != null && order.Status != OrderState.PaidProcessing)
+            if (order != null && order.Status != OrderState.Paid)
             {
-                order.Status = OrderState.PaidProcessing;
+                order.Status = OrderState.Paid;
                 order.UpdatedAt = DateTime.UtcNow;
                 _unitOfWork.OrderRepository.Update(order);
             }
