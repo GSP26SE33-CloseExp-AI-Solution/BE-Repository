@@ -342,6 +342,11 @@ public class OrderService : IOrderService
             order.CancelDeadline = now.AddMinutes(windowMinutes);
         }
 
+        if (status == OrderState.Canceled && oldStatus == OrderState.Paid)
+        {
+            await RestoreStockForOrderAsync(orderId, now, cancellationToken);
+        }
+
         order.Status = status;
         order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
@@ -439,6 +444,36 @@ public class OrderService : IOrderService
             return;
 
         await _promotionUsageService.RecordUsageAsync(order.PromotionId.Value, order.UserId, order.OrderId, order.DiscountAmount, cancellationToken);
+    }
+
+    private async Task RestoreStockForOrderAsync(Guid orderId, DateTime now, CancellationToken cancellationToken)
+    {
+        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
+        if (orderItems.Count == 0)
+            return;
+
+        var requiredByLot = orderItems
+            .GroupBy(oi => oi.LotId)
+            .Select(g => new
+            {
+                LotId = g.Key,
+                RequiredQuantity = (decimal)g.Sum(x => x.Quantity)
+            })
+            .ToList();
+
+        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId));
+        var lotById = lots.ToDictionary(l => l.LotId);
+
+        foreach (var req in requiredByLot)
+        {
+            if (!lotById.TryGetValue(req.LotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId} để hoàn kho cho order {orderId}.");
+
+            lot.Quantity += req.RequiredQuantity;
+            lot.UpdatedAt = now;
+            _unitOfWork.Repository<StockLot>().Update(lot);
+        }
     }
 
     private async Task TryAutoAssignDeliveryGroupAsync(Order order, CancellationToken cancellationToken)

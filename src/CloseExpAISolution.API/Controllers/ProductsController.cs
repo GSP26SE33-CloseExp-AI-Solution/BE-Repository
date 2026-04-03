@@ -1,4 +1,5 @@
 using CloseExpAISolution.API.Helpers;
+using CloseExpAISolution.Application.AIService.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -6,6 +7,7 @@ using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Application.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -14,7 +16,7 @@ namespace CloseExpAISolution.API.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private const int WorkflowAiTimeoutSeconds = 30;
+    private readonly int WorkflowAiTimeoutSeconds;
 
     private readonly IServiceProviders _services;
     private readonly IProductWorkflowService _workflowService;
@@ -25,12 +27,17 @@ public class ProductsController : ControllerBase
         IServiceProviders services,
         IProductWorkflowService workflowService,
         IExcelImportService excelImportService,
+        IOptions<AIServiceSettings> aiServiceOptions,
         ILogger<ProductsController> logger)
     {
         _services = services;
         _workflowService = workflowService;
         _excelImportService = excelImportService;
         _logger = logger;
+        WorkflowAiTimeoutSeconds = aiServiceOptions.Value.TimeoutSeconds;
+
+        if (WorkflowAiTimeoutSeconds <= 0)
+            throw new InvalidOperationException("AIService:TimeoutSeconds phải là số nguyên dương.");
     }
 
     #region Basic CRUD

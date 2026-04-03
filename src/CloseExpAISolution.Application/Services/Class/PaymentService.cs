@@ -177,7 +177,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         transaction.PaymentStatus = PaymentState.Paid;
         transaction.UpdatedAt = DateTime.UtcNow;
 
-        var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
+        var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(transaction.OrderId, cancellationToken);
         if (order != null)
         {
             await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
@@ -225,7 +225,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         if (success)
         {
-            var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
+            var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(transaction.OrderId, cancellationToken);
             if (order != null)
             {
                 await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
@@ -265,17 +265,27 @@ public sealed class PaymentService : IPaymentService, IDisposable
         }
 
         var now = DateTime.UtcNow;
-        var windowMinutes = await GetCancelWindowMinutesAfterPaidAsync(cancellationToken);
         var changed = false;
 
         if (order.Status == OrderState.Pending)
         {
+            var consumed = await TryConsumeStockForOrderAsync(order, cancellationToken);
+            if (!consumed)
+            {
+                // Payment is successful, but we cannot fulfill due to insufficient inventory.
+                order.Status = OrderState.Failed;
+                order.UpdatedAt = now;
+                _unitOfWork.OrderRepository.Update(order);
+                return;
+            }
+
             order.Status = OrderState.Paid;
             changed = true;
         }
 
-        if (!order.CancelDeadline.HasValue)
+        if (order.Status == OrderState.Paid && !order.CancelDeadline.HasValue)
         {
+            var windowMinutes = await GetCancelWindowMinutesAfterPaidAsync(cancellationToken);
             order.CancelDeadline = now.AddMinutes(windowMinutes);
             changed = true;
         }
@@ -285,6 +295,48 @@ public sealed class PaymentService : IPaymentService, IDisposable
             order.UpdatedAt = now;
             _unitOfWork.OrderRepository.Update(order);
         }
+    }
+
+    private async Task<bool> TryConsumeStockForOrderAsync(Order order, CancellationToken cancellationToken)
+    {
+        if (order.OrderItems == null || order.OrderItems.Count == 0)
+            return true;
+
+        var requiredByLot = order.OrderItems
+            .GroupBy(oi => oi.LotId)
+            .Select(g => new
+            {
+                LotId = g.Key,
+                RequiredQuantity = (decimal)g.Sum(x => x.Quantity)
+            })
+            .ToList();
+
+        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+
+        var lots = await _unitOfWork.Repository<StockLot>()
+            .FindAsync(l => lotIds.Contains(l.LotId));
+
+        var lotById = lots.ToDictionary(l => l.LotId);
+
+        foreach (var req in requiredByLot)
+        {
+            if (!lotById.TryGetValue(req.LotId, out var lot))
+                return false;
+
+            if (lot.Quantity < req.RequiredQuantity)
+                return false;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var req in requiredByLot)
+        {
+            var lot = lotById[req.LotId];
+            lot.Quantity -= req.RequiredQuantity;
+            lot.UpdatedAt = now;
+            _unitOfWork.Repository<StockLot>().Update(lot);
+        }
+
+        return true;
     }
 
     private async Task<int> GetCancelWindowMinutesAfterPaidAsync(CancellationToken cancellationToken)

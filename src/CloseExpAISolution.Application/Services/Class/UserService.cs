@@ -449,12 +449,53 @@ public class UserService : IUserService
 
         var orders = await _unitOfWork.Repository<Order>().FindAsync(o => orderIds.Contains(o.OrderId));
         var orderRepo = _unitOfWork.Repository<Order>();
+        var ordersToCancel = orders.Where(o => !terminal.Contains(o.Status)).ToList();
+        var now = DateTime.UtcNow;
 
-        foreach (var order in orders.Where(o => !terminal.Contains(o.Status)))
+        var orderIdsToRestore = ordersToCancel
+            .Where(o => o.Status != OrderState.Pending)
+            .Select(o => o.OrderId)
+            .ToHashSet();
+
+        if (orderIdsToRestore.Count > 0)
+        {
+            var restoreItems = orderItems
+                .Where(oi => orderIdsToRestore.Contains(oi.OrderId))
+                .ToList();
+
+            if (restoreItems.Count > 0)
+            {
+                var requiredByLot = restoreItems
+                    .GroupBy(oi => oi.LotId)
+                    .Select(g => new
+                    {
+                        LotId = g.Key,
+                        RequiredQuantity = (decimal)g.Sum(x => x.Quantity)
+                    })
+                    .ToList();
+
+                var restoreLotIds = requiredByLot.Select(x => x.LotId).ToList();
+                var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => restoreLotIds.Contains(l.LotId));
+                var lotById = lots.ToDictionary(l => l.LotId);
+
+                foreach (var req in requiredByLot)
+                {
+                    if (!lotById.TryGetValue(req.LotId, out var lot))
+                        throw new InvalidOperationException(
+                            $"Không tìm thấy StockLot {req.LotId} để hoàn kho cho các đơn đã bị hủy.");
+
+                    lot.Quantity += req.RequiredQuantity;
+                    lot.UpdatedAt = now;
+                    _unitOfWork.Repository<StockLot>().Update(lot);
+                }
+            }
+        }
+
+        foreach (var order in ordersToCancel)
         {
             var oldStatus = order.Status;
             order.Status = OrderState.Canceled;
-            order.UpdatedAt = DateTime.UtcNow;
+            order.UpdatedAt = now;
             orderRepo.Update(order);
 
             var log = new OrderStatusLog
@@ -465,7 +506,7 @@ public class UserService : IUserService
                 ToStatus = OrderState.Canceled,
                 ChangedBy = "system",
                 Note = "Canceled: supermarket staff banned (products hidden)",
-                ChangedAt = DateTime.UtcNow
+                ChangedAt = now
             };
             await _unitOfWork.Repository<OrderStatusLog>().AddAsync(log);
 
@@ -477,7 +518,7 @@ public class UserService : IUserService
                 Content = $"Đơn {order.OrderCode} đã bị hủy do siêu thị ngừng cung cấp (tài khoản nhân viên bị cấm).",
                 Type = NotificationType.OrderUpdate,
                 IsRead = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = now
             };
             await _unitOfWork.Repository<Notification>().AddAsync(notification);
         }
