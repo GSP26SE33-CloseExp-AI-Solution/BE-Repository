@@ -1,7 +1,7 @@
 -- Browse TempEmail for temp email
 -- email: limapid320@marvetos.com , fepeye3497@nexafilm.com
 -- role: Vendor - 6
--- Pass: Test@1234
+-- Pass: 123456
 
 INSERT INTO public."Users"(
 	"UserId", "FullName", "Email", "Phone", 

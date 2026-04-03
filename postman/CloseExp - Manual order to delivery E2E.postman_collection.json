@@ -1529,11 +1529,15 @@
     },
     {
       "key": "paymentReturnUrl",
-      "value": "http://localhost:5173/payment/success"
+      "value": "http://localhost:5173/payment-return"
     },
     {
       "key": "paymentCancelUrl",
-      "value": "http://localhost:5173/payment/cancel"
+      "value": "http://localhost:5173/payment-return"
+    },
+    {
+      "key": "payOsWebhookUrl",
+      "value": "https://YOUR_TUNNEL_HOST/api/Payment/webhook"
     },
     {
       "key": "paymentReturnCallbackUrl",

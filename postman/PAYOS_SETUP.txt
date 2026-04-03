@@ -1,0 +1,27 @@
+PayOS — webhook, BE, FE (runbook ngắn)
+=====================================
+
+1) PayOS dashboard (sandbox / production)
+   - Webhook URL (HTTPS công khai): https://<api-host>/api/Payment/webhook
+   - Dev: dùng ngrok / cloudflared / devtunnel trỏ vào port API (vd 5014), rồi dán URL tunnel + /api/Payment/webhook
+   - Đồng bộ ClientId, ApiKey, ChecksumKey với cấu hình BE (user-secrets hoặc env), không commit secret
+
+2) BE (CloseExpAISolution.API)
+   - dotnet user-secrets set "PayOsSettings:ClientId" "..." --project src/CloseExpAISolution.API
+   - dotnet user-secrets set "PayOsSettings:ApiKey" "..." --project src/CloseExpAISolution.API
+   - dotnet user-secrets set "PayOsSettings:ChecksumKey" "..." --project src/CloseExpAISolution.API
+   - Kiểm tra log: "webhook verification failed" → sai ChecksumKey hoặc body bị proxy sửa
+   - Kiểm tra log: "no transaction for OrderCode" → OrderCode không khớp Transaction trong DB
+
+3) FE
+   - REACT_APP_API_URL = origin API không có suffix /api (vd http://localhost:5014); axios client tự thêm /api
+   - create-payment-link: returnUrl và cancelUrl = URL đầy đủ tới trang /payment-return trên FE (vd http://localhost:3000/payment-return)
+
+4) Postman (folder 3 — Thanh toán)
+   - baseUrl = http://localhost:5014/api
+   - paymentReturnUrl / paymentCancelUrl trùng URL FE /payment-return đang chạy
+   - Webhook không gửi tay từ Postman (cần chữ ký PayOS); test webhook qua thanh toán thật trên sandbox + log BE
+
+5) Production
+   - API HTTPS hợp lệ; WAF không chặn POST JSON tới /api/Payment/webhook
+   - PayOS production app + webhook URL production
