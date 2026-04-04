@@ -19,15 +19,14 @@ public class UpdateDeliveryStatusRequestDto
 
 public class ConfirmDeliveryRequestDto
 {
-    public string? ProofImageUrl { get; set; }
+    [Required(ErrorMessage = "Ảnh chứng minh là bắt buộc")]
+    public string ProofImageUrl { get; set; } = string.Empty;
 
     public string? Notes { get; set; }
 
-    /// <summary>
-    /// Mã quét từ QR (phải khớp <see cref="Order.OrderCode"/> khi gửi lên).
-    /// Để null khi xác nhận thủ công không quét QR.
-    /// </summary>
-    public string? VerificationCode { get; set; }
+    /// <summary>Mã quét từ QR; phải khớp <see cref="Order.OrderCode"/> (không phân biệt hoa thường).</summary>
+    [Required(ErrorMessage = "Mã quét từ QR là bắt buộc")]
+    public string VerificationCode { get; set; } = string.Empty;
 }
 
 public class ReportDeliveryFailureRequestDto

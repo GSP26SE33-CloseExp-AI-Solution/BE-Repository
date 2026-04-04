@@ -11,22 +11,31 @@ namespace CloseExpAISolution.Application.Services.Class;
 public class DeliveryService : IDeliveryService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IR2StorageService _r2Storage;
     private readonly ILogger<DeliveryService> _logger;
 
-    public DeliveryService(IUnitOfWork unitOfWork, ILogger<DeliveryService> logger)
+    public DeliveryService(
+        IUnitOfWork unitOfWork,
+        IR2StorageService r2Storage,
+        ILogger<DeliveryService> logger)
     {
         _unitOfWork = unitOfWork;
+        _r2Storage = r2Storage;
         _logger = logger;
     }
 
     public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
+        Guid deliveryStaffId,
         DateTime? deliveryDate = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Getting available delivery groups for date: {Date}", deliveryDate);
+        _logger.LogInformation(
+            "Getting delivery groups awaiting accept for staff {StaffId}, date: {Date}",
+            deliveryStaffId,
+            deliveryDate);
 
         var groups = await _unitOfWork.Repository<DeliveryGroup>()
-            .FindAsync(g => g.DeliveryStaffId == null && g.Status == DeliveryGroupState.Pending);
+            .FindAsync(g => g.DeliveryStaffId == deliveryStaffId && g.Status == DeliveryGroupState.Pending);
 
         if (deliveryDate.HasValue)
         {
@@ -170,15 +179,23 @@ public class DeliveryService : IDeliveryService
             throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
 
         if (group.Status != DeliveryGroupState.Pending)
-            throw new InvalidOperationException("Nhóm giao hàng không ở trạng thái chờ nhận.");
+            throw new InvalidOperationException("Nhóm giao hàng không ở trạng thái chờ shipper xác nhận nhận.");
 
-        if (group.DeliveryStaffId != null)
-            throw new InvalidOperationException("Nhóm giao hàng đã được nhận bởi shipper khác.");
+        if (group.DeliveryStaffId == null)
+            throw new InvalidOperationException("Nhóm giao hàng chưa được admin gán shipper.");
 
-        // Assign delivery staff
-        group.DeliveryStaffId = deliveryStaffId;
+        if (group.DeliveryStaffId != deliveryStaffId)
+            throw new UnauthorizedAccessException("Bạn không phải shipper được admin gán cho nhóm này.");
+
         group.Status = DeliveryGroupState.Assigned;
-        group.Notes = request.Notes;
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            var note = request.Notes.Trim();
+            group.Notes = string.IsNullOrEmpty(group.Notes)
+                ? note
+                : $"{group.Notes} | {note}";
+        }
+
         group.UpdatedAt = DateTime.UtcNow;
 
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
@@ -265,6 +282,47 @@ public class DeliveryService : IDeliveryService
         return await MapToDeliveryOrderResponseAsync(order);
     }
 
+    public async Task<DeliveryProofUploadResponseDto> UploadDeliveryProofImageAsync(
+        Guid orderId,
+        Guid deliveryStaffId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Staff {StaffId} uploading proof image for order {OrderId}", deliveryStaffId, orderId);
+
+        var order = await _unitOfWork.Repository<Order>()
+            .FirstOrDefaultAsync(o => o.OrderId == orderId);
+
+        if (order == null)
+            throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
+
+        if (order.DeliveryGroupId.HasValue)
+        {
+            var group = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+
+            if (group != null && group.DeliveryStaffId != deliveryStaffId)
+                throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
+        }
+
+        if (order.Status != OrderState.ReadyToShip)
+            throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để tải ảnh chứng minh.");
+
+        ValidateDeliveryProofImageContent(fileName, contentType);
+
+        var url = await _r2Storage.UploadDeliveryProofImageAsync(
+            fileStream,
+            fileName,
+            contentType,
+            orderId,
+            deliveryStaffId,
+            cancellationToken);
+
+        return new DeliveryProofUploadResponseDto { ProofImageUrl = url };
+    }
+
     public async Task<DeliveryOrderResponseDto> ConfirmDeliveryAsync(
         Guid orderId,
         Guid deliveryStaffId,
@@ -292,14 +350,17 @@ public class DeliveryService : IDeliveryService
         if (order.Status != OrderState.ReadyToShip)
             throw new InvalidOperationException("Đơn hàng phải ở trạng thái 'Sẵn sàng giao' để xác nhận giao hàng.");
 
-        if (!string.IsNullOrWhiteSpace(request.VerificationCode))
-        {
-            if (!string.Equals(
-                    request.VerificationCode.Trim(),
-                    order.OrderCode.Trim(),
-                    StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Mã QR / mã xác nhận không khớp với mã đơn hàng.");
-        }
+        var proofTrimmed = request.ProofImageUrl?.Trim() ?? string.Empty;
+        if (!TryValidateAbsoluteHttpUrl(proofTrimmed, out var proofUrl))
+            throw new InvalidOperationException("ProofImageUrl phải là URL http hoặc https hợp lệ.");
+
+        if (string.IsNullOrWhiteSpace(request.VerificationCode))
+            throw new InvalidOperationException("Mã QR / mã xác nhận là bắt buộc.");
+        if (!string.Equals(
+                request.VerificationCode.Trim(),
+                order.OrderCode.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Mã QR / mã xác nhận không khớp với mã đơn hàng.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
@@ -543,7 +604,8 @@ public class DeliveryService : IDeliveryService
                 FailureReason = record.FailedReason,
                 DeliveredAt = record.DeliveredAt,
                 DeliveryLatitude = record.DeliveryLatitude,
-                DeliveryLongitude = record.DeliveryLongitude
+                DeliveryLongitude = record.DeliveryLongitude,
+                ProofImageUrl = record.ProofImageUrl
             });
         }
 
@@ -778,6 +840,35 @@ public class DeliveryService : IDeliveryService
             TotalItems = itemDtos.Count,
             Items = itemDtos
         };
+    }
+
+    /// <summary>Chỉ chấp nhận URL tuyệt đối http/https (dùng cho ProofImageUrl khi confirm).</summary>
+    private static bool TryValidateAbsoluteHttpUrl(string trimmed, out string normalized)
+    {
+        normalized = trimmed;
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return false;
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+            return false;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+        normalized = uri.ToString();
+        return true;
+    }
+
+    private static void ValidateDeliveryProofImageContent(string fileName, string contentType)
+    {
+        var extension = Path.GetExtension(fileName);
+        var allowedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp"
+        };
+        var allowedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"
+        };
+        if (!allowedTypes.Contains(contentType) || !allowedExt.Contains(extension))
+            throw new InvalidOperationException("Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP, BMP).");
     }
 }
 

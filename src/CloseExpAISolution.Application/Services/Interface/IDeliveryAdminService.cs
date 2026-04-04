@@ -12,10 +12,15 @@ public interface IDeliveryAdminService
         string? reason = null,
         CancellationToken cancellationToken = default);
 
-    Task<(IEnumerable<DeliveryGroupSummaryDto> Items, int TotalCount)> GetPendingDeliveryGroupsAsync(
+    /// <summary>
+    /// Admin lịch / lọc: <paramref name="status"/> null hoặc rỗng = mọi nhóm trừ Draft;
+    /// Pending = chờ shipper Accept (có DeliveryStaffId); các enum khác lọc đúng tên trạng thái.
+    /// </summary>
+    Task<(IEnumerable<DeliveryGroupSummaryDto> Items, int TotalCount)> GetDeliveryGroupsForAdminAsync(
         DateTime? deliveryDate = null,
         int pageNumber = 1,
         int pageSize = 20,
+        string? status = null,
         CancellationToken cancellationToken = default);
 
     Task<(IEnumerable<DeliveryGroupSummaryDto> Items, int TotalCount)> GetDraftDeliveryGroupsAsync(
@@ -29,6 +34,12 @@ public interface IDeliveryAdminService
 
     Task<DeliveryGroupResponseDto> ConfirmDraftGroupAsync(
         Guid deliveryGroupId,
+        Guid adminId,
+        CancellationToken cancellationToken = default);
+
+    Task<MoveOrderToDraftGroupResultDto> MoveOrderToDraftGroupAsync(
+        Guid orderId,
+        MoveOrderToDraftGroupRequestDto request,
         Guid adminId,
         CancellationToken cancellationToken = default);
 }

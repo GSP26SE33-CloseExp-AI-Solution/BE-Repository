@@ -16,6 +16,9 @@ public class AdminOrderQueryRequestDto
     public Guid? CollectionId { get; set; }
     public Guid? DeliveryGroupId { get; set; }
 
+    /// <summary>When true, only orders with no delivery group (pool for draft generation).</summary>
+    public bool UnassignedOnly { get; set; }
+
     public string? Search { get; set; } // OrderCode contains
 
     public string SortBy { get; set; } = AdminOrderSortBy.OrderDate;

@@ -1,3 +1,4 @@
+using System;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
@@ -71,17 +72,18 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (group == null)
             throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
 
-        if (group.Status != DeliveryGroupState.Pending)
-            throw new InvalidOperationException("Chỉ có thể gán nhóm giao hàng đang ở trạng thái chờ nhận.");
+        if (group.Status != DeliveryGroupState.Confirmed)
+            throw new InvalidOperationException(
+                "Chỉ có thể gán nhóm đã xác nhận từ Draft (Confirmed) và chưa có shipper. Nhóm Draft phải POST confirm trước.");
 
         if (group.DeliveryStaffId != null)
-            throw new InvalidOperationException("Nhóm giao hàng đã được gán nhân viên giao hàng.");
+            throw new InvalidOperationException("Nhóm giao hàng đã có shipper được gán.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
             group.DeliveryStaffId = deliveryStaffId;
-            group.Status = DeliveryGroupState.Assigned;
+            group.Status = DeliveryGroupState.Pending;
             group.UpdatedAt = DateTime.UtcNow;
 
             if (!string.IsNullOrWhiteSpace(reason))
@@ -99,7 +101,8 @@ public class DeliveryAdminService : IDeliveryAdminService
                 NotificationId = Guid.NewGuid(),
                 UserId = deliveryStaffId,
                 Title = "Phân công nhóm giao hàng",
-                Content = $"Bạn được phân công nhóm giao hàng {group.GroupCode} cho ngày {group.DeliveryDate:dd/MM/yyyy}.",
+                Content =
+                    $"Bạn được phân công nhóm {group.GroupCode} (ngày {group.DeliveryDate:dd/MM/yyyy}). Vui lòng Accept trong app để xác nhận nhận giao.",
                 Type = NotificationType.DeliveryUpdate,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
@@ -127,26 +130,47 @@ public class DeliveryAdminService : IDeliveryAdminService
         return updatedGroup;
     }
 
-    public async Task<(IEnumerable<DeliveryGroupSummaryDto> Items, int TotalCount)> GetPendingDeliveryGroupsAsync(
+    public async Task<(IEnumerable<DeliveryGroupSummaryDto> Items, int TotalCount)> GetDeliveryGroupsForAdminAsync(
         DateTime? deliveryDate = null,
         int pageNumber = 1,
         int pageSize = 20,
+        string? status = null,
         CancellationToken cancellationToken = default)
     {
-        var pendingGroups = await _deliveryService.GetAvailableDeliveryGroupsAsync(deliveryDate, cancellationToken);
+        List<DeliveryGroup> list;
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            var all = await _unitOfWork.Repository<DeliveryGroup>()
+                .FindAsync(g => g.Status != DeliveryGroupState.Draft);
+            list = all.ToList();
+        }
+        else if (!Enum.TryParse<DeliveryGroupState>(status, ignoreCase: true, out var parsed))
+        {
+            throw new ArgumentException($"Trạng thái không hợp lệ: {status}", nameof(status));
+        }
+        else if (parsed == DeliveryGroupState.Pending)
+        {
+            // Pending = đã gán shipper, chờ Accept — không lẫn nhóm Pending không có staff (không tồn tại trong model mới)
+            var all = await _unitOfWork.Repository<DeliveryGroup>()
+                .FindAsync(g => g.Status == DeliveryGroupState.Pending && g.DeliveryStaffId != null);
+            list = all.ToList();
+        }
+        else
+        {
+            var all = await _unitOfWork.Repository<DeliveryGroup>().FindAsync(g => g.Status == parsed);
+            list = all.ToList();
+        }
 
-        var orderedGroups = pendingGroups
-            .OrderBy(g => g.DeliveryDate)
-            .ThenBy(g => g.GroupCode)
-            .ToList();
+        var filtered = list.AsEnumerable();
+        if (deliveryDate.HasValue)
+            filtered = filtered.Where(g => g.DeliveryDate.Date == deliveryDate.Value.Date);
 
-        var totalCount = orderedGroups.Count;
-        var pagedGroups = orderedGroups
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
+        var ordered = filtered.OrderBy(g => g.DeliveryDate).ThenBy(g => g.GroupCode).ToList();
+        var totalCount = ordered.Count;
+        var paged = ordered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
-        return (pagedGroups, totalCount);
+        var summaries = await MapGroupsToSummariesAsync(paged, cancellationToken);
+        return (summaries, totalCount);
     }
 
     public async Task<(IEnumerable<DeliveryGroupSummaryDto> Items, int TotalCount)> GetDraftDeliveryGroupsAsync(
@@ -334,7 +358,7 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (group.Status != DeliveryGroupState.Draft)
             throw new InvalidOperationException("Chỉ có thể xác nhận nhóm ở trạng thái Draft.");
 
-        group.Status = DeliveryGroupState.Pending;
+        group.Status = DeliveryGroupState.Confirmed;
         group.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -342,6 +366,138 @@ public class DeliveryAdminService : IDeliveryAdminService
         var result = await _deliveryService.GetDeliveryGroupDetailAsync(deliveryGroupId, cancellationToken);
         if (result == null)
             throw new InvalidOperationException("Không thể tải lại nhóm giao hàng sau khi xác nhận.");
+        return result;
+    }
+
+    public async Task<MoveOrderToDraftGroupResultDto> MoveOrderToDraftGroupAsync(
+        Guid orderId,
+        MoveOrderToDraftGroupRequestDto request,
+        Guid adminId,
+        CancellationToken cancellationToken = default)
+    {
+        if (adminId == Guid.Empty)
+            throw new UnauthorizedAccessException("Không thể xác định quản trị viên hiện tại.");
+
+        var admin = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == adminId);
+        if (admin == null || admin.RoleId != (int)RoleUser.Admin)
+            throw new UnauthorizedAccessException("Người dùng không có quyền điều phối giao hàng.");
+
+        var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId);
+        if (order == null)
+            throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
+
+        var targetId = request.DeliveryGroupId;
+        if (targetId.HasValue && targetId.Value == Guid.Empty)
+            throw new ArgumentException("Mã nhóm giao hàng không hợp lệ.", nameof(request.DeliveryGroupId));
+
+        if (targetId == order.DeliveryGroupId)
+        {
+            return new MoveOrderToDraftGroupResultDto
+            {
+                OrderId = order.OrderId,
+                OrderCode = order.OrderCode,
+                DeliveryGroupId = order.DeliveryGroupId
+            };
+        }
+
+        DeliveryGroup? oldGroup = null;
+        if (order.DeliveryGroupId.HasValue)
+        {
+            oldGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
+            if (oldGroup != null && oldGroup.Status != DeliveryGroupState.Draft)
+                throw new InvalidOperationException("Chỉ có thể chỉnh đơn đang thuộc nhóm ở trạng thái Draft.");
+        }
+
+        DeliveryGroup? newGroup = null;
+        if (targetId.HasValue)
+        {
+            newGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(g => g.DeliveryGroupId == targetId.Value);
+            if (newGroup == null)
+                throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
+            if (newGroup.Status != DeliveryGroupState.Draft)
+                throw new InvalidOperationException("Chỉ có thể gán đơn vào nhóm Draft.");
+            if (newGroup.TimeSlotId != order.TimeSlotId || newGroup.DeliveryDate.Date != order.OrderDate.Date)
+                throw new InvalidOperationException("Đơn và nhóm Draft phải cùng khung giờ và cùng ngày giao.");
+        }
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            if (oldGroup != null)
+            {
+                oldGroup.TotalOrders = Math.Max(0, oldGroup.TotalOrders - 1);
+                oldGroup.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<DeliveryGroup>().Update(oldGroup);
+            }
+
+            if (newGroup != null)
+            {
+                newGroup.TotalOrders += 1;
+                newGroup.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<DeliveryGroup>().Update(newGroup);
+            }
+
+            order.DeliveryGroupId = targetId;
+            order.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<Order>().Update(order);
+
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+
+        _logger.LogInformation(
+            "Admin {AdminId} moved order {OrderId} to draft group {GroupId}",
+            adminId,
+            orderId,
+            targetId);
+
+        return new MoveOrderToDraftGroupResultDto
+        {
+            OrderId = order.OrderId,
+            OrderCode = order.OrderCode,
+            DeliveryGroupId = order.DeliveryGroupId
+        };
+    }
+
+    private async Task<List<DeliveryGroupSummaryDto>> MapGroupsToSummariesAsync(
+        IReadOnlyList<DeliveryGroup> groups,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<DeliveryGroupSummaryDto>(groups.Count);
+        foreach (var group in groups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
+
+            var orders = await _unitOfWork.Repository<Order>()
+                .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
+            var completedCount = orders.Count(o => o.Status == OrderState.Completed);
+
+            result.Add(new DeliveryGroupSummaryDto
+            {
+                DeliveryGroupId = group.DeliveryGroupId,
+                GroupCode = group.GroupCode,
+                TimeSlotDisplay = timeSlot != null
+                    ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
+                    : "N/A",
+                DeliveryType = group.DeliveryType,
+                DeliveryArea = group.DeliveryArea,
+                CenterLatitude = group.CenterLatitude,
+                CenterLongitude = group.CenterLongitude,
+                Status = group.Status.ToString(),
+                TotalOrders = group.TotalOrders,
+                CompletedOrders = completedCount,
+                DeliveryDate = group.DeliveryDate
+            });
+        }
+
         return result;
     }
 

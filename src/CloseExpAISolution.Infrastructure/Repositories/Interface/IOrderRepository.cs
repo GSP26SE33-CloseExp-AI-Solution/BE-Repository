@@ -16,6 +16,7 @@ public interface IOrderRepository
         Guid? timeSlotId,
         Guid? collectionId,
         Guid? deliveryGroupId,
+        bool unassignedOnly,
         string? search,
         string sortBy,
         string sortDir,

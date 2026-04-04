@@ -235,8 +235,8 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
-        // TODO: Sugge
-        await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
+        // Delivery grouping is not auto-assigned here. Admin uses draft flow:
+        // POST /api/delivery/groups/drafts/generate, then confirm, then assign staff.
         await TryCreateNotificationAsync(order.UserId, "Đơn hàng mới", $"Đơn {order.OrderCode} đã được tạo thành công.", NotificationType.OrderUpdate, cancellationToken);
         await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

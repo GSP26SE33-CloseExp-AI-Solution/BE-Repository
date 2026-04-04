@@ -52,6 +52,7 @@ public class OrderRepository : IOrderRepository
         Guid? timeSlotId,
         Guid? collectionId,
         Guid? deliveryGroupId,
+        bool unassignedOnly,
         string? search,
         string sortBy,
         string sortDir,
@@ -90,7 +91,10 @@ public class OrderRepository : IOrderRepository
         if (userId.HasValue) q = q.Where(o => o.UserId == userId.Value);
         if (timeSlotId.HasValue) q = q.Where(o => o.TimeSlotId == timeSlotId.Value);
         if (collectionId.HasValue) q = q.Where(o => o.CollectionId == collectionId.Value);
-        if (deliveryGroupId.HasValue) q = q.Where(o => o.DeliveryGroupId == deliveryGroupId.Value);
+        if (unassignedOnly)
+            q = q.Where(o => o.DeliveryGroupId == null);
+        else if (deliveryGroupId.HasValue)
+            q = q.Where(o => o.DeliveryGroupId == deliveryGroupId.Value);
 
         if (!string.IsNullOrWhiteSpace(search))
         {

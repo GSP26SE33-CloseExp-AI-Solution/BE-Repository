@@ -372,7 +372,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ExpiryDate = expiryDate,
             ManufactureDate = manufactureDate,
             DaysToExpiry = daysToExpiry,
-            PricingConfidence = (float)pricing?.AIConfidence,
+            PricingConfidence = pricing != null ? (float)pricing.AIConfidence : 0f,
             PricingReasons = pricing?.Reason,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
