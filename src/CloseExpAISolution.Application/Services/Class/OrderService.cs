@@ -342,6 +342,11 @@ public class OrderService : IOrderService
             order.CancelDeadline = now.AddMinutes(windowMinutes);
         }
 
+        if (status == OrderState.Canceled && oldStatus == OrderState.Paid)
+        {
+            await RestoreStockForOrderAsync(orderId, now, cancellationToken);
+        }
+
         order.Status = status;
         order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
@@ -439,6 +444,79 @@ public class OrderService : IOrderService
             return;
 
         await _promotionUsageService.RecordUsageAsync(order.PromotionId.Value, order.UserId, order.OrderId, order.DiscountAmount, cancellationToken);
+    }
+
+    private async Task RestoreStockForOrderAsync(Guid orderId, DateTime now, CancellationToken cancellationToken)
+    {
+        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
+        if (orderItems.Count == 0)
+            return;
+
+        var requiredByLot = orderItems
+            .GroupBy(oi => oi.LotId)
+            .Select(g => new
+            {
+                LotId = g.Key,
+                RequiredQuantity = (decimal)g.Sum(x => x.Quantity)
+            })
+            .ToList();
+
+        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId));
+        var lotById = lots.ToDictionary(l => l.LotId);
+
+        foreach (var req in requiredByLot)
+        {
+            if (!lotById.TryGetValue(req.LotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId} để hoàn kho cho order {orderId}.");
+
+            lot.Quantity += req.RequiredQuantity;
+            lot.UpdatedAt = now;
+            _unitOfWork.Repository<StockLot>().Update(lot);
+        }
+    }
+
+    private async Task TryAutoAssignDeliveryGroupAsync(Order order, CancellationToken cancellationToken)
+    {
+        // Auto-group only for pickup orders by (TimeSlot + CollectionPoint + DeliveryDate).
+        // Home-delivery orders should be grouped by delivery planner/dispatch flow instead.
+        if (!order.CollectionId.HasValue)
+            return;
+
+        // Only auto-group paid orders in active fulfillment flow.
+        // Pending (unpaid) orders are excluded to avoid reserving delivery capacity too early.
+        if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
+            return;
+
+        var deliveryArea = $"COLLECTION:{order.CollectionId.Value}";
+        var existing = await _unitOfWork.Repository<DeliveryGroup>().FirstOrDefaultAsync(g =>
+            g.TimeSlotId == order.TimeSlotId
+            && g.DeliveryDate.Date == order.OrderDate.Date
+            && g.DeliveryArea == deliveryArea
+            && g.Status != DeliveryGroupState.Completed);
+
+        if (existing == null)
+        {
+            existing = new DeliveryGroup
+            {
+                DeliveryGroupId = Guid.NewGuid(),
+                GroupCode = "DG-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
+                TimeSlotId = order.TimeSlotId,
+                DeliveryType = "Pickup",
+                DeliveryArea = deliveryArea,
+                DeliveryDate = order.OrderDate.Date,
+                Status = DeliveryGroupState.Pending,
+                TotalOrders = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<DeliveryGroup>().AddAsync(existing);
+        }
+
+        existing.TotalOrders += 1;
+        existing.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Repository<DeliveryGroup>().Update(existing);
+        order.DeliveryGroupId = existing.DeliveryGroupId;
     }
 
     private async Task TryCreateNotificationAsync(Guid userId, string title, string content, NotificationType type, CancellationToken cancellationToken)

@@ -915,24 +915,26 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
         }
 
-        // Upload image to R2 (temporary storage for OCR analysis)
-        var tempProductId = Guid.NewGuid(); // Temporary ID for image storage
-        var productImage = await _r2Storage.UploadProductImageToR2Async(
+        var uploadResult = await _r2Storage.UploadToR2Async(
             imageStream,
             fileName,
             contentType,
-            tempProductId,
             cancellationToken);
+        var uploadedImageUrl = uploadResult.GetType().GetProperty("Url")?.GetValue(uploadResult)?.ToString();
+        if (string.IsNullOrWhiteSpace(uploadedImageUrl))
+        {
+            throw new InvalidOperationException("Không thể upload ảnh OCR lên R2.");
+        }
 
-        var imageUrl = _r2Storage.GetPreSignedUrlForImage(productImage.ImageUrl, TimeSpan.FromHours(1));
+        var imageUrl = _r2Storage.GetPreSignedUrlForImage(uploadedImageUrl, TimeSpan.FromHours(1));
         if (string.IsNullOrEmpty(imageUrl))
         {
-            imageUrl = productImage.ImageUrl;
+            imageUrl = uploadedImageUrl;
         }
 
         var response = new OcrAnalysisResponseDto
         {
-            ImageUrl = productImage.ImageUrl,
+            ImageUrl = uploadedImageUrl,
             ExtractedInfo = new OcrExtractedInfoDto(),
             Confidence = 0
         };
