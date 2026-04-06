@@ -273,6 +273,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SupermarketId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TimeSlotId")
                         .HasColumnType("uuid");
 
@@ -285,6 +288,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasKey("DeliveryGroupId");
 
                     b.HasIndex("DeliveryStaffId");
+
+                    b.HasIndex("SupermarketId");
 
                     b.HasIndex("TimeSlotId");
 
@@ -314,6 +319,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OrderItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ProofImageUrl")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
@@ -327,6 +335,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasKey("DeliveryId");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("OrderItemId");
 
                     b.HasIndex("UserId");
 
@@ -578,22 +588,45 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeliveryFailedReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("DeliveryGroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("DeliveryStatus")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("PackagedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PackagingStatus")
+                        .HasColumnType("integer");
+
                     b.Property<short>("Quantity")
                         .HasColumnType("smallint");
 
                     b.Property<decimal>("TotalPrice")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("OrderItemId");
+
+                    b.HasIndex("DeliveryGroupId");
 
                     b.HasIndex("LotId");
 
@@ -611,6 +644,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OrderItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("PackagedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -623,6 +659,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasKey("PackagingId");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("OrderItemId");
 
                     b.HasIndex("UserId");
 
@@ -1506,6 +1544,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .HasForeignKey("DeliveryStaffId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("CloseExpAISolution.Domain.Entities.Supermarket", "Supermarket")
+                        .WithMany()
+                        .HasForeignKey("SupermarketId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryTimeSlot", "DeliveryTimeSlot")
                         .WithMany()
                         .HasForeignKey("TimeSlotId")
@@ -1515,6 +1558,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Navigation("DeliveryStaff");
 
                     b.Navigation("DeliveryTimeSlot");
+
+                    b.Navigation("Supermarket");
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryLog", b =>
@@ -1525,6 +1570,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("CloseExpAISolution.Domain.Entities.OrderItem", "OrderItem")
+                        .WithMany()
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("CloseExpAISolution.Domain.Entities.User", "User")
                         .WithMany("DeliveryLogs")
                         .HasForeignKey("UserId")
@@ -1532,6 +1582,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
+
+                    b.Navigation("OrderItem");
 
                     b.Navigation("User");
                 });
@@ -1607,6 +1659,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.OrderItem", b =>
                 {
+                    b.HasOne("CloseExpAISolution.Domain.Entities.DeliveryGroup", "DeliveryGroup")
+                        .WithMany("OrderItems")
+                        .HasForeignKey("DeliveryGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("CloseExpAISolution.Domain.Entities.StockLot", "StockLot")
                         .WithMany("OrderItems")
                         .HasForeignKey("LotId")
@@ -1618,6 +1675,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("DeliveryGroup");
 
                     b.Navigation("Order");
 
@@ -1632,6 +1691,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("CloseExpAISolution.Domain.Entities.OrderItem", "OrderItem")
+                        .WithMany()
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("CloseExpAISolution.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -1639,6 +1703,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
+
+                    b.Navigation("OrderItem");
 
                     b.Navigation("User");
                 });
@@ -1889,6 +1955,8 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.DeliveryGroup", b =>
                 {
+                    b.Navigation("OrderItems");
+
                     b.Navigation("Orders");
                 });
 

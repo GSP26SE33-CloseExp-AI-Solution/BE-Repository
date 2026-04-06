@@ -5,7 +5,7 @@ namespace CloseExpAISolution.Domain.Entities;
 public class DeliveryGroup
 {
     public Guid DeliveryGroupId { get; set; }
-
+    public Guid? SupermarketId { get; set; }
     public string GroupCode { get; set; } = string.Empty;
     public Guid? DeliveryStaffId { get; set; }
     public Guid TimeSlotId { get; set; }    
@@ -21,5 +21,7 @@ public class DeliveryGroup
     public DateTime UpdatedAt { get; set; }
     public User? DeliveryStaff { get; set; }
     public DeliveryTimeSlot? DeliveryTimeSlot { get; set; }
+    public Supermarket? Supermarket { get; set; }
     public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 }

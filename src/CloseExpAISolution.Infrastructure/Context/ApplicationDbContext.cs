@@ -85,6 +85,15 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CollectionPoint>().ToTable("CollectionPoints");
         modelBuilder.Entity<DeliveryTimeSlot>().ToTable("DeliveryTimeSlots");
         modelBuilder.Entity<OrderPackaging>().ToTable("OrderPackaging");
+        modelBuilder.Entity<OrderPackaging>()
+            .HasOne(op => op.OrderItem)
+            .WithMany()
+            .HasForeignKey(op => op.OrderItemId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<OrderPackaging>(entity =>
+        {
+            entity.HasIndex(op => op.OrderItemId);
+        });
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -199,10 +208,20 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(oi => oi.LotId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<OrderItem>()
+            .HasOne(oi => oi.DeliveryGroup)
+            .WithMany(dg => dg.OrderItems)
+            .HasForeignKey(oi => oi.DeliveryGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<OrderItem>(entity =>
         {
             entity.HasIndex(oi => oi.OrderId);
             entity.HasIndex(oi => oi.LotId);
+            entity.HasIndex(oi => oi.DeliveryGroupId);
+            entity.Property(oi => oi.UnitPrice).HasPrecision(18, 2);
+            entity.Property(oi => oi.TotalPrice).HasPrecision(18, 2);
+            entity.Property(oi => oi.DeliveryFailedReason).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<DeliveryGroup>().Property(x => x.CenterLatitude).HasPrecision(10, 7);
@@ -217,6 +236,15 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(dg => dg.TimeSlotId)
             .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<DeliveryGroup>()
+            .HasOne(dg => dg.Supermarket)
+            .WithMany()
+            .HasForeignKey(dg => dg.SupermarketId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<DeliveryGroup>(entity =>
+        {
+            entity.HasIndex(dg => dg.SupermarketId);
+        });
 
         modelBuilder.Entity<Order>()
             .HasOne(o => o.DeliveryTimeSlot)
@@ -320,9 +348,16 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(n => new { n.UserId, n.IsRead });
         });
 
+        modelBuilder.Entity<DeliveryLog>()
+            .HasOne(dl => dl.OrderItem)
+            .WithMany()
+            .HasForeignKey(dl => dl.OrderItemId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<DeliveryLog>(entity =>
         {
             entity.HasIndex(dl => dl.OrderId);
+            entity.HasIndex(dl => dl.OrderItemId);
             entity.Property(dl => dl.ProofImageUrl).HasMaxLength(2000);
         });
 
