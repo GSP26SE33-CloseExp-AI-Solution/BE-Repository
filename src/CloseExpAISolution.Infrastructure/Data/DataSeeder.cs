@@ -1,3 +1,4 @@
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.Context;
@@ -1519,7 +1520,7 @@ public static class DataSeeder
             TimeSlotId = TimeSlotMorningId,
             CollectionId = CollectionPointDistrict1Id,
             AddressId = null,
-            DeliveryType = "CollectionPoint",
+            DeliveryType = DeliveryMethod.Pickup,
             TotalAmount = 180000,
             DiscountAmount = 12000,
             FinalAmount = 168000,
@@ -1539,7 +1540,7 @@ public static class DataSeeder
             TimeSlotId = TimeSlotAfternoonId,
             CollectionId = null,
             AddressId = CustomerAddressVendor2Id,
-            DeliveryType = "HomeDelivery",
+            DeliveryType = DeliveryMethod.Delivery,
             TotalAmount = 220000,
             DiscountAmount = 15000,
             FinalAmount = 205000,
@@ -1559,7 +1560,7 @@ public static class DataSeeder
             TimeSlotId = TimeSlotMorningId,
             CollectionId = CollectionPointDistrict3Id,
             AddressId = null,
-            DeliveryType = "CollectionPoint",
+            DeliveryType = DeliveryMethod.Pickup,
             TotalAmount = 140000,
             DiscountAmount = 5000,
             FinalAmount = 135000,
@@ -1648,7 +1649,7 @@ public static class DataSeeder
             TimeSlotId = TimeSlotMorningId,
             CollectionId = CollectionPointDistrict1Id,
             AddressId = null,
-            DeliveryType = "CollectionPoint",
+            DeliveryType = DeliveryMethod.Pickup,
             TotalAmount = 120000,
             DiscountAmount = 0,
             FinalAmount = 120000,
@@ -1676,7 +1677,7 @@ public static class DataSeeder
     }
 
     /// <summary>
-    /// Đơn giao tận nhà (HomeDelivery) trong nhóm đã gán cho nhân viên giao hàng — phục vụ demo luồng DeliveryStaff.
+    /// Đơn giao tận nhà (DeliveryType DELIVERY) trong nhóm đã gán cho nhân viên giao hàng — phục vụ demo luồng DeliveryStaff.
     /// </summary>
     private static async Task SeedDeliveryStaffHomeOrdersAsync(ApplicationDbContext context)
     {
@@ -1707,7 +1708,7 @@ public static class DataSeeder
             GroupCode = $"DG-SEED-HOME-{deliveryDate:yyyyMMdd}-01",
             DeliveryStaffId = DeliveryStaffUserId1,
             TimeSlotId = TimeSlotAfternoonId,
-            DeliveryType = "HomeDelivery",
+            DeliveryType = DeliveryMethod.Delivery,
             DeliveryArea = "HOME:TPHCM",
             CenterLatitude = centerLat,
             CenterLongitude = centerLng,
@@ -1727,7 +1728,7 @@ public static class DataSeeder
             TimeSlotId = TimeSlotAfternoonId,
             CollectionId = null,
             AddressId = CustomerAddressVendor1Id,
-            DeliveryType = "HomeDelivery",
+            DeliveryType = DeliveryMethod.Delivery,
             TotalAmount = 180_000,
             DiscountAmount = 10_000,
             FinalAmount = 170_000,
@@ -1748,7 +1749,7 @@ public static class DataSeeder
             TimeSlotId = TimeSlotAfternoonId,
             CollectionId = null,
             AddressId = CustomerAddressVendor2Id,
-            DeliveryType = "HomeDelivery",
+            DeliveryType = DeliveryMethod.Delivery,
             TotalAmount = 120_000,
             DiscountAmount = 0,
             FinalAmount = 120_000,

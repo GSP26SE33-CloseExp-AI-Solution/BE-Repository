@@ -5,6 +5,7 @@ using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Services.Routing;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -372,7 +373,7 @@ public class DeliveryAdminService : IDeliveryAdminService
                     SupermarketId = smId,
                     GroupCode = "DRAFT-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
                     TimeSlotId = keySlot,
-                    DeliveryType = keyCollection.HasValue ? "Pickup" : "Delivery",
+                    DeliveryType = keyCollection.HasValue ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
                     DeliveryArea = keyCollection.HasValue ? $"COLLECTION:{keyCollection.Value}" : "DELIVERY",
                     CenterLatitude = (decimal)centerLat,
                     CenterLongitude = (decimal)centerLng,
