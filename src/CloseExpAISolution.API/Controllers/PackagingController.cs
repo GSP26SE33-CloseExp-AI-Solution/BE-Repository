@@ -185,4 +185,38 @@ public class PackagingController : ControllerBase
                 $"Lỗi khi hoàn tất đóng gói: {ex.Message}"));
         }
     }
+
+    [HttpPost("orders/{orderId:guid}/fail")]
+    public async Task<ActionResult<ApiResponse<PackagingOrderDetailDto>>> FailPackaging(
+        Guid orderId,
+        [FromBody] FailPackagingOrderRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var staffId = GetCurrentUserId();
+            var order = await _packagingService.FailPackagingAsync(orderId, staffId, request, cancellationToken);
+
+            return Ok(ApiResponse<PackagingOrderDetailDto>.SuccessResponse(
+                order,
+                "Đã ghi nhận đóng gói thất bại; đơn chuyển Failed và đã tạo yêu cầu hoàn tiền (nếu còn số tiền có thể hoàn)."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<PackagingOrderDetailDto>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<PackagingOrderDetailDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<PackagingOrderDetailDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(
+                $"Lỗi khi xử lý đóng gói thất bại: {ex.Message}"));
+        }
+    }
 }

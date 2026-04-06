@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PayOS;
@@ -26,15 +27,18 @@ public sealed class PaymentService : IPaymentService, IDisposable
     private readonly PayOsSettings _settings;
     private readonly ILogger<PaymentService> _logger;
     private readonly PayOSClient _client;
+    private readonly StackExchange.Redis.IConnectionMultiplexer? _redis;
 
     public PaymentService(
         IUnitOfWork unitOfWork,
         IOptions<PayOsSettings> options,
-        ILogger<PaymentService> logger)
+        ILogger<PaymentService> logger,
+        IServiceProvider serviceProvider)
     {
         _unitOfWork = unitOfWork;
         _settings = options.Value;
         _logger = logger;
+        _redis = serviceProvider.GetService<StackExchange.Redis.IConnectionMultiplexer>();
         _client = new PayOSClient(new PayOSOptions
         {
             ClientId = _settings.ClientId,
@@ -188,6 +192,16 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         _unitOfWork.Repository<Transaction>().Update(transaction);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (order != null
+            && order.Status is OrderState.Paid
+            or OrderState.ReadyToShip
+            or OrderState.DeliveredWaitConfirm
+            or OrderState.Completed)
+        {
+            await TryClearCartAsync(order.UserId, cancellationToken);
+        }
+
         return PaymentConfirmResult.Ok();
     }
 
@@ -226,9 +240,10 @@ public sealed class PaymentService : IPaymentService, IDisposable
         transaction.PaymentStatus = success ? PaymentState.Paid : PaymentState.Failed;
         transaction.UpdatedAt = DateTime.UtcNow;
 
+        Order? order = null;
         if (success)
         {
-            var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(transaction.OrderId, cancellationToken);
+            order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(transaction.OrderId, cancellationToken);
             if (order != null)
             {
                 await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
@@ -237,6 +252,16 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         _unitOfWork.Repository<Transaction>().Update(transaction);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (success
+            && order != null
+            && order.Status is OrderState.Paid
+            or OrderState.ReadyToShip
+            or OrderState.DeliveredWaitConfirm
+            or OrderState.Completed)
+        {
+            await TryClearCartAsync(order.UserId, cancellationToken);
+        }
     }
 
     private async Task<long> GenerateUniquePayOSOrderCodeAsync(CancellationToken cancellationToken)
@@ -370,6 +395,18 @@ public sealed class PaymentService : IPaymentService, IDisposable
         return trimmed.Length <= PayOsMaxDescriptionLength
             ? trimmed
             : trimmed[..PayOsMaxDescriptionLength];
+    }
+
+    private async Task TryClearCartAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_redis == null)
+            return;
+
+        // Must match CartService key format: "cart:{userId:D}"
+        var db = _redis.GetDatabase();
+        await db.KeyDeleteAsync($"cart:{userId:D}");
     }
 
     public void Dispose() => _client.Dispose();

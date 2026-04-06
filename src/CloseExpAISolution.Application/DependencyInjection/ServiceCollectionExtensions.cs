@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         // Register Delivery services
         services.AddScoped<IDeliveryService, DeliveryService>();
         services.AddScoped<IDeliveryAdminService, DeliveryAdminService>();
+        services.AddScoped<IRefundService, RefundService>();
         services.AddScoped<IPackagingService, PackagingService>();
 
         // Register Product workflow services

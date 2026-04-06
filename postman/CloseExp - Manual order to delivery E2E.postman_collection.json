@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "080f8590-4b8a-4021-b906-b5af73b81507",
     "name": "CloseExp - Manual order to delivery E2E",
-    "description": "Luồng test tay: chuẩn bị slot/lot → đăng nhập theo role → tạo đơn (customer) → thanh toán hoặc ép Paid → đóng gói → admin gom nhóm & assign shipper → shipper giao → (tùy chọn) xác nhận nhận hàng.\n\n**Biến collection:** `baseUrl` = gốc API có `/api` (vd `http://localhost:5014/api`). Folder **0 — Chuẩn bị**: **GET time-slots** lưu `timeSlotId` (slot đầu tiên); **GET collection-points** lưu `collectionId` (điểm đầu tiên) cho request **PICKUP**. Đơn **DELIVERY** dùng `POST .../my-orders (customer)` với `collectionId: null`. Điền `lotId` từ DB/catalog. `deliveryStaffUserId` = Guid user DeliveryStaff khi assign.\n\n**Shipper / JWT:** `deliveryToken` (login shipper) phải thuộc user có cùng `UserId` với `deliveryStaffUserId` trong **PUT assignment**; nếu không, folder shipper sẽ không thấy nhóm hoặc accept thất bại.\n\n**Lưu ý BE:** `PUT /Orders/{id}/paid` và các `PUT .../status` không có `[Authorize]` — chỉ dùng trên môi trường dev.\n\n**customer-confirmation:** controller yêu cầu role **Vendor** nhưng service kiểm tra `order.userId ==` user trong JWT — cần token của chính chủ đơn; nếu role thực tế là Customer thì request sẽ 403 (có thể dùng shortcut `PUT .../completed`).\n\n**deliveryType:** đồng bộ FE dùng `DELIVERY` hoặc `PICKUP`.\n\n**confirm-delivery:** `verificationCode` phải khớp `orderCode` (QR). Upload proof trước, script lưu `proofImageUrl`.\n\n**Thanh toán PayOS:** `create-payment-link` cần `paymentReturnUrl` / `paymentCancelUrl` (URL thật mà PayOS redirect về; sửa biến collection cho khớp FE hoặc tunnel). Cần cấu hình `PayOsSettings` trong appsettings / user-secrets.",
+    "description": "Luồng E2E: chuẩn bị slot/lot → đăng nhập theo role → **một đơn DELIVERY** (folder 2) → **ép Paid dev** (folder 3) → đóng gói → admin gom nhóm & assign → shipper giao → (tùy chọn) xác nhận.\n\n**Biến collection:** `baseUrl` = gốc API có `/api` (vd `http://localhost:5014/api`). Folder **0 — Chuẩn bị**: **GET time-slots** lưu `timeSlotId`; **GET collection-points** lưu `collectionId` cho folder **2b (PICKUP)**. Đơn chính: **POST .../my-orders (DELIVERY)**. Điền `lotId` từ DB (seed coverage lot: `aaaa9999-9999-9999-9999-999999999999`). `deliveryStaffUserId` = Guid DeliveryStaff khi assign.\n\n**PayOS:** không còn trong collection mặc định; thanh toán thật test tay nếu cần. Luồng tự động dùng **`PUT /Orders/{orderId}/paid`** (dev).\n\n**Shipper / JWT:** `deliveryToken` phải trùng `UserId` với `deliveryStaffUserId` trong **PUT assignment**.\n\n**Lưu ý BE:** `PUT /Orders/{id}/paid` và các `PUT .../status` không có `[Authorize]` — chỉ dev.\n\n**Newman + proof ảnh:** chạy từ thư mục `postman` với `--working-dir` trỏ tới `postman` (file `fixtures/proof-test.png`).\n\n**customer-confirmation / deliveryType / orderCode:** giữ như trước; `confirm-delivery` cần `proofImageUrl` + `verificationCode` = `orderCode`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "38344843"
   },
@@ -271,6 +271,7 @@
     },
     {
       "name": "2 — Tạo đơn",
+      "description": "Luồng chính: chỉ **POST Orders/my-orders (customer)** (DELIVERY) là bắt buộc cho E2E. Request **2b PICKUP** và **POST Orders (manual userId)** là tùy chọn — không ghi đè `orderId`/`orderCode`.",
       "item": [
         {
           "name": "POST Orders/my-orders (customer)",
@@ -328,7 +329,7 @@
           "response": []
         },
         {
-          "name": "POST Orders/my-orders (PICKUP — dùng collectionId từ folder 0)",
+          "name": "2b — POST Orders/my-orders (PICKUP — lưu pickupOrderId, không đổi orderId)",
           "event": [
             {
               "listen": "test",
@@ -336,8 +337,8 @@
                 "exec": [
                   "const j = pm.response.json();",
                   "if (j.success && j.data) {",
-                  "  if (j.data.orderId) pm.collectionVariables.set('orderId', j.data.orderId);",
-                  "  if (j.data.orderCode) pm.collectionVariables.set('orderCode', j.data.orderCode);",
+                  "  if (j.data.orderId) pm.collectionVariables.set('pickupOrderId', j.data.orderId);",
+                  "  if (j.data.orderCode) pm.collectionVariables.set('pickupOrderCode', j.data.orderCode);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -364,7 +365,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"timeSlotId\": \"{{timeSlotId}}\",\n  \"collectionId\": \"{{collectionId}}\",\n  \"deliveryType\": \"PICKUP\",\n  \"addressId\": null,\n  \"deliveryFee\": 0,\n  \"deliveryNote\": \"Postman PICKUP test\",\n  \"orderItems\": [\n    {\n      \"lotId\": \"{{lotId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 10000\n    }\n  ]\n}"
+              "raw": "{\n  \"timeSlotId\": \"{{timeSlotId}}\",\n  \"collectionId\": \"{{collectionId}}\",\n  \"deliveryType\": \"PICKUP\",\n  \"addressId\": null,\n  \"deliveryFee\": 0,\n  \"deliveryNote\": \"Postman PICKUP test — không ghi đè orderId luồng chính\",\n  \"orderItems\": [\n    {\n      \"lotId\": \"{{lotId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 10000\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/Orders/my-orders",
@@ -409,40 +410,19 @@
       ]
     },
     {
-      "name": "3 — Thanh toán",
+      "name": "3 — Ép Paid (dev, không PayOS)",
+      "description": "Thanh toán PayOS (`create-payment-link` / `confirm`) đã tách khỏi runner mặc định. Chỉ gọi **PUT .../paid** để tiếp tục đóng gói. PayOS: test tay hoặc thêm request vào Postman khi cần.",
       "item": [
         {
-          "name": "POST Payment/create-payment-link",
+          "name": "DEV — PUT Orders/{orderId}/paid",
           "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const j = pm.response.json();\r",
-                  "if (j.checkoutUrl) {\r",
-                  "  pm.collectionVariables.set(\"payOsCheckoutUrl\", j.checkoutUrl);\r",
-                  "  console.log(\"Mở trình duyệt:\", j.checkoutUrl);\r",
-                  "}\r",
-                  "pm.test(\"Có checkout URL\", function () {\r",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);\r",
-                  "});"
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            },
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "const oid = pm.collectionVariables.get(\"orderId\");\r",
-                  "const tok = pm.collectionVariables.get(\"customerToken\");\r",
-                  "if (!oid || oid.includes(\"{{\")) {\r",
-                  "  throw new Error(\"Chưa có orderId — chạy tạo đơn trước hoặc gán biến.\");\r",
-                  "}\r",
-                  "if (!tok) {\r",
-                  "  throw new Error(\"Chưa có customerToken — login trước.\");\r",
+                  "const oid = pm.collectionVariables.get('orderId');",
+                  "if (!oid || String(oid).includes('{{')) {",
+                  "  throw new Error('Chưa có orderId — chạy POST my-orders (DELIVERY) trước.');",
                   "}"
                 ],
                 "type": "text/javascript",
@@ -451,129 +431,6 @@
               }
             }
           ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{customerToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"returnUrl\": \"{{paymentReturnUrl}}\",\n  \"cancelUrl\": \"{{paymentCancelUrl}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/Payment/create-payment-link",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "Payment",
-                "create-payment-link"
-              ]
-            },
-            "description": "Sau đó bạn mở link bằng tay,\n\n- thanh toán xong → copy `orderCode` từ URL success (hoặc cancel)."
-          },
-          "response": []
-        },
-        {
-          "name": "POST Payment/confirm (sau PayOS — orderCode số)",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "// add a set value for us to put in url :\r",
-                  "// http://localhost:5173/payment/success?code=00&id=0aea9d96d314424d8105adbbfa6e9067&cancel=false&status=PAID&orderCode=1775163505208450  \r",
-                  "\r",
-                  "\r",
-                  "const code = pm.collectionVariables.get(\"payOsOrderCode\");\r",
-                  "if (!code) {\r",
-                  "  throw new Error(\"Dán payOsOrderCode từ URL redirect (orderCode=...) sau khi thanh toán.\");\r",
-                  "}\r",
-                  ""
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const j = pm.response.json();\r",
-                  "if (j.success === true || j.success === undefined && j.success !== false) {\r",
-                  "  // tuỳ envelope BE\r",
-                  "}\r",
-                  "pm.test(\"Confirm 200\", () => pm.response.to.have.status(200));\r",
-                  "if (pm.response.code === 200) {\r",
-                  "  console.log(\"Đồng bộ Paid (nếu BE xử lý OK)\");\r",
-                  "}\r",
-                  "\r",
-                  "// ** Test case thanh toán thất bại\r",
-                  "// pm.test(\"Chưa paid hoặc lỗi\", function () {\r",
-                  "//   pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);\r",
-                  "// });\r",
-                  "// const j = pm.response.json();\r",
-                  "// if (j.success === false) {\r",
-                  "//   console.log(\"Expected failure:\", j.message || j);\r",
-                  "// }"
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{customerToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderCode\": \"{{payOsOrderCode}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/Payment/confirm",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "Payment",
-                "confirm"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "DEV — PUT Orders/{orderId}/paid",
           "request": {
             "method": "PUT",
             "header": [
@@ -880,8 +737,13 @@
                 "exec": [
                   "const j = pm.response.json();",
                   "const items = j.data && j.data.items;",
-                  "if (j.success && items && items.length && items[0].deliveryGroupId) {",
-                  "  pm.collectionVariables.set('deliveryGroupId', items[0].deliveryGroupId);",
+                  "let cur = pm.collectionVariables.get('deliveryGroupId');",
+                  "if (cur && String(cur).length > 10 && !String(cur).includes('{{')) { return; }",
+                  "if (j.success && items && items.length) {",
+                  "  const draft = items.find((g) => g.status === 'Draft') || items[0];",
+                  "  if (draft && draft.deliveryGroupId) {",
+                  "    pm.collectionVariables.set('deliveryGroupId', draft.deliveryGroupId);",
+                  "  }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1233,10 +1095,9 @@
                 {
                   "key": "file",
                   "type": "file",
-                  "description": "Chọn file ảnh nhỏ trong Postman",
+                  "description": "Newman: chạy với --working-dir trỏ tới thư mục postman (file `fixtures/proof-test.png`).",
                   "src": [
-                    "",
-                    "/D:/Pictures/Background/IMG_20260207_075307380.jpg"
+                    "fixtures/proof-test.png"
                   ]
                 }
               ]
@@ -1509,6 +1370,14 @@
     },
     {
       "key": "orderCode",
+      "value": ""
+    },
+    {
+      "key": "pickupOrderId",
+      "value": ""
+    },
+    {
+      "key": "pickupOrderCode",
       "value": ""
     },
     {

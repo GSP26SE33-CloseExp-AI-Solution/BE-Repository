@@ -32,4 +32,10 @@ public interface IPackagingService
         Guid packagingStaffId,
         CompletePackagingOrderRequestDto request,
         CancellationToken cancellationToken = default);
+
+    Task<PackagingOrderDetailDto> FailPackagingAsync(
+        Guid orderId,
+        Guid packagingStaffId,
+        FailPackagingOrderRequestDto request,
+        CancellationToken cancellationToken = default);
 }

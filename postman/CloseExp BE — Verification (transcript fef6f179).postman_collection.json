@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "2c25732b-a4f7-4f8b-88e5-d2dd69aedce8",
     "name": "CloseExp BE - Verification (transcript fef6f179)",
-    "description": "Checklist Khối 1–3 theo plan kiểm tra BE-API.\n\n**Cách dùng:** đặt `baseUrl` (vd `https://localhost:7001/api`), `adminEmail`/`adminPassword`, và các biến user phụ (`testUserEmail`, `staffToken`, …). Một số bước cần thao tác thủ công (khóa user rồi dán `lockedUserAccessToken`).\n\n**Luồng đầy đủ request-unlock:** dùng thêm `CloseExp - Request Unlock for Vendor Flow.postman_collection.json`.\n\n**UserState (số):** Active=2, Locked=4, Banned=5, PendingApproval=1.\n\n---\n\n**K3 — Điểm tập kết gần (`GET/POST .../orders/collection-points`):**\n- **Không cần đăng nhập**; phù hợp kiểm thử với **Vendor/Customer** (giống FE `DeliveryGateModal`). **SupermarketStaff không bắt buộc** cho luồng này.\n- Chạy **3.1 trước** để lưu danh sách ID phục vụ test *subset* (3.5).\n- Đồng bộ `pickupMaxRadiusKm` / `pickupDefaultRadiusKm` với `appsettings` → `PickupSearch:MaxRadiusKm` / `DefaultRadiusKm`.\n- Đặt `pickupSearchLat` / `pickupSearchLng` gần tọa độ điểm tập kết trong DB (seed) để nearby trả dữ liệu có ý nghĩa.",
+    "description": "Checklist Khối 1–3 theo plan kiểm tra BE-API.\n\n**Cách dùng:** đặt `baseUrl` (vd `https://localhost:7001/api`), `adminEmail`/`adminPassword`, và các biến user phụ (`testUserEmail`, `staffToken`, …). Một số bước cần thao tác thủ công (khóa user rồi dán `lockedUserAccessToken`).\n\n**Luồng đầy đủ request-unlock:** dùng thêm `CloseExp - Request Unlock for Vendor Flow.postman_collection.json`.\n\n**UserState (số):** Active=2, Locked=4, Banned=5, PendingApproval=1.\n\n---\n\n**K3 — Điểm tập kết gần (`GET/POST .../orders/collection-points`):**\n- **Không cần đăng nhập**; phù hợp kiểm thử với **Vendor/Customer** (giống FE `DeliveryGateModal`). **SupermarketStaff không bắt buộc** cho luồng này.\n- Chạy **3.1 trước** để lưu danh sách ID phục vụ test *subset* (3.5).\n- Đồng bộ `pickupMaxRadiusKm` / `pickupDefaultRadiusKm` với `appsettings` → `PickupSearch:MaxRadiusKm` / `DefaultRadiusKm`.\n- Đặt `pickupSearchLat` / `pickupSearchLng` gần tọa độ điểm tập kết trong DB (seed) để nearby trả dữ liệu có ý nghĩa.\n- API trả ID điểm tập kết là **`collectionPointId`** (DTO `CollectionPointDto`). Test dùng đúng tên này.\n- `radiusKm` trong body phải ≤ **500** (validation `NearbyCollectionPointsRequestDto`); BE sau đó clamp theo `PickupSearch:MaxRadiusKm` trong service.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "38344843"
   },
@@ -619,13 +619,13 @@
                   "const j = pm.response.json();",
                   "pm.test('OK', () => pm.expect(j.success).to.be.true);",
                   "const pts = j.data || [];",
-                  "pm.test('Mỗi điểm có pickupPointId và name', () => {",
+                  "pm.test('Mỗi điểm có collectionPointId và name', () => {",
                   "  pts.forEach((p) => {",
-                  "    pm.expect(p.pickupPointId).to.be.a('string');",
+                  "    pm.expect(p.collectionPointId).to.be.a('string');",
                   "    pm.expect(p.name).to.be.a('string');",
                   "  });",
                   "});",
-                  "const ids = pts.map((p) => String(p.pickupPointId));",
+                  "const ids = pts.map((p) => String(p.collectionPointId));",
                   "pm.collectionVariables.set('pickupFullIdsJson', JSON.stringify(ids));",
                   "pm.collectionVariables.set('pickupFullCount', String(pts.length));"
                 ],
@@ -652,7 +652,7 @@
           "response": []
         },
         {
-          "name": "3.2 POST nearby — radiusKm rất lớn (clamp theo PickupSearch:MaxRadiusKm)",
+          "name": "3.2 POST nearby — radiusKm 500 (tối đa hợp lệ; clamp theo PickupSearch:MaxRadiusKm)",
           "event": [
             {
               "listen": "test",
@@ -662,7 +662,7 @@
                   "pm.test('OK', () => pm.expect(j.success).to.be.true);",
                   "const pts = j.data || [];",
                   "const maxKm = parseFloat(pm.collectionVariables.get('pickupMaxRadiusKm') || '50');",
-                  "pm.test('Mọi distanceKm <= MaxRadiusKm (sau clamp)', () => {",
+                  "pm.test('Mọi distanceKm <= MaxRadiusKm sau clamp (config)', () => {",
                   "  pts.forEach((p) => {",
                   "    pm.expect(p.distanceKm).to.be.a('number');",
                   "    pm.expect(p.distanceKm).to.be.at.most(maxKm + 0.002);",
@@ -691,7 +691,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"latitude\": {{pickupSearchLat}},\n  \"longitude\": {{pickupSearchLng}},\n  \"radiusKm\": 999\n}"
+              "raw": "{\n  \"latitude\": {{pickupSearchLat}},\n  \"longitude\": {{pickupSearchLng}},\n  \"radiusKm\": 500\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/orders/collection-points/nearby",
@@ -822,11 +822,11 @@
                   "let fullIds = [];",
                   "try { fullIds = JSON.parse(raw); } catch (e) { fullIds = []; }",
                   "if (fullIds.length === 0) {",
-                  "  console.warn('Chạy 3.1 trước để kiểm tra subset pickupPointId.');",
+                  "  console.warn('Chạy 3.1 trước để kiểm tra subset collectionPointId.');",
                   "} else {",
                   "  const nearby = j.data || [];",
                   "  pm.test('Nearby là tập con của GET full list', () => {",
-                  "    nearby.forEach((p) => pm.expect(fullIds).to.include(String(p.pickupPointId)));",
+                  "    nearby.forEach((p) => pm.expect(fullIds).to.include(String(p.collectionPointId)));",
                   "  });",
                   "}"
                 ],
