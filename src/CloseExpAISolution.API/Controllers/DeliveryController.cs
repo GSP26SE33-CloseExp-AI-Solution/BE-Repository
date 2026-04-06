@@ -357,6 +357,46 @@ public class DeliveryController : ControllerBase
     }
 
     [Authorize(Roles = "DeliveryStaff")]
+    [HttpPost("groups/{deliveryGroupId:guid}/route-plan")]
+    public async Task<ActionResult<ApiResponse<DeliveryRoutePlanResponseDto>>> ComputeRoutePlan(
+        Guid deliveryGroupId,
+        [FromBody] DeliveryRoutePlanRequestDto? request)
+    {
+        try
+        {
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<DeliveryRoutePlanResponseDto>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var plan = await _services.DeliveryService.ComputeDeliveryRoutePlanAsync(
+                deliveryGroupId,
+                staffId,
+                request ?? new DeliveryRoutePlanRequestDto());
+
+            return Ok(ApiResponse<DeliveryRoutePlanResponseDto>.SuccessResponse(plan));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<DeliveryRoutePlanResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<DeliveryRoutePlanResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<DeliveryRoutePlanResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<DeliveryRoutePlanResponseDto>.ErrorResponse(
+                "Lỗi khi tính lộ trình giao hàng."));
+        }
+    }
+
+    [Authorize(Roles = "DeliveryStaff")]
     [HttpPost("groups/{deliveryGroupId:guid}/accept")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> AcceptGroup(
         Guid deliveryGroupId,

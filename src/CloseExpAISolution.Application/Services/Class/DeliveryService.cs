@@ -1,6 +1,8 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Application.Services.Routing;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -12,15 +14,18 @@ public class DeliveryService : IDeliveryService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2Storage;
+    private readonly IMapboxService _mapboxService;
     private readonly ILogger<DeliveryService> _logger;
 
     public DeliveryService(
         IUnitOfWork unitOfWork,
         IR2StorageService r2Storage,
+        IMapboxService mapboxService,
         ILogger<DeliveryService> logger)
     {
         _unitOfWork = unitOfWork;
         _r2Storage = r2Storage;
+        _mapboxService = mapboxService;
         _logger = logger;
     }
 
@@ -706,6 +711,203 @@ public class DeliveryService : IDeliveryService
         _logger.LogInformation("Delivery group {GroupId} completed", deliveryGroupId);
 
         return await MapToDeliveryGroupResponseAsync(group);
+    }
+
+    public async Task<DeliveryRoutePlanResponseDto> ComputeDeliveryRoutePlanAsync(
+        Guid deliveryGroupId,
+        Guid deliveryStaffId,
+        DeliveryRoutePlanRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var group = await _unitOfWork.Repository<DeliveryGroup>()
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == deliveryGroupId);
+
+        if (group == null)
+            throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
+
+        if (group.DeliveryStaffId != deliveryStaffId)
+            throw new UnauthorizedAccessException("Bạn không được phân công nhóm giao hàng này.");
+
+        if (group.DeliveryStaffId == null)
+            throw new InvalidOperationException("Nhóm giao hàng chưa được gán shipper.");
+
+        var orders = (await _unitOfWork.Repository<Order>()
+            .FindAsync(o => o.DeliveryGroupId == deliveryGroupId))
+            .OrderBy(o => o.OrderCode)
+            .ToList();
+
+        var skipped = new List<Guid>();
+        var stops = new List<(Guid OrderId, double Lat, double Lng)>();
+        foreach (var order in orders)
+        {
+            if (IsTerminalRouteOrderState(order.Status))
+                continue;
+
+            var coord = await GetOrderDeliveryCoordinateAsync(order, cancellationToken);
+            if (coord == null)
+            {
+                skipped.Add(order.OrderId);
+                continue;
+            }
+
+            stops.Add((order.OrderId, coord.Value.Lat, coord.Value.Lng));
+        }
+
+        var metric = NormalizeRouteMetric(request.Metric);
+
+        if (stops.Count == 0)
+        {
+            return new DeliveryRoutePlanResponseDto
+            {
+                OrderedOrderIds = Array.Empty<Guid>(),
+                TotalDistanceKm = 0,
+                TotalDurationMinutes = 0,
+                EncodedPolyline = string.Empty,
+                PolylineEncoding = "polyline6",
+                Metric = metric,
+                SkippedOrderIds = skipped
+            };
+        }
+
+        var totalCoords = 1 + stops.Count;
+        if (totalCoords > DeliveryRoutePlanner.MaxCoordinatesPerRequest)
+        {
+            throw new InvalidOperationException(
+                $"Số điểm trên lộ trình ({totalCoords}) vượt giới hạn {DeliveryRoutePlanner.MaxCoordinatesPerRequest}. " +
+                "Vui lòng chia nhóm giao hoặc liên hệ quản trị.");
+        }
+
+        var (startLat, startLng) = ResolveRouteStart(group, request, stops);
+
+        var matrixCoords = new List<(double Latitude, double Longitude)>(totalCoords)
+        {
+            (startLat, startLng)
+        };
+        foreach (var s in stops)
+            matrixCoords.Add((s.Lat, s.Lng));
+
+        var matrix = await _mapboxService.GetDrivingMatrixAsync(matrixCoords, cancellationToken);
+        if (matrix == null)
+            throw new InvalidOperationException(
+                "Không lấy được ma trận lộ trình từ Mapbox. Kiểm tra cấu hình token hoặc thử lại sau.");
+
+        var cost = metric == "duration" ? matrix.DurationsSeconds : matrix.DistancesMeters;
+        List<int> tourIndices;
+        try
+        {
+            tourIndices = DeliveryRoutePlanner.BuildOptimizedStopOrder(cost, stops.Count);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(
+                "Không tính được thứ tự điểm: " + ex.Message, ex);
+        }
+
+        var orderedStops = tourIndices.Select(idx => stops[idx - 1]).ToList();
+        var orderedIds = orderedStops.Select(s => s.OrderId).ToList();
+
+        var waypoints = new List<(double Latitude, double Longitude)>
+        {
+            (startLat, startLng)
+        };
+        waypoints.AddRange(orderedStops.Select(s => (s.Lat, s.Lng)));
+        waypoints = CollapseConsecutiveDuplicateCoordinates(waypoints);
+
+        var route = await _mapboxService.GetDrivingRoutePolylineAsync(waypoints, cancellationToken);
+        if (route == null)
+            throw new InvalidOperationException(
+                "Không lấy được đường đi chi tiết từ Mapbox. Thử lại sau.");
+
+        return new DeliveryRoutePlanResponseDto
+        {
+            OrderedOrderIds = orderedIds,
+            TotalDistanceKm = Math.Round(route.DistanceMeters / 1000d, 3),
+            TotalDurationMinutes = Math.Round(route.DurationSeconds / 60d, 1),
+            EncodedPolyline = route.EncodedPolyline,
+            PolylineEncoding = "polyline6",
+            Metric = metric,
+            SkippedOrderIds = skipped
+        };
+    }
+
+    private static bool IsTerminalRouteOrderState(OrderState status) =>
+        status is OrderState.Completed
+            or OrderState.Failed
+            or OrderState.Canceled
+            or OrderState.Refunded;
+
+    private static string NormalizeRouteMetric(string? metric)
+    {
+        if (string.IsNullOrWhiteSpace(metric))
+            return "distance";
+        var m = metric.Trim().ToLowerInvariant();
+        return m == "duration" || m == "time" ? "duration" : "distance";
+    }
+
+    private static (double StartLat, double StartLng) ResolveRouteStart(
+        DeliveryGroup group,
+        DeliveryRoutePlanRequestDto request,
+        IReadOnlyList<(Guid OrderId, double Lat, double Lng)> stops)
+    {
+        if (request.StartLatitude is { } slat && request.StartLongitude is { } slng)
+            return (slat, slng);
+
+        if (group.CenterLatitude is { } clat && group.CenterLongitude is { } clng)
+            return ((double)clat, (double)clng);
+
+        return (stops[0].Lat, stops[0].Lng);
+    }
+
+    private static List<(double Latitude, double Longitude)> CollapseConsecutiveDuplicateCoordinates(
+        IReadOnlyList<(double Latitude, double Longitude)> waypoints)
+    {
+        var result = new List<(double Latitude, double Longitude)>(waypoints.Count);
+        foreach (var p in waypoints)
+        {
+            if (result.Count == 0)
+            {
+                result.Add(p);
+                continue;
+            }
+
+            var last = result[^1];
+            if (Math.Abs(last.Latitude - p.Latitude) < 1e-7 && Math.Abs(last.Longitude - p.Longitude) < 1e-7)
+                continue;
+            result.Add(p);
+        }
+
+        if (result.Count < 2 && waypoints.Count >= 2)
+            return waypoints.Take(2).ToList();
+
+        return result;
+    }
+
+    private async Task<(double Lat, double Lng)?> GetOrderDeliveryCoordinateAsync(
+        Order order,
+        CancellationToken cancellationToken)
+    {
+        decimal? latitude = null;
+        decimal? longitude = null;
+
+        if (order.CollectionId.HasValue)
+        {
+            var collectionPoint = await _unitOfWork.Repository<CollectionPoint>()
+                .FirstOrDefaultAsync(pp => pp.CollectionId == order.CollectionId.Value);
+            latitude = collectionPoint?.Latitude;
+            longitude = collectionPoint?.Longitude;
+        }
+        else
+        {
+            var customerAddress = await _unitOfWork.Repository<CustomerAddress>()
+                .FirstOrDefaultAsync(ca => ca.CustomerAddressId == order.AddressId);
+            latitude = customerAddress?.Latitude;
+            longitude = customerAddress?.Longitude;
+        }
+
+        if (latitude == null || longitude == null)
+            return null;
+
+        return ((double)latitude.Value, (double)longitude.Value);
     }
 
     private async Task<DeliveryGroupResponseDto> MapToDeliveryGroupResponseAsync(DeliveryGroup group)

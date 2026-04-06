@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using CloseExpAISolution.Application.Mapbox.Configuration;
 using CloseExpAISolution.Application.Mapbox.DTOs;
@@ -114,6 +115,142 @@ public class MapboxService : IMapboxService
             _logger.LogWarning(ex, "Mapbox driving distance request failed");
             return null;
         }
+    }
+
+    public async Task<DrivingMatrixResultDto?> GetDrivingMatrixAsync(
+        IReadOnlyList<(double Latitude, double Longitude)> coordinates,
+        CancellationToken ct = default)
+    {
+        if (coordinates == null || coordinates.Count < 2)
+            return null;
+
+        var coordPath = string.Join(";", coordinates.Select(c =>
+            $"{c.Longitude.ToString(CultureInfo.InvariantCulture)},{c.Latitude.ToString(CultureInfo.InvariantCulture)}"));
+        var url = $"/directions-matrix/v1/mapbox/driving/{coordPath}" +
+                  $"?annotations=distance,duration&access_token={_settings.AccessToken}";
+
+        try
+        {
+            _logger.LogDebug("Mapbox matrix request: {BaseUrl}{Path}", _settings.BaseUrl, SanitizeUrl(url));
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Mapbox Matrix returned {StatusCode}: {Error}", (int)response.StatusCode, errorBody);
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("code", out var codeEl) ||
+                !string.Equals(codeEl.GetString(), "Ok", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Mapbox Matrix code not Ok: {Json}", root.GetRawText());
+                return null;
+            }
+
+            if (!root.TryGetProperty("durations", out var durationsEl) ||
+                !root.TryGetProperty("distances", out var distancesEl))
+                return null;
+
+            var n = durationsEl.GetArrayLength();
+            if (n == 0 || distancesEl.GetArrayLength() != n)
+                return null;
+
+            var dist = new double?[n, n];
+            var dur = new double?[n, n];
+            for (var i = 0; i < n; i++)
+            {
+                var dRow = durationsEl[i];
+                var sRow = distancesEl[i];
+                if (dRow.ValueKind != JsonValueKind.Array || sRow.ValueKind != JsonValueKind.Array)
+                    return null;
+                if (dRow.GetArrayLength() != n || sRow.GetArrayLength() != n)
+                    return null;
+                for (var j = 0; j < n; j++)
+                {
+                    dur[i, j] = ParseNullableDouble(dRow[j]);
+                    dist[i, j] = ParseNullableDouble(sRow[j]);
+                }
+            }
+
+            return new DrivingMatrixResultDto
+            {
+                Size = n,
+                DistancesMeters = dist,
+                DurationsSeconds = dur
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _logger.LogWarning(ex, "Mapbox matrix request failed");
+            return null;
+        }
+    }
+
+    public async Task<DrivingRouteGeometryDto?> GetDrivingRoutePolylineAsync(
+        IReadOnlyList<(double Latitude, double Longitude)> waypoints,
+        CancellationToken ct = default)
+    {
+        if (waypoints == null || waypoints.Count < 2)
+            return null;
+
+        var coordPath = string.Join(";", waypoints.Select(c =>
+            $"{c.Longitude.ToString(CultureInfo.InvariantCulture)},{c.Latitude.ToString(CultureInfo.InvariantCulture)}"));
+        var url = $"/directions/v5/mapbox/driving/{coordPath}" +
+                  $"?geometries=polyline6&overview=full&alternatives=false&access_token={_settings.AccessToken}";
+
+        try
+        {
+            _logger.LogDebug("Mapbox directions polyline request: {BaseUrl}{Path}", _settings.BaseUrl, SanitizeUrl(url));
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Mapbox Directions returned {StatusCode}: {Error}", (int)response.StatusCode, errorBody);
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0)
+                return null;
+
+            var firstRoute = routes[0];
+            if (!firstRoute.TryGetProperty("geometry", out var geomEl) || geomEl.ValueKind != JsonValueKind.String)
+                return null;
+
+            var encoded = geomEl.GetString() ?? string.Empty;
+            if (string.IsNullOrEmpty(encoded))
+                return null;
+
+            if (!firstRoute.TryGetProperty("distance", out var distEl) ||
+                !firstRoute.TryGetProperty("duration", out var durEl))
+                return null;
+
+            return new DrivingRouteGeometryDto
+            {
+                EncodedPolyline = encoded,
+                DistanceMeters = distEl.GetDouble(),
+                DurationSeconds = durEl.GetDouble()
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _logger.LogWarning(ex, "Mapbox directions polyline request failed");
+            return null;
+        }
+    }
+
+    private static double? ParseNullableDouble(JsonElement el)
+    {
+        if (el.ValueKind == JsonValueKind.Null)
+            return null;
+        if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var d))
+            return d;
+        return null;
     }
 
     #region Private Helpers

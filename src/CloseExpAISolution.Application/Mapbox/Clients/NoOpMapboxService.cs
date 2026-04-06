@@ -21,4 +21,14 @@ public class NoOpMapboxService : IMapboxService
         double toLongitude,
         CancellationToken ct = default) =>
         Task.FromResult<double?>(null);
+
+    public Task<DrivingMatrixResultDto?> GetDrivingMatrixAsync(
+        IReadOnlyList<(double Latitude, double Longitude)> coordinates,
+        CancellationToken ct = default) =>
+        Task.FromResult<DrivingMatrixResultDto?>(null);
+
+    public Task<DrivingRouteGeometryDto?> GetDrivingRoutePolylineAsync(
+        IReadOnlyList<(double Latitude, double Longitude)> waypoints,
+        CancellationToken ct = default) =>
+        Task.FromResult<DrivingRouteGeometryDto?>(null);
 }

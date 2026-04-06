@@ -1197,6 +1197,46 @@
           "response": []
         },
         {
+          "name": "POST delivery/groups/{deliveryGroupId}/route-plan",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metric\": \"distance\",\n  \"startLatitude\": 10.77,\n  \"startLongitude\": 106.70\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/groups/{{deliveryGroupId}}/route-plan",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "groups",
+                "{{deliveryGroupId}}",
+                "route-plan"
+              ]
+            },
+            "description": "Tối ưu thứ tự điểm (Matrix + NN/2-opt) + polyline Directions. Tối đa 10 tọa độ (start + stops). Body: metric=distance|duration; startLatitude/startLongitude optional."
+          },
+          "response": []
+        },
+        {
           "name": "POST delivery/orders/{orderId}/proof-image (form file)",
           "event": [
             {
@@ -1537,7 +1577,7 @@
     },
     {
       "key": "payOsWebhookUrl",
-      "value": "https://YOUR_TUNNEL_HOST/api/Payment/webhook"
+      "value": "https://g9z03vx4-5014.asse.devtunnels.ms/api/Payment/webhook"
     },
     {
       "key": "paymentReturnCallbackUrl",
