@@ -60,6 +60,9 @@ public class DeliveryOrderItemDto
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal SubTotal { get; set; }
+    public string PackagingStatus { get; set; } = string.Empty;
+    public string? DeliveryStatus { get; set; }
+    public Guid? DeliveryGroupId { get; set; }
 }
 
 public class DeliveryRecordResponseDto

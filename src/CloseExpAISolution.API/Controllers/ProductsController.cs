@@ -715,7 +715,7 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result));
     }
 
-    [HttpGet("lots/by-status/{supermarketId:guid}")]
+    [HttpGet("  /{supermarketId:guid}")]
     public async Task<ActionResult<ApiResponse<List<StockLotResponseDto>>>> GetLotsByStatus(
         Guid supermarketId,
         [FromQuery] ProductState status,

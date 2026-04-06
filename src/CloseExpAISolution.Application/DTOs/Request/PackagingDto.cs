@@ -16,6 +16,11 @@ public class CollectPackagingOrderRequestDto
 public class CompletePackagingOrderRequestDto
 {
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// When set, only these lines are marked packaged; when null/empty, all lines in the order are completed (legacy).
+    /// </summary>
+    public IReadOnlyList<Guid>? OrderItemIds { get; set; }
 }
 
 public class FailPackagingOrderRequestDto
@@ -26,4 +31,9 @@ public class FailPackagingOrderRequestDto
 
     [MaxLength(2000)]
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// When set, only these lines fail packaging; when null/empty, entire order fails (legacy + refund).
+    /// </summary>
+    public IReadOnlyList<Guid>? OrderItemIds { get; set; }
 }
