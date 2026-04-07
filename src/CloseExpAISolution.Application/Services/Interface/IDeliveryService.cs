@@ -84,4 +84,13 @@ public interface IDeliveryService
         Guid deliveryGroupId,
         Guid deliveryStaffId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Optimize stop order for the group (Mapbox Matrix + heuristic) and return driving polyline (Directions).
+    /// </summary>
+    Task<DeliveryRoutePlanResponseDto> ComputeDeliveryRoutePlanAsync(
+        Guid deliveryGroupId,
+        Guid deliveryStaffId,
+        DeliveryRoutePlanRequestDto request,
+        CancellationToken cancellationToken = default);
 }

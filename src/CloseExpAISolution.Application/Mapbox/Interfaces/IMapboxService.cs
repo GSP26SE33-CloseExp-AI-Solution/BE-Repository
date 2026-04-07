@@ -16,4 +16,18 @@ public interface IMapboxService
         double toLatitude,
         double toLongitude,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Driving matrix for all pairs (Mapbox Directions Matrix API).
+    /// </summary>
+    Task<DrivingMatrixResultDto?> GetDrivingMatrixAsync(
+        IReadOnlyList<(double Latitude, double Longitude)> coordinates,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Driving route through waypoints in order; geometry as polyline6.
+    /// </summary>
+    Task<DrivingRouteGeometryDto?> GetDrivingRoutePolylineAsync(
+        IReadOnlyList<(double Latitude, double Longitude)> waypoints,
+        CancellationToken ct = default);
 }

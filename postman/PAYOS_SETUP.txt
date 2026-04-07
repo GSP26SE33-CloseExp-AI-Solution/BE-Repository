@@ -3,7 +3,11 @@ PayOS — webhook, BE, FE (runbook ngắn)
 
 1) PayOS dashboard (sandbox / production)
    - Webhook URL (HTTPS công khai): https://<api-host>/api/Payment/webhook
-   - Dev: dùng ngrok / cloudflared / devtunnel trỏ vào port API (vd 5014), rồi dán URL tunnel + /api/Payment/webhook
+   - Dev: dùng ngrok / cloudflared / **Dev Tunnels** trỏ vào port API (vd 5014), rồi dán URL tunnel + /api/Payment/webhook
+   - Ví dụ tunnel team (đổi khi tunnel đổi): https://g9z03vx4-5014.asse.devtunnels.ms/api/Payment/webhook
+   - **Dev Tunnels + PayOS:** tunnel phải **public / anonymous** — PayOS POST không có cookie. Nếu mở base URL trên browser mà thấy trang đăng nhập GitHub thì webhook có thể không tới API; chỉnh access policy trong Dev Tunnels (public).
+   - Smoke (từ máy khác hoặc ngoài VPN): curl -X POST "<tunnel>/api/Payment/webhook" -H "Content-Type: application/json" -d "{}"
+     → mong đợi lỗi verify/400 từ ASP.NET, **không** phải HTML login.
    - Đồng bộ ClientId, ApiKey, ChecksumKey với cấu hình BE (user-secrets hoặc env), không commit secret
 
 2) BE (CloseExpAISolution.API)
@@ -25,3 +29,12 @@ PayOS — webhook, BE, FE (runbook ngắn)
 5) Production
    - API HTTPS hợp lệ; WAF không chặn POST JSON tới /api/Payment/webhook
    - PayOS production app + webhook URL production
+
+6) Idempotency (confirm FE vs webhook PayOS)
+   - Ai cập nhật trước cũng được: BE dùng Transaction.PaymentStatus == Paid để bỏ qua lần sau (confirm lặp hoặc webhook trễ).
+   - Rủi ro hiếm: hai request đồng thời — xem code PaymentService nếu sau này cần khóa DB.
+
+7) Kiểm thử “đóng trình duyệt, đơn vẫn Paid”
+   - Cấu hình webhook PayOS đúng URL tunnel + tunnel public.
+   - Tạo link, thanh toán sandbox, **đóng tab** (không quay returnUrl).
+   - Kiểm tra: log BE có webhook VerifyAsync thành công; DB Transaction.PaymentStatus = Paid; Order.Status chuyển Paid (nếu tồn kho đủ).
