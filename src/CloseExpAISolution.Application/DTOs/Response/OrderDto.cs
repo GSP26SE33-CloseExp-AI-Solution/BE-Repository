@@ -40,4 +40,11 @@ public class OrderItemResponseDto
 
     public string? ProductName { get; set; }
     public DateTime? ExpiryDate { get; set; }
+
+    public string PackagingStatus { get; set; } = string.Empty;
+    public string? DeliveryStatus { get; set; }
+    public DateTime? PackagedAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
+    public string? DeliveryFailedReason { get; set; }
+    public Guid? DeliveryGroupId { get; set; }
 }

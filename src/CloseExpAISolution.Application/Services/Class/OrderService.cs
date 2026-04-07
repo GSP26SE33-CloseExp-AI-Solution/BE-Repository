@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Geo;
 using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -185,7 +186,7 @@ public class OrderService : IOrderService
             UserId = request.UserId,
             TimeSlotId = request.TimeSlotId,
             CollectionId = request.CollectionId,
-            DeliveryType = request.DeliveryType,
+            DeliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType),
             TotalAmount = request.TotalAmount,
             DiscountAmount = request.DiscountAmount,
             FinalAmount = request.FinalAmount,
@@ -254,7 +255,8 @@ public class OrderService : IOrderService
 
         if (request.TimeSlotId.HasValue) order.TimeSlotId = request.TimeSlotId.Value;
         if (request.CollectionId.HasValue) order.CollectionId = request.CollectionId;
-        if (request.DeliveryType != null) order.DeliveryType = request.DeliveryType;
+        if (request.DeliveryType != null)
+            order.DeliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
         if (request.Status != null) order.Status = Enum.Parse<OrderState>(request.Status);
         if (request.AddressId.HasValue) order.AddressId = request.AddressId;
@@ -502,7 +504,7 @@ public class OrderService : IOrderService
                 DeliveryGroupId = Guid.NewGuid(),
                 GroupCode = "DG-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
                 TimeSlotId = order.TimeSlotId,
-                DeliveryType = "Pickup",
+                DeliveryType = DeliveryMethod.Pickup,
                 DeliveryArea = deliveryArea,
                 DeliveryDate = order.OrderDate.Date,
                 Status = DeliveryGroupState.Pending,

@@ -2,7 +2,10 @@ using System;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Application.Services.Routing;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -230,95 +233,182 @@ public class DeliveryAdminService : IDeliveryAdminService
             throw new UnauthorizedAccessException("Người dùng không có quyền điều phối giao hàng.");
 
         var maxDistanceKm = Math.Clamp(request.MaxDistanceKm, 0.5m, 50m);
-        var maxOrdersPerGroup = Math.Clamp(request.MaxOrdersPerGroup, 1, 200);
-        var allOrders = await _unitOfWork.Repository<Order>().GetAllAsync();
+        var maxOrdersPerGroup = Math.Clamp( // Max 200 orders per request
+            request.MaxOrdersPerGroup,
+            1,
+            Math.Min(200, DeliveryRoutePlanner.MaxCoordinatesPerRequest - 1));
 
-        var candidates = allOrders
-            .Where(o => o.DeliveryGroupId == null)
-            .Where(o => o.Status is OrderState.Paid or OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm)
-            .Where(o => !request.DeliveryDate.HasValue || o.OrderDate.Date == request.DeliveryDate.Value.Date)
-            .Where(o => !request.TimeSlotId.HasValue || o.TimeSlotId == request.TimeSlotId.Value)
-            .Where(o => !request.CollectionId.HasValue || o.CollectionId == request.CollectionId.Value)
-            .OrderBy(o => o.OrderDate)
-            .ToList();
+        var allOrders = (await _unitOfWork.Repository<Order>().GetAllAsync()).ToDictionary(o => o.OrderId);
+        var allItems = (await _unitOfWork.Repository<OrderItem>().GetAllAsync()).ToList();
+
+        var lotIds = allItems.Select(i => i.LotId).Distinct().ToList();
+        var lots = (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId))).ToDictionary(l => l.LotId);
+        var productIds = lots.Values.Select(l => l.ProductId).Distinct().ToList();
+        var products = (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId)))
+            .ToDictionary(p => p.ProductId);
+
+        var eligibleItems = new List<OrderItem>();
+        foreach (var oi in allItems)
+        {
+            if (!allOrders.TryGetValue(oi.OrderId, out var order))
+                continue;
+            if (oi.PackagingStatus != PackagingState.Completed)
+                continue;
+            if (oi.DeliveryGroupId.HasValue)
+                continue;
+            if (oi.DeliveryStatus is DeliveryState.Failed or DeliveryState.Completed)
+                continue;
+
+            if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip))
+                continue;
+
+            if (request.DeliveryDate.HasValue && order.OrderDate.Date != request.DeliveryDate.Value.Date)
+                continue;
+            if (request.TimeSlotId.HasValue && order.TimeSlotId != request.TimeSlotId.Value)
+                continue;
+            if (request.CollectionId.HasValue && order.CollectionId != request.CollectionId.Value)
+                continue;
+
+            if (!lots.TryGetValue(oi.LotId, out var lot) || !products.TryGetValue(lot.ProductId, out var product))
+                continue;
+
+            eligibleItems.Add(oi);
+        }
+
+        var byKey = eligibleItems.GroupBy(oi =>
+        {
+            var order = allOrders[oi.OrderId];
+            var lot = lots[oi.LotId];
+            var product = products[lot.ProductId];
+            return (
+                product.SupermarketId,
+                order.OrderDate.Date,
+                order.TimeSlotId,
+                order.CollectionId,
+                order.AddressId,
+                order.DeliveryType);
+        });
 
         var created = new List<DeliveryGroup>();
-        var usedOrderIds = new HashSet<Guid>();
+        var usedItemIds = new HashSet<Guid>();
 
-        foreach (var anchor in candidates)
+        foreach (var keyGroup in byKey)
         {
-            if (usedOrderIds.Contains(anchor.OrderId))
-                continue;
-
-            var anchorPoint = await ResolveOrderPointAsync(anchor);
-            if (anchorPoint == null)
-                continue;
-
-            var keyDate = anchor.OrderDate.Date;
-            var keySlot = anchor.TimeSlotId;
-            var keyCollection = anchor.CollectionId;
-
-            var bucket = new List<Order> { anchor };
-            usedOrderIds.Add(anchor.OrderId);
-
-            foreach (var o in candidates)
+            var keyItems = keyGroup.Where(i => !usedItemIds.Contains(i.OrderItemId)).ToList();
+            while (keyItems.Count > 0)
             {
-                if (usedOrderIds.Contains(o.OrderId))
-                    continue;
-                if (o.TimeSlotId != keySlot || o.OrderDate.Date != keyDate || o.CollectionId != keyCollection)
-                    continue;
-                if (bucket.Count >= maxOrdersPerGroup)
+                var remaining = keyItems.Where(i => !usedItemIds.Contains(i.OrderItemId)).ToList();
+                if (remaining.Count == 0)
                     break;
 
-                var p = await ResolveOrderPointAsync(o);
-                if (p == null)
-                    continue;
+                var candidateOrderIds = remaining.Select(i => i.OrderId).Distinct()
+                    .OrderBy(oid => allOrders[oid].OrderDate)
+                    .ToList();
 
-                var distance = await _mapboxService.GetDrivingDistanceKmAsync(anchorPoint.Value.Lat, anchorPoint.Value.Lng, p.Value.Lat, p.Value.Lng, cancellationToken)
-                               ?? CalculateHaversineKm(anchorPoint.Value.Lat, anchorPoint.Value.Lng, p.Value.Lat, p.Value.Lng);
-                if ((decimal)distance <= maxDistanceKm)
+                Order? anchorOrder = null;
+                (double Lat, double Lng)? anchorPoint = null;
+                foreach (var oid in candidateOrderIds)
                 {
-                    bucket.Add(o);
-                    usedOrderIds.Add(o.OrderId);
+                    var o = allOrders[oid];
+                    var p = await ResolveOrderPointAsync(o);
+                    if (p.HasValue)
+                    {
+                        anchorOrder = o;
+                        anchorPoint = p;
+                        break;
+                    }
                 }
+
+                if (anchorOrder == null || anchorPoint == null)
+                {
+                    foreach (var it in remaining)
+                        usedItemIds.Add(it.OrderItemId);
+                    break;
+                }
+
+                var bucketOrderIds = new HashSet<Guid> { anchorOrder.OrderId };
+                var bucketOrders = new List<Order> { anchorOrder };
+
+                foreach (var oid in candidateOrderIds)
+                {
+                    if (oid == anchorOrder.OrderId)
+                        continue;
+                    if (bucketOrders.Count >= maxOrdersPerGroup)
+                        break;
+
+                    var o = allOrders[oid];
+                    var p = await ResolveOrderPointAsync(o);
+                    if (p == null)
+                        continue;
+
+                    var distance = await _mapboxService.GetDrivingDistanceKmAsync(
+                                      anchorPoint.Value.Lat, anchorPoint.Value.Lng, p.Value.Lat, p.Value.Lng, cancellationToken)
+                                   ?? CalculateHaversineKm(anchorPoint.Value.Lat, anchorPoint.Value.Lng, p.Value.Lat, p.Value.Lng);
+                    if ((decimal)distance <= maxDistanceKm)
+                    {
+                        bucketOrders.Add(o);
+                        bucketOrderIds.Add(o.OrderId);
+                    }
+                }
+
+                var smId = keyGroup.Key.SupermarketId;
+                var keyDate = keyGroup.Key.Date;
+                var keySlot = keyGroup.Key.TimeSlotId;
+                var keyCollection = keyGroup.Key.CollectionId;
+
+                var pointList = new List<(double Lat, double Lng)>();
+                foreach (var o in bucketOrders)
+                {
+                    var p = await ResolveOrderPointAsync(o);
+                    if (p.HasValue)
+                        pointList.Add(p.Value);
+                }
+
+                var centerLat = pointList.Count > 0 ? pointList.Average(p => p.Lat) : anchorPoint.Value.Lat;
+                var centerLng = pointList.Count > 0 ? pointList.Average(p => p.Lng) : anchorPoint.Value.Lng;
+
+                var group = new DeliveryGroup
+                {
+                    DeliveryGroupId = Guid.NewGuid(),
+                    SupermarketId = smId,
+                    GroupCode = "DRAFT-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
+                    TimeSlotId = keySlot,
+                    DeliveryType = keyCollection.HasValue ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
+                    DeliveryArea = keyCollection.HasValue ? $"COLLECTION:{keyCollection.Value}" : "DELIVERY",
+                    CenterLatitude = (decimal)centerLat,
+                    CenterLongitude = (decimal)centerLng,
+                    Status = DeliveryGroupState.Draft,
+                    TotalOrders = bucketOrderIds.Count,
+                    Notes = $"Auto draft by admin {adminId} (item buckets)",
+                    DeliveryDate = keyDate,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _unitOfWork.Repository<DeliveryGroup>().AddAsync(group);
+
+                var itemsToAssign = remaining.Where(i => bucketOrderIds.Contains(i.OrderId)).ToList();
+                foreach (var item in itemsToAssign)
+                {
+                    item.DeliveryGroupId = group.DeliveryGroupId;
+                    OrderFulfillmentAggregator.MarkItemReadyToShip(item);
+                    _unitOfWork.Repository<OrderItem>().Update(item);
+                    usedItemIds.Add(item.OrderItemId);
+                }
+
+                foreach (var oid in bucketOrderIds)
+                {
+                    var o = allOrders[oid];
+                    var oItems = allItems.Where(i => i.OrderId == oid).ToList();
+                    OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(o, oItems);
+                    OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(o, oItems);
+                    o.UpdatedAt = DateTime.UtcNow;
+                    _unitOfWork.Repository<Order>().Update(o);
+                }
+
+                created.Add(group);
+                keyItems = keyItems.Where(i => !usedItemIds.Contains(i.OrderItemId)).ToList();
             }
-
-            var pointList = new List<(double Lat, double Lng)>(bucket.Count);
-            foreach (var order in bucket)
-            {
-                var p = await ResolveOrderPointAsync(order);
-                if (p.HasValue)
-                    pointList.Add(p.Value);
-            }
-
-            var centerLat = pointList.Count > 0 ? pointList.Average(p => p.Lat) : anchorPoint.Value.Lat;
-            var centerLng = pointList.Count > 0 ? pointList.Average(p => p.Lng) : anchorPoint.Value.Lng;
-
-            var group = new DeliveryGroup
-            {
-                DeliveryGroupId = Guid.NewGuid(),
-                GroupCode = "DRAFT-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
-                TimeSlotId = keySlot,
-                DeliveryType = keyCollection.HasValue ? "Pickup" : "Delivery",
-                DeliveryArea = keyCollection.HasValue ? $"COLLECTION:{keyCollection.Value}" : "DELIVERY",
-                CenterLatitude = (decimal)centerLat,
-                CenterLongitude = (decimal)centerLng,
-                Status = DeliveryGroupState.Draft,
-                TotalOrders = bucket.Count,
-                Notes = $"Auto draft by admin {adminId}",
-                DeliveryDate = keyDate,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            await _unitOfWork.Repository<DeliveryGroup>().AddAsync(group);
-            foreach (var o in bucket)
-            {
-                o.DeliveryGroupId = group.DeliveryGroupId;
-                o.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.Repository<Order>().Update(o);
-            }
-            created.Add(group);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -390,7 +480,10 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (targetId.HasValue && targetId.Value == Guid.Empty)
             throw new ArgumentException("Mã nhóm giao hàng không hợp lệ.", nameof(request.DeliveryGroupId));
 
-        if (targetId == order.DeliveryGroupId)
+        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
+
+        if (targetId == order.DeliveryGroupId
+            && orderItems.All(i => i.DeliveryGroupId == targetId))
         {
             return new MoveOrderToDraftGroupResultDto
             {
@@ -400,13 +493,12 @@ public class DeliveryAdminService : IDeliveryAdminService
             };
         }
 
-        DeliveryGroup? oldGroup = null;
-        if (order.DeliveryGroupId.HasValue)
+        foreach (var oi in orderItems.Where(i => i.DeliveryGroupId.HasValue))
         {
-            oldGroup = await _unitOfWork.Repository<DeliveryGroup>()
-                .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value);
-            if (oldGroup != null && oldGroup.Status != DeliveryGroupState.Draft)
-                throw new InvalidOperationException("Chỉ có thể chỉnh đơn đang thuộc nhóm ở trạng thái Draft.");
+            var g = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(x => x.DeliveryGroupId == oi.DeliveryGroupId!.Value);
+            if (g != null && g.Status != DeliveryGroupState.Draft)
+                throw new InvalidOperationException("Chỉ có thể chỉnh đơn khi các dòng đang thuộc nhóm Draft.");
         }
 
         DeliveryGroup? newGroup = null;
@@ -422,26 +514,32 @@ public class DeliveryAdminService : IDeliveryAdminService
                 throw new InvalidOperationException("Đơn và nhóm Draft phải cùng khung giờ và cùng ngày giao.");
         }
 
+        var oldGroupIds = orderItems
+            .Where(i => i.DeliveryGroupId.HasValue)
+            .Select(i => i.DeliveryGroupId!.Value)
+            .Append(order.DeliveryGroupId ?? Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            if (oldGroup != null)
+            var now = DateTime.UtcNow;
+            foreach (var oi in orderItems)
             {
-                oldGroup.TotalOrders = Math.Max(0, oldGroup.TotalOrders - 1);
-                oldGroup.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.Repository<DeliveryGroup>().Update(oldGroup);
+                oi.DeliveryGroupId = targetId;
+                _unitOfWork.Repository<OrderItem>().Update(oi);
             }
 
-            if (newGroup != null)
-            {
-                newGroup.TotalOrders += 1;
-                newGroup.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.Repository<DeliveryGroup>().Update(newGroup);
-            }
-
-            order.DeliveryGroupId = targetId;
-            order.UpdatedAt = DateTime.UtcNow;
+            OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
+            order.UpdatedAt = now;
             _unitOfWork.Repository<Order>().Update(order);
+
+            foreach (var gid in oldGroupIds)
+                await RecalculateDeliveryGroupTotalOrdersAsync(gid, now, cancellationToken);
+            if (targetId.HasValue)
+                await RecalculateDeliveryGroupTotalOrdersAsync(targetId.Value, now, cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync();
         }
@@ -476,9 +574,22 @@ public class DeliveryAdminService : IDeliveryAdminService
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
                 .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
-            var orders = await _unitOfWork.Repository<Order>()
-                .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
-            var completedCount = orders.Count(o => o.Status == OrderState.Completed);
+            var orderIds = (await _unitOfWork.Repository<OrderItem>()
+                    .FindAsync(i => i.DeliveryGroupId == group.DeliveryGroupId))
+                .Select(i => i.OrderId)
+                .Distinct()
+                .ToHashSet();
+            foreach (var o in await _unitOfWork.Repository<Order>()
+                         .FindAsync(x => x.DeliveryGroupId == group.DeliveryGroupId))
+                orderIds.Add(o.OrderId);
+
+            var completedCount = 0;
+            foreach (var oid in orderIds)
+            {
+                var o = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(x => x.OrderId == oid);
+                if (o != null && o.Status == OrderState.Completed)
+                    completedCount++;
+            }
 
             result.Add(new DeliveryGroupSummaryDto
             {
@@ -499,6 +610,25 @@ public class DeliveryAdminService : IDeliveryAdminService
         }
 
         return result;
+    }
+
+    private async Task RecalculateDeliveryGroupTotalOrdersAsync(
+        Guid deliveryGroupId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var itemsInGroup = await _unitOfWork.Repository<OrderItem>()
+            .FindAsync(i => i.DeliveryGroupId == deliveryGroupId);
+        var distinctOrders = itemsInGroup.Select(i => i.OrderId).Distinct().Count();
+
+        var group = await _unitOfWork.Repository<DeliveryGroup>()
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == deliveryGroupId);
+        if (group == null)
+            return;
+
+        group.TotalOrders = distinctOrders;
+        group.UpdatedAt = now;
+        _unitOfWork.Repository<DeliveryGroup>().Update(group);
     }
 
     private async Task<(double Lat, double Lng)?> ResolveOrderPointAsync(Order order)

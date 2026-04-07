@@ -12,7 +12,10 @@ public class OrderMappingProfile : Profile
             .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src =>
                 src.StockLot != null && src.StockLot.Product != null ? src.StockLot.Product.Name : null))
             .ForMember(dest => dest.ExpiryDate, opt => opt.MapFrom(src =>
-                src.StockLot != null ? src.StockLot.ExpiryDate : (DateTime?)null));
+                src.StockLot != null ? src.StockLot.ExpiryDate : (DateTime?)null))
+            .ForMember(dest => dest.PackagingStatus, opt => opt.MapFrom(src => src.PackagingStatus.ToString()))
+            .ForMember(dest => dest.DeliveryStatus, opt => opt.MapFrom(src =>
+                src.DeliveryStatus.HasValue ? src.DeliveryStatus.Value.ToString() : null));
 
         CreateMap<Order, OrderResponseDto>()
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? src.User.FullName ?? src.User.Email : null))

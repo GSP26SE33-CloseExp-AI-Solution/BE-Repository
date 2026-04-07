@@ -1,6 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Jobs;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -685,6 +686,8 @@ public class PackagingService : IPackagingService
         var groupId = item.DeliveryGroupId.Value;
         var group = await _unitOfWork.Repository<DeliveryGroup>()
             .FirstOrDefaultAsync(g => g.DeliveryGroupId == groupId);
+        if (group == null)
+            return;
 
         if (group != null && group.TotalOrders > 0)
         {

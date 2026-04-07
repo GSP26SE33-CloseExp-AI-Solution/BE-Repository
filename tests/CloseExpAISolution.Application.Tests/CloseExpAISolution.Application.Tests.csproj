@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CloseExpAISolution.Application\CloseExpAISolution.Application.csproj" />
+    <ProjectReference Include="..\..\src\CloseExpAISolution.Domain\CloseExpAISolution.Domain.csproj" />
   </ItemGroup>
 
 </Project>
