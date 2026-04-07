@@ -1237,6 +1237,61 @@
           "response": []
         },
         {
+          "name": "GET delivery/orders/{orderId} (scope items theo group shipper)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let j;",
+                  "try { j = pm.response.json(); } catch (e) { j = null; }",
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (j && j.success && j.data && Array.isArray(j.data.items)) {",
+                  "  const bad = j.data.items.filter(i => i.deliveryGroupId && i.deliveryGroupId !== pm.collectionVariables.get('deliveryGroupId'));",
+                  "  pm.test('Chi tra item thuoc group dang thao tac', function () {",
+                  "    pm.expect(bad.length).to.eql(0);",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "POST delivery/orders/{orderId}/proof-image (form file)",
           "event": [
             {
@@ -1332,6 +1387,46 @@
                 "confirm-delivery"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "POST delivery/orders/{orderId}/report-failure (orderItemIds = null)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{deliveryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"failureReason\": \"Khong lien lac duoc khach\",\n  \"orderItemIds\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/orders/{{orderId}}/report-failure",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "delivery",
+                "orders",
+                "{{orderId}}",
+                "report-failure"
+              ]
+            },
+            "description": "Khi null, BE chi xu ly cac item hop le thuoc group cua shipper hien tai."
           },
           "response": []
         },

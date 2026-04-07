@@ -55,9 +55,7 @@ public class DeliveryService : IDeliveryService
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
                 .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
-            var orders = await _unitOfWork.Repository<Order>()
-                .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
-            var completedCount = orders.Count(o => o.Status == OrderState.Completed);
+            var (totalOrders, completedCount) = await GetGroupOrderProgressCountsAsync(group.DeliveryGroupId);
 
             result.Add(new DeliveryGroupSummaryDto
             {
@@ -71,7 +69,7 @@ public class DeliveryService : IDeliveryService
                 CenterLatitude = group.CenterLatitude,
                 CenterLongitude = group.CenterLongitude,
                 Status = group.Status.ToString(),
-                TotalOrders = group.TotalOrders,
+                TotalOrders = totalOrders,
                 CompletedOrders = completedCount,
                 DeliveryDate = group.DeliveryDate
             });
@@ -122,9 +120,7 @@ public class DeliveryService : IDeliveryService
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
                 .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
 
-            var orders = await _unitOfWork.Repository<Order>()
-                .FindAsync(o => o.DeliveryGroupId == group.DeliveryGroupId);
-            var completedCount = orders.Count(o => o.Status == OrderState.Completed);
+            var (totalOrders, completedCount) = await GetGroupOrderProgressCountsAsync(group.DeliveryGroupId);
 
             result.Add(new DeliveryGroupSummaryDto
             {
@@ -138,7 +134,7 @@ public class DeliveryService : IDeliveryService
                 CenterLatitude = group.CenterLatitude,
                 CenterLongitude = group.CenterLongitude,
                 Status = group.Status.ToString(),
-                TotalOrders = group.TotalOrders,
+                TotalOrders = totalOrders,
                 CompletedOrders = completedCount,
                 DeliveryDate = group.DeliveryDate
             });
@@ -288,10 +284,11 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             return null;
 
-        if (await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken) == null)
+        var staffGroup = await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken);
+        if (staffGroup == null)
             throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
 
-        return await MapToDeliveryOrderResponseAsync(order);
+        return await MapToDeliveryOrderResponseAsync(order, staffGroup.DeliveryGroupId);
     }
 
     public async Task<DeliveryProofUploadResponseDto> UploadDeliveryProofImageAsync(
@@ -379,7 +376,10 @@ public class DeliveryService : IDeliveryService
         var itemsToConfirm = (targetIds == null
                 ? orderItems.Where(i => i.DeliveryGroupId == staffGroup.DeliveryGroupId)
                 : orderItems.Where(i => targetIds.Contains(i.OrderItemId)))
-            .Where(i => i.PackagingStatus == PackagingState.Completed)
+            .Where(i => i.PackagingStatus == PackagingState.Completed
+                        && i.DeliveryStatus is not (DeliveryState.Completed
+                            or DeliveryState.Failed
+                            or DeliveryState.DeliveredWaitConfirm))
             .ToList();
 
         if (itemsToConfirm.Count == 0)
@@ -445,7 +445,7 @@ public class DeliveryService : IDeliveryService
             throw;
         }
 
-        return await MapToDeliveryOrderResponseAsync(order);
+        return await MapToDeliveryOrderResponseAsync(order, staffGroup.DeliveryGroupId);
     }
 
     public async Task<DeliveryOrderResponseDto> ReportDeliveryFailureAsync(
@@ -486,7 +486,10 @@ public class DeliveryService : IDeliveryService
         var itemsToFail = (targetIds == null
                 ? orderItems.Where(i => i.DeliveryGroupId == staffGroup.DeliveryGroupId)
                 : orderItems.Where(i => targetIds.Contains(i.OrderItemId)))
-            .Where(i => i.PackagingStatus == PackagingState.Completed)
+            .Where(i => i.PackagingStatus == PackagingState.Completed
+                        && i.DeliveryStatus is not (DeliveryState.Completed
+                            or DeliveryState.Failed
+                            or DeliveryState.DeliveredWaitConfirm))
             .ToList();
 
         if (itemsToFail.Count == 0)
@@ -551,7 +554,7 @@ public class DeliveryService : IDeliveryService
             throw;
         }
 
-        return await MapToDeliveryOrderResponseAsync(order);
+        return await MapToDeliveryOrderResponseAsync(order, staffGroup.DeliveryGroupId);
     }
 
     public async Task<DeliveryOrderResponseDto> ConfirmOrderReceiptByCustomerAsync(
@@ -798,6 +801,20 @@ public class DeliveryService : IDeliveryService
 
         group.Status = DeliveryGroupState.Completed;
         group.UpdatedAt = DateTime.UtcNow;
+
+        var now = DateTime.UtcNow;
+        foreach (var orderId in groupItems.Select(i => i.OrderId).Distinct())
+        {
+            var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId);
+            if (order == null)
+                continue;
+
+            var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(i => i.OrderId == orderId)).ToList();
+            OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
+            OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
+            order.UpdatedAt = now;
+            _unitOfWork.Repository<Order>().Update(order);
+        }
 
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1049,12 +1066,10 @@ public class DeliveryService : IDeliveryService
         var orderDtos = new List<DeliveryOrderResponseDto>();
         foreach (var order in orders.OrderBy(o => o.OrderCode))
         {
-            orderDtos.Add(await MapToDeliveryOrderResponseAsync(order));
+            orderDtos.Add(await MapToDeliveryOrderResponseAsync(order, group.DeliveryGroupId));
         }
 
-        var completedCount = orders.Count(o =>
-            o.Status == OrderState.Completed
-            || o.Status == OrderState.DeliveredWaitConfirm);
+        var (_, completedCount) = await GetGroupOrderProgressCountsAsync(group.DeliveryGroupId);
         var failedCount = orders.Count(o => o.Status == OrderState.Failed);
 
         return new DeliveryGroupResponseDto
@@ -1072,7 +1087,7 @@ public class DeliveryService : IDeliveryService
             CenterLatitude = group.CenterLatitude,
             CenterLongitude = group.CenterLongitude,
             Status = group.Status.ToString(),
-            TotalOrders = group.TotalOrders,
+            TotalOrders = orders.Count,
             CompletedOrders = completedCount,
             FailedOrders = failedCount,
             Notes = group.Notes,
@@ -1083,7 +1098,7 @@ public class DeliveryService : IDeliveryService
         };
     }
 
-    private async Task<DeliveryOrderResponseDto> MapToDeliveryOrderResponseAsync(Order order)
+    private async Task<DeliveryOrderResponseDto> MapToDeliveryOrderResponseAsync(Order order, Guid? scopedDeliveryGroupId = null)
     {
         var customer = await _unitOfWork.Repository<User>()
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
@@ -1117,6 +1132,8 @@ public class DeliveryService : IDeliveryService
 
         var orderItems = await _unitOfWork.Repository<OrderItem>()
             .FindAsync(oi => oi.OrderId == order.OrderId);
+        if (scopedDeliveryGroupId.HasValue)
+            orderItems = orderItems.Where(oi => oi.DeliveryGroupId == scopedDeliveryGroupId.Value);
 
         var itemDtos = new List<DeliveryOrderItemDto>();
         foreach (var item in orderItems)
@@ -1170,9 +1187,36 @@ public class DeliveryService : IDeliveryService
         };
     }
 
+    private async Task<(int TotalOrders, int CompletedOrders)> GetGroupOrderProgressCountsAsync(Guid deliveryGroupId)
+    {
+        var groupItems = (await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(i => i.DeliveryGroupId == deliveryGroupId))
+            .ToList();
+
+        var orderIds = groupItems.Select(i => i.OrderId).Distinct().ToList();
+        if (orderIds.Count == 0)
+            return (0, 0);
+
+        var completed = 0;
+        foreach (var orderId in orderIds)
+        {
+            var scopedItems = groupItems
+                .Where(i => i.OrderId == orderId && i.PackagingStatus == PackagingState.Completed)
+                .ToList();
+            if (scopedItems.Count == 0)
+                continue;
+
+            var isCompleted = scopedItems.All(i =>
+                i.DeliveryStatus is DeliveryState.Completed or DeliveryState.Failed);
+            if (isCompleted)
+                completed++;
+        }
+
+        return (orderIds.Count, completed);
+    }
     /// <summary>
-    /// Finds a delivery group assigned to <paramref name="deliveryStaffId"/> that covers this order
-    /// (via <see cref="OrderItem.DeliveryGroupId"/> or legacy <see cref="Order.DeliveryGroupId"/>).
+    /// Tìm nhóm giao hàng được gán cho <paramref name="deliveryStaffId"/> bao phủ đơn hàng này
+    /// (thông qua <see cref="OrderItem.DeliveryGroupId"/> hoặc <see cref="Order.DeliveryGroupId"/> cũ).
     /// </summary>
     private async Task<DeliveryGroup?> ResolveStaffGroupForOrderAsync(
         Order order,

@@ -44,6 +44,36 @@ public class OrderFulfillmentAggregatorTests
     }
 
     [Fact]
+    public void ApplyAggregatedOrderStatus_MixedTerminalAndInTransit_KeepsReadyToShip()
+    {
+        var order = new Order { Status = OrderState.ReadyToShip };
+        var items = new[]
+        {
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.Completed },
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.InTransit }
+        };
+
+        OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, items);
+
+        Assert.Equal(OrderState.ReadyToShip, order.Status);
+    }
+
+    [Fact]
+    public void ApplyAggregatedOrderStatus_HasDeliveredWaitConfirm_SetsDeliveredWaitConfirm()
+    {
+        var order = new Order { Status = OrderState.ReadyToShip };
+        var items = new[]
+        {
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.DeliveredWaitConfirm },
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.InTransit }
+        };
+
+        OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, items);
+
+        Assert.Equal(OrderState.DeliveredWaitConfirm, order.Status);
+    }
+
+    [Fact]
     public void SyncOrderDeliveryGroupPointer_SingleGroup_SetsOrderPointer()
     {
         var gid = Guid.NewGuid();

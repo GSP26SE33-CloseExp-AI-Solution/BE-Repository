@@ -685,7 +685,7 @@ public class PackagingService : IPackagingService
 
         var groupId = item.DeliveryGroupId.Value;
         var group = await _unitOfWork.Repository<DeliveryGroup>()
-            .FirstOrDefaultAsync(g => g.DeliveryGroupId == deliveryGroupId);
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == groupId);
         if (group == null)
             return;
 
