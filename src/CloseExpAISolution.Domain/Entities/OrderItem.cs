@@ -14,6 +14,7 @@ public class OrderItem
     public DeliveryState? DeliveryStatus { get; set; }
     public DateTime? PackagedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
+    public string? PackagingFailedReason { get; set; }
     public string? DeliveryFailedReason { get; set; }
     public Guid? DeliveryGroupId { get; set; }
 

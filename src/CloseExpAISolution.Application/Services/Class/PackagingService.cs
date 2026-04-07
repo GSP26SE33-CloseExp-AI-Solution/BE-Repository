@@ -38,30 +38,24 @@ public class PackagingService : IPackagingService
     {
         await EnsurePackagingStaffAsync(packagingStaffId);
 
-        var pendingOrders = await _unitOfWork.Repository<Order>()
-            .FindAsync(o => o.Status == OrderState.Paid);
+        var openItems = await _unitOfWork.Repository<OrderItem>()
+            .FindAsync(oi =>
+                oi.PackagingStatus != PackagingState.Completed && oi.PackagingStatus != PackagingState.Failed);
 
-        var allRecords = await _unitOfWork.Repository<OrderPackaging>()
-            .GetAllAsync();
+        var orderIdsNeedingPackaging = openItems.Select(oi => oi.OrderId).Distinct().ToHashSet();
 
-        var recordsByOrder = allRecords
-            .GroupBy(r => r.OrderId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.PackagedAt ?? DateTime.MinValue).First());
-
-        var filtered = pendingOrders
-            .Where(o => !recordsByOrder.TryGetValue(o.OrderId, out var record)
-                     || record.Status != PackagingState.Completed)
+        var paidOrders = (await _unitOfWork.Repository<Order>()
+                .FindAsync(o => o.Status == OrderState.Paid && orderIdsNeedingPackaging.Contains(o.OrderId)))
             .OrderBy(o => o.OrderDate)
             .ToList();
 
-        var totalCount = filtered.Count;
-        var paged = filtered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        var totalCount = paidOrders.Count;
+        var paged = paidOrders.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
         var result = new List<PackagingOrderSummaryDto>();
         foreach (var order in paged)
         {
-            recordsByOrder.TryGetValue(order.OrderId, out var record);
-            result.Add(await MapToSummaryAsync(order, record));
+            result.Add(await MapToSummaryAsync(order, cancellationToken));
         }
 
         return (result, totalCount);
@@ -77,13 +71,7 @@ public class PackagingService : IPackagingService
         if (order == null)
             return null;
 
-        var records = await _unitOfWork.Repository<OrderPackaging>()
-            .FindAsync(r => r.OrderId == orderId);
-        var latestRecord = records
-            .OrderByDescending(r => r.PackagedAt ?? DateTime.MinValue)
-            .FirstOrDefault();
-
-        return await MapToDetailAsync(order, latestRecord);
+        return await MapToDetailAsync(order, cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> ConfirmOrderAsync(
@@ -96,21 +84,34 @@ public class PackagingService : IPackagingService
 
         var order = await GetOrderForPackagingAsync(orderId);
         if (order.Status != OrderState.Paid)
-            throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói.");
+            throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói (Paid).");
 
-        var record = await GetOrCreatePackagingRecordAsync(orderId, packagingStaffId);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        var targets = await ResolveTargetOrderItemsAsync(orderId, request.OrderItemIds, cancellationToken);
+        foreach (var item in targets)
+            EnsureItemPackagingNotTerminal(item, "xác nhận");
 
-        if (record.Status == PackagingState.Completed)
-            throw new InvalidOperationException("Đơn hàng đã được đóng gói hoàn tất.");
+        await RemoveLegacyOrderPackagingRowsAsync(orderId, cancellationToken);
 
-        record.Status = PackagingState.Pending;
-        _unitOfWork.Repository<OrderPackaging>().Update(record);
+        foreach (var item in targets)
+        {
+            var record = await GetOrCreateItemPackagingRecordAsync(orderId, item.OrderItemId, packagingStaffId, cancellationToken);
+            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+            if (record.Status == PackagingState.Completed || record.Status == PackagingState.Failed)
+                throw new InvalidOperationException($"Dòng hàng {item.OrderItemId} đã kết thúc đóng gói.");
+
+            record.Status = PackagingState.Pending;
+            record.PackagedAt = null;
+            _unitOfWork.Repository<OrderPackaging>().Update(record);
+
+            item.PackagingStatus = PackagingState.Pending;
+            _unitOfWork.Repository<OrderItem>().Update(item);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Packaging staff {StaffId} confirmed order {OrderId}", packagingStaffId, orderId);
+        _logger.LogInformation("Packaging staff {StaffId} confirmed {Count} line(s) for order {OrderId}", packagingStaffId, targets.Count, orderId);
 
-        return await MapToDetailAsync(order, record);
+        return await MapToDetailAsync(order, cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> MarkCollectedAsync(
@@ -122,19 +123,34 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var order = await GetOrderForPackagingAsync(orderId);
-        var record = await RequirePackagingRecordAsync(orderId);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        if (order.Status != OrderState.Paid)
+            throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói (Paid).");
 
-        if (record.Status != PackagingState.Pending)
-            throw new InvalidOperationException("Đơn hàng phải được xác nhận trước khi thu gom sản phẩm.");
+        var targets = await ResolveTargetOrderItemsAsync(orderId, request.OrderItemIds, cancellationToken);
+        foreach (var item in targets)
+        {
+            if (item.PackagingStatus != PackagingState.Pending)
+                throw new InvalidOperationException(
+                    $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận (Pending) trước khi thu gom.");
 
-        record.Status = PackagingState.Packaging;
-        _unitOfWork.Repository<OrderPackaging>().Update(record);
+            var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
+            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+
+            if (record.Status != PackagingState.Pending)
+                throw new InvalidOperationException("Bản ghi đóng gói không ở trạng thái chờ thu gom.");
+
+            record.Status = PackagingState.Packaging;
+            _unitOfWork.Repository<OrderPackaging>().Update(record);
+
+            item.PackagingStatus = PackagingState.Packaging;
+            _unitOfWork.Repository<OrderItem>().Update(item);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Packaging staff {StaffId} collected items for order {OrderId}. Notes: {Notes}", packagingStaffId, orderId, request.Notes);
+        _logger.LogInformation("Packaging staff {StaffId} collected {Count} line(s) for order {OrderId}. Notes: {Notes}", packagingStaffId, targets.Count, orderId, request.Notes);
 
-        return await MapToDetailAsync(order, record);
+        return await MapToDetailAsync(order, cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> CompletePackagingAsync(
@@ -146,112 +162,41 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var order = await GetOrderForPackagingAsync(orderId);
-        var record = await RequirePackagingRecordAsync(orderId);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
-
-        if (record.Status != PackagingState.Packaging && record.Status != PackagingState.Pending)
-            throw new InvalidOperationException("Đơn hàng phải ở trạng thái đã xác nhận hoặc đang thu gom để hoàn tất đóng gói.");
-
         if (order.Status != OrderState.Paid)
-            throw new InvalidOperationException($"Không thể hoàn tất đóng gói vì đơn hàng đang ở trạng thái {order.Status}, không phải Paid.");
+            throw new InvalidOperationException($"Chỉ đóng gói khi đơn ở Paid. Hiện tại: {order.Status}.");
 
-        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
-        if (orderItems.Count == 0)
-            throw new InvalidOperationException("Đơn hàng không có dòng sản phẩm.");
-
-        var targetIds = request.OrderItemIds is { Count: > 0 }
-            ? request.OrderItemIds.ToHashSet()
-            : orderItems.Select(i => i.OrderItemId).ToHashSet();
-
-        foreach (var id in targetIds)
+        var targets = await ResolveTargetOrderItemsAsync(orderId, request.OrderItemIds, cancellationToken);
+        foreach (var item in targets)
         {
-            if (orderItems.All(i => i.OrderItemId != id))
-                throw new ArgumentException($"OrderItemId {id} không thuộc đơn hàng.");
+            if (item.PackagingStatus != PackagingState.Pending && item.PackagingStatus != PackagingState.Packaging)
+                throw new InvalidOperationException(
+                    $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận hoặc đang thu gom.");
+
+            var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
+            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
         }
+
+        var now = DateTime.UtcNow;
+        var oldOrderStatus = order.Status;
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            var now = DateTime.UtcNow;
-            foreach (var item in orderItems.Where(i => targetIds.Contains(i.OrderItemId)))
+            foreach (var item in targets)
             {
-                if (item.PackagingStatus == PackagingState.Failed)
-                    throw new InvalidOperationException($"Không thể hoàn tất đóng gói cho dòng {item.OrderItemId} đã thất bại.");
+                var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
+                record.Status = PackagingState.Completed;
+                record.PackagedAt = now;
+                _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Completed;
                 item.PackagedAt = now;
-                OrderFulfillmentAggregator.MarkItemReadyToShip(item);
+                item.DeliveryStatus = DeliveryState.ReadyToShip;
+                item.PackagingFailedReason = null;
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            if (orderItems.All(i => i.PackagingStatus is PackagingState.Completed or PackagingState.Failed))
-            {
-                record.Status = orderItems.Any(i => i.PackagingStatus == PackagingState.Completed)
-                    ? PackagingState.Completed
-                    : PackagingState.Failed;
-                record.PackagedAt = now;
-            }
-            else
-            {
-                if (record.Status == PackagingState.Pending)
-                    record.Status = PackagingState.Packaging;
-            }
-
-            _unitOfWork.Repository<OrderPackaging>().Update(record);
-
-            var oldOrderStatus = order.Status;
-            OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
-            OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
-            order.UpdatedAt = now;
-            _unitOfWork.Repository<Order>().Update(order);
-
-            if (oldOrderStatus != order.Status && order.Status == OrderState.ReadyToShip)
-            {
-                var customerNotification = new Notification
-                {
-                    NotificationId = Guid.NewGuid(),
-                    UserId = order.UserId,
-                    Title = "Đơn hàng sẵn sàng giao",
-                    Content = $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
-                    Type = NotificationType.OrderUpdate,
-                    IsRead = false,
-                    CreatedAt = now
-                };
-                await _unitOfWork.Repository<Notification>().AddAsync(customerNotification);
-
-                var deliveryStaffs = await _unitOfWork.Repository<User>()
-                    .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
-
-                var notifications = deliveryStaffs.Select(staff => new Notification
-                {
-                    NotificationId = Guid.NewGuid(),
-                    UserId = staff.UserId,
-                    Title = "Có đơn cần giao",
-                    Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
-                    Type = NotificationType.DeliveryUpdate,
-                    IsRead = false,
-                    CreatedAt = now
-                }).ToList();
-
-                if (notifications.Count > 0)
-                    await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
-            }
-
             await _unitOfWork.CommitTransactionAsync();
-
-            if (oldOrderStatus != order.Status && order.Status == OrderState.ReadyToShip)
-            {
-                try
-                {
-                    await TryScheduleDeliveryQrEmailJobAsync(order.OrderId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex,
-                        "Failed to schedule SendOrderDeliveryQrEmailJob. orderId={OrderId}",
-                        order.OrderId);
-                }
-            }
         }
         catch
         {
@@ -259,9 +204,26 @@ public class PackagingService : IPackagingService
             throw;
         }
 
-        _logger.LogInformation("Packaging staff {StaffId} completed packaging for order {OrderId}. Notes: {Notes}", packagingStaffId, orderId, request.Notes);
+        var itemsAfterComplete = await GetOrderItemsAsync(orderId, cancellationToken);
+        var allLinesPackagingSucceeded = itemsAfterComplete.Count > 0
+            && itemsAfterComplete.All(i => i.PackagingStatus == PackagingState.Completed);
+        if (!allLinesPackagingSucceeded)
+            await NotifyCustomerPartialPackagingAsync(order, targets.Count, now, cancellationToken);
 
-        return await MapToDetailAsync(order, record);
+        await RefreshOrderStatusAfterPackagingAsync(orderId, oldOrderStatus, now, cancellationToken);
+
+        try
+        {
+            await TryScheduleDeliveryQrEmailJobAsync(order.OrderId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to schedule SendOrderDeliveryQrEmailJob. orderId={OrderId}", order.OrderId);
+        }
+
+        _logger.LogInformation("Packaging staff {StaffId} completed {Count} line(s) for order {OrderId}. Notes: {Notes}", packagingStaffId, targets.Count, orderId, request.Notes);
+
+        return await MapToDetailAsync(await ReloadOrderAsync(orderId, cancellationToken), cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> FailPackagingAsync(
@@ -273,180 +235,47 @@ public class PackagingService : IPackagingService
         await EnsurePackagingStaffAsync(packagingStaffId);
 
         var order = await GetOrderForPackagingAsync(orderId);
-        var record = await RequirePackagingRecordAsync(orderId);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
-
-        if (record.Status == PackagingState.Completed)
-            throw new InvalidOperationException("Đơn hàng đã đóng gói xong, không thể đánh dấu thất bại.");
-
-        if (record.Status == PackagingState.Failed)
-            throw new InvalidOperationException("Đơn hàng đã được ghi nhận đóng gói thất bại trước đó.");
-
         if (order.Status != OrderState.Paid)
-            throw new InvalidOperationException(
-                $"Chỉ có thể báo thất bại đóng gói khi đơn đang ở trạng thái Paid. Trạng thái hiện tại: {order.Status}.");
+            throw new InvalidOperationException($"Chỉ báo thất bại đóng gói khi đơn ở Paid. Hiện tại: {order.Status}.");
 
         var failureReason = request.FailureReason.Trim();
+        var targets = await ResolveTargetOrderItemsForFailAsync(orderId, request.OrderItemIds, cancellationToken);
+
+        foreach (var item in targets)
+        {
+            if (item.PackagingStatus == PackagingState.Completed)
+                throw new InvalidOperationException($"Không thể báo thất bại cho dòng đã đóng gói xong ({item.OrderItemId}).");
+
+            var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
+            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        }
+
         var now = DateTime.UtcNow;
         var oldOrderStatus = order.Status;
-
-        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
-        var partialIds = request.OrderItemIds is { Count: > 0 }
-            ? request.OrderItemIds.ToHashSet()
-            : null;
-
-        if (partialIds != null)
-        {
-            foreach (var id in partialIds)
-            {
-                if (orderItems.All(i => i.OrderItemId != id))
-                    throw new ArgumentException($"OrderItemId {id} không thuộc đơn hàng.");
-            }
-        }
+        var note = BuildFailureNote(failureReason, request.Notes);
 
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            if (partialIds == null)
+            await RestoreStockForOrderItemsAsync(targets, now, cancellationToken);
+
+            foreach (var item in targets)
             {
-                await RestoreStockForOrderAsync(orderId, now, cancellationToken);
-                await DetachAllOrderItemsFromDeliveryGroupsAsync(order, orderItems, now, cancellationToken);
+                await DetachItemFromDeliveryGroupIfNeededAsync(item, now, cancellationToken);
 
-                foreach (var item in orderItems)
-                {
-                    item.PackagingStatus = PackagingState.Failed;
-                    item.PackagedAt = now;
-                    item.DeliveryStatus = null;
-                    item.DeliveryGroupId = null;
-                    _unitOfWork.Repository<OrderItem>().Update(item);
-                }
-
+                var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
                 record.Status = PackagingState.Failed;
                 record.PackagedAt = now;
                 _unitOfWork.Repository<OrderPackaging>().Update(record);
 
-                order.Status = OrderState.Failed;
-                order.UpdatedAt = now;
-                _unitOfWork.Repository<Order>().Update(order);
-            }
-            else
-            {
-                var toFail = orderItems.Where(i => partialIds.Contains(i.OrderItemId)).ToList();
-                await RestoreStockForOrderItemsAsync(toFail, now, cancellationToken);
-
-                foreach (var item in toFail)
-                {
-                    var gid = item.DeliveryGroupId;
-                    item.PackagingStatus = PackagingState.Failed;
-                    item.PackagedAt = now;
-                    item.DeliveryStatus = null;
-                    item.DeliveryGroupId = null;
-                    _unitOfWork.Repository<OrderItem>().Update(item);
-                    if (gid.HasValue)
-                        await RecalculateDeliveryGroupTotalOrdersAsync(gid.Value, now, cancellationToken);
-                }
-
-                if (orderItems.All(i => i.PackagingStatus is PackagingState.Completed or PackagingState.Failed))
-                {
-                    record.Status = orderItems.Any(i => i.PackagingStatus == PackagingState.Completed)
-                        ? PackagingState.Completed
-                        : PackagingState.Failed;
-                    record.PackagedAt = now;
-                }
-
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
-
-                OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
-                OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
-                order.UpdatedAt = now;
-                _unitOfWork.Repository<Order>().Update(order);
-
-                if (!orderItems.All(i => i.PackagingStatus == PackagingState.Failed))
-                {
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogWarning(
-                        "Packaging staff {StaffId} marked packaging failed for subset order {OrderId}. Reason: {Reason}",
-                        packagingStaffId,
-                        orderId,
-                        failureReason);
-                    return await MapToDetailAsync(order, record);
-                }
-
-                record.Status = PackagingState.Failed;
-                record.PackagedAt = now;
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
-
-                order.Status = OrderState.Failed;
-                order.UpdatedAt = now;
-                _unitOfWork.Repository<Order>().Update(order);
+                item.PackagingStatus = PackagingState.Failed;
+                item.PackagingFailedReason = note.Length > 2000 ? note[..2000] : note;
+                item.DeliveryStatus = null;
+                _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            var note = $"Đóng gói thất bại: {failureReason}";
-            if (!string.IsNullOrWhiteSpace(request.Notes))
-                note += $" | Ghi chú: {request.Notes!.Trim()}";
-
-            var statusLog = new OrderStatusLog
-            {
-                LogId = Guid.NewGuid(),
-                OrderId = order.OrderId,
-                FromStatus = oldOrderStatus,
-                ToStatus = OrderState.Failed,
-                ChangedBy = packagingStaffId.ToString(),
-                Note = note.Length > 2000 ? note[..2000] : note,
-                ChangedAt = now
-            };
-            await _unitOfWork.Repository<OrderStatusLog>().AddAsync(statusLog);
-
-            var customerNotification = new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = order.UserId,
-                Title = "Đơn hàng không thể giao — hoàn tiền",
-                Content =
-                    $"Đơn {order.OrderCode} gặp sự cố khi đóng gói và đã chuyển sang trạng thái thất bại. Yêu cầu hoàn tiền đã được tạo và sẽ được xử lý.",
-                Type = NotificationType.OrderUpdate,
-                IsRead = false,
-                CreatedAt = now
-            };
-            await _unitOfWork.Repository<Notification>().AddAsync(customerNotification);
-
-            var transactions = (await _unitOfWork.Repository<Transaction>()
-                    .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
-                .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
-                .ToList();
-
-            var paidTx = transactions.FirstOrDefault();
-            if (paidTx == null)
-            {
-                throw new InvalidOperationException(
-                    "Không tìm thấy giao dịch thanh toán thành công cho đơn hàng, không thể tạo yêu cầu hoàn tiền.");
-            }
-
-            var existingRefundTotal = (await _unitOfWork.Repository<Refund>().FindAsync(r =>
-                    r.TransactionId == paidTx.TransactionId && r.Status != RefundState.Rejected))
-                .Sum(r => r.Amount);
-
-            var refundable = paidTx.Amount - existingRefundTotal;
-            if (refundable > 0)
-            {
-                var refundReason = note.Length > 2000 ? note[..2000] : note;
-                await _refundService.CreateAsync(
-                    new CreateRefundRequestDto
-                    {
-                        OrderId = orderId,
-                        TransactionId = paidTx.TransactionId,
-                        Amount = refundable,
-                        Reason = refundReason
-                    },
-                    cancellationToken);
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "Packaging fail for order {OrderId}: no refundable amount left on transaction {TxId} (already refunded).",
-                    orderId,
-                    paidTx.TransactionId);
-            }
+            var failedAmount = targets.Sum(i => i.TotalPrice);
+            await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync();
         }
@@ -456,63 +285,369 @@ public class PackagingService : IPackagingService
             throw;
         }
 
+        await NotifyCustomerPackagingFailureAsync(order, targets.Count, failureReason, now, cancellationToken);
+        await RefreshOrderStatusAfterPackagingAsync(orderId, oldOrderStatus, now, cancellationToken);
+
+        if ((await GetOrderItemsAsync(orderId, cancellationToken)).All(i => i.PackagingStatus == PackagingState.Failed))
+        {
+            await TryAddOrderFailedStatusLogAsync(orderId, oldOrderStatus, note, packagingStaffId, now, cancellationToken);
+        }
+
         _logger.LogWarning(
-            "Packaging staff {StaffId} marked packaging failed for order {OrderId}. Reason: {Reason}",
+            "Packaging staff {StaffId} failed {Count} line(s) for order {OrderId}. Reason: {Reason}",
             packagingStaffId,
+            targets.Count,
             orderId,
             failureReason);
 
-        return await MapToDetailAsync(order, record);
+        return await MapToDetailAsync(await ReloadOrderAsync(orderId, cancellationToken), cancellationToken);
     }
 
-    private async Task RestoreStockForOrderAsync(Guid orderId, DateTime now, CancellationToken cancellationToken)
+    private static string BuildFailureNote(string failureReason, string? notes)
     {
-        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
-        if (orderItems.Count == 0)
-            return;
-
-        var requiredByLot = orderItems
-            .GroupBy(oi => oi.LotId)
-            .Select(g => new { LotId = g.Key, RequiredQuantity = (decimal)g.Sum(x => x.Quantity) })
-            .ToList();
-
-        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
-        var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId));
-        var lotById = lots.ToDictionary(l => l.LotId);
-
-        foreach (var req in requiredByLot)
-        {
-            if (!lotById.TryGetValue(req.LotId, out var lot))
-                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId} để hoàn kho cho order {orderId}.");
-
-            lot.Quantity += req.RequiredQuantity;
-            lot.UpdatedAt = now;
-            _unitOfWork.Repository<StockLot>().Update(lot);
-        }
+        var n = $"Đóng gói thất bại: {failureReason}";
+        if (!string.IsNullOrWhiteSpace(notes))
+            n += $" | Ghi chú: {notes.Trim()}";
+        return n;
     }
 
-    private async Task DetachAllOrderItemsFromDeliveryGroupsAsync(
+    private async Task<List<OrderItem>> ResolveTargetOrderItemsAsync(
+        Guid orderId,
+        IReadOnlyList<Guid>? orderItemIds,
+        CancellationToken cancellationToken)
+    {
+        var all = await GetOrderItemsAsync(orderId, cancellationToken);
+        if (all.Count == 0)
+            throw new InvalidOperationException("Đơn hàng không có dòng hàng.");
+
+        if (orderItemIds == null || orderItemIds.Count == 0)
+            return all;
+
+        var set = orderItemIds.ToHashSet();
+        var picked = all.Where(i => set.Contains(i.OrderItemId)).ToList();
+        if (picked.Count != set.Count)
+            throw new InvalidOperationException("Có mã OrderItem không thuộc đơn hàng hoặc bị trùng.");
+
+        return picked;
+    }
+
+    private async Task<List<OrderItem>> ResolveTargetOrderItemsForFailAsync(
+        Guid orderId,
+        IReadOnlyList<Guid>? orderItemIds,
+        CancellationToken cancellationToken)
+    {
+        var all = await GetOrderItemsAsync(orderId, cancellationToken);
+        if (all.Count == 0)
+            throw new InvalidOperationException("Đơn hàng không có dòng hàng.");
+
+        if (orderItemIds == null || orderItemIds.Count == 0)
+        {
+            return all.Where(i => i.PackagingStatus != PackagingState.Completed).ToList();
+        }
+
+        var set = orderItemIds.ToHashSet();
+        var picked = all.Where(i => set.Contains(i.OrderItemId)).ToList();
+        if (picked.Count != set.Count)
+            throw new InvalidOperationException("Có mã OrderItem không thuộc đơn hàng hoặc bị trùng.");
+
+        return picked;
+    }
+
+    private async Task<List<OrderItem>> GetOrderItemsAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        return (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
+    }
+
+    private async Task<Order> ReloadOrderAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        return await GetOrderForPackagingAsync(orderId);
+    }
+
+    private static void EnsureItemPackagingNotTerminal(OrderItem item, string action)
+    {
+        if (item.PackagingStatus == PackagingState.Completed || item.PackagingStatus == PackagingState.Failed)
+            throw new InvalidOperationException($"Không thể {action} dòng hàng đã hoàn tất hoặc đã thất bại.");
+    }
+
+    private async Task RemoveLegacyOrderPackagingRowsAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var legacy = (await _unitOfWork.Repository<OrderPackaging>()
+            .FindAsync(r => r.OrderId == orderId && r.OrderItemId == null)).ToList();
+        foreach (var row in legacy)
+            _unitOfWork.Repository<OrderPackaging>().Delete(row);
+
+        if (legacy.Count > 0)
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<OrderPackaging> GetOrCreateItemPackagingRecordAsync(
+        Guid orderId,
+        Guid orderItemId,
+        Guid packagingStaffId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _unitOfWork.Repository<OrderPackaging>()
+            .FirstOrDefaultAsync(r => r.OrderId == orderId && r.OrderItemId == orderItemId);
+
+        if (existing != null)
+            return existing;
+
+        var created = new OrderPackaging
+        {
+            PackagingId = Guid.NewGuid(),
+            OrderId = orderId,
+            OrderItemId = orderItemId,
+            UserId = packagingStaffId,
+            Status = PackagingState.Pending,
+            PackagedAt = null
+        };
+
+        await _unitOfWork.Repository<OrderPackaging>().AddAsync(created);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return created;
+    }
+
+    private async Task<OrderPackaging> RequireItemPackagingRecordAsync(
+        Guid orderId,
+        Guid orderItemId,
+        CancellationToken cancellationToken)
+    {
+        var record = await _unitOfWork.Repository<OrderPackaging>()
+            .FirstOrDefaultAsync(r => r.OrderId == orderId && r.OrderItemId == orderItemId);
+
+        if (record == null)
+            throw new InvalidOperationException($"Dòng hàng {orderItemId} chưa được xác nhận đóng gói (confirm).");
+
+        return record;
+    }
+
+    private static void EnsureRecordOwnedByCurrentStaff(OrderPackaging record, Guid packagingStaffId)
+    {
+        if (record.UserId != packagingStaffId)
+            throw new UnauthorizedAccessException("Dòng hàng này đang được xử lý bởi nhân viên đóng gói khác.");
+    }
+
+    private async Task NotifyCustomerPartialPackagingAsync(
         Order order,
-        List<OrderItem> orderItems,
+        int lineCount,
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var touchedGroups = new HashSet<Guid>();
-        foreach (var item in orderItems)
+        var notification = new Notification
         {
-            if (item.DeliveryGroupId.HasValue)
-                touchedGroups.Add(item.DeliveryGroupId.Value);
-            item.DeliveryGroupId = null;
-            _unitOfWork.Repository<OrderItem>().Update(item);
+            NotificationId = Guid.NewGuid(),
+            UserId = order.UserId,
+            Title = "Cập nhật đóng gói",
+            Content =
+                lineCount > 1
+                    ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao."
+                    : $"Đơn {order.OrderCode}: một dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao.",
+            Type = NotificationType.OrderUpdate,
+            IsRead = false,
+            CreatedAt = now
+        };
+        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task NotifyCustomerPackagingFailureAsync(
+        Order order,
+        int lineCount,
+        string failureReason,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var notification = new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = order.UserId,
+            Title = "Đóng gói thất bại — một phần đơn hàng",
+            Content =
+                lineCount > 1
+                    ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng."
+                    : $"Đơn {order.OrderCode}: một dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng.",
+            Type = NotificationType.OrderUpdate,
+            IsRead = false,
+            CreatedAt = now
+        };
+        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task RefreshOrderStatusAfterPackagingAsync(
+        Guid orderId,
+        OrderState previousStatus,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId)
+            ?? throw new InvalidOperationException("Order not found after packaging update.");
+
+        var items = await GetOrderItemsAsync(orderId, cancellationToken);
+        if (items.Count == 0)
+            return;
+
+        var allTerminal = items.All(i =>
+            i.PackagingStatus == PackagingState.Completed || i.PackagingStatus == PackagingState.Failed);
+
+        if (!allTerminal)
+            return;
+
+        var allFailed = items.All(i => i.PackagingStatus == PackagingState.Failed);
+        var anyCompleted = items.Any(i => i.PackagingStatus == PackagingState.Completed);
+
+        if (allFailed)
+        {
+            if (order.Status != OrderState.Failed)
+            {
+                order.Status = OrderState.Failed;
+                order.UpdatedAt = now;
+                await DetachOrderFromDeliveryGroupIfNeededAsync(order, now, cancellationToken);
+                _unitOfWork.Repository<Order>().Update(order);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            return;
         }
 
-        if (order.DeliveryGroupId.HasValue)
-            touchedGroups.Add(order.DeliveryGroupId.Value);
+        if (anyCompleted && order.Status != OrderState.ReadyToShip)
+        {
+            order.Status = OrderState.ReadyToShip;
+            order.UpdatedAt = now;
+            _unitOfWork.Repository<Order>().Update(order);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (previousStatus != OrderState.ReadyToShip)
+            {
+                await NotifyDeliveryStaffOrderReadyAsync(order, now, cancellationToken);
+                var anyFailed = items.Any(i => i.PackagingStatus == PackagingState.Failed);
+                var title = "Đơn hàng sẵn sàng giao";
+                var content = anyFailed
+                    ? $"Đơn {order.OrderCode} đã xử lý đóng gói xong: phần thành công sẵn sàng giao; có dòng hàng đã thất bại (xem chi tiết đơn)."
+                    : $"Đơn {order.OrderCode} đã hoàn tất đóng gói (tất cả dòng hàng) và sẵn sàng giao.";
+
+                var customer = new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    UserId = order.UserId,
+                    Title = title,
+                    Content = content,
+                    Type = NotificationType.OrderUpdate,
+                    IsRead = false,
+                    CreatedAt = now
+                };
+                await _unitOfWork.Repository<Notification>().AddAsync(customer);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+        }
+    }
+
+    private async Task DetachOrderFromDeliveryGroupIfNeededAsync(Order order, DateTime now, CancellationToken cancellationToken)
+    {
+        if (!order.DeliveryGroupId.HasValue)
+            return;
+
+        var groupId = order.DeliveryGroupId.Value;
+        var group = await _unitOfWork.Repository<DeliveryGroup>()
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == groupId);
+
+        if (group != null && group.TotalOrders > 0)
+        {
+            group.TotalOrders -= 1;
+            group.UpdatedAt = now;
+            _unitOfWork.Repository<DeliveryGroup>().Update(group);
+        }
 
         order.DeliveryGroupId = null;
+    }
 
-        foreach (var gid in touchedGroups)
-            await RecalculateDeliveryGroupTotalOrdersAsync(gid, now, cancellationToken);
+    private async Task NotifyDeliveryStaffOrderReadyAsync(Order order, DateTime now, CancellationToken cancellationToken)
+    {
+        var deliveryStaffs = await _unitOfWork.Repository<User>()
+            .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
+
+        var notifications = deliveryStaffs.Select(staff => new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = staff.UserId,
+            Title = "Có đơn cần giao",
+            Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
+            Type = NotificationType.DeliveryUpdate,
+            IsRead = false,
+            CreatedAt = now
+        }).ToList();
+
+        if (notifications.Count > 0)
+            await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task TryAddOrderFailedStatusLogAsync(
+        Guid orderId,
+        OrderState fromStatus,
+        string note,
+        Guid packagingStaffId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var log = new OrderStatusLog
+        {
+            LogId = Guid.NewGuid(),
+            OrderId = orderId,
+            FromStatus = fromStatus,
+            ToStatus = OrderState.Failed,
+            ChangedBy = packagingStaffId.ToString(),
+            Note = note.Length > 2000 ? note[..2000] : note,
+            ChangedAt = now
+        };
+        await _unitOfWork.Repository<OrderStatusLog>().AddAsync(log);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task TryRefundForPackagingFailureAsync(
+        Guid orderId,
+        decimal refundAmount,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (refundAmount <= 0)
+            return;
+
+        var transactions = (await _unitOfWork.Repository<Transaction>()
+                .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
+            .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+            .ToList();
+
+        var paidTx = transactions.FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                "Không tìm thấy giao dịch thanh toán thành công, không thể tạo yêu cầu hoàn tiền.");
+
+        var existingRefundTotal = (await _unitOfWork.Repository<Refund>().FindAsync(r =>
+                r.TransactionId == paidTx.TransactionId && r.Status != RefundState.Rejected))
+            .Sum(r => r.Amount);
+
+        var refundable = paidTx.Amount - existingRefundTotal;
+        if (refundable <= 0)
+        {
+            _logger.LogWarning("Order {OrderId}: no refundable balance left on transaction {TxId}.", orderId, paidTx.TransactionId);
+            return;
+        }
+
+        var amount = Math.Min(refundAmount, refundable);
+        if (amount <= 0)
+            return;
+
+        var refundReason = reason.Length > 2000 ? reason[..2000] : reason;
+        await _refundService.CreateAsync(
+            new CreateRefundRequestDto
+            {
+                OrderId = orderId,
+                TransactionId = paidTx.TransactionId,
+                Amount = amount,
+                Reason = refundReason
+            },
+            cancellationToken);
     }
 
     private async Task RestoreStockForOrderItemsAsync(
@@ -543,23 +678,26 @@ public class PackagingService : IPackagingService
         }
     }
 
-    private async Task RecalculateDeliveryGroupTotalOrdersAsync(
-        Guid deliveryGroupId,
-        DateTime now,
-        CancellationToken cancellationToken)
+    private async Task DetachItemFromDeliveryGroupIfNeededAsync(OrderItem item, DateTime now, CancellationToken cancellationToken)
     {
-        var itemsInGroup = await _unitOfWork.Repository<OrderItem>()
-            .FindAsync(i => i.DeliveryGroupId == deliveryGroupId);
-        var distinctOrders = itemsInGroup.Select(i => i.OrderId).Distinct().Count();
+        if (!item.DeliveryGroupId.HasValue)
+            return;
 
+        var groupId = item.DeliveryGroupId.Value;
         var group = await _unitOfWork.Repository<DeliveryGroup>()
             .FirstOrDefaultAsync(g => g.DeliveryGroupId == deliveryGroupId);
         if (group == null)
             return;
 
-        group.TotalOrders = distinctOrders;
-        group.UpdatedAt = now;
-        _unitOfWork.Repository<DeliveryGroup>().Update(group);
+        if (group != null && group.TotalOrders > 0)
+        {
+            group.TotalOrders -= 1;
+            group.UpdatedAt = now;
+            _unitOfWork.Repository<DeliveryGroup>().Update(group);
+        }
+
+        item.DeliveryGroupId = null;
+        _unitOfWork.Repository<OrderItem>().Update(item);
     }
 
     private async Task TryScheduleDeliveryQrEmailJobAsync(Guid orderId)
@@ -611,54 +749,7 @@ public class PackagingService : IPackagingService
         return order;
     }
 
-    private async Task<OrderPackaging> GetOrCreatePackagingRecordAsync(Guid orderId, Guid packagingStaffId)
-    {
-        var records = await _unitOfWork.Repository<OrderPackaging>()
-            .FindAsync(r => r.OrderId == orderId);
-
-        var existing = records
-            .OrderByDescending(r => r.PackagedAt ?? DateTime.MinValue)
-            .FirstOrDefault();
-
-        if (existing != null)
-            return existing;
-
-        var created = new OrderPackaging
-        {
-            PackagingId = Guid.NewGuid(),
-            OrderId = orderId,
-            UserId = packagingStaffId,
-            Status = PackagingState.Pending,
-            PackagedAt = null
-        };
-
-        await _unitOfWork.Repository<OrderPackaging>().AddAsync(created);
-        await _unitOfWork.SaveChangesAsync();
-        return created;
-    }
-
-    private async Task<OrderPackaging> RequirePackagingRecordAsync(Guid orderId)
-    {
-        var records = await _unitOfWork.Repository<OrderPackaging>()
-            .FindAsync(r => r.OrderId == orderId);
-
-        var existing = records
-            .OrderByDescending(r => r.PackagedAt ?? DateTime.MinValue)
-            .FirstOrDefault();
-
-        if (existing == null)
-            throw new InvalidOperationException("Đơn hàng chưa được xác nhận đóng gói.");
-
-        return existing;
-    }
-
-    private static void EnsureRecordOwnedByCurrentStaff(OrderPackaging record, Guid packagingStaffId)
-    {
-        if (record.UserId != packagingStaffId)
-            throw new UnauthorizedAccessException("Đơn hàng này đang được xử lý bởi nhân viên đóng gói khác.");
-    }
-
-    private async Task<PackagingOrderSummaryDto> MapToSummaryAsync(Order order, OrderPackaging? record)
+    private async Task<PackagingOrderSummaryDto> MapToSummaryAsync(Order order, CancellationToken cancellationToken)
     {
         var customer = await _unitOfWork.Repository<User>()
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
@@ -666,15 +757,14 @@ public class PackagingService : IPackagingService
         var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
             .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.TimeSlotId);
 
-        var orderItems = await _unitOfWork.Repository<OrderItem>()
-            .FindAsync(oi => oi.OrderId == order.OrderId);
+        var orderItems = await GetOrderItemsAsync(order.OrderId, cancellationToken);
 
         return new PackagingOrderSummaryDto
         {
             OrderId = order.OrderId,
             OrderCode = order.OrderCode,
             OrderStatus = order.Status.ToString(),
-            PackagingStatus = record?.Status.ToString() ?? "Pending",
+            PackagingStatus = BuildPackagingProgressSummary(orderItems),
             CustomerName = customer?.FullName ?? "N/A",
             TimeSlotDisplay = timeSlot != null
                 ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
@@ -686,16 +776,45 @@ public class PackagingService : IPackagingService
         };
     }
 
-    private async Task<PackagingOrderDetailDto> MapToDetailAsync(Order order, OrderPackaging? record)
+    private static string BuildPackagingProgressSummary(IReadOnlyList<OrderItem> items)
     {
-        var summary = await MapToSummaryAsync(order, record);
+        if (items.Count == 0)
+            return "—";
 
-        var packagingStaff = record != null
-            ? await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == record.UserId)
+        var done = items.Count(i => i.PackagingStatus == PackagingState.Completed);
+        var failed = items.Count(i => i.PackagingStatus == PackagingState.Failed);
+        var open = items.Count - done - failed;
+
+        if (open > 0)
+            return $"{done}/{items.Count} dòng đã đóng gói xong, {open} dòng đang xử lý";
+
+        return failed == 0
+            ? "Tất cả dòng đã đóng gói xong"
+            : $"{done} thành công, {failed} thất bại";
+    }
+
+    private async Task<PackagingOrderDetailDto> MapToDetailAsync(Order order, CancellationToken cancellationToken)
+    {
+        var summary = await MapToSummaryAsync(order, cancellationToken);
+
+        var orderItems = await GetOrderItemsAsync(order.OrderId, cancellationToken);
+
+        var packagingRows = (await _unitOfWork.Repository<OrderPackaging>()
+            .FindAsync(r => r.OrderId == order.OrderId && r.OrderItemId != null)).ToList();
+
+        Guid? staffId = null;
+        string? staffName = null;
+        var staffIds = packagingRows.Select(r => r.UserId).Distinct().ToList();
+        if (staffIds.Count == 1)
+        {
+            staffId = staffIds[0];
+            var u = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(x => x.UserId == staffId);
+            staffName = u?.FullName;
+        }
+
+        DateTime? lastAt = orderItems.Any(i => i.PackagedAt.HasValue)
+            ? orderItems.Where(i => i.PackagedAt.HasValue).Max(i => i.PackagedAt)
             : null;
-
-        var orderItems = await _unitOfWork.Repository<OrderItem>()
-            .FindAsync(oi => oi.OrderId == order.OrderId);
 
         var itemDtos = new List<PackagingOrderItemDto>();
         foreach (var item in orderItems)
@@ -703,7 +822,7 @@ public class PackagingService : IPackagingService
             var lot = await _unitOfWork.Repository<StockLot>()
                 .FirstOrDefaultAsync(pl => pl.LotId == item.LotId);
 
-            string productName = "N/A";
+            var productName = "N/A";
             if (lot != null)
             {
                 var product = await _unitOfWork.Repository<Product>()
@@ -719,7 +838,9 @@ public class PackagingService : IPackagingService
                 UnitPrice = item.UnitPrice,
                 SubTotal = item.Quantity * item.UnitPrice,
                 PackagingStatus = item.PackagingStatus.ToString(),
-                DeliveryStatus = item.DeliveryStatus?.ToString()
+                DeliveryStatus = item.DeliveryStatus?.ToString(),
+                PackagedAt = item.PackagedAt,
+                PackagingFailedReason = item.PackagingFailedReason
             });
         }
 
@@ -735,17 +856,11 @@ public class PackagingService : IPackagingService
             TotalItems = summary.TotalItems,
             FinalAmount = summary.FinalAmount,
             OrderDate = summary.OrderDate,
-            PackagingRecordId = record?.PackagingId,
-            PackagingStaffId = record?.UserId,
-            PackagingStaffName = packagingStaff?.FullName,
-            PackagedAt = record?.PackagedAt,
+            PackagingStaffId = staffId,
+            PackagingStaffName = staffName,
+            LastPackagedAt = lastAt,
             Items = itemDtos
         };
     }
 }
-
-
-
-
-
 

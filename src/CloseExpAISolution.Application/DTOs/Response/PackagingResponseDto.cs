@@ -16,10 +16,9 @@ public class PackagingOrderSummaryDto
 
 public class PackagingOrderDetailDto : PackagingOrderSummaryDto
 {
-    public Guid? PackagingRecordId { get; set; }
     public Guid? PackagingStaffId { get; set; }
     public string? PackagingStaffName { get; set; }
-    public DateTime? PackagedAt { get; set; }
+    public DateTime? LastPackagedAt { get; set; }
     public IEnumerable<PackagingOrderItemDto> Items { get; set; } = new List<PackagingOrderItemDto>();
 }
 
@@ -32,4 +31,6 @@ public class PackagingOrderItemDto
     public decimal SubTotal { get; set; }
     public string PackagingStatus { get; set; } = string.Empty;
     public string? DeliveryStatus { get; set; }
+    public DateTime? PackagedAt { get; set; }
+    public string? PackagingFailedReason { get; set; }
 }

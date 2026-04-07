@@ -165,7 +165,9 @@ public class PackagingController : ControllerBase
             var staffId = GetCurrentUserId();
             var order = await _packagingService.CompletePackagingAsync(orderId, staffId, request, cancellationToken);
 
-            return Ok(ApiResponse<PackagingOrderDetailDto>.SuccessResponse(order, "Hoàn tất đóng gói, đơn đã sẵn sàng giao."));
+            return Ok(ApiResponse<PackagingOrderDetailDto>.SuccessResponse(
+                order,
+                "Đã hoàn tất đóng gói cho các dòng được chọn; trạng thái đơn cập nhật khi tất cả dòng đã xử lý xong."));
         }
         catch (KeyNotFoundException ex)
         {
@@ -199,7 +201,7 @@ public class PackagingController : ControllerBase
 
             return Ok(ApiResponse<PackagingOrderDetailDto>.SuccessResponse(
                 order,
-                "Đã ghi nhận đóng gói thất bại; đơn chuyển Failed và đã tạo yêu cầu hoàn tiền (nếu còn số tiền có thể hoàn)."));
+                "Đã ghi nhận đóng gói thất bại cho các dòng được chọn; trạng thái đơn và hoàn tiền được cập nhật theo tổng hợp."));
         }
         catch (KeyNotFoundException ex)
         {
