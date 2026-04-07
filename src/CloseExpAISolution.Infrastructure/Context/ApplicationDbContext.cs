@@ -222,6 +222,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(oi => oi.UnitPrice).HasPrecision(18, 2);
             entity.Property(oi => oi.TotalPrice).HasPrecision(18, 2);
             entity.Property(oi => oi.DeliveryFailedReason).HasMaxLength(2000);
+            entity.Property(oi => oi.PackagingFailedReason).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<DeliveryGroup>().Property(x => x.CenterLatitude).HasPrecision(10, 7);
