@@ -25,6 +25,7 @@ public class FailPackagingOrderRequestDto
 {
     public IReadOnlyList<Guid>? OrderItemIds { get; set; }
     [Required(ErrorMessage = "Lý do thất bại là bắt buộc")]
+    [RegularExpression(@".*\S.*", ErrorMessage = "Lý do thất bại không được để trống")]
     [MaxLength(2000)]
     public string FailureReason { get; set; } = string.Empty;
     [MaxLength(2000)]

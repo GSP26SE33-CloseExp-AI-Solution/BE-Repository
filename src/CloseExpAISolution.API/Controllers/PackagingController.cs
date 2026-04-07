@@ -13,10 +13,18 @@ namespace CloseExpAISolution.API.Controllers;
 public class PackagingController : ControllerBase
 {
     private readonly IPackagingService _packagingService;
+    private readonly ILogger<PackagingController> _logger;
 
-    public PackagingController(IPackagingService packagingService)
+    public PackagingController(IPackagingService packagingService, ILogger<PackagingController> logger)
     {
         _packagingService = packagingService;
+        _logger = logger;
+    }
+
+    private string InternalErrorMessage()
+    {
+        var traceId = HttpContext.TraceIdentifier;
+        return $"Đã có lỗi nội bộ. Vui lòng thử lại sau. TraceId: {traceId}";
     }
 
     private Guid GetCurrentUserId()
@@ -65,8 +73,8 @@ public class PackagingController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<PaginatedResult<PackagingOrderSummaryDto>>.ErrorResponse(
-                $"Lỗi khi lấy danh sách đơn chờ đóng gói: {ex.Message}"));
+            _logger.LogError(ex, "Failed to get pending packaging orders");
+            return StatusCode(500, ApiResponse<PaginatedResult<PackagingOrderSummaryDto>>.ErrorResponse(InternalErrorMessage()));
         }
     }
 
@@ -85,8 +93,8 @@ public class PackagingController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(
-                $"Lỗi khi lấy chi tiết đơn hàng: {ex.Message}"));
+            _logger.LogError(ex, "Failed to get packaging order detail for {OrderId}", orderId);
+            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(InternalErrorMessage()));
         }
     }
 
@@ -117,8 +125,8 @@ public class PackagingController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(
-                $"Lỗi khi xác nhận đóng gói: {ex.Message}"));
+            _logger.LogError(ex, "Failed to confirm packaging order {OrderId}", orderId);
+            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(InternalErrorMessage()));
         }
     }
 
@@ -149,8 +157,8 @@ public class PackagingController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(
-                $"Lỗi khi cập nhật bước thu gom: {ex.Message}"));
+            _logger.LogError(ex, "Failed to collect packaging order {OrderId}", orderId);
+            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(InternalErrorMessage()));
         }
     }
 
@@ -183,8 +191,8 @@ public class PackagingController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(
-                $"Lỗi khi hoàn tất đóng gói: {ex.Message}"));
+            _logger.LogError(ex, "Failed to complete packaging order {OrderId}", orderId);
+            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(InternalErrorMessage()));
         }
     }
 
@@ -217,8 +225,8 @@ public class PackagingController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(
-                $"Lỗi khi xử lý đóng gói thất bại: {ex.Message}"));
+            _logger.LogError(ex, "Failed to fail packaging order {OrderId}", orderId);
+            return StatusCode(500, ApiResponse<PackagingOrderDetailDto>.ErrorResponse(InternalErrorMessage()));
         }
     }
 }
