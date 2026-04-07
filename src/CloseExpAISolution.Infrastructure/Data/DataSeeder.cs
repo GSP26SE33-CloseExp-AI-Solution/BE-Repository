@@ -82,12 +82,6 @@ public static class DataSeeder
     private static readonly Guid PackagingOrderReadyId = Guid.Parse("ffff0003-0003-0003-0003-000000000003");
     private static readonly Guid VendorUser3SampleOrderId = Guid.Parse("ffff0004-0004-0004-0004-000000000004");
 
-    private static readonly Guid DeliveryGroupSeedHomeId = Guid.Parse("fffa3333-1111-1111-1111-111111111111");
-    private static readonly Guid DeliverySeedOrderHome1Id = Guid.Parse("fffa3333-2222-2222-2222-222222222222");
-    private static readonly Guid DeliverySeedOrderHome2Id = Guid.Parse("fffa3333-3333-3333-3333-333333333333");
-    private static readonly Guid SeedTxnDlvHome1Id = Guid.Parse("fffa3333-4444-4444-4444-444444444444");
-    private static readonly Guid SeedTxnDlvHome2Id = Guid.Parse("fffa3333-5555-5555-5555-555555555555");
-
     private static readonly Guid SeedTxnPickupId = Guid.Parse("fffa1111-1111-1111-1111-111111111111");
     private static readonly Guid SeedTxnHomeId = Guid.Parse("fffa1111-2222-2222-2222-222222222222");
     private static readonly Guid SeedTxnReadyId = Guid.Parse("fffa1111-3333-3333-3333-333333333333");
@@ -124,7 +118,6 @@ public static class DataSeeder
         await SeedCustomerAddressesAsync(context);
         await SeedPackagingOrdersAsync(context);
         await SeedVendorUser3SampleOrderAsync(context);
-        await SeedDeliveryStaffHomeOrdersAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
     }
 
@@ -1673,173 +1666,6 @@ public static class DataSeeder
 
         await context.Orders.AddAsync(order);
         await context.OrderItems.AddAsync(item);
-        await context.SaveChangesAsync();
-    }
-
-    /// <summary>
-    /// Đơn giao tận nhà (DeliveryType DELIVERY) trong nhóm đã gán cho nhân viên giao hàng — phục vụ demo luồng DeliveryStaff.
-    /// </summary>
-    private static async Task SeedDeliveryStaffHomeOrdersAsync(ApplicationDbContext context)
-    {
-        if (await context.Orders.AnyAsync(o => o.OrderId == DeliverySeedOrderHome1Id))
-            return;
-
-        var lots = await context.StockLots
-            .Where(x => x.Status == ProductState.Published)
-            .OrderBy(x => x.ExpiryDate)
-            .Take(2)
-            .ToListAsync();
-
-        if (lots.Count < 2)
-            return;
-
-        if (!await context.Users.AnyAsync(u => u.UserId == DeliveryStaffUserId1))
-            return;
-
-        var now = DateTime.UtcNow;
-        var deliveryDate = now.Date;
-
-        var centerLat = (10.7721m + 10.7863m) / 2m;
-        var centerLng = (106.6980m + 106.6922m) / 2m;
-
-        var group = new DeliveryGroup
-        {
-            DeliveryGroupId = DeliveryGroupSeedHomeId,
-            GroupCode = $"DG-SEED-HOME-{deliveryDate:yyyyMMdd}-01",
-            DeliveryStaffId = DeliveryStaffUserId1,
-            TimeSlotId = TimeSlotAfternoonId,
-            DeliveryType = DeliveryMethod.Delivery,
-            DeliveryArea = "HOME:TPHCM",
-            CenterLatitude = centerLat,
-            CenterLongitude = centerLng,
-            Status = DeliveryGroupState.Assigned,
-            TotalOrders = 2,
-            Notes = "[Seed] Nhóm giao tận nhà — đã phân công NVGH (delivery.1@gmail.com)",
-            DeliveryDate = deliveryDate,
-            CreatedAt = now.AddHours(-4),
-            UpdatedAt = now.AddHours(-1)
-        };
-
-        var order1 = new Order
-        {
-            OrderId = DeliverySeedOrderHome1Id,
-            OrderCode = "DLV-HOME-001",
-            UserId = VendorUserId1,
-            TimeSlotId = TimeSlotAfternoonId,
-            CollectionId = null,
-            AddressId = CustomerAddressVendor1Id,
-            DeliveryType = DeliveryMethod.Delivery,
-            TotalAmount = 180_000,
-            DiscountAmount = 10_000,
-            FinalAmount = 170_000,
-            DeliveryFee = 15_000,
-            Status = OrderState.ReadyToShip,
-            OrderDate = now.AddHours(-5),
-            DeliveryNote = "[Seed] Giao tận nhà — đã đóng gói, chờ shipper",
-            CreatedAt = now.AddHours(-5),
-            UpdatedAt = now.AddHours(-2),
-            DeliveryGroupId = DeliveryGroupSeedHomeId
-        };
-
-        var order2 = new Order
-        {
-            OrderId = DeliverySeedOrderHome2Id,
-            OrderCode = "DLV-HOME-002",
-            UserId = VendorUserId2,
-            TimeSlotId = TimeSlotAfternoonId,
-            CollectionId = null,
-            AddressId = CustomerAddressVendor2Id,
-            DeliveryType = DeliveryMethod.Delivery,
-            TotalAmount = 120_000,
-            DiscountAmount = 0,
-            FinalAmount = 120_000,
-            DeliveryFee = 10_000,
-            Status = OrderState.ReadyToShip,
-            OrderDate = now.AddHours(-5),
-            DeliveryNote = "[Seed] Giao tận nhà — cùng tuyến với DLV-HOME-001",
-            CreatedAt = now.AddHours(-5),
-            UpdatedAt = now.AddHours(-2),
-            DeliveryGroupId = DeliveryGroupSeedHomeId
-        };
-
-        var orderItems = new List<OrderItem>
-        {
-            new()
-            {
-                OrderItemId = Guid.Parse("fffa3333-6666-6666-6666-666666666666"),
-                OrderId = order1.OrderId,
-                LotId = lots[0].LotId,
-                Quantity = 2,
-                UnitPrice = 90_000,
-                TotalPrice = 180_000
-            },
-            new()
-            {
-                OrderItemId = Guid.Parse("fffa3333-7777-7777-7777-777777777777"),
-                OrderId = order2.OrderId,
-                LotId = lots[1].LotId,
-                Quantity = 2,
-                UnitPrice = 60_000,
-                TotalPrice = 120_000
-            }
-        };
-
-        var packaging = new List<OrderPackaging>
-        {
-            new()
-            {
-                PackagingId = Guid.Parse("fffa3333-8888-8888-8888-888888888888"),
-                OrderId = order1.OrderId,
-                UserId = StaffUserId1,
-                Status = PackagingState.Completed,
-                PackagedAt = now.AddHours(-3)
-            },
-            new()
-            {
-                PackagingId = Guid.Parse("fffa3333-9999-9999-9999-999999999999"),
-                OrderId = order2.OrderId,
-                UserId = StaffUserId2,
-                Status = PackagingState.Completed,
-                PackagedAt = now.AddHours(-3)
-            }
-        };
-
-        var paid = PaymentState.Paid;
-        var transactions = new List<Transaction>
-        {
-            new()
-            {
-                TransactionId = SeedTxnDlvHome1Id,
-                OrderId = order1.OrderId,
-                Amount = order1.FinalAmount,
-                PaymentMethod = "PayOS",
-                PaymentStatus = paid,
-                CreatedAt = now.AddHours(-6),
-                UpdatedAt = now.AddHours(-6),
-                PayOSOrderCode = 9_001_000_000_000_011,
-                PayOSPaymentLinkId = "seed-link-dlv-home-1",
-                CheckoutUrl = "https://pay.payos.vn/web/seed-dlv-home-1"
-            },
-            new()
-            {
-                TransactionId = SeedTxnDlvHome2Id,
-                OrderId = order2.OrderId,
-                Amount = order2.FinalAmount,
-                PaymentMethod = "PayOS",
-                PaymentStatus = paid,
-                CreatedAt = now.AddHours(-6),
-                UpdatedAt = now.AddHours(-6),
-                PayOSOrderCode = 9_001_000_000_000_012,
-                PayOSPaymentLinkId = "seed-link-dlv-home-2",
-                CheckoutUrl = "https://pay.payos.vn/web/seed-dlv-home-2"
-            }
-        };
-
-        await context.DeliveryGroups.AddAsync(group);
-        await context.Orders.AddRangeAsync(order1, order2);
-        await context.OrderItems.AddRangeAsync(orderItems);
-        await context.PackagingRecords.AddRangeAsync(packaging);
-        await context.Transactions.AddRangeAsync(transactions);
         await context.SaveChangesAsync();
     }
 
