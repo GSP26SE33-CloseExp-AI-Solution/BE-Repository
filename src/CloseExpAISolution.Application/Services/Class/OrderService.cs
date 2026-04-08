@@ -3,6 +3,7 @@ using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Geo;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
@@ -176,6 +177,9 @@ public class OrderService : IOrderService
 
     public async Task<OrderResponseDto> CreateAsync(CreateOrderRequestDto request, CancellationToken cancellationToken = default)
     {
+        var deliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
+        OrderDeliveryLocationValidator.ValidateOrThrow(deliveryType, request.CollectionId, request.AddressId);
+
         var orderId = Guid.NewGuid();
         var orderCode = "ORD-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
 
@@ -186,7 +190,7 @@ public class OrderService : IOrderService
             UserId = request.UserId,
             TimeSlotId = request.TimeSlotId,
             CollectionId = request.CollectionId,
-            DeliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType),
+            DeliveryType = deliveryType,
             TotalAmount = request.TotalAmount,
             DiscountAmount = request.DiscountAmount,
             FinalAmount = request.FinalAmount,
@@ -254,12 +258,23 @@ public class OrderService : IOrderService
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
 
         if (request.TimeSlotId.HasValue) order.TimeSlotId = request.TimeSlotId.Value;
-        if (request.CollectionId.HasValue) order.CollectionId = request.CollectionId;
+
         if (request.DeliveryType != null)
-            order.DeliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
+        {
+            var dt = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
+            order.DeliveryType = dt;
+            if (dt == DeliveryMethod.Delivery)
+                order.CollectionId = null;
+            else
+                order.AddressId = null;
+        }
+
+        if (request.CollectionId.HasValue && order.DeliveryType == DeliveryMethod.Pickup)
+            order.CollectionId = request.CollectionId;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
         if (request.Status != null) order.Status = Enum.Parse<OrderState>(request.Status);
-        if (request.AddressId.HasValue) order.AddressId = request.AddressId;
+        if (request.AddressId.HasValue && order.DeliveryType == DeliveryMethod.Delivery)
+            order.AddressId = request.AddressId;
         if (request.PromotionId.HasValue) order.PromotionId = request.PromotionId;
         if (request.DeliveryGroupId.HasValue) order.DeliveryGroupId = request.DeliveryGroupId;
         if (request.DeliveryNote != null) order.DeliveryNote = request.DeliveryNote;
@@ -286,6 +301,8 @@ public class OrderService : IOrderService
             order.DiscountAmount = validation.DiscountAmount;
             order.FinalAmount = validation.FinalAmount;
         }
+
+        OrderDeliveryLocationValidator.ValidateOrThrow(order.DeliveryType, order.CollectionId, order.AddressId);
 
         if (request.OrderItems != null && request.OrderItems.Count > 0)
         {
