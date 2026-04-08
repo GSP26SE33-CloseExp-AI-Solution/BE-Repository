@@ -624,25 +624,18 @@ public class DeliveryService : IDeliveryService
                     .FindAsync(l => l.OrderId == orderId && l.Status == DeliveryState.DeliveredWaitConfirm))
                 .ToList();
             foreach (var log in deliveryLogs)
-
-                await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
-                    order.OrderId,
-                    order.UserId,
-                    order.OrderCode,
-                    DeliveryState.Completed,
-                    cancellationToken: cancellationToken);
-
-            var deliveryGroup = order.DeliveryGroupId.HasValue
-                ? await _unitOfWork.Repository<DeliveryGroup>()
-                    .FirstOrDefaultAsync(g => g.DeliveryGroupId == order.DeliveryGroupId.Value)
-                : null;
-
-            if (deliveryGroup?.DeliveryStaffId.HasValue == true)
             {
                 log.Status = DeliveryState.Completed;
                 log.DeliveredAt ??= now;
                 _unitOfWork.Repository<DeliveryLog>().Update(log);
             }
+
+            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                order.OrderId,
+                order.UserId,
+                order.OrderCode,
+                DeliveryState.Completed,
+                cancellationToken: cancellationToken);
 
             var staffIds = orderItems
                 .Where(i => i.DeliveryGroupId.HasValue)

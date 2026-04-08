@@ -16,6 +16,8 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
 
     public async Task PublishOrderPlacedAsync(Guid orderId, Guid userId, string orderCode, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var notification = new Notification
         {
             NotificationId = Guid.NewGuid(),
@@ -40,6 +42,8 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
         OrderState newStatus,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var parentId = await ResolveParentNotificationIdAsync(orderId, userId, cancellationToken);
         var label = GetOrderStatusDisplayName(newStatus);
         var notification = new Notification
@@ -67,6 +71,8 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
         NotificationType type,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var parentId = await ResolveParentNotificationIdAsync(orderId, userId, cancellationToken);
         var notification = new Notification
         {
@@ -92,6 +98,8 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
         string? detail = null,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var title = GetDeliveryStatusTitle(deliveryStatus);
         var content = GetDeliveryStatusBody(orderCode, deliveryStatus, detail);
         await PublishOrderThreadChildAsync(
@@ -106,6 +114,8 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
 
     private async Task<Guid?> ResolveParentNotificationIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var roots = await _unitOfWork.Repository<Notification>()
             .FindAsync(n =>
                 n.OrderId == orderId

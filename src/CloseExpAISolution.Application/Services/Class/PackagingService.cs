@@ -223,23 +223,6 @@ public class PackagingService : IPackagingService
             {
                 if (item.PackagingStatus == PackagingState.Completed)
                     continue;
-                record.Status = PackagingState.Completed;
-                record.PackagedAt = DateTime.UtcNow;
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
-
-                order.Status = OrderState.ReadyToShip;
-                order.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.Repository<Order>().Update(order);
-
-                await _orderNotificationPublisher.PublishOrderThreadChildAsync(
-                    order.OrderId,
-                    order.UserId,
-                    order.OrderCode,
-                    "Đơn hàng sẵn sàng giao",
-                    $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
-                    NotificationType.OrderUpdate,
-                    cancellationToken);
-                // TODO: Send email of QR code of order confirmation to customer
 
                 var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
                 record.Status = PackagingState.Completed;
@@ -252,6 +235,19 @@ public class PackagingService : IPackagingService
                 item.PackagingFailedReason = null;
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
+
+            order.Status = OrderState.ReadyToShip;
+            order.UpdatedAt = now;
+            _unitOfWork.Repository<Order>().Update(order);
+
+            await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+                order.OrderId,
+                order.UserId,
+                order.OrderCode,
+                "Đơn hàng sẵn sàng giao",
+                $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
+                NotificationType.OrderUpdate,
+                cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
@@ -554,20 +550,17 @@ public class PackagingService : IPackagingService
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var notification = new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = order.UserId,
-            Title = "Cập nhật đóng gói",
-            Content =
-                lineCount > 1
-                    ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao."
-                    : $"Đơn {order.OrderCode}: một dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao.",
-            Type = NotificationType.OrderUpdate,
-            IsRead = false,
-            CreatedAt = now
-        };
-        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        _ = now;
+        await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+            order.OrderId,
+            order.UserId,
+            order.OrderCode,
+            "Cập nhật đóng gói",
+            lineCount > 1
+                ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao."
+                : $"Đơn {order.OrderCode}: một dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao.",
+            NotificationType.OrderUpdate,
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -578,20 +571,17 @@ public class PackagingService : IPackagingService
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var notification = new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = order.UserId,
-            Title = "Đóng gói thất bại — một phần đơn hàng",
-            Content =
-                lineCount > 1
-                    ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng."
-                    : $"Đơn {order.OrderCode}: một dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng.",
-            Type = NotificationType.OrderUpdate,
-            IsRead = false,
-            CreatedAt = now
-        };
-        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        _ = now;
+        await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+            order.OrderId,
+            order.UserId,
+            order.OrderCode,
+            "Đóng gói thất bại — một phần đơn hàng",
+            lineCount > 1
+                ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng."
+                : $"Đơn {order.OrderCode}: một dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng.",
+            NotificationType.OrderUpdate,
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -647,17 +637,14 @@ public class PackagingService : IPackagingService
                     ? $"Đơn {order.OrderCode} đã xử lý đóng gói xong: phần thành công sẵn sàng giao; có dòng hàng đã thất bại (xem chi tiết đơn)."
                     : $"Đơn {order.OrderCode} đã hoàn tất đóng gói (tất cả dòng hàng) và sẵn sàng giao.";
 
-                var customer = new Notification
-                {
-                    NotificationId = Guid.NewGuid(),
-                    UserId = order.UserId,
-                    Title = title,
-                    Content = content,
-                    Type = NotificationType.OrderUpdate,
-                    IsRead = false,
-                    CreatedAt = now
-                };
-                await _unitOfWork.Repository<Notification>().AddAsync(customer);
+                await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+                    order.OrderId,
+                    order.UserId,
+                    order.OrderCode,
+                    title,
+                    content,
+                    NotificationType.OrderUpdate,
+                    cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
