@@ -12,6 +12,7 @@ public class UnitOfWork : IUnitOfWork
     private readonly ApplicationDbContext _context;
     private readonly Dictionary<Type, object> _repositories;
     private IDbContextTransaction? _transaction;
+    public bool HasActiveTransaction => _transaction != null;
     //Khai báo Interface ở đây!
     private IProductRepository? _productRepository;
     private ISupermarketStaffRepository? _supermarketStaffRepository;

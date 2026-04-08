@@ -17,17 +17,20 @@ public class DeliveryService : IDeliveryService
     private readonly IR2StorageService _r2Storage;
     private readonly IMapboxService _mapboxService;
     private readonly ILogger<DeliveryService> _logger;
+    private readonly IOrderNotificationPublisher _orderNotificationPublisher;
 
     public DeliveryService(
         IUnitOfWork unitOfWork,
         IR2StorageService r2Storage,
         IMapboxService mapboxService,
-        ILogger<DeliveryService> logger)
+        ILogger<DeliveryService> logger,
+        IOrderNotificationPublisher orderNotificationPublisher)
     {
         _unitOfWork = unitOfWork;
         _r2Storage = r2Storage;
         _mapboxService = mapboxService;
         _logger = logger;
+        _orderNotificationPublisher = orderNotificationPublisher;
     }
 
     public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
@@ -201,6 +204,19 @@ public class DeliveryService : IDeliveryService
         group.UpdatedAt = DateTime.UtcNow;
 
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
+
+        var ordersInGroup = await _unitOfWork.Repository<Order>()
+            .FindAsync(o => o.DeliveryGroupId == deliveryGroupId);
+        foreach (var o in ordersInGroup)
+        {
+            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                o.OrderId,
+                o.UserId,
+                o.OrderCode,
+                DeliveryState.PickedUp,
+                cancellationToken: cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Delivery group {GroupId} accepted by staff {StaffId}", deliveryGroupId, deliveryStaffId);
@@ -263,6 +279,13 @@ public class DeliveryService : IDeliveryService
             OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(o, oItems);
             o.UpdatedAt = now;
             _unitOfWork.Repository<Order>().Update(o);
+
+            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                o.OrderId,
+                o.UserId,
+                o.OrderCode,
+                DeliveryState.InTransit,
+                cancellationToken: cancellationToken);
         }
 
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
@@ -423,17 +446,12 @@ public class DeliveryService : IDeliveryService
             order.UpdatedAt = now;
             _unitOfWork.Repository<Order>().Update(order);
 
-            var notification = new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = order.UserId,
-                Title = "Cập nhật giao hàng",
-                Content = $"Đơn hàng {order.OrderCode} đã được giao. Vui lòng xác nhận nhận hàng.",
-                Type = NotificationType.DeliveryUpdate,
-                IsRead = false,
-                CreatedAt = now
-            };
-            await _unitOfWork.Repository<Notification>().AddAsync(notification);
+            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                orderId,
+                order.UserId,
+                order.OrderCode,
+                DeliveryState.DeliveredWaitConfirm,
+                cancellationToken: cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync();
 
@@ -532,17 +550,13 @@ public class DeliveryService : IDeliveryService
             order.UpdatedAt = now;
             _unitOfWork.Repository<Order>().Update(order);
 
-            var notification = new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = order.UserId,
-                Title = "Giao hàng thất bại",
-                Content = $"Đơn hàng {order.OrderCode} giao thất bại. Lý do: {request.FailureReason}",
-                Type = NotificationType.DeliveryUpdate,
-                IsRead = false,
-                CreatedAt = now
-            };
-            await _unitOfWork.Repository<Notification>().AddAsync(notification);
+            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                orderId,
+                order.UserId,
+                order.OrderCode,
+                DeliveryState.Failed,
+                request.FailureReason,
+                cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync();
 
@@ -615,6 +629,13 @@ public class DeliveryService : IDeliveryService
                 log.DeliveredAt ??= now;
                 _unitOfWork.Repository<DeliveryLog>().Update(log);
             }
+
+            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                order.OrderId,
+                order.UserId,
+                order.OrderCode,
+                DeliveryState.Completed,
+                cancellationToken: cancellationToken);
 
             var staffIds = orderItems
                 .Where(i => i.DeliveryGroupId.HasValue)

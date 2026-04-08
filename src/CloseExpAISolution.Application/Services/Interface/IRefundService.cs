@@ -11,6 +11,6 @@ public interface IRefundService
     Task<RefundResponseDto?> GetByIdForUserAsync(Guid refundId, Guid userId, CancellationToken cancellationToken = default);
     Task<RefundResponseDto?> GetByIdAsync(Guid refundId, CancellationToken cancellationToken = default);
     Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default);
-
+    Task EnqueueRefundCustomerNotificationAsync(Guid refundId, RefundNotificationKind kind, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(Guid refundId, RefundState status, string? processedBy, CancellationToken cancellationToken = default);
 }

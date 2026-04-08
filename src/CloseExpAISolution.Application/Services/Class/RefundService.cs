@@ -1,55 +1,51 @@
+using System.Text.Json;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
-using CloseExpAISolution.Application.Email.Jobs;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Quartz;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
 public class RefundService : IRefundService
 {
-    private static readonly HashSet<string> AllowedRefundEmailEvents = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "created",
-        "approved",
-        "rejected",
-        "completed"
-    };
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
-    private readonly ISchedulerFactory _schedulerFactory;
     private readonly ILogger<RefundService> _logger;
 
     public RefundService(
         IUnitOfWork unitOfWork,
         IMapper mapper,
-        ISchedulerFactory schedulerFactory,
         ILogger<RefundService> logger)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
-        _schedulerFactory = schedulerFactory;
         _logger = logger;
     }
 
     public async Task<(IEnumerable<RefundResponseDto> Items, int TotalCount)> GetAllAsync(
         int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
-        var all = (await _unitOfWork.Repository<Refund>().GetAllAsync()).ToList();
-        all.Sort((a, b) => b.CreatedAt.CompareTo(a.CreatedAt));
-        var total = all.Count;
-        var page = all
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(r => _mapper.Map<RefundResponseDto>(r))
-            .ToList();
-        return (page, total);
+        var safePage = Math.Max(1, pageNumber);
+        var safeSize = Math.Clamp(pageSize, 1, 200);
+
+        var q = _unitOfWork.Repository<Refund>()
+            .AsQueryable()
+            .AsNoTracking()
+            .OrderByDescending(r => r.CreatedAt);
+
+        var total = await q.CountAsync(cancellationToken);
+        var page = await q
+            .Skip((safePage - 1) * safeSize)
+            .Take(safeSize)
+            .ToListAsync(cancellationToken);
+
+        var dtos = page.Select(r => _mapper.Map<RefundResponseDto>(r)).ToList();
+        return (dtos, total);
     }
 
     public async Task<(IEnumerable<RefundResponseDto> Items, int TotalCount)> GetByUserAsync(
@@ -98,7 +94,7 @@ public class RefundService : IRefundService
 
     public async Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default)
     {
-        _ = await _unitOfWork.OrderRepository.GetByOrderIdAsync(request.OrderId, cancellationToken)
+        var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(request.OrderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {request.OrderId}");
 
         var transaction = await _unitOfWork.Repository<Transaction>()
@@ -122,6 +118,18 @@ public class RefundService : IRefundService
         if (existingTotal + request.Amount > transaction.Amount)
             throw new InvalidOperationException("Total refunds for this transaction would exceed the paid amount.");
 
+        IReadOnlyList<Guid>? refundedItemIds = null;
+        if (request.OrderItemIds is { Count: > 0 })
+        {
+            refundedItemIds = request.OrderItemIds.Distinct().ToList();
+            var orderItemIdSet = order.OrderItems.Select(oi => oi.OrderItemId).ToHashSet();
+            foreach (var id in refundedItemIds)
+            {
+                if (!orderItemIdSet.Contains(id))
+                    throw new InvalidOperationException($"Order item {id} does not belong to this order.");
+            }
+        }
+
         var refund = new Refund
         {
             RefundId = Guid.NewGuid(),
@@ -129,15 +137,49 @@ public class RefundService : IRefundService
             TransactionId = request.TransactionId,
             Amount = request.Amount,
             Reason = request.Reason.Trim(),
+            RefundedOrderItemIdsJson = refundedItemIds == null ? null : JsonSerializer.Serialize(refundedItemIds),
             Status = RefundState.Pending,
             CreatedAt = DateTime.UtcNow
         };
 
         await _unitOfWork.Repository<Refund>().AddAsync(refund);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await TryScheduleRefundStatusEmailJobAsync(refund.RefundId, "created");
+
+        if (!_unitOfWork.HasActiveTransaction)
+        {
+            try
+            {
+                await EnqueueRefundCustomerNotificationAsync(refund.RefundId, RefundNotificationKind.Pending, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to enqueue pending refund notification email for refund {RefundId}", refund.RefundId);
+            }
+        }
 
         return _mapper.Map<RefundResponseDto>(refund);
+    }
+
+    public async Task EnqueueRefundCustomerNotificationAsync(
+        Guid refundId,
+        RefundNotificationKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        var refund = await _unitOfWork.Repository<Refund>().FirstOrDefaultAsync(r => r.RefundId == refundId);
+        if (refund == null)
+            return;
+
+        await _unitOfWork.Repository<RefundEmailOutbox>().AddAsync(new RefundEmailOutbox
+        {
+            EmailOutboxId = Guid.NewGuid(),
+            RefundId = refundId,
+            Kind = kind,
+            Status = RefundEmailOutboxStatus.Pending,
+            AttemptCount = 0,
+            CreatedAtUtc = DateTime.UtcNow,
+            NextAttemptAtUtc = null
+        });
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateStatusAsync(
@@ -165,10 +207,29 @@ public class RefundService : IRefundService
 
         _unitOfWork.Repository<Refund>().Update(refund);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await TryScheduleRefundStatusEmailJobAsync(refund.RefundId, newStatus.ToString());
+
+        RefundNotificationKind? notifyKind = newStatus switch
+        {
+            RefundState.Approved => RefundNotificationKind.Approved,
+            RefundState.Rejected => RefundNotificationKind.Rejected,
+            RefundState.Completed => RefundNotificationKind.Completed,
+            _ => null
+        };
+
+        if (notifyKind.HasValue)
+        {
+            try
+            {
+                await EnqueueRefundCustomerNotificationAsync(refundId, notifyKind.Value, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to enqueue refund lifecycle email for refund {RefundId}, kind={Kind}",
+                    refundId, notifyKind);
+            }
+        }
     }
 
-    // Refund status is intentionally one-way to avoid invalid rollback states.
     private static bool CanTransition(RefundState from, RefundState to) => (from, to) switch
     {
         (RefundState.Pending, RefundState.Approved) => true,
@@ -176,44 +237,4 @@ public class RefundService : IRefundService
         (RefundState.Approved, RefundState.Completed) => true,
         _ => false
     };
-
-    private async Task TryScheduleRefundStatusEmailJobAsync(Guid refundId, string eventName)
-    {
-        var safeEvent = string.IsNullOrWhiteSpace(eventName) ? "updated" : eventName.Trim().ToLowerInvariant();
-        if (!AllowedRefundEmailEvents.Contains(safeEvent))
-        {
-            _logger.LogWarning("Skip refund email job: unsupported event '{EventName}' for refundId={RefundId}", safeEvent, refundId);
-            return;
-        }
-
-        var jobKey = new JobKey($"SendRefundStatusEmailJob:{refundId}:{safeEvent}", "refund-email");
-        var triggerKey = new TriggerKey($"SendRefundStatusEmailJobTrigger:{refundId}:{safeEvent}", "refund-email");
-
-        var jobDetail = JobBuilder.Create<SendRefundStatusEmailJob>()
-            .WithIdentity(jobKey)
-            .UsingJobData("refundId", refundId.ToString())
-            .UsingJobData("eventName", safeEvent)
-            .Build();
-
-        var trigger = TriggerBuilder.Create()
-            .WithIdentity(triggerKey)
-            .StartNow()
-            .Build();
-
-        try
-        {
-            var scheduler = await _schedulerFactory.GetScheduler();
-            await scheduler.ScheduleJob(jobDetail, trigger);
-        }
-        catch (ObjectAlreadyExistsException)
-        {
-            _logger.LogInformation("SendRefundStatusEmailJob already scheduled. refundId={RefundId}, event={EventName}",
-                refundId, safeEvent);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to schedule SendRefundStatusEmailJob. refundId={RefundId}, event={EventName}",
-                refundId, safeEvent);
-        }
-    }
 }

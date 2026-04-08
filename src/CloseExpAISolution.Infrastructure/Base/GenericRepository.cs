@@ -16,6 +16,8 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
         _dbSet = context.Set<T>();
     }
 
+    public virtual IQueryable<T> AsQueryable() => _dbSet.AsQueryable();
+
     public virtual async Task<T?> GetByIdAsync(int id)
     {
         return await _dbSet.FindAsync(id);

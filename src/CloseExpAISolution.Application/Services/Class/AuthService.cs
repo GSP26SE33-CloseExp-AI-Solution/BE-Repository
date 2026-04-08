@@ -984,7 +984,7 @@ public class AuthService : IAuthService
             </body>
             </html>";
 
-        try { await _emailService.SendEmailAsync(email, subject, body); }
+        try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send OTP email to {Email}", email); }
     }
 
@@ -1009,7 +1009,7 @@ public class AuthService : IAuthService
             </body>
             </html>";
 
-        try { await _emailService.SendEmailAsync(email, subject, body); }
+        try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send password reset email to {Email}", email); }
     }
 
@@ -1034,7 +1034,7 @@ public class AuthService : IAuthService
             </body>
             </html>";
 
-        try { await _emailService.SendEmailAsync(email, subject, body); }
+        try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send email verified notification to {Email}", email); }
     }
 

@@ -22,6 +22,7 @@ public static class PipelineConfigurationExtensions
             app.UseHttpsRedirection();
         }
 
+        app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
         app.UseRouting();
 
         app.UseCors("CorsPolicy");

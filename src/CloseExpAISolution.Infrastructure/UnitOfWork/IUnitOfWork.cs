@@ -24,4 +24,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     Task BeginTransactionAsync();
     Task CommitTransactionAsync();
     Task RollbackTransactionAsync();
+
+    bool HasActiveTransaction { get; }
 }

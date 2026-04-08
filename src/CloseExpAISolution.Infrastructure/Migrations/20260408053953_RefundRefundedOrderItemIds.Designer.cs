@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408053953_RefundRefundedOrderItemIds")]
+    partial class RefundRefundedOrderItemIds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -479,12 +482,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<bool>("IsRead")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid?>("OrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ParentNotificationId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
@@ -496,10 +493,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("NotificationId");
-
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("ParentNotificationId");
 
                     b.HasIndex("UserId", "IsRead");
 
@@ -846,10 +839,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("ProductId");
 
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("SupermarketId", "Barcode")
+                    b.HasIndex("Barcode")
                         .IsUnique();
+
+                    b.HasIndex("CategoryId");
 
                     b.HasIndex("SupermarketId", "Status");
 
@@ -1115,46 +1108,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.HasIndex("TransactionId");
 
                     b.ToTable("Refunds");
-                });
-
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.RefundEmailOutbox", b =>
-                {
-                    b.Property<Guid>("EmailOutboxId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AttemptCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte>("Kind")
-                        .HasColumnType("smallint");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<DateTime?>("NextAttemptAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RefundId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("SentAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte>("Status")
-                        .HasColumnType("smallint");
-
-                    b.HasKey("EmailOutboxId");
-
-                    b.HasIndex("RefundId");
-
-                    b.HasIndex("Status", "NextAttemptAtUtc");
-
-                    b.ToTable("RefundEmailOutboxes", (string)null);
                 });
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Role", b =>
@@ -1661,25 +1614,11 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Notification", b =>
                 {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.Order", "Order")
-                        .WithMany("Notifications")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("CloseExpAISolution.Domain.Entities.Notification", "Parent")
-                        .WithMany("Children")
-                        .HasForeignKey("ParentNotificationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("CloseExpAISolution.Domain.Entities.User", "User")
                         .WithMany("Notifications")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Order");
-
-                    b.Navigation("Parent");
 
                     b.Navigation("User");
                 });
@@ -1920,17 +1859,6 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Navigation("Transaction");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.RefundEmailOutbox", b =>
-                {
-                    b.HasOne("CloseExpAISolution.Domain.Entities.Refund", "Refund")
-                        .WithMany()
-                        .HasForeignKey("RefundId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Refund");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.StockLot", b =>
                 {
                     b.HasOne("CloseExpAISolution.Domain.Entities.Product", "Product")
@@ -2050,16 +1978,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Navigation("Orders");
                 });
 
-            modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Notification", b =>
-                {
-                    b.Navigation("Children");
-                });
-
             modelBuilder.Entity("CloseExpAISolution.Domain.Entities.Order", b =>
                 {
                     b.Navigation("DeliveryLogs");
-
-                    b.Navigation("Notifications");
 
                     b.Navigation("OrderItems");
 

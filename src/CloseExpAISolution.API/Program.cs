@@ -6,6 +6,7 @@ using CloseExpAISolution.Infrastructure.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.ValidateCriticalConfiguration();
 
 builder.Services.AddControllers();
 builder.Services

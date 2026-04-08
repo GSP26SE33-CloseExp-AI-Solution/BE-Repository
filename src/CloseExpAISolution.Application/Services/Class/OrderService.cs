@@ -22,19 +22,22 @@ public class OrderService : IOrderService
     private readonly IPromotionService _promotionService;
     private readonly IPromotionUsageService _promotionUsageService;
     private readonly IOptions<PickupSearchOptions> _pickupSearchOptions;
+    private readonly IOrderNotificationPublisher _orderNotificationPublisher;
 
     public OrderService(
         IUnitOfWork unitOfWork,
         IMapper mapper,
         IPromotionService promotionService,
         IPromotionUsageService promotionUsageService,
-        IOptions<PickupSearchOptions> pickupSearchOptions)
+        IOptions<PickupSearchOptions> pickupSearchOptions,
+        IOrderNotificationPublisher orderNotificationPublisher)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _promotionService = promotionService;
         _promotionUsageService = promotionUsageService;
         _pickupSearchOptions = pickupSearchOptions;
+        _orderNotificationPublisher = orderNotificationPublisher;
     }
 
     public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
@@ -240,9 +243,9 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
-        // Delivery grouping is not auto-assigned here. Admin uses draft flow:
-        // POST /api/delivery/groups/drafts/generate, then confirm, then assign staff.
-        await TryCreateNotificationAsync(order.UserId, "Đơn hàng mới", $"Đơn {order.OrderCode} đã được tạo thành công.", NotificationType.OrderUpdate, cancellationToken);
+        // TODO: Sugge
+        await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
+        await _orderNotificationPublisher.PublishOrderPlacedAsync(order.OrderId, order.UserId, order.OrderCode, cancellationToken);
         await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -256,6 +259,8 @@ public class OrderService : IOrderService
     {
         var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
+
+        var oldStatus = order.Status;
 
         if (request.TimeSlotId.HasValue) order.TimeSlotId = request.TimeSlotId.Value;
 
@@ -324,6 +329,16 @@ public class OrderService : IOrderService
 
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
+        if (request.Status != null && order.Status != oldStatus)
+        {
+            await _orderNotificationPublisher.PublishOrderStatusChangedAsync(
+                order.OrderId,
+                order.UserId,
+                order.OrderCode,
+                order.Status,
+                cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await TryRecordPromotionUsageAsync(order, cancellationToken);
     }
@@ -341,6 +356,9 @@ public class OrderService : IOrderService
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
         var oldStatus = order.Status;
         var now = DateTime.UtcNow;
+
+        if (oldStatus == status)
+            return;
 
         if (status == OrderState.Canceled)
         {
@@ -379,7 +397,12 @@ public class OrderService : IOrderService
         _unitOfWork.OrderRepository.Update(order);
         var cancelNote = status == OrderState.Canceled ? cancellationReason!.Trim() : null;
         await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", cancelNote, cancellationToken);
-        await TryCreateNotificationAsync(order.UserId, "Cập nhật đơn hàng", $"Đơn {order.OrderCode} đã chuyển sang trạng thái {status}.", NotificationType.OrderUpdate, cancellationToken);
+        await _orderNotificationPublisher.PublishOrderStatusChangedAsync(
+            order.OrderId,
+            order.UserId,
+            order.OrderCode,
+            status,
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await TryRecordPromotionUsageAsync(order, cancellationToken);
     }
@@ -545,21 +568,6 @@ public class OrderService : IOrderService
         existing.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<DeliveryGroup>().Update(existing);
         order.DeliveryGroupId = existing.DeliveryGroupId;
-    }
-
-    private async Task TryCreateNotificationAsync(Guid userId, string title, string content, NotificationType type, CancellationToken cancellationToken)
-    {
-        var notification = new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = userId,
-            Title = title,
-            Content = content,
-            Type = type,
-            IsRead = false,
-            CreatedAt = DateTime.UtcNow
-        };
-        await _unitOfWork.Repository<Notification>().AddAsync(notification);
     }
 
     private async Task TryCreateStatusLogAsync(Guid orderId, OrderState from, OrderState to, string? changedBy, string? note, CancellationToken cancellationToken)

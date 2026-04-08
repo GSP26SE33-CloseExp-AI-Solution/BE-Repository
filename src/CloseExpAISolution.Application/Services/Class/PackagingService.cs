@@ -19,17 +19,20 @@ public class PackagingService : IPackagingService
     private readonly ILogger<PackagingService> _logger;
     private readonly ISchedulerFactory _schedulerFactory;
     private readonly IRefundService _refundService;
+    private readonly IOrderNotificationPublisher _orderNotificationPublisher;
 
     public PackagingService(
         IUnitOfWork unitOfWork,
         ILogger<PackagingService> logger,
         ISchedulerFactory schedulerFactory,
-        IRefundService refundService)
+        IRefundService refundService,
+        IOrderNotificationPublisher orderNotificationPublisher)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _schedulerFactory = schedulerFactory;
         _refundService = refundService;
+        _orderNotificationPublisher = orderNotificationPublisher;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -233,6 +236,19 @@ public class PackagingService : IPackagingService
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
+            order.Status = OrderState.ReadyToShip;
+            order.UpdatedAt = now;
+            _unitOfWork.Repository<Order>().Update(order);
+
+            await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+                order.OrderId,
+                order.UserId,
+                order.OrderCode,
+                "Đơn hàng sẵn sàng giao",
+                $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
+                NotificationType.OrderUpdate,
+                cancellationToken);
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
         }
@@ -309,6 +325,7 @@ public class PackagingService : IPackagingService
         var note = BuildFailureNote(failureReason, request.Notes);
 
         await _unitOfWork.BeginTransactionAsync();
+        Guid? pendingRefundId = null;
         try
         {
             var retryFailedTargets = targets.Where(i => i.PackagingStatus == PackagingState.Failed).ToList();
@@ -342,7 +359,8 @@ public class PackagingService : IPackagingService
             }
 
             var failedAmount = actionableTargets.Sum(i => i.TotalPrice);
-            await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, cancellationToken);
+            var refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
+            pendingRefundId = await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, refundedItemIds, cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
@@ -351,6 +369,21 @@ public class PackagingService : IPackagingService
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+
+        if (pendingRefundId.HasValue)
+        {
+            try
+            {
+                await _refundService.EnqueueRefundCustomerNotificationAsync(
+                    pendingRefundId.Value,
+                    RefundNotificationKind.Pending,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send pending refund email after packaging failure. refundId={RefundId}", pendingRefundId.Value);
+            }
         }
 
         await RefreshOrderStatusAfterPackagingAsync(orderId, oldOrderStatus, now, cancellationToken);
@@ -517,20 +550,17 @@ public class PackagingService : IPackagingService
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var notification = new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = order.UserId,
-            Title = "Cập nhật đóng gói",
-            Content =
-                lineCount > 1
-                    ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao."
-                    : $"Đơn {order.OrderCode}: một dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao.",
-            Type = NotificationType.OrderUpdate,
-            IsRead = false,
-            CreatedAt = now
-        };
-        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        _ = now;
+        await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+            order.OrderId,
+            order.UserId,
+            order.OrderCode,
+            "Cập nhật đóng gói",
+            lineCount > 1
+                ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao."
+                : $"Đơn {order.OrderCode}: một dòng hàng đã được đóng gói xong và sẵn sàng cho bước giao.",
+            NotificationType.OrderUpdate,
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -541,20 +571,17 @@ public class PackagingService : IPackagingService
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var notification = new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = order.UserId,
-            Title = "Đóng gói thất bại — một phần đơn hàng",
-            Content =
-                lineCount > 1
-                    ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng."
-                    : $"Đơn {order.OrderCode}: một dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng.",
-            Type = NotificationType.OrderUpdate,
-            IsRead = false,
-            CreatedAt = now
-        };
-        await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        _ = now;
+        await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+            order.OrderId,
+            order.UserId,
+            order.OrderCode,
+            "Đóng gói thất bại — một phần đơn hàng",
+            lineCount > 1
+                ? $"Đơn {order.OrderCode}: {lineCount} dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng."
+                : $"Đơn {order.OrderCode}: một dòng hàng không thể đóng gói ({failureReason}). Hoàn tiền tương ứng đã được yêu cầu khi áp dụng.",
+            NotificationType.OrderUpdate,
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -610,17 +637,14 @@ public class PackagingService : IPackagingService
                     ? $"Đơn {order.OrderCode} đã xử lý đóng gói xong: phần thành công sẵn sàng giao; có dòng hàng đã thất bại (xem chi tiết đơn)."
                     : $"Đơn {order.OrderCode} đã hoàn tất đóng gói (tất cả dòng hàng) và sẵn sàng giao.";
 
-                var customer = new Notification
-                {
-                    NotificationId = Guid.NewGuid(),
-                    UserId = order.UserId,
-                    Title = title,
-                    Content = content,
-                    Type = NotificationType.OrderUpdate,
-                    IsRead = false,
-                    CreatedAt = now
-                };
-                await _unitOfWork.Repository<Notification>().AddAsync(customer);
+                await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+                    order.OrderId,
+                    order.UserId,
+                    order.OrderCode,
+                    title,
+                    content,
+                    NotificationType.OrderUpdate,
+                    cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
@@ -689,14 +713,15 @@ public class PackagingService : IPackagingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task TryRefundForPackagingFailureAsync(
+    private async Task<Guid?> TryRefundForPackagingFailureAsync(
         Guid orderId,
         decimal refundAmount,
         string reason,
+        IReadOnlyList<Guid> refundedOrderItemIds,
         CancellationToken cancellationToken)
     {
         if (refundAmount <= 0)
-            return;
+            return null;
 
         var transactions = (await _unitOfWork.Repository<Transaction>()
                 .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
@@ -715,23 +740,25 @@ public class PackagingService : IPackagingService
         if (refundable <= 0)
         {
             _logger.LogWarning("Order {OrderId}: no refundable balance left on transaction {TxId}.", orderId, paidTx.TransactionId);
-            return;
+            return null;
         }
 
         var amount = Math.Min(refundAmount, refundable);
         if (amount <= 0)
-            return;
+            return null;
 
         var refundReason = reason.Length > 2000 ? reason[..2000] : reason;
-        await _refundService.CreateAsync(
+        var created = await _refundService.CreateAsync(
             new CreateRefundRequestDto
             {
                 OrderId = orderId,
                 TransactionId = paidTx.TransactionId,
                 Amount = amount,
-                Reason = refundReason
+                Reason = refundReason,
+                OrderItemIds = refundedOrderItemIds
             },
             cancellationToken);
+        return created.RefundId;
     }
 
     private async Task RestoreStockForOrderItemsAsync(

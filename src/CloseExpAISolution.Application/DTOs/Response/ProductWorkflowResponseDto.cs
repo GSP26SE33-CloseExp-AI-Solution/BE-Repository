@@ -100,9 +100,14 @@ public class ScanBarcodeResponseDto
     public string Barcode { get; set; } = string.Empty;
     public bool ProductExists { get; set; }
     public ExistingProductInfoDto? ExistingProduct { get; set; }
+    public List<MatchedBarcodeProductDto> MatchedProducts { get; set; } = new();
     public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
     public string NextAction { get; set; } = string.Empty;
     public bool RequiresOcrUpload { get; set; }
+    public bool CanCreatePrivateProductForCurrentSupermarket { get; set; }
+    public bool RequiresVerification { get; set; }
+    public Guid? VerificationProductId { get; set; }
+    public bool CanCreateLotDirectly { get; set; }
 }
 
 public class ExistingProductInfoDto
@@ -118,6 +123,19 @@ public class ExistingProductInfoDto
     public List<string> Ingredients { get; set; } = new();
     public decimal? LastPrice { get; set; }
     public int TotalLotsSold { get; set; }
+}
+
+public class MatchedBarcodeProductDto
+{
+    public Guid ProductId { get; set; }
+    public Guid SupermarketId { get; set; }
+    public string? SupermarketName { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Brand { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string Barcode { get; set; } = string.Empty;
+    public ProductState Status { get; set; }
+    public bool IsCurrentSupermarket { get; set; }
 }
 
 public class CreateNewProductResponseDto
@@ -199,7 +217,12 @@ public class StaffProductIdentificationResponseDto
     public string Phase { get; set; } = "IDENTIFICATION";
     public string NextAction { get; set; } = string.Empty;
     public ExistingProductInfoDto? ExistingProduct { get; set; }
+    public List<MatchedBarcodeProductDto> MatchedProducts { get; set; } = new();
     public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
+    public bool CanCreatePrivateProductForCurrentSupermarket { get; set; }
+    public bool RequiresVerification { get; set; }
+    public Guid? VerificationProductId { get; set; }
+    public bool CanCreateLotDirectly { get; set; }
     public WorkflowTimeoutInfoDto TimeoutInfo { get; set; } = new();
 }
 
