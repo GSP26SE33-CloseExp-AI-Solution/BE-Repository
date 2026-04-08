@@ -388,7 +388,7 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
             .Append("<p>Bạn sẽ nhận email khi hồ sơ được duyệt hoặc từ chối.</p>")
             .Append("</body></html>")
             .ToString();
-        await _emailService.SendEmailAsync(email, subject, body);
+        await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None);
     }
 
     private async Task SendApplicationApprovedEmailAsync(string email, string fullName, string marketName, string employeeCode, string? reference)
@@ -405,7 +405,7 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
             .Append("<p>Vui lòng <strong>làm mới phiên đăng nhập</strong> (refresh token) để đồng bộ quyền truy cập.</p>")
             .Append("</body></html>")
             .ToString();
-        await _emailService.SendEmailAsync(email, subject, body);
+        await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None);
     }
 
     private async Task SendApplicationRejectedEmailAsync(string email, string fullName, string marketName, string? note, string? reference)
@@ -420,7 +420,7 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
         if (!string.IsNullOrWhiteSpace(note))
             body.Append("<p>Ghi chú từ quản trị: ").Append(WebEncode(note)).Append("</p>");
         body.Append("<p>Bạn có thể liên hệ hỗ trợ để biết thêm chi tiết.</p></body></html>");
-        await _emailService.SendEmailAsync(email, subject, body.ToString());
+        await _emailService.SendEmailAsync(email, subject, body.ToString(), CancellationToken.None);
     }
 
     private static string WebEncode(string s) =>

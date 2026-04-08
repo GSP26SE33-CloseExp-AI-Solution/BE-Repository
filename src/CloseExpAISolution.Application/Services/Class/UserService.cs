@@ -642,7 +642,7 @@ public class UserService : IUserService
             }
 
             if (subject != null && body != null)
-                await _emailService.SendEmailAsync(user.Email, subject, body);
+                await _emailService.SendEmailAsync(user.Email, subject, body, CancellationToken.None);
         }
         catch (Exception ex)
         {

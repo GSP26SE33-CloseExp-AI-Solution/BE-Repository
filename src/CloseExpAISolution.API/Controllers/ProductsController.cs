@@ -221,7 +221,7 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error identifying product for barcode {Barcode}", request.Barcode);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_identify_failed");
         }
     }
 
@@ -306,7 +306,9 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating product from staff workflow");
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return ex is InvalidOperationException
+                ? WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict")
+                : WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_create_product_failed");
         }
     }
 
@@ -345,11 +347,6 @@ public class ProductsController : ControllerBase
         {
             return StatusCode(StatusCodes.Status408RequestTimeout,
                 ApiResponse<object>.ErrorResponse($"AI pricing timeout after {WorkflowAiTimeoutSeconds}s. Please retry or switch to manual fallback."));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating lot and publishing for staff workflow");
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
         }
     }
 
@@ -606,12 +603,12 @@ public class ProductsController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "invalid_argument");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error scanning barcode {Barcode}", barcode);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_scan_failed");
         }
     }
 
@@ -620,27 +617,11 @@ public class ProductsController : ControllerBase
         [FromBody] CreateStockLotFromExistingDto request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var result = await _workflowService.CreateStockLotFromExistingAsync(request, cancellationToken);
-            return CreatedAtAction(
-                nameof(GetStockLot),
-                new { lotId = result.LotId },
-                ApiResponse<StockLotResponseDto>.SuccessResponse(result, "StockLot created successfully"));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating lot from existing product");
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
+        var result = await _workflowService.CreateStockLotFromExistingAsync(request, cancellationToken);
+        return CreatedAtAction(
+            nameof(GetStockLot),
+            new { lotId = result.LotId },
+            ApiResponse<StockLotResponseDto>.SuccessResponse(result, "StockLot created successfully"));
     }
 
     [HttpPost("analyze-image")]
@@ -670,7 +651,7 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error analyzing image");
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_analyze_image_failed");
         }
     }
 
@@ -695,12 +676,12 @@ public class ProductsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating new product");
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_create_product_failed");
         }
     }
 
@@ -743,7 +724,7 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting pricing for lot {LotId}", lotId);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_get_pricing_failed");
         }
     }
 
@@ -764,12 +745,12 @@ public class ProductsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error confirming price for lot {LotId}", lotId);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_confirm_price_failed");
         }
     }
 
@@ -790,12 +771,12 @@ public class ProductsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error publishing lot {LotId}", lotId);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_publish_lot_failed");
         }
     }
 
@@ -905,5 +886,10 @@ public class ProductsController : ControllerBase
     {
         var fullName = User.FindFirst(ClaimTypes.Name)?.Value;
         return string.IsNullOrWhiteSpace(fullName) ? "Supermarket Staff" : fullName;
+    }
+
+    private ObjectResult WorkflowError(int statusCode, string message, string errorCode)
+    {
+        return StatusCode(statusCode, ApiResponse<object>.ErrorResponse(message, [errorCode]));
     }
 }

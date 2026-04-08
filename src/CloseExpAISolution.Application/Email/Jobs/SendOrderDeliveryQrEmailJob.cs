@@ -81,7 +81,7 @@ public class SendOrderDeliveryQrEmailJob : IJob
             var subject = $"[CloseExp] Xác nhận giao hàng - {orderCode}";
             var body = BuildEmailBody(orderCode, qrBase64);
 
-            await _emailService.SendEmailAsync(user.Email, subject, body);
+            await _emailService.SendEmailAsync(user.Email, subject, body, context.CancellationToken);
 
             _logger.LogInformation("SendOrderDeliveryQrEmailJob completed. orderId={OrderId}, to={Email}, durationMs={DurationMs}",
                 orderId, user.Email, (DateTime.UtcNow - startedAt).TotalMilliseconds);

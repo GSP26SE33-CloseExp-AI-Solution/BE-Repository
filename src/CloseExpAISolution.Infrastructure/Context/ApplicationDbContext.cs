@@ -38,6 +38,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Refund> Refunds => Set<Refund>();
+    public DbSet<RefundEmailOutbox> RefundEmailOutboxes => Set<RefundEmailOutbox>();
     public DbSet<DeliveryGroup> DeliveryGroups => Set<DeliveryGroup>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
@@ -121,7 +122,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<Product>(entity =>
         {
-            entity.HasIndex(p => p.Barcode).IsUnique();
+            entity.HasIndex(p => new { p.SupermarketId, p.Barcode }).IsUnique();
             entity.HasIndex(p => new { p.SupermarketId, p.Status });
             entity.HasIndex(p => p.CategoryId);
         });
@@ -394,6 +395,22 @@ public class ApplicationDbContext : DbContext
             .WithMany(t => t.Refunds)
             .HasForeignKey(r => r.TransactionId)
             .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Refund>(entity =>
+        {
+            entity.Property(r => r.RefundedOrderItemIdsJson).HasMaxLength(8000);
+        });
+
+        modelBuilder.Entity<RefundEmailOutbox>(entity =>
+        {
+            entity.HasKey(r => r.EmailOutboxId);
+            entity.ToTable("RefundEmailOutboxes");
+            entity.Property(r => r.LastError).HasMaxLength(4000);
+            entity.HasIndex(r => new { r.Status, r.NextAttemptAtUtc });
+            entity.HasOne(r => r.Refund)
+                .WithMany()
+                .HasForeignKey(r => r.RefundId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<OrderStatusLog>()
             .HasOne(os => os.Order)

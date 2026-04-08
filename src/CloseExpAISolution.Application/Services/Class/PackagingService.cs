@@ -309,6 +309,7 @@ public class PackagingService : IPackagingService
         var note = BuildFailureNote(failureReason, request.Notes);
 
         await _unitOfWork.BeginTransactionAsync();
+        Guid? pendingRefundId = null;
         try
         {
             var retryFailedTargets = targets.Where(i => i.PackagingStatus == PackagingState.Failed).ToList();
@@ -342,7 +343,8 @@ public class PackagingService : IPackagingService
             }
 
             var failedAmount = actionableTargets.Sum(i => i.TotalPrice);
-            await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, cancellationToken);
+            var refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
+            pendingRefundId = await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, refundedItemIds, cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
@@ -351,6 +353,21 @@ public class PackagingService : IPackagingService
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+
+        if (pendingRefundId.HasValue)
+        {
+            try
+            {
+                await _refundService.EnqueueRefundCustomerNotificationAsync(
+                    pendingRefundId.Value,
+                    RefundNotificationKind.Pending,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send pending refund email after packaging failure. refundId={RefundId}", pendingRefundId.Value);
+            }
         }
 
         await RefreshOrderStatusAfterPackagingAsync(orderId, oldOrderStatus, now, cancellationToken);
@@ -689,14 +706,15 @@ public class PackagingService : IPackagingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task TryRefundForPackagingFailureAsync(
+    private async Task<Guid?> TryRefundForPackagingFailureAsync(
         Guid orderId,
         decimal refundAmount,
         string reason,
+        IReadOnlyList<Guid> refundedOrderItemIds,
         CancellationToken cancellationToken)
     {
         if (refundAmount <= 0)
-            return;
+            return null;
 
         var transactions = (await _unitOfWork.Repository<Transaction>()
                 .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
@@ -715,23 +733,25 @@ public class PackagingService : IPackagingService
         if (refundable <= 0)
         {
             _logger.LogWarning("Order {OrderId}: no refundable balance left on transaction {TxId}.", orderId, paidTx.TransactionId);
-            return;
+            return null;
         }
 
         var amount = Math.Min(refundAmount, refundable);
         if (amount <= 0)
-            return;
+            return null;
 
         var refundReason = reason.Length > 2000 ? reason[..2000] : reason;
-        await _refundService.CreateAsync(
+        var created = await _refundService.CreateAsync(
             new CreateRefundRequestDto
             {
                 OrderId = orderId,
                 TransactionId = paidTx.TransactionId,
                 Amount = amount,
-                Reason = refundReason
+                Reason = refundReason,
+                OrderItemIds = refundedOrderItemIds
             },
             cancellationToken);
+        return created.RefundId;
     }
 
     private async Task RestoreStockForOrderItemsAsync(

@@ -17,7 +17,7 @@ namespace CloseExpAISolution.Application.Email.Clients
             _logger = logger;
         }
 
-        public async Task SendEmailAsync(string toEmail, string subject, string body)
+        public async Task SendEmailAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -37,7 +37,7 @@ namespace CloseExpAISolution.Application.Email.Clients
                 };
                 mailMessage.To.Add(toEmail);
 
-                await client.SendMailAsync(mailMessage);
+                await client.SendMailAsync(mailMessage).WaitAsync(cancellationToken);
                 _logger.LogInformation("Email sent successfully to {ToEmail}", toEmail);
             }
             catch (Exception ex)

@@ -11,4 +11,5 @@ public class RefundResponseDto
     public string? ProcessedBy { get; set; }
     public DateTime? ProcessedAt { get; set; }
     public DateTime CreatedAt { get; set; }
+    public IReadOnlyList<Guid>? RefundedOrderItemIds { get; set; }
 }

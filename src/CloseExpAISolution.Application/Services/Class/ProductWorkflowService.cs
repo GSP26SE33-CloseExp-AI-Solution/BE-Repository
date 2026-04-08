@@ -7,6 +7,7 @@ using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -17,7 +18,7 @@ public class ProductWorkflowService : IProductWorkflowService
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAIServiceClient _aiClient;
-    private readonly IR2StorageService _r2Storage;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IMarketPriceService _marketPriceService;
     private readonly IBarcodeLookupService _barcodeLookupService;
     private readonly ILogger<ProductWorkflowService> _logger;
@@ -25,14 +26,14 @@ public class ProductWorkflowService : IProductWorkflowService
     public ProductWorkflowService(
         IUnitOfWork unitOfWork,
         IAIServiceClient aiClient,
-        IR2StorageService r2Storage,
+        IServiceProvider serviceProvider,
         IMarketPriceService marketPriceService,
         IBarcodeLookupService barcodeLookupService,
         ILogger<ProductWorkflowService> logger)
     {
         _unitOfWork = unitOfWork;
         _aiClient = aiClient;
-        _r2Storage = r2Storage;
+        _serviceProvider = serviceProvider;
         _marketPriceService = marketPriceService;
         _barcodeLookupService = barcodeLookupService;
         _logger = logger;
@@ -105,8 +106,8 @@ public class ProductWorkflowService : IProductWorkflowService
         var lot = await GetLatestStockLotByProductIdAsync(product.ProductId);
         if (lot != null)
         {
-            if (request.ExpiryDate.HasValue) lot.ExpiryDate = request.ExpiryDate.Value;
-            if (request.ManufactureDate.HasValue) lot.ManufactureDate = request.ManufactureDate.Value;
+            if (request.ExpiryDate.HasValue) lot.ExpiryDate = EnsureUtc(request.ExpiryDate.Value);
+            if (request.ManufactureDate.HasValue) lot.ManufactureDate = EnsureUtc(request.ManufactureDate.Value);
 
             if (!await HasRequiredShelfLifeAsync(lot.ExpiryDate, cancellationToken))
             {
@@ -564,30 +565,57 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
         }
 
-        var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
-        p => p.Barcode == barcode && p.Status != ProductState.Hidden);
-        if (existingProduct != null)
-        {
-            existingProduct = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(existingProduct.ProductId) ?? existingProduct;
-        }
+        var existingProducts = (await _unitOfWork.ProductRepository.FindAsync(
+            p => p.Barcode == barcode && p.Status != ProductState.Hidden && p.Status != ProductState.Deleted))
+            .ToList();
 
-        if (existingProduct != null)
+        if (existingProducts.Count > 0)
         {
-            _logger.LogInformation("Product found in database for barcode {Barcode}: {ProductName}", barcode, existingProduct.Name);
+            var detailed = new List<Product>(existingProducts.Count);
+            foreach (var p in existingProducts)
+            {
+                var productWithDetails = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(p.ProductId);
+                detailed.Add(productWithDetails ?? p);
+            }
 
-            var images = await _unitOfWork.Repository<ProductImage>().FindAsync(pi => pi.ProductId == existingProduct.ProductId);
+            var matchedProducts = detailed
+                .OrderByDescending(p => p.SupermarketId == supermarketId)
+                .ThenByDescending(p => p.Status == ProductState.Verified)
+                .Select(p => new MatchedBarcodeProductDto
+                {
+                    ProductId = p.ProductId,
+                    SupermarketId = p.SupermarketId,
+                    SupermarketName = p.Supermarket?.Name,
+                    Name = p.Name,
+                    Brand = p.ProductDetail?.Brand ?? string.Empty,
+                    Category = p.CategoryRef?.Name ?? string.Empty,
+                    Barcode = p.Barcode,
+                    Status = p.Status,
+                    IsCurrentSupermarket = p.SupermarketId == supermarketId
+                })
+                .ToList();
+
+            var currentMarketProduct = detailed.FirstOrDefault(p => p.SupermarketId == supermarketId);
+            var selectedForDisplay = currentMarketProduct ?? detailed.First();
+
+            var images = await _unitOfWork.Repository<ProductImage>().FindAsync(pi => pi.ProductId == selectedForDisplay.ProductId);
             var mainImage = images.OrderByDescending(i => i.CreatedAt).FirstOrDefault()?.ImageUrl;
 
-            var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => l.ProductId == existingProduct.ProductId);
+            var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => l.ProductId == selectedForDisplay.ProductId);
             var totalLotsSold = lots.Count(l => l.Status == ProductState.Published || l.Status == ProductState.SoldOut);
-
-            // Get last price from PricingHistory
             var lotIds = lots.Select(l => l.LotId).ToList();
-            var pricing = await _unitOfWork.Repository<PricingHistory>()
-                .FindAsync(ph => lotIds.Contains(ph.LotId));
-            var latestPricing = pricing
-                .OrderByDescending(ph => ph.ConfirmedAt ?? ph.CreatedAt)
-                .FirstOrDefault();
+            var pricing = await _unitOfWork.Repository<PricingHistory>().FindAsync(ph => lotIds.Contains(ph.LotId));
+            var latestPricing = pricing.OrderByDescending(ph => ph.ConfirmedAt ?? ph.CreatedAt).FirstOrDefault();
+
+            var canCreateLotDirectly = currentMarketProduct?.Status == ProductState.Verified;
+            var requiresVerification = currentMarketProduct != null && currentMarketProduct.Status != ProductState.Verified;
+            var canCreatePrivateProduct = currentMarketProduct == null;
+
+            var nextAction = canCreateLotDirectly
+                ? "CREATE_LOT"
+                : requiresVerification
+                    ? "VERIFY_PRODUCT"
+                    : "CHOOSE_OR_CREATE_PRIVATE_PRODUCT";
 
             return new ScanBarcodeResponseDto
             {
@@ -595,19 +623,24 @@ public class ProductWorkflowService : IProductWorkflowService
                 ProductExists = true,
                 ExistingProduct = new ExistingProductInfoDto
                 {
-                    ProductId = existingProduct.ProductId,
-                    Name = existingProduct.Name,
-                    Brand = existingProduct.ProductDetail?.Brand ?? string.Empty,
-                    Category = existingProduct.CategoryRef?.Name ?? string.Empty,
-                    Barcode = existingProduct.Barcode,
+                    ProductId = selectedForDisplay.ProductId,
+                    Name = selectedForDisplay.Name,
+                    Brand = selectedForDisplay.ProductDetail?.Brand ?? string.Empty,
+                    Category = selectedForDisplay.CategoryRef?.Name ?? string.Empty,
+                    Barcode = selectedForDisplay.Barcode,
                     MainImageUrl = mainImage,
-                    Manufacturer = existingProduct.ProductDetail?.Manufacturer,
-                    Ingredients = ParseIngredients(existingProduct.ProductDetail?.Ingredients),
+                    Manufacturer = selectedForDisplay.ProductDetail?.Manufacturer,
+                    Ingredients = ParseIngredients(selectedForDisplay.ProductDetail?.Ingredients),
                     LastPrice = latestPricing?.SuggestedPrice,
                     TotalLotsSold = totalLotsSold
                 },
-                NextAction = "CREATE_LOT",
-                RequiresOcrUpload = false
+                MatchedProducts = matchedProducts,
+                NextAction = nextAction,
+                RequiresOcrUpload = false,
+                CanCreatePrivateProductForCurrentSupermarket = canCreatePrivateProduct,
+                RequiresVerification = requiresVerification,
+                VerificationProductId = requiresVerification ? currentMarketProduct?.ProductId : null,
+                CanCreateLotDirectly = canCreateLotDirectly
             };
         }
 
@@ -648,7 +681,11 @@ public class ProductWorkflowService : IProductWorkflowService
                 IsVerified = barcodeLookupInfo.IsVerified
             } : null,
             NextAction = "UPLOAD_IMAGE_FOR_OCR",
-            RequiresOcrUpload = true
+            RequiresOcrUpload = true,
+            CanCreatePrivateProductForCurrentSupermarket = true,
+            RequiresVerification = false,
+            VerificationProductId = null,
+            CanCreateLotDirectly = false
         };
     }
 
@@ -664,8 +701,17 @@ public class ProductWorkflowService : IProductWorkflowService
             Barcode = scanResult.Barcode,
             ProductExists = scanResult.ProductExists,
             ExistingProduct = scanResult.ExistingProduct,
+            MatchedProducts = scanResult.MatchedProducts,
             BarcodeLookupInfo = scanResult.BarcodeLookupInfo,
-            NextAction = scanResult.ProductExists ? "CREATE_STOCKLOT" : "CREATE_PRODUCT",
+            NextAction = scanResult.ProductExists
+                ? (scanResult.CanCreateLotDirectly
+                    ? "CREATE_STOCKLOT"
+                    : (scanResult.RequiresVerification ? "VERIFY_PRODUCT" : "CHOOSE_OR_CREATE_PRIVATE_PRODUCT"))
+                : "CREATE_PRODUCT",
+            CanCreatePrivateProductForCurrentSupermarket = scanResult.CanCreatePrivateProductForCurrentSupermarket,
+            RequiresVerification = scanResult.RequiresVerification,
+            VerificationProductId = scanResult.VerificationProductId,
+            CanCreateLotDirectly = scanResult.CanCreateLotDirectly,
             TimeoutInfo = new WorkflowTimeoutInfoDto
             {
                 TimeoutSeconds = WorkflowAiTimeoutSeconds,
@@ -697,10 +743,12 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException("Product name is required.", nameof(request.Name));
         }
 
-        var existed = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(p => p.Barcode == request.Barcode);
+        var existed = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+            p => p.SupermarketId == supermarketId && p.Barcode == request.Barcode);
         if (existed != null)
         {
-            throw new InvalidOperationException($"Product with barcode {request.Barcode} already exists (ProductId: {existed.ProductId}).");
+            throw new InvalidOperationException(
+                $"Product with barcode {request.Barcode} already exists in this supermarket (ProductId: {existed.ProductId}).");
         }
 
         var defaultUnit = (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
@@ -813,8 +861,8 @@ public class ProductWorkflowService : IProductWorkflowService
         var createdLot = await CreateStockLotFromExistingAsync(new CreateStockLotFromExistingDto
         {
             ProductId = request.ProductId,
-            ExpiryDate = request.ExpiryDate,
-            ManufactureDate = request.ManufactureDate,
+            ExpiryDate = EnsureUtc(request.ExpiryDate),
+            ManufactureDate = request.ManufactureDate.HasValue ? EnsureUtc(request.ManufactureDate.Value) : null,
             Quantity = request.Quantity,
             Weight = request.Weight,
             CreatedBy = staffName
@@ -860,6 +908,8 @@ public class ProductWorkflowService : IProductWorkflowService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Creating StockLot from existing product {ProductId}", request.ProductId);
+        var expiryUtc = EnsureUtc(request.ExpiryDate);
+        var manufactureUtc = request.ManufactureDate.HasValue ? EnsureUtc(request.ManufactureDate.Value) : (DateTime?)null;
 
         var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(request.ProductId);
         if (product == null)
@@ -874,18 +924,23 @@ public class ProductWorkflowService : IProductWorkflowService
                 $"Please verify the product first using POST /api/products/{{productId}}/verify");
         }
 
-        if (!await HasRequiredShelfLifeAsync(request.ExpiryDate, cancellationToken))
+        if (!await HasRequiredShelfLifeAsync(expiryUtc, cancellationToken))
         {
             var minHours = await GetMinimumShelfLifeHoursAsync(cancellationToken);
             throw new InvalidOperationException($"Cannot create StockLot. Remaining shelf life must be > {minHours} hours.");
         }
 
+        var defaultUnit = (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
+        if (defaultUnit == null)
+            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
+
         var stockLot = new StockLot
         {
             LotId = Guid.NewGuid(),
             ProductId = product.ProductId,
-            ExpiryDate = request.ExpiryDate,
-            ManufactureDate = request.ManufactureDate ?? DateTime.UtcNow,
+            UnitId = defaultUnit.UnitId,
+            ExpiryDate = expiryUtc,
+            ManufactureDate = manufactureUtc ?? DateTime.UtcNow,
             Quantity = request.Quantity,
             Weight = request.Weight,
             Status = ProductState.Draft,
@@ -915,7 +970,10 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException($"Supermarket with ID {supermarketId} not found.", nameof(supermarketId));
         }
 
-        var uploadResult = await _r2Storage.UploadToR2Async(
+        var r2Storage = _serviceProvider.GetService<IR2StorageService>()
+            ?? throw new InvalidOperationException("R2 storage service is not configured. OCR image upload is unavailable.");
+
+        var uploadResult = await r2Storage.UploadToR2Async(
             imageStream,
             fileName,
             contentType,
@@ -926,7 +984,7 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new InvalidOperationException("Không thể upload ảnh OCR lên R2.");
         }
 
-        var imageUrl = _r2Storage.GetPreSignedUrlForImage(uploadedImageUrl, TimeSpan.FromHours(1));
+        var imageUrl = r2Storage.GetPreSignedUrlForImage(uploadedImageUrl, TimeSpan.FromHours(1));
         if (string.IsNullOrEmpty(imageUrl))
         {
             imageUrl = uploadedImageUrl;
@@ -1044,10 +1102,12 @@ public class ProductWorkflowService : IProductWorkflowService
 
         if (!string.IsNullOrEmpty(request.Barcode))
         {
-            var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(p => p.Barcode == request.Barcode);
+            var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+                p => p.SupermarketId == request.SupermarketId && p.Barcode == request.Barcode);
             if (existingProduct != null)
             {
-                throw new InvalidOperationException($"Product with barcode {request.Barcode} already exists (ProductId: {existingProduct.ProductId}). Use CreateStockLotFromExisting instead.");
+                throw new InvalidOperationException(
+                    $"Product with barcode {request.Barcode} already exists in this supermarket (ProductId: {existingProduct.ProductId}). Use CreateStockLotFromExisting instead.");
             }
         }
 
@@ -1437,6 +1497,16 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             return (defaultLevel, null);
         }
+    }
+
+    private static DateTime EnsureUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
     }
 
 }

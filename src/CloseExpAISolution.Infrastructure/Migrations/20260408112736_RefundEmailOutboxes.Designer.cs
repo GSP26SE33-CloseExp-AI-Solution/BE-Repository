@@ -3,6 +3,7 @@ using System;
 using CloseExpAISolution.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloseExpAISolution.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408112736_RefundEmailOutboxes")]
+    partial class RefundEmailOutboxes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -836,10 +839,10 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.HasKey("ProductId");
 
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("SupermarketId", "Barcode")
+                    b.HasIndex("Barcode")
                         .IsUnique();
+
+                    b.HasIndex("CategoryId");
 
                     b.HasIndex("SupermarketId", "Status");
 
