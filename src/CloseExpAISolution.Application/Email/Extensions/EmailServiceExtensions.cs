@@ -43,6 +43,9 @@ namespace CloseExpAISolution.Application.Email.Extensions
 
                 var deliveryQrJobKey = new JobKey("SendOrderDeliveryQrEmailJob");
                 q.AddJob<SendOrderDeliveryQrEmailJob>(opts => opts.WithIdentity(deliveryQrJobKey).StoreDurably());
+
+                var refundStatusJobKey = new JobKey("SendRefundStatusEmailJob");
+                q.AddJob<SendRefundStatusEmailJob>(opts => opts.WithIdentity(refundStatusJobKey).StoreDurably());
             });
             services.AddQuartzHostedService(options =>
             {

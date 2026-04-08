@@ -20,6 +20,9 @@ public interface IOrderService
     Task<(IEnumerable<OrderResponseDto> Items, int TotalCount)> GetByUserIdAsync(Guid userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
     Task UpdateAsync(Guid orderId, UpdateOrderRequestDto request, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default);
+
+    /// <param name="cancellationReason">Required when <paramref name="status"/> is <see cref="OrderState.Canceled"/> (non-whitespace).</param>
+    Task UpdateStatusAsync(Guid orderId, OrderState status, string? cancellationReason, CancellationToken cancellationToken = default);
     Task<OrderResponseDto> ApplyPromotionAsync(Guid orderId, Guid userId, ApplyPromotionToOrderRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid orderId, CancellationToken cancellationToken = default);
 }

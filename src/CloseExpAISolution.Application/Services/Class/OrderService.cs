@@ -328,7 +328,14 @@ public class OrderService : IOrderService
         await TryRecordPromotionUsageAsync(order, cancellationToken);
     }
 
-    public async Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default)
+    public Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default)
+        => UpdateStatusAsync(orderId, status, null, cancellationToken);
+
+    public async Task UpdateStatusAsync(
+        Guid orderId,
+        OrderState status,
+        string? cancellationReason,
+        CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
@@ -337,6 +344,9 @@ public class OrderService : IOrderService
 
         if (status == OrderState.Canceled)
         {
+            if (string.IsNullOrWhiteSpace(cancellationReason))
+                throw new InvalidOperationException("Vui lòng nhập lý do hủy đơn hàng.");
+
             if (order.Status == OrderState.Pending)
             {
                 // Allowed to cancel freely.
@@ -362,14 +372,13 @@ public class OrderService : IOrderService
         }
 
         if (status == OrderState.Canceled && oldStatus == OrderState.Paid)
-        {
             await RestoreStockForOrderAsync(orderId, now, cancellationToken);
-        }
 
         order.Status = status;
         order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
-        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", null, cancellationToken);
+        var cancelNote = status == OrderState.Canceled ? cancellationReason!.Trim() : null;
+        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", cancelNote, cancellationToken);
         await TryCreateNotificationAsync(order.UserId, "Cập nhật đơn hàng", $"Đơn {order.OrderCode} đã chuyển sang trạng thái {status}.", NotificationType.OrderUpdate, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         await TryRecordPromotionUsageAsync(order, cancellationToken);

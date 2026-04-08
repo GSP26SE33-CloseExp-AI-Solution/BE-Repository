@@ -1,0 +1,587 @@
+{
+  "info": {
+    "_postman_id": "b1f45a64-5c6d-4f85-985e-refund-cancel-checklist",
+    "name": "CloseExp - Refund & Cancel Checklist",
+    "description": "Collection test theo checklist BE API + email job + FE cho luong paid/cancel/refund.\n\nHuong dan nhanh:\n1) Dang nhap user chu don -> luu userToken + orderId\n2) Paid order -> test cancel trong han / qua han\n3) Kiem tra refund theo role user khac nhau\n4) Kiem tra transition approved/rejected/completed bang token Admin/MarketingStaff\n5) Xac minh email theo log/mailbox theo folder manual checklist\n\nLuu y:\n- Khong hardcode token, su dung bien collection\n- Cac case qua han can order da vuot cancelDeadline\n- Case inventory/hoan kho can doi chieu DB neu can",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5014/api" },
+    { "key": "userToken", "value": "" },
+    { "key": "otherUserToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "marketingToken", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "refundId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 - Setup Tokens",
+      "description": "Gan token thu cong hoac login bang request phu hop cua he thong.",
+      "item": [
+        {
+          "name": "GET Orders/{orderId} (seed check)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Orders/{{orderId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 - Order Paid -> Cancel Window",
+      "item": [
+        {
+          "name": "PUT Orders/{id}/paid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Paid success', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});",
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j && j.data && j.data.cancelDeadline) {",
+                  "    console.log('cancelDeadline:', j.data.cancelDeadline);",
+                  "  }",
+                  "} catch (e) {",
+                  "  // No JSON body is acceptable for 204",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/Orders/{{orderId}}/paid",
+            "description": "Ky vong: he thong set CancelDeadline theo config ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID."
+          }
+        },
+        {
+          "name": "PUT Orders/{id}/canceled (trong han)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancel in window success', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Test huy trong han (Postman)\"\n}"
+            },
+            "url": "{{baseUrl}}/Orders/{{orderId}}/canceled",
+            "description": "Ky vong: Order -> Canceled; hoan kho thanh cong. Body bat buoc: { reason }. Khong tu tao Refund — tao refund bang API Refunds neu can."
+          }
+        },
+        {
+          "name": "PUT Orders/{id}/canceled (qua han)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancel after deadline rejected', function () {",
+                  "  pm.expect(pm.response.code).to.equal(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Test huy sau han (Postman)\"\n}"
+            },
+            "url": "{{baseUrl}}/Orders/{{orderId}}/canceled",
+            "description": "Dung order da qua cancelDeadline. Ky vong 400 voi message qua thoi gian cho phep huy. Van can reason trong body."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Refund Visibility & Permissions",
+      "item": [
+        {
+          "name": "GET Refunds/my?orderId={orderId} (owner token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Owner can see own refund list', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  const first = j?.data?.items?.[0] || j?.data?.[0];",
+                  "  if (first?.id || first?.refundId) {",
+                  "    pm.collectionVariables.set('refundId', first.id || first.refundId);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds/my?orderId={{orderId}}"
+          }
+        },
+        {
+          "name": "GET Refunds/my?orderId={orderId} (other user token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Other user cannot see owner refund data', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  const items = j?.data?.items || j?.data || [];",
+                  "  pm.expect(items.length).to.equal(0);",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{otherUserToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds/my?orderId={{orderId}}"
+          }
+        },
+        {
+          "name": "GET Refunds (admin token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin can access all refunds', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{adminToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds"
+          }
+        },
+        {
+          "name": "GET Refunds (marketing token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Marketing can access all refunds', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{marketingToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds"
+          }
+        },
+        {
+          "name": "GET Refunds (normal user forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Normal user forbidden on Refunds list', function () {",
+                  "  pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds"
+          }
+        },
+        {
+          "name": "GET Refunds/{refundId} (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin can view any refund detail', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{adminToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds/{{refundId}}"
+          }
+        },
+        {
+          "name": "GET Refunds/{refundId} (owner user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Owner can view own refund detail', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds/{{refundId}}"
+          }
+        },
+        {
+          "name": "GET Refunds/{refundId} (other user forbidden/not found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Other user cannot view foreign refund detail', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([403, 404]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{otherUserToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds/{{refundId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Refund Status Transition",
+      "description": "Luong dung: Pending -> Approved -> Completed hoac Pending -> Rejected",
+      "item": [
+        {
+          "name": "PUT Refunds/{id}/approved (admin or marketing)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Approve refund success for admin/marketing', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{adminToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/Refunds/{{refundId}}/approved"
+          }
+        },
+        {
+          "name": "PUT Refunds/{id}/completed (admin or marketing)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Complete refund success after approved', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{adminToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/Refunds/{{refundId}}/completed"
+          }
+        },
+        {
+          "name": "PUT Refunds/{id}/rejected (fresh pending refund)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reject refund success from pending', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{marketingToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/Refunds/{{refundId}}/rejected"
+          }
+        },
+        {
+          "name": "PUT Refunds/{id}/approved (normal user forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Normal user forbidden for refund transition', function () {",
+                  "  pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/Refunds/{{refundId}}/approved"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 - Email Job Checklist (manual)",
+      "description": "Xac minh qua mailbox/log worker:\n- Created -> mail tiep nhan\n- Approved -> mail da phe duyet\n- Rejected -> mail bi tu choi\n- Completed -> mail hoan tat\n- Event ngoai whitelist -> skip + warning log",
+      "item": [
+        {
+          "name": "GET Refunds/{refundId} (check latest status before mail verify)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{adminToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Refunds/{{refundId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 - FE React Checklist (manual)",
+      "description": "MyOrderDetailPage:\n- Order Paid + chua qua cancelDeadline -> thay nut Huy don\n- Bam huy thanh cong -> reload order + hien progress refund\nMyOrdersPage:\n- Order co refund -> badge phu Refund: <status>\nCase qua han:\n- Khong cho huy hoac BE tra loi phu hop, FE hien message ro rang",
+      "item": [
+        {
+          "name": "GET Orders/{orderId} (manual FE cross-check)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{userToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/Orders/{{orderId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

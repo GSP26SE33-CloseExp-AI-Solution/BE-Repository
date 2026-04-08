@@ -107,7 +107,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
                 public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
-                public IRefundService RefundService => _refundService ??= new RefundService(_unitOfWork, _mapper);
+                public IRefundService RefundService => _refundService ??= ActivatorUtilities.CreateInstance<RefundService>(_serviceProvider);
                 public ICollectionPointService CollectionPointService => _collectionPointService ??= new CollectionPointService(_unitOfWork);
                 public ICustomerAddressService CustomerAddressService => _customerAddressService ??= new CustomerAddressService(_unitOfWork, MapboxService, _serviceProvider.GetRequiredService<ILogger<CustomerAddressService>>());
                 public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);

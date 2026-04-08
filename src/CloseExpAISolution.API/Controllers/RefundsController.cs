@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
@@ -22,6 +23,7 @@ public class RefundsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin,MarketingStaff")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<RefundResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<RefundResponseDto>>>> GetAll(
         [FromQuery] int pageNumber = 1,
@@ -43,18 +45,58 @@ public class RefundsController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<RefundResponseDto>>.SuccessResponse(result));
     }
 
+    [HttpGet("my")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<RefundResponseDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<RefundResponseDto>>>> GetMyRefunds(
+        [FromQuery] Guid? orderId = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentUserId(out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid user token."));
+
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 100) pageSize = 100;
+
+        var (items, total) = await _services.RefundService.GetByUserAsync(userId, orderId, pageNumber, pageSize, cancellationToken);
+        var result = new PaginatedResult<RefundResponseDto>
+        {
+            Items = items,
+            TotalResult = total,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+        return Ok(ApiResponse<PaginatedResult<RefundResponseDto>>.SuccessResponse(result));
+    }
+
     [HttpGet("{id:guid}")]
+    [Authorize]
     [ProducesResponseType(typeof(ApiResponse<RefundResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<RefundResponseDto>>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
-        var refund = await _services.RefundService.GetByIdAsync(id, cancellationToken);
+        RefundResponseDto? refund;
+        if (User.IsInRole("Admin") || User.IsInRole("MarketingStaff"))
+        {
+            refund = await _services.RefundService.GetByIdAsync(id, cancellationToken);
+        }
+        else
+        {
+            if (!TryGetCurrentUserId(out var userId))
+                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid user token."));
+            refund = await _services.RefundService.GetByIdForUserAsync(id, userId, cancellationToken);
+        }
+
         if (refund == null)
             return NotFound(ApiResponse<RefundResponseDto>.ErrorResponse("Refund not found"));
         return Ok(ApiResponse<RefundResponseDto>.SuccessResponse(refund));
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,MarketingStaff")]
     [ProducesResponseType(typeof(ApiResponse<RefundResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<RefundResponseDto>>> Create(
@@ -79,6 +121,7 @@ public class RefundsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/pending")]
+    [Authorize(Roles = "Admin,MarketingStaff")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -86,6 +129,7 @@ public class RefundsController : ControllerBase
         UpdateRefundStatus(id, RefundState.Pending, cancellationToken);
 
     [HttpPut("{id:guid}/approved")]
+    [Authorize(Roles = "Admin,MarketingStaff")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -93,6 +137,7 @@ public class RefundsController : ControllerBase
         UpdateRefundStatus(id, RefundState.Approved, cancellationToken);
 
     [HttpPut("{id:guid}/rejected")]
+    [Authorize(Roles = "Admin,MarketingStaff")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -100,6 +145,7 @@ public class RefundsController : ControllerBase
         UpdateRefundStatus(id, RefundState.Rejected, cancellationToken);
 
     [HttpPut("{id:guid}/completed")]
+    [Authorize(Roles = "Admin,MarketingStaff")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -132,4 +178,12 @@ public class RefundsController : ControllerBase
         User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub)
         ?? User.Identity?.Name;
+
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        userId = Guid.Empty;
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return Guid.TryParse(userIdString, out userId);
+    }
 }
