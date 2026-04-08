@@ -350,6 +350,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Notification>(entity =>
         {
             entity.HasIndex(n => new { n.UserId, n.IsRead });
+            entity.HasIndex(n => n.OrderId);
+
+            entity.HasOne(n => n.Order)
+                .WithMany(o => o.Notifications)
+                .HasForeignKey(n => n.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Parent)
+                .WithMany(n => n.Children)
+                .HasForeignKey(n => n.ParentNotificationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DeliveryLog>()

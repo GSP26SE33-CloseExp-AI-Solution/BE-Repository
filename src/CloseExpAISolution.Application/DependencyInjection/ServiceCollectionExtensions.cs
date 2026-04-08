@@ -31,12 +31,15 @@ public static class ServiceCollectionExtensions
             cfg.AddProfile<SupermarketMappingProfile>();
             cfg.AddProfile<MarketStaffMappingProfile>();
             cfg.AddProfile<FeedbackMappingProfile>();
+            cfg.AddProfile<NotificationMappingProfile>();
             cfg.AddProfile<OrderMappingProfile>();
             cfg.AddProfile<CategoryMappingProfile>();
             cfg.AddProfile<RefundMappingProfile>();
         });
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
+
+        services.AddScoped<IOrderNotificationPublisher, OrderNotificationPublisher>();
 
         var redisConn = configuration.GetConnectionString("Redis");
         if (!string.IsNullOrWhiteSpace(redisConn))

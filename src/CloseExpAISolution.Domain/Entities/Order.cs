@@ -35,4 +35,5 @@ public class Order
     public ICollection<Refund> Refunds { get; set; } = new List<Refund>();
     public ICollection<DeliveryLog> DeliveryLogs { get; set; } = new List<DeliveryLog>();
     public ICollection<OrderStatusLog> StatusLogs { get; set; } = new List<OrderStatusLog>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

@@ -19,17 +19,20 @@ public class PackagingService : IPackagingService
     private readonly ILogger<PackagingService> _logger;
     private readonly ISchedulerFactory _schedulerFactory;
     private readonly IRefundService _refundService;
+    private readonly IOrderNotificationPublisher _orderNotificationPublisher;
 
     public PackagingService(
         IUnitOfWork unitOfWork,
         ILogger<PackagingService> logger,
         ISchedulerFactory schedulerFactory,
-        IRefundService refundService)
+        IRefundService refundService,
+        IOrderNotificationPublisher orderNotificationPublisher)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _schedulerFactory = schedulerFactory;
         _refundService = refundService;
+        _orderNotificationPublisher = orderNotificationPublisher;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -220,6 +223,23 @@ public class PackagingService : IPackagingService
             {
                 if (item.PackagingStatus == PackagingState.Completed)
                     continue;
+                record.Status = PackagingState.Completed;
+                record.PackagedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<OrderPackaging>().Update(record);
+
+                order.Status = OrderState.ReadyToShip;
+                order.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<Order>().Update(order);
+
+                await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+                    order.OrderId,
+                    order.UserId,
+                    order.OrderCode,
+                    "Đơn hàng sẵn sàng giao",
+                    $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
+                    NotificationType.OrderUpdate,
+                    cancellationToken);
+                // TODO: Send email of QR code of order confirmation to customer
 
                 var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
                 record.Status = PackagingState.Completed;
