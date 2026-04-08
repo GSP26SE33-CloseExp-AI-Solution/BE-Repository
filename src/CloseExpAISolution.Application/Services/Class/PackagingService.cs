@@ -15,12 +15,18 @@ public class PackagingService : IPackagingService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PackagingService> _logger;
     private readonly ISchedulerFactory _schedulerFactory;
+    private readonly IOrderNotificationPublisher _orderNotificationPublisher;
 
-    public PackagingService(IUnitOfWork unitOfWork, ILogger<PackagingService> logger, ISchedulerFactory schedulerFactory)
+    public PackagingService(
+        IUnitOfWork unitOfWork,
+        ILogger<PackagingService> logger,
+        ISchedulerFactory schedulerFactory,
+        IOrderNotificationPublisher orderNotificationPublisher)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _schedulerFactory = schedulerFactory;
+        _orderNotificationPublisher = orderNotificationPublisher;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -159,17 +165,14 @@ public class PackagingService : IPackagingService
             order.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Order>().Update(order);
 
-            var customerNotification = new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = order.UserId,
-                Title = "Đơn hàng sẵn sàng giao",
-                Content = $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
-                Type = NotificationType.OrderUpdate,
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
-            };
-            await _unitOfWork.Repository<Notification>().AddAsync(customerNotification);
+            await _orderNotificationPublisher.PublishOrderThreadChildAsync(
+                order.OrderId,
+                order.UserId,
+                order.OrderCode,
+                "Đơn hàng sẵn sàng giao",
+                $"Đơn hàng {order.OrderCode} đã được đóng gói và sẵn sàng giao.",
+                NotificationType.OrderUpdate,
+                cancellationToken);
             // TODO: Send email of QR code of order confirmation to customer
 
             var deliveryStaffs = await _unitOfWork.Repository<User>()

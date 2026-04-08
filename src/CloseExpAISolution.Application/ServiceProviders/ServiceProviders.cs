@@ -37,6 +37,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 private IUserService? _userService;
                 private IR2StorageService? _r2StorageService;
                 private IFeedbackService? _feedbackService;
+                private INotificationService? _notificationService;
                 private IUserImageService? _userImageService;
                 private IBarcodeLookupService? _barcodeLookupService;
                 private IAIProductService? _aIProductService;
@@ -85,6 +86,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
                 public IUserService UserService => _userService ??= ActivatorUtilities.CreateInstance<UserService>(_serviceProvider);
                 public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
                 public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
+                public INotificationService NotificationService => _notificationService ??= new NotificationService(_unitOfWork, _mapper);
                 public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);
                 public IBarcodeLookupService BarcodeLookupService => _barcodeLookupService ??= ActivatorUtilities.CreateInstance<BarcodeLookupService>(_serviceProvider);
                 public IAIProductService AIProductService => _aIProductService ??= ActivatorUtilities.CreateInstance<AIProductService>(_serviceProvider);
@@ -103,7 +105,8 @@ namespace CloseExpAISolution.Application.ServiceProviders
                     PromotionUsageService,
                     Options.Create(
                         _configuration.GetSection(PickupSearchOptions.SectionName).Get<PickupSearchOptions>()
-                        ?? new PickupSearchOptions()));
+                        ?? new PickupSearchOptions()),
+                    _serviceProvider.GetRequiredService<IOrderNotificationPublisher>());
                 public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
                 public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
                 public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
