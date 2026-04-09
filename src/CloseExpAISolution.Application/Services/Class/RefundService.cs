@@ -48,10 +48,48 @@ public class RefundService : IRefundService
         return (dtos, total);
     }
 
+    public async Task<(IEnumerable<RefundResponseDto> Items, int TotalCount)> GetByUserAsync(
+        Guid userId, Guid? orderId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var orderIds = (await _unitOfWork.Repository<Order>()
+                .FindAsync(o => o.UserId == userId && (!orderId.HasValue || o.OrderId == orderId.Value)))
+            .Select(o => o.OrderId)
+            .ToHashSet();
+
+        if (orderIds.Count == 0)
+            return (Array.Empty<RefundResponseDto>(), 0);
+
+        var all = (await _unitOfWork.Repository<Refund>()
+                .FindAsync(r => orderIds.Contains(r.OrderId)))
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+
+        var total = all.Count;
+        var page = all
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => _mapper.Map<RefundResponseDto>(r))
+            .ToList();
+        return (page, total);
+    }
+
     public async Task<RefundResponseDto?> GetByIdAsync(Guid refundId, CancellationToken cancellationToken = default)
     {
         var entity = await _unitOfWork.Repository<Refund>().FirstOrDefaultAsync(r => r.RefundId == refundId);
         return entity == null ? null : _mapper.Map<RefundResponseDto>(entity);
+    }
+
+    public async Task<RefundResponseDto?> GetByIdForUserAsync(Guid refundId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var refund = await _unitOfWork.Repository<Refund>().FirstOrDefaultAsync(r => r.RefundId == refundId);
+        if (refund == null)
+            return null;
+
+        var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == refund.OrderId);
+        if (order == null || order.UserId != userId)
+            return null;
+
+        return _mapper.Map<RefundResponseDto>(refund);
     }
 
     public async Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default)

@@ -8,7 +8,6 @@ namespace CloseExpAISolution.Infrastructure.Data;
 
 public static class DataSeeder
 {
-    private const string OrderCancelWindowMinutesAfterPaidKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
     private const string OrderCancelWindowMinutesAfterPaidValue = "30";
 
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -125,13 +124,13 @@ public static class DataSeeder
     {
         var now = DateTime.UtcNow;
         var existing = await context.SystemConfigs
-            .FirstOrDefaultAsync(x => x.ConfigKey == OrderCancelWindowMinutesAfterPaidKey);
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderCancelWindowMinutesAfterPaid);
 
         if (existing == null)
         {
             await context.SystemConfigs.AddAsync(new SystemConfig
             {
-                ConfigKey = OrderCancelWindowMinutesAfterPaidKey,
+                ConfigKey = SystemConfigKeys.OrderCancelWindowMinutesAfterPaid,
                 ConfigValue = OrderCancelWindowMinutesAfterPaidValue,
                 UpdatedAt = now
             });

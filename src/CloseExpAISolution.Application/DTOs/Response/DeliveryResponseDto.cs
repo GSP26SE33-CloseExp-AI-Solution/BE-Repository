@@ -117,9 +117,11 @@ public class DeliveryGroupSummaryDto
     public DateTime DeliveryDate { get; set; }
 }
 
-public class MoveOrderToDraftGroupResultDto
+public class MoveOrderItemsToDraftGroupResultDto
 {
-    public Guid OrderId { get; set; }
-    public string OrderCode { get; set; } = string.Empty;
+    public int UpdatedItemCount { get; set; }
+    public int UpdatedOrderCount { get; set; }
+    public IEnumerable<Guid> OrderItemIds { get; set; } = Array.Empty<Guid>();
+    public IEnumerable<Guid> OrderIds { get; set; } = Array.Empty<Guid>();
     public Guid? DeliveryGroupId { get; set; }
 }

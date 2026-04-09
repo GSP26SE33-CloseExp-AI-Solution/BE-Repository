@@ -194,7 +194,29 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ApiResponse<object>>> SetCanceled(Guid id, CancellationToken cancellationToken = default) => UpdateOrderStatus(id, OrderState.Canceled, cancellationToken);
+    public async Task<ActionResult<ApiResponse<object>>> SetCanceled(
+        Guid id,
+        [FromBody] CancelOrderRequestDto? body,
+        CancellationToken cancellationToken = default)
+    {
+        if (body == null || string.IsNullOrWhiteSpace(body.Reason))
+            return BadRequest(ApiResponse<object>.ErrorResponse("Vui lòng nhập lý do hủy đơn hàng."));
+
+        try
+        {
+            await _services.OrderService.UpdateStatusAsync(id, OrderState.Canceled, body.Reason.Trim(), cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("Order not found"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Update order status {OrderId} to Canceled failed", id);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
 
     [HttpPut("{id:guid}/refunded")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

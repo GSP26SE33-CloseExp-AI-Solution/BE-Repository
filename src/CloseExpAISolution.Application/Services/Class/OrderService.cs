@@ -3,6 +3,7 @@ using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Geo;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
@@ -14,8 +15,6 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class OrderService : IOrderService
 {
-    private const string CancelWindowConfigKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IPromotionService _promotionService;
@@ -179,6 +178,9 @@ public class OrderService : IOrderService
 
     public async Task<OrderResponseDto> CreateAsync(CreateOrderRequestDto request, CancellationToken cancellationToken = default)
     {
+        var deliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
+        OrderDeliveryLocationValidator.ValidateOrThrow(deliveryType, request.CollectionId, request.AddressId);
+
         var orderId = Guid.NewGuid();
         var orderCode = "ORD-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
 
@@ -189,7 +191,7 @@ public class OrderService : IOrderService
             UserId = request.UserId,
             TimeSlotId = request.TimeSlotId,
             CollectionId = request.CollectionId,
-            DeliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType),
+            DeliveryType = deliveryType,
             TotalAmount = request.TotalAmount,
             DiscountAmount = request.DiscountAmount,
             FinalAmount = request.FinalAmount,
@@ -259,12 +261,23 @@ public class OrderService : IOrderService
         var oldStatus = order.Status;
 
         if (request.TimeSlotId.HasValue) order.TimeSlotId = request.TimeSlotId.Value;
-        if (request.CollectionId.HasValue) order.CollectionId = request.CollectionId;
+
         if (request.DeliveryType != null)
-            order.DeliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
+        {
+            var dt = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
+            order.DeliveryType = dt;
+            if (dt == DeliveryMethod.Delivery)
+                order.CollectionId = null;
+            else
+                order.AddressId = null;
+        }
+
+        if (request.CollectionId.HasValue && order.DeliveryType == DeliveryMethod.Pickup)
+            order.CollectionId = request.CollectionId;
         if (request.TotalAmount.HasValue) order.TotalAmount = request.TotalAmount.Value;
         if (request.Status != null) order.Status = Enum.Parse<OrderState>(request.Status);
-        if (request.AddressId.HasValue) order.AddressId = request.AddressId;
+        if (request.AddressId.HasValue && order.DeliveryType == DeliveryMethod.Delivery)
+            order.AddressId = request.AddressId;
         if (request.PromotionId.HasValue) order.PromotionId = request.PromotionId;
         if (request.DeliveryGroupId.HasValue) order.DeliveryGroupId = request.DeliveryGroupId;
         if (request.DeliveryNote != null) order.DeliveryNote = request.DeliveryNote;
@@ -291,6 +304,8 @@ public class OrderService : IOrderService
             order.DiscountAmount = validation.DiscountAmount;
             order.FinalAmount = validation.FinalAmount;
         }
+
+        OrderDeliveryLocationValidator.ValidateOrThrow(order.DeliveryType, order.CollectionId, order.AddressId);
 
         if (request.OrderItems != null && request.OrderItems.Count > 0)
         {
@@ -326,7 +341,14 @@ public class OrderService : IOrderService
         await TryRecordPromotionUsageAsync(order, cancellationToken);
     }
 
-    public async Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default)
+    public Task UpdateStatusAsync(Guid orderId, OrderState status, CancellationToken cancellationToken = default)
+        => UpdateStatusAsync(orderId, status, null, cancellationToken);
+
+    public async Task UpdateStatusAsync(
+        Guid orderId,
+        OrderState status,
+        string? cancellationReason,
+        CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
@@ -338,6 +360,9 @@ public class OrderService : IOrderService
 
         if (status == OrderState.Canceled)
         {
+            if (string.IsNullOrWhiteSpace(cancellationReason))
+                throw new InvalidOperationException("Vui lòng nhập lý do hủy đơn hàng.");
+
             if (order.Status == OrderState.Pending)
             {
                 // Allowed to cancel freely.
@@ -363,14 +388,13 @@ public class OrderService : IOrderService
         }
 
         if (status == OrderState.Canceled && oldStatus == OrderState.Paid)
-        {
             await RestoreStockForOrderAsync(orderId, now, cancellationToken);
-        }
 
         order.Status = status;
         order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
-        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", null, cancellationToken);
+        var cancelNote = status == OrderState.Canceled ? cancellationReason!.Trim() : null;
+        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", cancelNote, cancellationToken);
         await _orderNotificationPublisher.PublishOrderStatusChangedAsync(
             order.OrderId,
             order.UserId,
@@ -562,15 +586,15 @@ public class OrderService : IOrderService
     private async Task<int> GetCancelWindowMinutesAfterPaidAsync(CancellationToken cancellationToken)
     {
         var config = await _unitOfWork.Repository<SystemConfig>()
-            .FirstOrDefaultAsync(x => x.ConfigKey == CancelWindowConfigKey);
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderCancelWindowMinutesAfterPaid);
 
         if (config == null)
             throw new InvalidOperationException(
-                $"Thiếu SystemConfig '{CancelWindowConfigKey}'. Vui lòng cấu hình số phút cho phép hủy sau khi thanh toán.");
+                $"Thiếu SystemConfig '{SystemConfigKeys.OrderCancelWindowMinutesAfterPaid}'. Vui lòng cấu hình số phút cho phép hủy sau khi thanh toán.");
 
         if (!int.TryParse(config.ConfigValue, out var minutes) || minutes <= 0)
             throw new InvalidOperationException(
-                $"SystemConfig '{CancelWindowConfigKey}' không hợp lệ. Giá trị phải là số nguyên dương.");
+                $"SystemConfig '{SystemConfigKeys.OrderCancelWindowMinutesAfterPaid}' không hợp lệ. Giá trị phải là số nguyên dương.");
 
         return minutes;
     }

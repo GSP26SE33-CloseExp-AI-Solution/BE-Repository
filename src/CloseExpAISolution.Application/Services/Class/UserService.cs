@@ -97,6 +97,14 @@ public class UserService : IUserService
             var role = await GetRoleById(request.RoleId.Value);
             if (role == null)
                 return Error("Vai trò không hợp lệ");
+
+            if (request.RoleId.Value != user.RoleId)
+            {
+                var pendingTaskError = await ValidateNoPendingTasksBeforeRoleChangeAsync(user);
+                if (pendingTaskError != null)
+                    return pendingTaskError;
+            }
+
             user.RoleId = request.RoleId.Value;
         }
 
@@ -270,6 +278,65 @@ public class UserService : IUserService
     {
         var existingUser = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.Email == email);
         return existingUser != null;
+    }
+
+    private async Task<ApiResponse<UserResponseDto>?> ValidateNoPendingTasksBeforeRoleChangeAsync(User user)
+    {
+        var userId = user.UserId;
+
+        switch ((RoleUser)user.RoleId)
+        {
+            case RoleUser.DeliveryStaff:
+            {
+                var hasActiveGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                    .FindAsync(g => g.DeliveryStaffId == userId
+                                    && g.Status != DeliveryGroupState.Completed
+                                    && g.Status != DeliveryGroupState.Failed);
+                if (hasActiveGroup.Any())
+                    return Error("Không thể đổi role: nhân viên giao hàng còn nhóm giao chưa hoàn tất.");
+
+                var activeDeliveryLogs = await _unitOfWork.Repository<DeliveryLog>()
+                    .FindAsync(l => l.UserId == userId
+                                    && l.Status != DeliveryState.Completed
+                                    && l.Status != DeliveryState.Failed);
+                if (activeDeliveryLogs.Any())
+                    return Error("Không thể đổi role: nhân viên giao hàng còn đơn giao đang xử lý.");
+                break;
+            }
+            case RoleUser.PackagingStaff:
+            {
+                var activePackaging = await _unitOfWork.Repository<OrderPackaging>()
+                    .FindAsync(p => p.UserId == userId
+                                    && p.Status != PackagingState.Completed
+                                    && p.Status != PackagingState.Failed);
+                if (activePackaging.Any())
+                    return Error("Không thể đổi role: nhân viên đóng gói còn dòng hàng đang xử lý.");
+                break;
+            }
+            case RoleUser.MarketingStaff:
+            {
+                var key = userId.ToString();
+                var activeRefunds = await _unitOfWork.Repository<Refund>()
+                    .FindAsync(r => r.ProcessedBy == key
+                                    && r.Status != RefundState.Rejected
+                                    && r.Status != RefundState.Completed);
+                if (activeRefunds.Any())
+                    return Error("Không thể đổi role: nhân viên marketing còn yêu cầu hoàn tiền đang xử lý.");
+                break;
+            }
+            case RoleUser.SupermarketStaff:
+            {
+                var activeMemberships = await _unitOfWork.Repository<SupermarketStaff>()
+                    .FindAsync(ms => ms.UserId == userId && ms.Status == SupermarketStaffState.Active);
+                if (activeMemberships.Any())
+                    return Error("Không thể đổi role: nhân viên siêu thị còn liên kết hoạt động với siêu thị.");
+                break;
+            }
+            default:
+                break;
+        }
+
+        return null;
     }
 
     private async Task<Role?> GetRoleById(int roleId)

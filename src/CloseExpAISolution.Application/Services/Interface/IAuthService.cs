@@ -7,6 +7,7 @@ public interface IAuthService
 {
     Task<ApiResponse<AuthResponse>> LoginAsync(LoginRequest request, string? ipAddress = null, string? deviceInfo = null);
     Task<ApiResponse<AuthResponse>> RegisterAsync(RegisterRequest request);
+    Task<ApiResponse<AuthResponse>> RegisterInternalByAdminAsync(AdminRegisterInternalRequestDto request);
     Task<ApiResponse<AuthResponse>> RefreshTokenAsync(string refreshToken, string? ipAddress = null);
     Task<ApiResponse<AuthResponse>> SelectStaffContextAsync(Guid userId, string employeeCode);
     Task<ApiResponse<bool>> LogoutAsync(string refreshToken);

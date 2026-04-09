@@ -62,6 +62,27 @@ public class AuthController : ControllerBase
         return Created(string.Empty, result);
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpPost("admin/register-internal")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RegisterInternalByAdmin([FromBody] AdminRegisterInternalRequestDto request)
+    {
+        var result = await _services.AuthService.RegisterInternalByAdminAsync(request);
+
+        if (!result.Success)
+        {
+            if (result.Message != null && result.Message.Contains("đã được đăng ký"))
+            {
+                return Conflict(result);
+            }
+            return BadRequest(result);
+        }
+
+        return Created(string.Empty, result);
+    }
+
     [HttpPost("refresh-token")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status400BadRequest)]
