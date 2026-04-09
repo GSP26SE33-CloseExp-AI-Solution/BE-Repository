@@ -15,8 +15,6 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class OrderService : IOrderService
 {
-    private const string CancelWindowConfigKey = "ORDER_CANCEL_WINDOW_MINUTES_AFTER_PAID";
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IPromotionService _promotionService;
@@ -588,15 +586,15 @@ public class OrderService : IOrderService
     private async Task<int> GetCancelWindowMinutesAfterPaidAsync(CancellationToken cancellationToken)
     {
         var config = await _unitOfWork.Repository<SystemConfig>()
-            .FirstOrDefaultAsync(x => x.ConfigKey == CancelWindowConfigKey);
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderCancelWindowMinutesAfterPaid);
 
         if (config == null)
             throw new InvalidOperationException(
-                $"Thiếu SystemConfig '{CancelWindowConfigKey}'. Vui lòng cấu hình số phút cho phép hủy sau khi thanh toán.");
+                $"Thiếu SystemConfig '{SystemConfigKeys.OrderCancelWindowMinutesAfterPaid}'. Vui lòng cấu hình số phút cho phép hủy sau khi thanh toán.");
 
         if (!int.TryParse(config.ConfigValue, out var minutes) || minutes <= 0)
             throw new InvalidOperationException(
-                $"SystemConfig '{CancelWindowConfigKey}' không hợp lệ. Giá trị phải là số nguyên dương.");
+                $"SystemConfig '{SystemConfigKeys.OrderCancelWindowMinutesAfterPaid}' không hợp lệ. Giá trị phải là số nguyên dương.");
 
         return minutes;
     }

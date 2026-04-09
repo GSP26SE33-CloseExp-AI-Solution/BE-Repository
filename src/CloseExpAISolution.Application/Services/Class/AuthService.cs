@@ -10,6 +10,7 @@ using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -35,6 +36,7 @@ public class AuthService : IAuthService
     private const int OtpExpiryMinutes = 5;
     private const int OtpResendCooldownSeconds = 60;
     private const int MaxOtpFailedAttempts = 5;
+    private const string InternalDefaultPasswordConfigKey = SystemConfigKeys.InternalStaffDefaultPassword;
 
     public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger, IMapper mapper, IMapboxService mapboxService)
     {
@@ -158,6 +160,84 @@ public class AuthService : IAuthService
 
         return ApiResponse<AuthResponse>.SuccessWithMessage(
             "Đăng ký thành công. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
+    }
+
+    public async Task<ApiResponse<AuthResponse>> RegisterInternalByAdminAsync(AdminRegisterInternalRequestDto request)
+    {
+        var userRepository = _unitOfWork.Repository<User>();
+        var configuredDefaultPassword = await GetSystemConfigValueAsync(InternalDefaultPasswordConfigKey);
+        var resolvedPassword = InternalStaffRegistrationHelper.ResolveTemporaryPassword(
+            request.Password,
+            configuredDefaultPassword);
+        var roleLabel = InternalStaffRegistrationHelper.GetRoleLabel(request.RoleId);
+
+        var roleValidation = await ValidateInternalRegistrationRole(request.RoleId);
+        if (roleValidation != null)
+            return roleValidation;
+
+        var existing = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (existing != null)
+        {
+            if (existing.Status != UserState.Unverified)
+                return Error("Email đã được đăng ký");
+
+            var otpRetry = GenerateOtp();
+            existing.FullName = request.FullName;
+            existing.Phone = request.Phone;
+            existing.PasswordHash = BCrypt.Net.BCrypt.HashPassword(resolvedPassword);
+            existing.RoleId = request.RoleId;
+            existing.OtpCode = HashOtp(otpRetry);
+            existing.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+            existing.OtpFailedCount = 0;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                userRepository.Update(existing);
+                await _unitOfWork.CommitTransactionAsync();
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Failed to refresh internal registration for {Email}", request.Email);
+                return Error("Đăng ký nội bộ thất bại. Vui lòng thử lại sau");
+            }
+
+            await SendInternalAccountOnboardingEmailAsync(existing.Email, existing.FullName, resolvedPassword, roleLabel);
+            await SendOtpEmailAsync(existing.Email, otpRetry, existing.FullName);
+            return ApiResponse<AuthResponse>.SuccessWithMessage(
+                "Đã cập nhật tài khoản nội bộ chưa xác minh. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
+        }
+
+        var user = CreateNewUser(
+            request.FullName,
+            request.Email,
+            request.Phone,
+            resolvedPassword,
+            request.RoleId);
+
+        var otp = GenerateOtp();
+        user.OtpCode = HashOtp(otp);
+        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await userRepository.AddAsync(user);
+            await _unitOfWork.CommitTransactionAsync();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to register internal user {Email}", request.Email);
+            return Error("Đăng ký nội bộ thất bại. Vui lòng thử lại sau");
+        }
+
+        await SendInternalAccountOnboardingEmailAsync(user.Email, user.FullName, resolvedPassword, roleLabel);
+        await SendOtpEmailAsync(user.Email, otp, user.FullName);
+        return ApiResponse<AuthResponse>.SuccessWithMessage(
+            "Tạo tài khoản nhân viên nội bộ thành công. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
     }
 
     public async Task<ApiResponse<AuthResponse>> RefreshTokenAsync(string refreshToken, string? ipAddress = null)
@@ -720,13 +800,30 @@ public class AuthService : IAuthService
         return null;
     }
 
-    private static User CreateNewUser(RegisterRequest request, int roleId) => new()
+    private async Task<ApiResponse<AuthResponse>?> ValidateInternalRegistrationRole(int roleId)
+    {
+        var roleRepository = _unitOfWork.Repository<Role>();
+        var role = await roleRepository.GetByIdAsync(roleId);
+
+        if (role == null)
+            return Error("Vai trò nội bộ không hợp lệ");
+
+        if (!InternalRolePolicy.IsAllowedForAdminInternalRegistration(roleId))
+            return Error("Chỉ được tạo tài khoản nhân viên nội bộ (PackagingStaff, MarketingStaff, SupermarketStaff, DeliveryStaff).");
+
+        return null;
+    }
+
+    private static User CreateNewUser(RegisterRequest request, int roleId) =>
+        CreateNewUser(request.FullName, request.Email, request.Phone, request.Password, roleId);
+
+    private static User CreateNewUser(string fullName, string email, string phone, string password, int roleId) => new()
     {
         UserId = Guid.NewGuid(),
-        FullName = request.FullName,
-        Email = request.Email,
-        Phone = request.Phone,
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+        FullName = fullName,
+        Email = email,
+        Phone = phone,
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
         RoleId = roleId,
         Status = UserState.Unverified,
         FailedLoginCount = 0,
@@ -930,6 +1027,13 @@ public class AuthService : IAuthService
 
     #region Common Helpers
 
+    private async Task<string?> GetSystemConfigValueAsync(string configKey)
+    {
+        var repo = _unitOfWork.Repository<SystemConfig>();
+        var config = await repo.FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+        return config?.ConfigValue;
+    }
+
     private async Task<string> GetRoleName(int roleId)
     {
         var roleRepository = _unitOfWork.Repository<Role>();
@@ -1011,6 +1115,37 @@ public class AuthService : IAuthService
 
         try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send password reset email to {Email}", email); }
+    }
+
+    private async Task SendInternalAccountOnboardingEmailAsync(
+        string email,
+        string fullName,
+        string temporaryPassword,
+        string roleLabel)
+    {
+        var subject = "CloseExp AI - Tài khoản nhân viên nội bộ đã được tạo";
+        var body = $@"
+            <html>
+            <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                <div style='background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                    <h1 style='color: white; margin: 0;'>CloseExp AI</h1>
+                </div>
+                <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
+                    <h2>Xin chào {fullName}!</h2>
+                    <p>Tài khoản nhân viên nội bộ của bạn đã được tạo. Bạn có thể đăng nhập với thông tin sau:</p>
+                    <ul>
+                        <li><strong>Email:</strong> {email}</li>
+                        <li><strong>Mật khẩu tạm thời:</strong> {temporaryPassword}</li>
+                        <li><strong>Vai trò:</strong> {roleLabel}</li>
+                    </ul>
+                    <p>Vui lòng đăng nhập, xác minh email bằng OTP, sau đó đổi mật khẩu mới để bảo mật tài khoản.</p>
+                    <p style='color: #999; font-size: 12px;'>Nếu bạn không nhận công việc này, vui lòng liên hệ quản trị viên hệ thống.</p>
+                </div>
+            </body>
+            </html>";
+
+        try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send internal onboarding email to {Email}", email); }
     }
 
     private async Task SendEmailVerifiedNotificationAsync(string email, string fullName, bool? isVendor = false)

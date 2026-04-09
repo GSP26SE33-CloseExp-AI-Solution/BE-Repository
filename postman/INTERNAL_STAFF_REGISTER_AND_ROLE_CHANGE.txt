@@ -1,0 +1,36 @@
+Internal staff register + role-change guard (Admin)
+==================================================
+
+1) Register internal staff (Admin only)
+   - Endpoint: POST /api/auth/admin/register-internal
+   - Auth: Bearer token role Admin
+   - Body:
+     {
+       "fullName": "Nguyen Van A",
+       "email": "pack.staff.01@example.com",
+       "phone": "0909000001",
+       "password": "Aa@12345",
+       "roleId": 2
+     }
+   - Field `password` is optional:
+     - If provided: use request password
+     - If not provided: use SystemConfig key `INTERNAL_STAFF_DEFAULT_PASSWORD`
+     - If SystemConfig key missing/empty: fallback `CloseExp@.123`
+   - Allowed roleId: PackagingStaff(2), MarketingStaff(3), SupermarketStaff(4), DeliveryStaff(5)
+   - Not allowed: Admin(1), Vendor(6)
+   - System sends onboarding email with login email + temporary password + role (enum label)
+   - User must verify email OTP before first login; then can change password by forgot/reset flow
+
+2) Change role (Admin)
+   - Endpoint: PUT /api/users/{id}
+   - If request changes roleId, API now blocks when user has pending tasks (strict-all):
+     - DeliveryStaff: active delivery groups/logs not in terminal states
+     - PackagingStaff: order-packaging rows not in Completed/Failed
+     - MarketingStaff: refunds processed by that user but not Rejected/Completed
+     - SupermarketStaff: still has active supermarket memberships
+
+3) Expected error contract
+   - HTTP 400 (BadRequest)
+   - ApiResponse error message explains blocking reason
+   - Example:
+     "Không thể đổi role: nhân viên giao hàng còn nhóm giao chưa hoàn tất."
