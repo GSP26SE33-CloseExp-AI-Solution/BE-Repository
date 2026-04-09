@@ -152,6 +152,7 @@ public class CreateNewProductResponseDto
     public ProductState Status { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public bool IsManualFallback { get; set; }
     public string NextAction { get; set; } = "VERIFY_PRODUCT";
     public string NextActionDescription { get; set; } = "Xác nhận thông tin sản phẩm trước khi tạo StockLot";
 }
@@ -163,6 +164,7 @@ public class OcrAnalysisResponseDto
     public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
     public float Confidence { get; set; }
     public string? RawOcrData { get; set; }
+    public bool AiSkipped { get; set; }
 }
 
 public class OcrExtractedInfoDto

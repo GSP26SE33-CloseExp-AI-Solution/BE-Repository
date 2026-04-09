@@ -751,10 +751,11 @@ public class ProductWorkflowService : IProductWorkflowService
                 $"Product with barcode {request.Barcode} already exists in this supermarket (ProductId: {existed.ProductId}).");
         }
 
-        var defaultUnit = (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
-        if (defaultUnit == null)
+        if (request.IsManualFallback)
         {
-            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
+            _logger.LogInformation(
+                "Staff manual fallback: creating verified product {Barcode} without AI OCR pipeline",
+                request.Barcode);
         }
 
         var product = new Product
@@ -796,11 +797,17 @@ public class ProductWorkflowService : IProductWorkflowService
         };
         await _unitOfWork.Repository<ProductDetail>().AddAsync(productDetail);
 
+        var verificationRawData = request.IsManualFallback
+            ? (string.IsNullOrWhiteSpace(request.OcrExtractedData)
+                ? """{"source":"manual_fallback"}"""
+                : request.OcrExtractedData)
+            : request.OcrExtractedData;
+
         await _unitOfWork.Repository<AIVerificationLog>().AddAsync(new AIVerificationLog
         {
             VerificationId = Guid.NewGuid(),
             ProductId = product.ProductId,
-            RawData = request.OcrExtractedData,
+            RawData = verificationRawData,
             ConfidenceScore = (decimal)(request.OcrConfidence ?? 0),
             ExtractedName = request.Name,
             ExtractedBarcode = request.Barcode,
@@ -836,6 +843,7 @@ public class ProductWorkflowService : IProductWorkflowService
             Status = ProductState.Verified,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
+            IsManualFallback = request.IsManualFallback,
             NextAction = "CREATE_STOCKLOT",
             NextActionDescription = "Sản phẩm đã xác nhận. Tiếp tục tạo lô hàng và gợi ý giá."
         };
@@ -868,10 +876,26 @@ public class ProductWorkflowService : IProductWorkflowService
             CreatedBy = staffName
         }, cancellationToken);
 
-        var pricingSuggestion = await GetLotPricingSuggestionAsync(createdLot.LotId, new GetPricingSuggestionRequestDto
+        PricingSuggestionResponseDto pricingSuggestion;
+        if (request.IsManualFallback)
         {
-            OriginalPrice = request.OriginalUnitPrice
-        }, cancellationToken);
+            _logger.LogInformation(
+                "Manual pricing fallback for lot workflow: product {ProductId}, lot {LotId} — skipping AI pricing",
+                request.ProductId,
+                createdLot.LotId);
+            pricingSuggestion = await ApplyManualLotPricingAsync(
+                createdLot.LotId,
+                product,
+                request.OriginalUnitPrice,
+                cancellationToken);
+        }
+        else
+        {
+            pricingSuggestion = await GetLotPricingSuggestionAsync(createdLot.LotId, new GetPricingSuggestionRequestDto
+            {
+                OriginalPrice = request.OriginalUnitPrice
+            }, cancellationToken);
+        }
 
         var acceptedSuggestion = request.AcceptedSuggestion ?? !request.FinalUnitPrice.HasValue;
         var confirmedLot = await ConfirmLotPriceAsync(createdLot.LotId, new ConfirmPriceRequestDto
@@ -897,7 +921,7 @@ public class ProductWorkflowService : IProductWorkflowService
             TimeoutInfo = new WorkflowTimeoutInfoDto
             {
                 TimeoutSeconds = WorkflowAiTimeoutSeconds,
-                IsAiStep = true,
+                IsAiStep = !request.IsManualFallback,
                 SupportsManualFallback = true
             }
         };
@@ -960,9 +984,13 @@ public class ProductWorkflowService : IProductWorkflowService
         Stream imageStream,
         string fileName,
         string contentType,
+        bool skipAi = false,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Analyzing product image for supermarket {SupermarketId}", supermarketId);
+        _logger.LogInformation(
+            "Analyzing product image for supermarket {SupermarketId}, SkipAi={SkipAi}",
+            supermarketId,
+            skipAi);
 
         var supermarket = await _unitOfWork.SupermarketRepository.FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
         if (supermarket == null)
@@ -994,8 +1022,15 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             ImageUrl = uploadedImageUrl,
             ExtractedInfo = new OcrExtractedInfoDto(),
-            Confidence = 0
+            Confidence = 0,
+            AiSkipped = skipAi
         };
+
+        if (skipAi)
+        {
+            _logger.LogInformation("Skipping AI OCR (manual fallback); image uploaded to {Url}", uploadedImageUrl);
+            return response;
+        }
 
         try
         {
@@ -1092,14 +1127,6 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException($"Supermarket with ID {request.SupermarketId} not found.", nameof(request.SupermarketId));
         }
 
-        // Get default unit
-        var units = await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync();
-        var defaultUnit = units.FirstOrDefault();
-        if (defaultUnit == null)
-        {
-            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
-        }
-
         if (!string.IsNullOrEmpty(request.Barcode))
         {
             var existingProduct = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
@@ -1180,8 +1207,60 @@ public class ProductWorkflowService : IProductWorkflowService
             Status = ProductState.Draft,
             CreatedBy = product.CreatedBy,
             CreatedAt = product.CreatedAt,
+            IsManualFallback = false,
             NextAction = "VERIFY_PRODUCT",
             NextActionDescription = $"Xác nhận thông tin sản phẩm: POST /api/products/{product.ProductId}/verify"
+        };
+    }
+
+    private async Task<PricingSuggestionResponseDto> ApplyManualLotPricingAsync(
+        Guid lotId,
+        Product product,
+        decimal originalUnitPrice,
+        CancellationToken cancellationToken)
+    {
+        var lot = await _unitOfWork.Repository<StockLot>().FirstOrDefaultAsync(l => l.LotId == lotId);
+        if (lot == null)
+            throw new KeyNotFoundException($"StockLot {lotId} not found");
+
+        var daysToExpiry = (int)(lot.ExpiryDate - DateTime.UtcNow).TotalDays;
+
+        var priceHistory = await _unitOfWork.Repository<PricingHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
+        if (priceHistory == null)
+        {
+            priceHistory = new PricingHistory
+            {
+                AIPriceId = Guid.NewGuid(),
+                LotId = lotId,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
+        }
+
+        priceHistory.SuggestedPrice = originalUnitPrice;
+        priceHistory.AIConfidence = 0;
+        priceHistory.Reason = "Manual fallback (AI pricing skipped)";
+        priceHistory.MarketMinPrice = null;
+        priceHistory.MarketAvgPrice = null;
+        priceHistory.MarketMaxPrice = null;
+        _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new PricingSuggestionResponseDto
+        {
+            ProductId = product.ProductId,
+            ProductName = product.Name,
+            OriginalPrice = originalUnitPrice,
+            SuggestedPrice = originalUnitPrice,
+            Confidence = 0,
+            DiscountPercent = 0,
+            ExpiryDate = lot.ExpiryDate,
+            DaysToExpiry = daysToExpiry,
+            Reasons = new List<string> { "Manual fallback (AI pricing skipped)" },
+            MinMarketPrice = null,
+            AvgMarketPrice = null,
+            MaxMarketPrice = null,
+            MarketPriceSources = new List<MarketPriceSourceDto>()
         };
     }
 

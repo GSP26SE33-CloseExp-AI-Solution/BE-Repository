@@ -7,7 +7,6 @@ namespace CloseExpAISolution.Application.Services.Interface;
 
 public interface IProductService
 {
-    Task<Product?> GetByIdAsync(int id);
     Task<IEnumerable<Product>> GetAllAsync();
     Task<IEnumerable<Product>> FindAsync(Expression<Func<Product, bool>> predicate);
     Task<Product?> FirstOrDefaultAsync(Expression<Func<Product, bool>> predicate);

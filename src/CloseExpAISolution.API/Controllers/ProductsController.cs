@@ -40,8 +40,6 @@ public class ProductsController : ControllerBase
             throw new InvalidOperationException("AIService:TimeoutSeconds phải là số nguyên dương.");
     }
 
-    #region Basic CRUD
-
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResult<ProductResponseDto>>>> GetAll(
         [FromQuery] int pageNumber = 1,
@@ -85,79 +83,6 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<ProductDetailDto>.SuccessResponse(detail, "Lấy thông tin chi tiết sản phẩm thành công"));
     }
 
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Create(
-        [FromBody] CreateProductRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(created, "Tạo thành công"));
-    }
-
-    [HttpPost("with-images")]
-    [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> CreateWithImages(
-        [FromForm] Guid SupermarketId,
-        [FromForm] string Name,
-        [FromForm] string Brand,
-        [FromForm] string Category,
-        [FromForm] string Barcode,
-        [FromForm] bool IsFreshFood,
-        [FromForm] ProductType Type = ProductType.Standard,
-        [FromForm] string Sku = "",
-        [FromForm] string Ingredients = "",
-        [FromForm] string Nutrition = "",
-        [FromForm] string Usage = "",
-        [FromForm] string Manufacturer = "",
-        [FromForm] string ResponsibleOrg = "",
-        [FromForm] string Warning = "",
-        [FromForm] bool isActive = true,
-        [FromForm] bool isFeatured = false,
-        [FromForm] IFormFileCollection? files = null,
-        CancellationToken cancellationToken = default)
-    {
-        var request = new CreateProductRequestDto
-        {
-            SupermarketId = SupermarketId,
-            Name = Name,
-            CategoryName = Category,
-            Barcode = Barcode,
-            Type = Type,
-            Sku = Sku,
-            ResponsibleOrg = ResponsibleOrg,
-            isFeatured = isFeatured,
-            Tags = Array.Empty<string>(),
-            Detail = new ProductDetailRequestDto
-            {
-                Brand = Brand,
-                Ingredients = Ingredients,
-                NutritionFactsJson = Nutrition,
-                UsageInstructions = Usage,
-                Manufacturer = Manufacturer,
-                SafetyWarnings = Warning
-            }
-        };
-
-        var created = await _services.ProductService.CreateProductAsync(request, cancellationToken);
-
-        if (files != null && files.Count > 0)
-        {
-            foreach (var file in files.Where(f => f.Length > 0))
-            {
-                await using var stream = file.OpenReadStream();
-                await _services.R2StorageService.UploadProductImageToR2Async(
-                    stream,
-                    file.FileName,
-                    file.ContentType,
-                    created.ProductId,
-                    cancellationToken);
-            }
-        }
-
-        var result = await _services.ProductService.GetByIdWithImagesAsync(created.ProductId, includeHiddenDeletedProducts: true);
-        return CreatedAtAction(nameof(GetById), new { id = created.ProductId }, ApiResponse<ProductResponseDto>.SuccessResponse(result!, "Product created with images"));
-    }
-
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         Guid id,
@@ -189,7 +114,7 @@ public class ProductsController : ControllerBase
         }
     }
 
-    #endregion
+#endregion
 
     #region Supermarket Staff Workflow APIs
 
@@ -233,7 +158,8 @@ public class ProductsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status408RequestTimeout)]
     public async Task<ActionResult<ApiResponse<OcrAnalysisResponseDto>>> AnalyzeProductImageForStaff(
         IFormFile file,
-        CancellationToken cancellationToken)
+        [FromForm] bool manualFallback = false,
+        CancellationToken cancellationToken = default)
     {
         if (file == null || file.Length == 0)
         {
@@ -246,24 +172,33 @@ public class ProductsController : ControllerBase
             return supermarketIdResult.ErrorResult!;
         }
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(WorkflowAiTimeoutSeconds));
-
+        CancellationTokenSource? timeoutCts = null;
         try
         {
+            var tokenForAnalyze = cancellationToken;
+            if (!manualFallback)
+            {
+                timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(WorkflowAiTimeoutSeconds));
+                tokenForAnalyze = timeoutCts.Token;
+            }
+
             await using var stream = file.OpenReadStream();
             var result = await _workflowService.AnalyzeProductImageAsync(
                 supermarketIdResult.SupermarketId!.Value,
                 stream,
                 file.FileName,
                 file.ContentType,
-                timeoutCts.Token);
+                skipAi: manualFallback,
+                tokenForAnalyze);
 
-            return Ok(ApiResponse<OcrAnalysisResponseDto>.SuccessResponse(
-                result,
-                $"AI OCR completed. Timeout threshold: {WorkflowAiTimeoutSeconds}s. You can still input manually if needed."));
+            var message = manualFallback
+                ? "Image uploaded. AI OCR skipped (manual fallback); enter product fields manually."
+                : $"AI OCR completed. Timeout threshold: {WorkflowAiTimeoutSeconds}s. You can still input manually if needed.";
+
+            return Ok(ApiResponse<OcrAnalysisResponseDto>.SuccessResponse(result, message));
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !manualFallback)
         {
             return StatusCode(StatusCodes.Status408RequestTimeout,
                 ApiResponse<object>.ErrorResponse($"AI OCR timeout after {WorkflowAiTimeoutSeconds}s. Please retry or use manual fallback."));
@@ -272,6 +207,10 @@ public class ProductsController : ControllerBase
         {
             _logger.LogError(ex, "Error analyzing image for supermarket staff");
             return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
         }
     }
 
@@ -298,7 +237,7 @@ public class ProductsController : ControllerBase
                 staffName,
                 cancellationToken);
 
-            return CreatedAtAction(nameof(GetById), new { id = result.ProductId },
+            return StatusCode(StatusCodes.Status201Created,
                 ApiResponse<CreateNewProductResponseDto>.SuccessResponse(
                     result,
                     "Product created and verified by staff. Continue to lot creation & pricing."));
@@ -327,26 +266,38 @@ public class ProductsController : ControllerBase
             return supermarketIdResult.ErrorResult!;
         }
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(WorkflowAiTimeoutSeconds));
-
+        CancellationTokenSource? timeoutCts = null;
         try
         {
             var staffName = GetCurrentStaffDisplayName();
+            var tokenForWorkflow = cancellationToken;
+            if (!request.IsManualFallback)
+            {
+                timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(WorkflowAiTimeoutSeconds));
+                tokenForWorkflow = timeoutCts.Token;
+            }
+
             var result = await _workflowService.CreateLotAndPublishForStaffAsync(
                 request,
                 supermarketIdResult.SupermarketId!.Value,
                 staffName,
-                timeoutCts.Token);
+                tokenForWorkflow);
 
-            return Ok(ApiResponse<StaffCreateLotAndPublishResponseDto>.SuccessResponse(
-                result,
-                $"StockLot created, priced and published. Timeout threshold: {WorkflowAiTimeoutSeconds}s."));
+            var message = request.IsManualFallback
+                ? "StockLot created, priced and published (manual pricing; AI skipped)."
+                : $"StockLot created, priced and published. Timeout threshold: {WorkflowAiTimeoutSeconds}s.";
+
+            return Ok(ApiResponse<StaffCreateLotAndPublishResponseDto>.SuccessResponse(result, message));
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !request.IsManualFallback)
         {
             return StatusCode(StatusCodes.Status408RequestTimeout,
                 ApiResponse<object>.ErrorResponse($"AI pricing timeout after {WorkflowAiTimeoutSeconds}s. Please retry or switch to manual fallback."));
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
         }
     }
 
@@ -557,228 +508,6 @@ public class ProductsController : ControllerBase
     #endregion
 
     #region Workflow Actions
-
-    [HttpPost("{id:guid}/verify")]
-    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> Verify(
-        Guid id,
-        [FromBody] VerifyProductRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.VerifyProductAsync(id, request, cancellationToken);
-            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(
-                result,
-                "Product verified successfully. Use lots/{lotId}/pricing-suggestion endpoint to get price recommendation."));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse("Product not found"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error verifying product {ProductId}", id);
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-    }
-
-    #endregion
-
-    #region New Workflow - Barcode First
-
-    [HttpGet("scan/{barcode}")]
-    public async Task<ActionResult<ApiResponse<ScanBarcodeResponseDto>>> ScanBarcode(
-        string barcode,
-        [FromQuery] Guid supermarketId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.ScanBarcodeAsync(barcode, supermarketId, cancellationToken);
-            return Ok(ApiResponse<ScanBarcodeResponseDto>.SuccessResponse(result));
-        }
-        catch (ArgumentException ex)
-        {
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "invalid_argument");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error scanning barcode {Barcode}", barcode);
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_scan_failed");
-        }
-    }
-
-    [HttpPost("lots/from-existing")]
-    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> CreateLotFromExisting(
-        [FromBody] CreateStockLotFromExistingDto request,
-        CancellationToken cancellationToken)
-    {
-        var result = await _workflowService.CreateStockLotFromExistingAsync(request, cancellationToken);
-        return CreatedAtAction(
-            nameof(GetStockLot),
-            new { lotId = result.LotId },
-            ApiResponse<StockLotResponseDto>.SuccessResponse(result, "StockLot created successfully"));
-    }
-
-    [HttpPost("analyze-image")]
-    [RequestSizeLimit(20 * 1024 * 1024)]
-    public async Task<ActionResult<ApiResponse<OcrAnalysisResponseDto>>> AnalyzeImage(
-        [FromForm] Guid supermarketId,
-        IFormFile file,
-        CancellationToken cancellationToken)
-    {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse("Image file is required"));
-        }
-
-        try
-        {
-            await using var stream = file.OpenReadStream();
-            var result = await _workflowService.AnalyzeProductImageAsync(
-                supermarketId, stream, file.FileName, file.ContentType, cancellationToken);
-            return Ok(ApiResponse<OcrAnalysisResponseDto>.SuccessResponse(
-                result, "Image analyzed. Please verify the extracted info and create product."));
-        }
-        catch (ArgumentException ex)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error analyzing image");
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_analyze_image_failed");
-        }
-    }
-
-    [HttpPost("create-new")]
-    public async Task<ActionResult<ApiResponse<CreateNewProductResponseDto>>> CreateNewProduct(
-        [FromBody] CreateNewProductRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.CreateNewProductAsync(request, cancellationToken);
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = result.ProductId },
-                ApiResponse<CreateNewProductResponseDto>.SuccessResponse(
-                    result,
-                    $"Product created successfully (Draft). Next: Verify product using POST /api/products/{result.ProductId}/verify"));
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating new product");
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_create_product_failed");
-        }
-    }
-
-    [HttpGet("lots/{lotId:guid}")]
-    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> GetStockLot(
-        Guid lotId,
-        CancellationToken cancellationToken)
-    {
-        var result = await _workflowService.GetStockLotAsync(lotId, cancellationToken);
-        if (result == null)
-            return NotFound(ApiResponse<object>.ErrorResponse("StockLot not found"));
-        return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result));
-    }
-
-    [HttpGet("  /{supermarketId:guid}")]
-    public async Task<ActionResult<ApiResponse<List<StockLotResponseDto>>>> GetLotsByStatus(
-        Guid supermarketId,
-        [FromQuery] ProductState status,
-        CancellationToken cancellationToken)
-    {
-        var lots = await _workflowService.GetStockLotsByStatusAsync(supermarketId, status, cancellationToken);
-        return Ok(ApiResponse<List<StockLotResponseDto>>.SuccessResponse(lots.ToList()));
-    }
-
-    [HttpPost("lots/{lotId:guid}/pricing-suggestion")]
-    public async Task<ActionResult<ApiResponse<PricingSuggestionResponseDto>>> GetLotPricingSuggestion(
-        Guid lotId,
-        [FromBody] GetPricingSuggestionRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.GetLotPricingSuggestionAsync(lotId, request, cancellationToken);
-            return Ok(ApiResponse<PricingSuggestionResponseDto>.SuccessResponse(result));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting pricing for lot {LotId}", lotId);
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_get_pricing_failed");
-        }
-    }
-
-    [HttpPost("lots/{lotId:guid}/confirm-price")]
-    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> ConfirmLotPrice(
-        Guid lotId,
-        [FromBody] ConfirmPriceRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.ConfirmLotPriceAsync(lotId, request, cancellationToken);
-            return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result, "Price confirmed"));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error confirming price for lot {LotId}", lotId);
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_confirm_price_failed");
-        }
-    }
-
-    [HttpPost("lots/{lotId:guid}/publish")]
-    public async Task<ActionResult<ApiResponse<StockLotResponseDto>>> PublishLot(
-        Guid lotId,
-        [FromBody] PublishProductRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _workflowService.PublishStockLotAsync(lotId, request, cancellationToken);
-            return Ok(ApiResponse<StockLotResponseDto>.SuccessResponse(result, "StockLot published"));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return WorkflowError(StatusCodes.Status409Conflict, ex.Message, "workflow_conflict");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error publishing lot {LotId}", lotId);
-            return WorkflowError(StatusCodes.Status400BadRequest, ex.Message, "workflow_publish_lot_failed");
-        }
-    }
 
     #endregion
 

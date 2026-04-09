@@ -25,6 +25,7 @@ public interface IProductWorkflowService
         Stream imageStream,
         string fileName,
         string contentType,
+        bool skipAi = false,
         CancellationToken cancellationToken = default);
 
     Task<CreateNewProductResponseDto> CreateNewProductAsync(
