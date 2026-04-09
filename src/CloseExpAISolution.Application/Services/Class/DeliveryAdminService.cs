@@ -75,12 +75,13 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (group == null)
             throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
 
-        if (group.Status != DeliveryGroupState.Confirmed)
+        if (group.Status is DeliveryGroupState.Assigned or DeliveryGroupState.InTransit or DeliveryGroupState.Completed or DeliveryGroupState.Failed)
             throw new InvalidOperationException(
-                "Chỉ có thể gán nhóm đã xác nhận từ Draft (Confirmed) và chưa có shipper. Nhóm Draft phải POST confirm trước.");
+                $"Không thể điều phối lại: nhóm {group.GroupCode} đã ở trạng thái {group.Status}.");
 
-        if (group.DeliveryStaffId != null)
-            throw new InvalidOperationException("Nhóm giao hàng đã có shipper được gán.");
+        if (group.Status is not (DeliveryGroupState.Confirmed or DeliveryGroupState.Pending))
+            throw new InvalidOperationException(
+                "Chỉ có thể điều phối nhóm ở trạng thái Confirmed hoặc Pending.");
 
         await _unitOfWork.BeginTransactionAsync();
         try
@@ -459,9 +460,8 @@ public class DeliveryAdminService : IDeliveryAdminService
         return result;
     }
 
-    public async Task<MoveOrderToDraftGroupResultDto> MoveOrderToDraftGroupAsync(
-        Guid orderId,
-        MoveOrderToDraftGroupRequestDto request,
+    public async Task<MoveOrderItemsToDraftGroupResultDto> MoveOrderItemsToDraftGroupAsync(
+        MoveOrderItemsToDraftGroupRequestDto request,
         Guid adminId,
         CancellationToken cancellationToken = default)
     {
@@ -472,33 +472,25 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (admin == null || admin.RoleId != (int)RoleUser.Admin)
             throw new UnauthorizedAccessException("Người dùng không có quyền điều phối giao hàng.");
 
-        var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId);
-        if (order == null)
-            throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
+        var itemIds = request.OrderItemIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+        if (itemIds.Count == 0)
+            throw new ArgumentException("Phải truyền ít nhất một OrderItemId hợp lệ.", nameof(request.OrderItemIds));
 
         var targetId = request.DeliveryGroupId;
         if (targetId.HasValue && targetId.Value == Guid.Empty)
             throw new ArgumentException("Mã nhóm giao hàng không hợp lệ.", nameof(request.DeliveryGroupId));
 
-        var orderItems = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == orderId)).ToList();
-
-        if (targetId == order.DeliveryGroupId
-            && orderItems.All(i => i.DeliveryGroupId == targetId))
+        var selectedItems = (await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(oi => itemIds.Contains(oi.OrderItemId)))
+            .ToList();
+        if (selectedItems.Count != itemIds.Count)
         {
-            return new MoveOrderToDraftGroupResultDto
-            {
-                OrderId = order.OrderId,
-                OrderCode = order.OrderCode,
-                DeliveryGroupId = order.DeliveryGroupId
-            };
-        }
-
-        foreach (var oi in orderItems.Where(i => i.DeliveryGroupId.HasValue))
-        {
-            var g = await _unitOfWork.Repository<DeliveryGroup>()
-                .FirstOrDefaultAsync(x => x.DeliveryGroupId == oi.DeliveryGroupId!.Value);
-            if (g != null && g.Status != DeliveryGroupState.Draft)
-                throw new InvalidOperationException("Chỉ có thể chỉnh đơn khi các dòng đang thuộc nhóm Draft.");
+            var foundIds = selectedItems.Select(i => i.OrderItemId).ToHashSet();
+            var missing = itemIds.Where(id => !foundIds.Contains(id)).ToList();
+            throw new KeyNotFoundException($"Không tìm thấy OrderItem: {string.Join(", ", missing)}");
         }
 
         DeliveryGroup? newGroup = null;
@@ -508,17 +500,58 @@ public class DeliveryAdminService : IDeliveryAdminService
                 .FirstOrDefaultAsync(g => g.DeliveryGroupId == targetId.Value);
             if (newGroup == null)
                 throw new KeyNotFoundException("Không tìm thấy nhóm giao hàng.");
-            if (newGroup.Status != DeliveryGroupState.Draft)
-                throw new InvalidOperationException("Chỉ có thể gán đơn vào nhóm Draft.");
-            if (newGroup.TimeSlotId != order.TimeSlotId || newGroup.DeliveryDate.Date != order.OrderDate.Date)
-                throw new InvalidOperationException("Đơn và nhóm Draft phải cùng khung giờ và cùng ngày giao.");
+            if (newGroup.Status is DeliveryGroupState.Assigned or DeliveryGroupState.InTransit or DeliveryGroupState.Completed or DeliveryGroupState.Failed)
+                throw new InvalidOperationException("Không thể chuyển orderItem vào nhóm đã được shipper nhận hoặc đã kết thúc.");
+            if (newGroup.Status is not (DeliveryGroupState.Draft or DeliveryGroupState.Confirmed or DeliveryGroupState.Pending))
+                throw new InvalidOperationException("Chỉ có thể chuyển vào nhóm Draft/Confirmed/Pending.");
         }
 
-        var oldGroupIds = orderItems
+        var affectedOrderIds = selectedItems.Select(i => i.OrderId).Distinct().ToList();
+        var affectedOrderIdSet = affectedOrderIds.ToHashSet();
+        var ordersById = (await _unitOfWork.Repository<Order>().GetAllAsync())
+            .Where(o => affectedOrderIdSet.Contains(o.OrderId))
+            .ToDictionary(o => o.OrderId);
+
+        var lotIds = selectedItems.Select(i => i.LotId).Distinct().ToList();
+        var lots = (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId)))
+            .ToDictionary(l => l.LotId);
+        var productIds = lots.Values.Select(l => l.ProductId).Distinct().ToList();
+        var products = (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId)))
+            .ToDictionary(p => p.ProductId);
+
+        foreach (var item in selectedItems)
+        {
+            if (!ordersById.TryGetValue(item.OrderId, out var order))
+                throw new InvalidOperationException($"Không tìm thấy đơn {item.OrderId} của dòng {item.OrderItemId}.");
+
+            if (item.DeliveryGroupId.HasValue)
+            {
+                var currentGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                    .FirstOrDefaultAsync(x => x.DeliveryGroupId == item.DeliveryGroupId.Value);
+                if (currentGroup != null && currentGroup.Status is DeliveryGroupState.Assigned or DeliveryGroupState.InTransit or DeliveryGroupState.Completed or DeliveryGroupState.Failed)
+                    throw new InvalidOperationException(
+                        $"Không thể chuyển orderItem {item.OrderItemId}: nhóm hiện tại đã ở trạng thái {currentGroup.Status}.");
+            }
+
+            if (newGroup != null)
+                ValidateItemCompatibilityForRegroup(item, order, newGroup, lots, products);
+        }
+
+        if (targetId.HasValue && selectedItems.All(i => i.DeliveryGroupId == targetId.Value))
+        {
+            return new MoveOrderItemsToDraftGroupResultDto
+            {
+                UpdatedItemCount = 0,
+                UpdatedOrderCount = 0,
+                OrderItemIds = selectedItems.Select(i => i.OrderItemId).ToList(),
+                OrderIds = affectedOrderIds,
+                DeliveryGroupId = targetId
+            };
+        }
+
+        var oldGroupIds = selectedItems
             .Where(i => i.DeliveryGroupId.HasValue)
             .Select(i => i.DeliveryGroupId!.Value)
-            .Append(order.DeliveryGroupId ?? Guid.Empty)
-            .Where(id => id != Guid.Empty)
             .Distinct()
             .ToList();
 
@@ -526,15 +559,26 @@ public class DeliveryAdminService : IDeliveryAdminService
         try
         {
             var now = DateTime.UtcNow;
-            foreach (var oi in orderItems)
+            foreach (var oi in selectedItems)
             {
                 oi.DeliveryGroupId = targetId;
                 _unitOfWork.Repository<OrderItem>().Update(oi);
             }
 
-            OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
-            order.UpdatedAt = now;
-            _unitOfWork.Repository<Order>().Update(order);
+            foreach (var orderId in affectedOrderIds)
+            {
+                var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId);
+                if (order == null)
+                    continue;
+
+                var orderItems = (await _unitOfWork.Repository<OrderItem>()
+                        .FindAsync(oi => oi.OrderId == orderId))
+                    .ToList();
+                OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
+                OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
+                order.UpdatedAt = now;
+                _unitOfWork.Repository<Order>().Update(order);
+            }
 
             foreach (var gid in oldGroupIds)
                 await RecalculateDeliveryGroupTotalOrdersAsync(gid, now, cancellationToken);
@@ -550,17 +594,54 @@ public class DeliveryAdminService : IDeliveryAdminService
         }
 
         _logger.LogInformation(
-            "Admin {AdminId} moved order {OrderId} to draft group {GroupId}",
+            "Admin {AdminId} moved {ItemCount} order-items to group {GroupId}",
             adminId,
-            orderId,
+            selectedItems.Count,
             targetId);
 
-        return new MoveOrderToDraftGroupResultDto
+        return new MoveOrderItemsToDraftGroupResultDto
         {
-            OrderId = order.OrderId,
-            OrderCode = order.OrderCode,
-            DeliveryGroupId = order.DeliveryGroupId
+            UpdatedItemCount = selectedItems.Count,
+            UpdatedOrderCount = affectedOrderIds.Count,
+            OrderItemIds = selectedItems.Select(i => i.OrderItemId).ToList(),
+            OrderIds = affectedOrderIds,
+            DeliveryGroupId = targetId
         };
+    }
+
+    private static void ValidateItemCompatibilityForRegroup(
+        OrderItem item,
+        Order order,
+        DeliveryGroup targetGroup,
+        IReadOnlyDictionary<Guid, StockLot> lots,
+        IReadOnlyDictionary<Guid, Product> products)
+    {
+        if (targetGroup.TimeSlotId != order.TimeSlotId || targetGroup.DeliveryDate.Date != order.OrderDate.Date)
+            throw new InvalidOperationException(
+                $"Không thể chuyển orderItem {item.OrderItemId}: khác khung giờ hoặc ngày giao.");
+
+        if (!string.Equals(targetGroup.DeliveryType, order.DeliveryType, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Không thể chuyển orderItem {item.OrderItemId}: khác phương thức giao hàng.");
+
+        if (order.CollectionId.HasValue)
+        {
+            var expectedArea = $"COLLECTION:{order.CollectionId.Value}";
+            if (!string.Equals(targetGroup.DeliveryArea, expectedArea, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"Không thể chuyển orderItem {item.OrderItemId}: khác điểm nhận hàng.");
+        }
+        else if (!string.Equals(targetGroup.DeliveryArea, "DELIVERY", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Không thể chuyển orderItem {item.OrderItemId}: khác khu vực giao hàng.");
+        }
+
+        if (!lots.TryGetValue(item.LotId, out var lot) || !products.TryGetValue(lot.ProductId, out var product))
+            throw new InvalidOperationException($"Không thể xác định siêu thị của orderItem {item.OrderItemId}.");
+        if (targetGroup.SupermarketId != product.SupermarketId)
+            throw new InvalidOperationException(
+                $"Không thể chuyển orderItem {item.OrderItemId}: khác siêu thị của nhóm đích.");
     }
 
     private async Task<List<DeliveryGroupSummaryDto>> MapGroupsToSummariesAsync(

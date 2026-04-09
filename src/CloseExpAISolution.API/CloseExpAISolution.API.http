@@ -204,7 +204,9 @@ Accept: application/json
 ### 1) GET admin orders unassigned: GET /api/Admin/orders?unassignedOnly=true (Bearer Admin)
 ### 2) POST /api/delivery/groups/drafts/generate
 ### 3) GET /api/delivery/groups/drafts
-### 4) Optional: PUT /api/delivery/orders/{orderId}/draft-group  body: { "deliveryGroupId": "<draftGuid>" | null }
+### 4) Optional (item-level): PUT /api/delivery/order-items/draft-group
+###    body: { "orderItemIds": ["<itemId1>", "<itemId2>"], "deliveryGroupId": "<groupGuid>" | null }
+###    Rule: Pending cho phép điều phối lại; Assigned/InTransit/Completed thì BE chặn.
 ### 5) POST /api/delivery/groups/{deliveryGroupId}/confirm  → nhóm = Confirmed (chờ gán shipper)
 ### 6) GET /api/delivery/groups?status=Confirmed  → danh sách chờ gán; GET ?status=Pending → chờ shipper Accept
 ### 7) PUT /api/delivery/groups/{deliveryGroupId}/assignment  body: { "deliveryStaffId": "..." }  → Pending

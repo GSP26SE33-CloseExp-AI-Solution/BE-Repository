@@ -172,49 +172,47 @@ public class DeliveryController : ControllerBase
     }
 
     /// <summary>
-    /// Chỉnh đơn giữa các nhóm Draft hoặc gỡ đơn khỏi nhóm Draft (body deliveryGroupId null).
-    /// Luồng: draft → confirm (Confirmed) → PUT assignment (Pending, chờ Accept) → shipper Accept (Assigned).
+    /// Chỉnh theo OrderItem giữa các nhóm có thể regroup hoặc gỡ nhóm (deliveryGroupId null).
+    /// Rule: Pending cho phép điều phối lại; Assigned/InTransit/Completed thì khóa điều phối.
     /// </summary>
     [Authorize(Roles = "Admin")]
-    [HttpPut("orders/{orderId:guid}/draft-group")]
-    public async Task<ActionResult<ApiResponse<MoveOrderToDraftGroupResultDto>>> MoveOrderToDraftGroup(
-        Guid orderId,
-        [FromBody] MoveOrderToDraftGroupRequestDto request)
+    [HttpPut("order-items/draft-group")]
+    public async Task<ActionResult<ApiResponse<MoveOrderItemsToDraftGroupResultDto>>> MoveOrderItemsToDraftGroup(
+        [FromBody] MoveOrderItemsToDraftGroupRequestDto request)
     {
         try
         {
             if (!TryGetCurrentUserId(out var adminId))
             {
-                return Unauthorized(ApiResponse<MoveOrderToDraftGroupResultDto>.ErrorResponse(
+                return Unauthorized(ApiResponse<MoveOrderItemsToDraftGroupResultDto>.ErrorResponse(
                     "Không thể xác định người dùng"));
             }
 
-            var result = await _services.DeliveryAdminService.MoveOrderToDraftGroupAsync(
-                orderId,
+            var result = await _services.DeliveryAdminService.MoveOrderItemsToDraftGroupAsync(
                 request,
                 adminId);
-            return Ok(ApiResponse<MoveOrderToDraftGroupResultDto>.SuccessResponse(result));
+            return Ok(ApiResponse<MoveOrderItemsToDraftGroupResultDto>.SuccessResponse(result));
         }
         catch (KeyNotFoundException ex)
         {
-            return NotFound(ApiResponse<MoveOrderToDraftGroupResultDto>.ErrorResponse(ex.Message));
+            return NotFound(ApiResponse<MoveOrderItemsToDraftGroupResultDto>.ErrorResponse(ex.Message));
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Unauthorized(ApiResponse<MoveOrderToDraftGroupResultDto>.ErrorResponse(ex.Message));
+            return Unauthorized(ApiResponse<MoveOrderItemsToDraftGroupResultDto>.ErrorResponse(ex.Message));
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ApiResponse<MoveOrderToDraftGroupResultDto>.ErrorResponse(ex.Message));
+            return BadRequest(ApiResponse<MoveOrderItemsToDraftGroupResultDto>.ErrorResponse(ex.Message));
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(ApiResponse<MoveOrderToDraftGroupResultDto>.ErrorResponse(ex.Message));
+            return BadRequest(ApiResponse<MoveOrderItemsToDraftGroupResultDto>.ErrorResponse(ex.Message));
         }
         catch (Exception)
         {
-            return StatusCode(500, ApiResponse<MoveOrderToDraftGroupResultDto>.ErrorResponse(
-                "Lỗi khi cập nhật nhóm Draft cho đơn hàng."));
+            return StatusCode(500, ApiResponse<MoveOrderItemsToDraftGroupResultDto>.ErrorResponse(
+                "Lỗi khi cập nhật nhóm cho các dòng hàng."));
         }
     }
 

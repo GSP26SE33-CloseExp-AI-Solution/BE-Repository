@@ -37,9 +37,17 @@ public class DraftDeliveryGroupQueryDto
     public int PageSize { get; set; } = 20;
 }
 
-/// <summary>Move an order between draft groups or clear draft assignment (null).</summary>
-public class MoveOrderToDraftGroupRequestDto
+/// <summary>
+/// Di chuyển các order item giữa các group có thể regroupable.
+/// Chỉ có thể di chuyển các item trong các group Draft/Confirmed/Pending; Assigned+ là blocked.
+/// </summary>
+public class MoveOrderItemsToDraftGroupRequestDto
 {
-    /// <summary>Target draft group id, or null to remove the order from its current draft group.</summary>
+    /// <summary>Các order item cần di chuyển (đơn lẻ hoặc batch).</summary>
+    public List<Guid> OrderItemIds { get; set; } = new();
+
+    /// <summary>
+    /// ID của group cần di chuyển, hoặc null để xóa assignment group từ các item được chọn.
+    /// </summary>
     public Guid? DeliveryGroupId { get; set; }
 }
