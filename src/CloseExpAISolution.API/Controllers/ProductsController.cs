@@ -114,8 +114,6 @@ public class ProductsController : ControllerBase
         }
     }
 
-#endregion
-
     #region Supermarket Staff Workflow APIs
 
     [Authorize(Roles = "SupermarketStaff")]
