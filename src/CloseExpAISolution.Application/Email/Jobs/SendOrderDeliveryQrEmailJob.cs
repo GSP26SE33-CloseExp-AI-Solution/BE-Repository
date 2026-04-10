@@ -1,12 +1,10 @@
-using System.Globalization;
-using System.Net.Mime;
-using System.Text;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.Extensions.Logging;
+using System.Net.Mime;
 using QRCoder;
 using Quartz;
 
@@ -16,6 +14,7 @@ namespace CloseExpAISolution.Application.Email.Jobs;
 public class SendOrderDeliveryQrEmailJob : IJob
 {
     private const string JobDataOrderIdKey = "orderId";
+    private const string DeliveryQrCid = "delivery-qr-code";
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly IEmailService _emailService;
@@ -76,12 +75,24 @@ public class SendOrderDeliveryQrEmailJob : IJob
             }
 
             var qrPngBytes = GenerateQrPngBytes(orderCode);
-            var qrBase64 = Convert.ToBase64String(qrPngBytes);
-
             var subject = $"[CloseExp] Xác nhận giao hàng - {orderCode}";
-            var body = BuildEmailBody(orderCode, qrBase64);
+            var body = BuildEmailBody(orderCode, DeliveryQrCid);
+            var inlineImages = new[]
+            {
+                new EmailInlineImage
+                {
+                    ContentId = DeliveryQrCid,
+                    ContentBytes = qrPngBytes,
+                    MediaType = "image/png"
+                }
+            };
 
-            await _emailService.SendEmailAsync(user.Email, subject, body, context.CancellationToken);
+            await _emailService.SendEmailWithInlineImagesAsync(
+                user.Email,
+                subject,
+                body,
+                inlineImages,
+                context.CancellationToken);
 
             _logger.LogInformation("SendOrderDeliveryQrEmailJob completed. orderId={OrderId}, to={Email}, durationMs={DurationMs}",
                 orderId, user.Email, (DateTime.UtcNow - startedAt).TotalMilliseconds);
@@ -102,7 +113,7 @@ public class SendOrderDeliveryQrEmailJob : IJob
         return qr.GetGraphic(pixelsPerModule: 20);
     }
 
-    private static string BuildEmailBody(string orderCode, string qrBase64)
+    private static string BuildEmailBody(string orderCode, string qrContentId)
     {
         return $@"
 <!DOCTYPE html>
@@ -115,7 +126,7 @@ public class SendOrderDeliveryQrEmailJob : IJob
   <div style='font-size: 20px; font-weight: 700; margin: 10px 0;'>{orderCode}</div>
 
   <p>Quét QR bên dưới để xác nhận giao hàng:</p>
-  <img src='data:image/png;base64,{qrBase64}' alt='QR code' style='width: 180px; height: auto;' />
+  <img src='cid:{qrContentId}' alt='QR code' style='width: 180px; height: auto;' />
 
   <p style='color:#666; font-size:12px; margin-top:20px;'>
     Lưu ý: QR chỉ encode đúng mã đơn hàng (<b>{orderCode}</b>).
