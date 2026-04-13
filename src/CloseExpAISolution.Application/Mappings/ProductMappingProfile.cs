@@ -17,6 +17,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.UnitId, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.UnitId : Guid.Empty))
             .ForMember(dest => dest.UnitName, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.Name : ""))
             .ForMember(dest => dest.UnitType, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.Type : ""))
+            .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : ""))
             .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? src.Product.ProductDetail.Brand : ""))
             .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.Product != null && src.Product.CategoryRef != null ? src.Product.CategoryRef.Name : ""))
@@ -28,7 +29,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.TotalImages, opt => opt.MapFrom(_ => 0))
             .ForMember(dest => dest.ProductImages, opt => opt.MapFrom(_ => new List<ProductImageDto>()))
             .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? ParseIngredients(src.Product.ProductDetail.Ingredients) : new List<string>()))
-            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? ParseNutritionFacts(src.Product.ProductDetail.NutritionFacts) : null))
+            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.Product != null && src.Product.ProductDetail != null ? NutritionFactsParser.Parse(src.Product.ProductDetail.NutritionFacts) : null))
             // Expiry status fields - set after mapping manually
             .ForMember(dest => dest.DaysRemaining, opt => opt.Ignore())
             .ForMember(dest => dest.HoursRemaining, opt => opt.Ignore())
@@ -53,7 +54,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Manufacturer ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.SafetyWarning, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.SafetyWarning ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
             .ForMember(dest => dest.Distributor, opt => opt.MapFrom(src => src.ProductDetail != null ? (src.ProductDetail.Distributor ?? "Chưa có mô tả chi tiết") : "Chưa có mô tả chi tiết"))
-            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseNutritionFacts(src.ProductDetail.NutritionFacts) : null))
+            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.ProductDetail != null ? NutritionFactsParser.Parse(src.ProductDetail.NutritionFacts) : null))
             .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.CategoryRef != null ? src.CategoryRef.Name ?? "" : ""))
             .ForMember(dest => dest.Barcode, opt => opt.MapFrom(src => src.Barcode ?? string.Empty))
             .ForMember(dest => dest.IsFreshFood, opt => opt.MapFrom(src => src.CategoryRef != null && src.CategoryRef.IsFreshFood))
@@ -78,7 +79,7 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.TotalImages, opt => opt.MapFrom(_ => 0))
             .ForMember(dest => dest.ProductImages, opt => opt.MapFrom(_ => new List<ProductImageDto>()))
             .ForMember(dest => dest.Ingredients, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseIngredients(src.ProductDetail.Ingredients) : new List<string>()))
-            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.ProductDetail != null ? ParseNutritionFacts(src.ProductDetail.NutritionFacts) : null))
+            .ForMember(dest => dest.NutritionFacts, opt => opt.MapFrom(src => src.ProductDetail != null ? NutritionFactsParser.Parse(src.ProductDetail.NutritionFacts) : null))
             .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.CategoryRef != null ? src.CategoryRef.Name ?? "" : ""))
             .ForMember(dest => dest.IsFreshFood, opt => opt.MapFrom(src => src.CategoryRef != null && src.CategoryRef.IsFreshFood))
             .ForMember(dest => dest.OriginalPrice, opt => opt.MapFrom(_ => 0m))
@@ -134,21 +135,6 @@ public class ProductMappingProfile : Profile
             2 => "Bán theo cân",
             _ => "Định lượng cố định"
         };
-    }
-
-    private static Dictionary<string, string>? ParseNutritionFacts(string? nutritionFactsJson)
-    {
-        if (string.IsNullOrEmpty(nutritionFactsJson))
-            return null;
-
-        try
-        {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(nutritionFactsJson);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private static List<string> ParseIngredients(string? ingredientsRaw)

@@ -197,6 +197,7 @@ public class StockLotResponseDto
     public decimal Weight { get; set; }
     public ProductState Status { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
     public string? PublishedBy { get; set; }
     public DateTime? PublishedAt { get; set; }
     public decimal? OriginalPrice { get; set; }
@@ -233,10 +234,13 @@ public class StaffCreateLotAndPublishResponseDto
     public Guid ProductId { get; set; }
     public Guid LotId { get; set; }
     public string Phase { get; set; } = "LOT_AND_PRICING";
+    public bool PricingSuggestionResolvedBeforePublish { get; set; } = true;
     public PricingSuggestionResponseDto PricingSuggestion { get; set; } = new();
     public StockLotResponseDto StockLot { get; set; } = new();
     public bool IsManualFallback { get; set; }
     public WorkflowTimeoutInfoDto TimeoutInfo { get; set; } = new();
+    public string ProductCategory { get; set; } = string.Empty;
+    public Dictionary<string, string>? ProductNutritionFacts { get; set; }
 }
 
 public class ExcelPreviewResponseDto
