@@ -3,6 +3,7 @@ using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.AIService.Models;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Mappings;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -873,6 +874,7 @@ public class ProductWorkflowService : IProductWorkflowService
             ManufactureDate = request.ManufactureDate.HasValue ? EnsureUtc(request.ManufactureDate.Value) : null,
             Quantity = request.Quantity,
             Weight = request.Weight,
+            OriginalUnitPrice = request.OriginalUnitPrice,
             CreatedBy = staffName
         }, cancellationToken);
 
@@ -915,9 +917,14 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             ProductId = request.ProductId,
             LotId = publishedLot.LotId,
+            PricingSuggestionResolvedBeforePublish = true,
             PricingSuggestion = pricingSuggestion,
             StockLot = publishedLot,
             IsManualFallback = request.IsManualFallback,
+            ProductCategory = product.CategoryRef?.Name ?? string.Empty,
+            ProductNutritionFacts = product.ProductDetail != null
+                ? NutritionFactsParser.Parse(product.ProductDetail.NutritionFacts)
+                : null,
             TimeoutInfo = new WorkflowTimeoutInfoDto
             {
                 TimeoutSeconds = WorkflowAiTimeoutSeconds,
@@ -967,8 +974,11 @@ public class ProductWorkflowService : IProductWorkflowService
             ManufactureDate = manufactureUtc ?? DateTime.UtcNow,
             Quantity = request.Quantity,
             Weight = request.Weight,
+            OriginalUnitPrice = request.OriginalUnitPrice,
             Status = ProductState.Draft,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            CreatedBy = string.IsNullOrWhiteSpace(request.CreatedBy) ? null : request.CreatedBy.Trim()
         };
 
         await _unitOfWork.Repository<StockLot>().AddAsync(stockLot);
@@ -1226,7 +1236,8 @@ public class ProductWorkflowService : IProductWorkflowService
         var daysToExpiry = (int)(lot.ExpiryDate - DateTime.UtcNow).TotalDays;
 
         var priceHistory = await _unitOfWork.Repository<PricingHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
-        if (priceHistory == null)
+        bool isNewPricingHistory = priceHistory == null;
+        if (isNewPricingHistory)
         {
             priceHistory = new PricingHistory
             {
@@ -1237,13 +1248,18 @@ public class ProductWorkflowService : IProductWorkflowService
             await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
         }
 
-        priceHistory.SuggestedPrice = originalUnitPrice;
+        priceHistory!.SuggestedPrice = originalUnitPrice;
         priceHistory.AIConfidence = 0;
         priceHistory.Reason = "Manual fallback (AI pricing skipped)";
         priceHistory.MarketMinPrice = null;
         priceHistory.MarketAvgPrice = null;
         priceHistory.MarketMaxPrice = null;
-        _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
+
+        if (!isNewPricingHistory)
+        {
+            _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new PricingSuggestionResponseDto
@@ -1293,10 +1309,8 @@ public class ProductWorkflowService : IProductWorkflowService
                 CreatedAt = DateTime.UtcNow
             };
             await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
-        _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var suggestion = await GetPricingSuggestionInternalAsync(product, request.OriginalPrice, cancellationToken);
 
@@ -1343,6 +1357,8 @@ public class ProductWorkflowService : IProductWorkflowService
 
         _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
 
+        lot.FinalUnitPrice = finalPrice;
+        lot.SuggestedUnitPrice = priceHistory.SuggestedPrice;
         lot.Status = ProductState.Priced;
         _unitOfWork.Repository<StockLot>().Update(lot);
 
@@ -1440,11 +1456,12 @@ public class ProductWorkflowService : IProductWorkflowService
             Weight = lot.Weight,
             Status = lot.Status,
             CreatedAt = lot.CreatedAt,
+            CreatedBy = lot.CreatedBy,
             PublishedBy = lot.PublishedBy,
             PublishedAt = lot.PublishedAt,
             OriginalPrice = lot?.OriginalUnitPrice,
             SuggestedPrice = priceHistory?.SuggestedPrice,
-            FinalPrice = null,
+            FinalPrice = lot?.FinalUnitPrice,
             PricingConfidence = priceHistory != null ? (float?)priceHistory.AIConfidence : null
         };
     }

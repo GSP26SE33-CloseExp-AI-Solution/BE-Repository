@@ -121,6 +121,8 @@ public class CreateStockLotFromExistingDto
 
     public decimal Weight { get; set; } = 0;
 
+    public decimal OriginalUnitPrice { get; set; } = 0;
+
     [Required]
     public string CreatedBy { get; set; } = string.Empty;
 }

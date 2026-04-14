@@ -17,6 +17,7 @@ public class StockLot
     public ProductState Status { get; set; } = ProductState.Draft;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
     public string? PublishedBy { get; set; }
     public DateTime? PublishedAt { get; set; }
 
