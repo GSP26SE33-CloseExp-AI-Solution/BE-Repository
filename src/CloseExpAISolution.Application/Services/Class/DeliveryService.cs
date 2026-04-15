@@ -814,7 +814,9 @@ public class DeliveryService : IDeliveryService
                          i.DeliveryGroupId == deliveryGroupId
                          && i.PackagingStatus == PackagingState.Completed))
             {
-                if (it.DeliveryStatus is not (DeliveryState.Completed or DeliveryState.Failed))
+                if (it.DeliveryStatus is not (DeliveryState.Completed
+                    or DeliveryState.Failed
+                    or DeliveryState.DeliveredWaitConfirm))
                     throw new InvalidOperationException(
                         "Còn dòng hàng chưa được giao hoặc báo lỗi. Vui lòng xử lý hết trước khi hoàn thành nhóm.");
             }
@@ -978,6 +980,7 @@ public class DeliveryService : IDeliveryService
 
     private static bool IsTerminalRouteOrderState(OrderState status) =>
         status is OrderState.Completed
+            or OrderState.DeliveredWaitConfirm
             or OrderState.Failed
             or OrderState.Canceled
             or OrderState.Refunded;
@@ -1186,7 +1189,7 @@ public class DeliveryService : IDeliveryService
         return new DeliveryOrderResponseDto
         {
             OrderId = order.OrderId,
-            DeliveryGroupId = order.DeliveryGroupId,
+            DeliveryGroupId = scopedDeliveryGroupId ?? order.DeliveryGroupId,
             OrderCode = order.OrderCode,
             Status = order.Status.ToString(),
             DeliveryType = order.DeliveryType,

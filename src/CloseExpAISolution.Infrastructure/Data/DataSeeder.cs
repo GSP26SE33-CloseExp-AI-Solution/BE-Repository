@@ -1573,7 +1573,9 @@ public static class DataSeeder
                 LotId = activeLots[0].LotId,
                 Quantity = 2,
                 UnitPrice = 60000,
-                TotalPrice = 120000
+                TotalPrice = 120000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-2)
             },
             new()
             {
@@ -1582,7 +1584,9 @@ public static class DataSeeder
                 LotId = activeLots[1].LotId,
                 Quantity = 1,
                 UnitPrice = 60000,
-                TotalPrice = 60000
+                TotalPrice = 60000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-2)
             },
             new()
             {
@@ -1591,7 +1595,9 @@ public static class DataSeeder
                 LotId = activeLots[2].LotId,
                 Quantity = 2,
                 UnitPrice = 90000,
-                TotalPrice = 180000
+                TotalPrice = 180000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
             },
             new()
             {
@@ -1600,9 +1606,70 @@ public static class DataSeeder
                 LotId = activeLots[3].LotId,
                 Quantity = 1,
                 UnitPrice = 40000,
-                TotalPrice = 40000
+                TotalPrice = 40000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
             }
         };
+
+        // Extra seed dataset for delivery-group generation tests.
+        // Generate uses OrderItems as input, so we seed multiple packaged-completed items.
+        var generatedOrders = new List<Order>();
+        var generatedItems = new List<OrderItem>();
+        var generatedPackagingRecords = new List<OrderPackaging>();
+
+        for (var i = 0; i < 12; i++)
+        {
+            var isPickup = i % 2 == 0;
+            var orderId = Guid.NewGuid();
+            var lot = activeLots[i % activeLots.Count];
+            var quantity = (short)(1 + (i % 3));
+            var unitPrice = 45000m + (i % 4) * 5000m;
+            var total = quantity * unitPrice;
+
+            var order = new Order
+            {
+                OrderId = orderId,
+                OrderCode = $"PKG-GRP-{(i + 1).ToString("D3")}",
+                UserId = isPickup ? VendorUserId1 : VendorUserId2,
+                TimeSlotId = i % 3 == 0 ? TimeSlotAfternoonId : TimeSlotMorningId,
+                CollectionId = isPickup ? CollectionPointDistrict1Id : null,
+                AddressId = isPickup ? null : CustomerAddressVendor2Id,
+                DeliveryType = isPickup ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
+                TotalAmount = total,
+                DiscountAmount = 0,
+                FinalAmount = total,
+                DeliveryFee = isPickup ? 0 : 10000,
+                Status = OrderState.Paid,
+                OrderDate = now.AddMinutes(-(20 + i * 4)),
+                DeliveryNote = "Seed data for delivery-group generation test",
+                CreatedAt = now.AddMinutes(-(20 + i * 4)),
+                UpdatedAt = now.AddMinutes(-(20 + i * 4))
+            };
+
+            var item = new OrderItem
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = orderId,
+                LotId = lot.LotId,
+                Quantity = quantity,
+                UnitPrice = unitPrice,
+                TotalPrice = total,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddMinutes(-(10 + i * 3))
+            };
+
+            generatedOrders.Add(order);
+            generatedItems.Add(item);
+            generatedPackagingRecords.Add(new OrderPackaging
+            {
+                PackagingId = Guid.NewGuid(),
+                OrderId = orderId,
+                UserId = i % 2 == 0 ? StaffUserId1 : StaffUserId2,
+                Status = PackagingState.Completed,
+                PackagedAt = now.AddMinutes(-(10 + i * 3))
+            });
+        }
 
         var packagingRecord = new OrderPackaging
         {
@@ -1614,8 +1681,11 @@ public static class DataSeeder
         };
 
         await context.Orders.AddRangeAsync(pickupOrder, homeOrder, readyOrder);
+        await context.Orders.AddRangeAsync(generatedOrders);
         await context.OrderItems.AddRangeAsync(orderItems);
+        await context.OrderItems.AddRangeAsync(generatedItems);
         await context.PackagingRecords.AddAsync(packagingRecord);
+        await context.PackagingRecords.AddRangeAsync(generatedPackagingRecords);
         await context.SaveChangesAsync();
     }
 
