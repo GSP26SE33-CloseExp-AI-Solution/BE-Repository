@@ -1609,6 +1609,28 @@ public static class DataSeeder
                 TotalPrice = 40000,
                 PackagingStatus = PackagingState.Completed,
                 PackagedAt = now.AddHours(-1)
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = readyOrder.OrderId,
+                LotId = activeLots[0].LotId,
+                Quantity = 1,
+                UnitPrice = 80000,
+                TotalPrice = 80000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = readyOrder.OrderId,
+                LotId = activeLots[1].LotId,
+                Quantity = 1,
+                UnitPrice = 60000,
+                TotalPrice = 60000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
             }
         };
 
@@ -1622,10 +1644,31 @@ public static class DataSeeder
         {
             var isPickup = i % 2 == 0;
             var orderId = Guid.NewGuid();
-            var lot = activeLots[i % activeLots.Count];
-            var quantity = (short)(1 + (i % 3));
-            var unitPrice = 45000m + (i % 4) * 5000m;
-            var total = quantity * unitPrice;
+            var itemCount = 1 + (i % 3);
+            var orderItemsForCurrentOrder = new List<OrderItem>();
+            decimal orderTotal = 0;
+
+            for (var j = 0; j < itemCount; j++)
+            {
+                var lot = activeLots[(i + j) % activeLots.Count];
+                var quantity = (short)(1 + ((i + j) % 3));
+                var unitPrice = 45000m + ((i + j) % 4) * 5000m;
+                var itemTotal = quantity * unitPrice;
+
+                orderItemsForCurrentOrder.Add(new OrderItem
+                {
+                    OrderItemId = Guid.NewGuid(),
+                    OrderId = orderId,
+                    LotId = lot.LotId,
+                    Quantity = quantity,
+                    UnitPrice = unitPrice,
+                    TotalPrice = itemTotal,
+                    PackagingStatus = PackagingState.Completed,
+                    PackagedAt = now.AddMinutes(-(10 + i * 3))
+                });
+
+                orderTotal += itemTotal;
+            }
 
             var order = new Order
             {
@@ -1636,9 +1679,9 @@ public static class DataSeeder
                 CollectionId = isPickup ? CollectionPointDistrict1Id : null,
                 AddressId = isPickup ? null : CustomerAddressVendor2Id,
                 DeliveryType = isPickup ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
-                TotalAmount = total,
+                TotalAmount = orderTotal,
                 DiscountAmount = 0,
-                FinalAmount = total,
+                FinalAmount = orderTotal,
                 DeliveryFee = isPickup ? 0 : 10000,
                 Status = OrderState.Paid,
                 OrderDate = now.AddMinutes(-(20 + i * 4)),
@@ -1647,20 +1690,8 @@ public static class DataSeeder
                 UpdatedAt = now.AddMinutes(-(20 + i * 4))
             };
 
-            var item = new OrderItem
-            {
-                OrderItemId = Guid.NewGuid(),
-                OrderId = orderId,
-                LotId = lot.LotId,
-                Quantity = quantity,
-                UnitPrice = unitPrice,
-                TotalPrice = total,
-                PackagingStatus = PackagingState.Completed,
-                PackagedAt = now.AddMinutes(-(10 + i * 3))
-            };
-
             generatedOrders.Add(order);
-            generatedItems.Add(item);
+            generatedItems.AddRange(orderItemsForCurrentOrder);
             generatedPackagingRecords.Add(new OrderPackaging
             {
                 PackagingId = Guid.NewGuid(),
