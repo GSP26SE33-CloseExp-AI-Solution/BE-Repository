@@ -241,7 +241,6 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
-        // TODO: Sugge
         await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
         await _orderNotificationPublisher.PublishOrderPlacedAsync(order.OrderId, order.UserId, order.OrderCode, cancellationToken);
         await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);

@@ -5,12 +5,11 @@
       "name": "BackEnd [https]",
       "type": "dotnet",
       "request": "launch",
-        "projectPath": "${workspaceFolder}/src/CloseExpAISolution.API/CloseExpAISolution.API.csproj",
+      "projectPath": "${workspaceFolder}/src/CloseExpAISolution.API/CloseExpAISolution.API.csproj",
       "launchConfigurationId": "TargetFramework=;https",
       "env": {
-      "DOTNET_WATCH_RESTART_ON_RUDE_EDIT": "true"
+        "DOTNET_WATCH_RESTART_ON_RUDE_EDIT": "true"
       }
-    }
     },
     {
       "name": "Backend [http]",

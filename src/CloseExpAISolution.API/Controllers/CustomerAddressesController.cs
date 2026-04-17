@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloseExpAISolution.API.Controllers;
-// BUG: Không thấy api cho filter được áp dụng
+
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
