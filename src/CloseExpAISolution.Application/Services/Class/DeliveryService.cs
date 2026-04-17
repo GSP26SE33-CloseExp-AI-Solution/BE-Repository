@@ -87,63 +87,61 @@ public class DeliveryService : IDeliveryService
         DateTime? deliveryDate = null,
         int pageNumber = 1,
         int pageSize = 20,
+        string? sortBy = null,
+        double? currentLatitude = null,
+        double? currentLongitude = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting delivery groups for staff {StaffId}", deliveryStaffId);
 
-        var allGroups = await _unitOfWork.Repository<DeliveryGroup>()
-            .FindAsync(g => g.DeliveryStaffId == deliveryStaffId);
+        var summaries = await BuildMyGroupSummariesAsync(
+            deliveryStaffId,
+            status,
+            deliveryDate,
+            currentLatitude,
+            currentLongitude,
+            actionableOnly: false,
+            cancellationToken: cancellationToken);
 
-        var filtered = allGroups.AsEnumerable();
-
-        if (!string.IsNullOrEmpty(status))
-        {
-            filtered = filtered.Where(g => g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (deliveryDate.HasValue)
-        {
-            var targetDate = deliveryDate.Value.Date;
-            filtered = filtered.Where(g => g.DeliveryDate.Date == targetDate);
-        }
-
-        var orderedGroups = filtered
-            .OrderByDescending(g => g.DeliveryDate)
-            .ThenBy(g => g.CreatedAt)
+        var orderedSummaries = ApplyGroupSorting(summaries, sortBy).ToList();
+        var totalCount = orderedSummaries.Count;
+        var pagedSummaries = orderedSummaries
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .ToList();
 
-        var totalCount = orderedGroups.Count;
-        var pagedGroups = orderedGroups
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize);
+        return (pagedSummaries, totalCount);
+    }
 
-        var result = new List<DeliveryGroupSummaryDto>();
-        foreach (var group in pagedGroups)
-        {
-            var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
-                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
+    public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetMyDeliveryWorkQueueAsync(
+        Guid deliveryStaffId,
+        string? status = null,
+        DateTime? deliveryDate = null,
+        int limit = 10,
+        string? sortBy = null,
+        double? currentLatitude = null,
+        double? currentLongitude = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Getting delivery work queue for staff {StaffId}", deliveryStaffId);
 
-            var (totalOrders, completedCount) = await GetGroupOrderProgressCountsAsync(group.DeliveryGroupId);
+        if (limit < 1)
+            limit = 1;
+        if (limit > 50)
+            limit = 50;
 
-            result.Add(new DeliveryGroupSummaryDto
-            {
-                DeliveryGroupId = group.DeliveryGroupId,
-                GroupCode = group.GroupCode,
-                TimeSlotDisplay = timeSlot != null
-                    ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
-                    : "N/A",
-                DeliveryType = group.DeliveryType,
-                DeliveryArea = group.DeliveryArea,
-                CenterLatitude = group.CenterLatitude,
-                CenterLongitude = group.CenterLongitude,
-                Status = group.Status.ToString(),
-                TotalOrders = totalOrders,
-                CompletedOrders = completedCount,
-                DeliveryDate = group.DeliveryDate
-            });
-        }
+        var summaries = await BuildMyGroupSummariesAsync(
+            deliveryStaffId,
+            status,
+            deliveryDate,
+            currentLatitude,
+            currentLongitude,
+            actionableOnly: true,
+            cancellationToken: cancellationToken);
 
-        return (result, totalCount);
+        return ApplyGroupSorting(summaries, sortBy)
+            .Take(limit)
+            .ToList();
     }
 
     public async Task<DeliveryGroupResponseDto?> GetDeliveryGroupDetailAsync(
@@ -976,6 +974,258 @@ public class DeliveryService : IDeliveryService
             Metric = metric,
             SkippedOrderIds = skipped
         };
+    }
+
+    private async Task<List<DeliveryGroupSummaryDto>> BuildMyGroupSummariesAsync(
+        Guid deliveryStaffId,
+        string? status,
+        DateTime? deliveryDate,
+        double? currentLatitude,
+        double? currentLongitude,
+        bool actionableOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var allGroups = await _unitOfWork.Repository<DeliveryGroup>()
+            .FindAsync(g => g.DeliveryStaffId == deliveryStaffId);
+
+        var filtered = allGroups.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            filtered = filtered.Where(g => g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+        }
+        else if (actionableOnly)
+        {
+            filtered = filtered.Where(g => g.Status is DeliveryGroupState.Pending or DeliveryGroupState.Assigned or DeliveryGroupState.InTransit);
+        }
+
+        if (deliveryDate.HasValue)
+        {
+            var targetDate = deliveryDate.Value.Date;
+            filtered = filtered.Where(g => g.DeliveryDate.Date == targetDate);
+        }
+
+        var result = new List<DeliveryGroupSummaryDto>();
+        foreach (var group in filtered)
+        {
+            var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
+                .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == group.TimeSlotId);
+
+            var (totalOrders, completedCount) = await GetGroupOrderProgressCountsAsync(group.DeliveryGroupId);
+
+            var slotStartAtUtc = GetSlotDateTimeUtc(group.DeliveryDate, timeSlot?.StartTime);
+            var slotEndAtUtc = GetSlotDateTimeUtc(group.DeliveryDate, timeSlot?.EndTime);
+
+            var distanceKm = ComputeDistanceFromCurrent(
+                currentLatitude,
+                currentLongitude,
+                group.CenterLatitude,
+                group.CenterLongitude);
+
+            var (priorityScore, priorityReasons) = ComputePriority(
+                group.Status,
+                totalOrders,
+                completedCount,
+                slotEndAtUtc,
+                distanceKm);
+
+            result.Add(new DeliveryGroupSummaryDto
+            {
+                DeliveryGroupId = group.DeliveryGroupId,
+                GroupCode = group.GroupCode,
+                TimeSlotDisplay = timeSlot != null
+                    ? $"{timeSlot.StartTime:hh\\:mm} - {timeSlot.EndTime:hh\\:mm}"
+                    : "N/A",
+                DeliveryType = group.DeliveryType,
+                DeliveryArea = group.DeliveryArea,
+                CenterLatitude = group.CenterLatitude,
+                CenterLongitude = group.CenterLongitude,
+                Status = group.Status.ToString(),
+                TotalOrders = totalOrders,
+                CompletedOrders = completedCount,
+                DeliveryDate = group.DeliveryDate,
+                SlotStartAtUtc = slotStartAtUtc,
+                SlotEndAtUtc = slotEndAtUtc,
+                DistanceFromCurrentKm = distanceKm,
+                PriorityScore = priorityScore,
+                PriorityReasons = priorityReasons
+            });
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<DeliveryGroupSummaryDto> ApplyGroupSorting(
+        IEnumerable<DeliveryGroupSummaryDto> summaries,
+        string? sortBy)
+    {
+        var normalized = NormalizeGroupSortBy(sortBy);
+        return normalized switch
+        {
+            "timeFirst" => summaries
+                .OrderBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
+                .ThenByDescending(s => s.PriorityScore ?? 0)
+                .ThenBy(s => s.GroupCode),
+            "distanceFirst" => summaries
+                .OrderBy(s => s.DistanceFromCurrentKm ?? double.MaxValue)
+                .ThenBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
+                .ThenByDescending(s => s.PriorityScore ?? 0)
+                .ThenBy(s => s.GroupCode),
+            _ => summaries
+                .OrderByDescending(s => s.PriorityScore ?? 0)
+                .ThenBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
+                .ThenBy(s => s.GroupCode)
+        };
+    }
+
+    private static string NormalizeGroupSortBy(string? sortBy)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy))
+            return "balanced";
+
+        var normalized = sortBy.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "timefirst" or "time_first" or "time-first" => "timeFirst",
+            "distancefirst" or "distance_first" or "distance-first" => "distanceFirst",
+            _ => "balanced"
+        };
+    }
+
+    private static DateTime? GetSlotDateTimeUtc(DateTime deliveryDate, TimeSpan? slotTime)
+    {
+        if (slotTime == null)
+            return null;
+
+        var date = deliveryDate.Date;
+        var slotDateTime = new DateTime(
+            date.Year,
+            date.Month,
+            date.Day,
+            slotTime.Value.Hours,
+            slotTime.Value.Minutes,
+            slotTime.Value.Seconds,
+            DateTimeKind.Utc);
+        return slotDateTime;
+    }
+
+    private static double? ComputeDistanceFromCurrent(
+        double? currentLatitude,
+        double? currentLongitude,
+        decimal? groupLatitude,
+        decimal? groupLongitude)
+    {
+        if (!currentLatitude.HasValue || !currentLongitude.HasValue)
+            return null;
+        if (!groupLatitude.HasValue || !groupLongitude.HasValue)
+            return null;
+
+        return Math.Round(
+            HaversineDistanceKm(
+                currentLatitude.Value,
+                currentLongitude.Value,
+                (double)groupLatitude.Value,
+                (double)groupLongitude.Value),
+            2);
+    }
+
+    private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthRadiusKm = 6371d;
+        var dLat = DegreeToRadian(lat2 - lat1);
+        var dLon = DegreeToRadian(lon2 - lon1);
+
+        var a = Math.Pow(Math.Sin(dLat / 2), 2)
+                + Math.Cos(DegreeToRadian(lat1))
+                * Math.Cos(DegreeToRadian(lat2))
+                * Math.Pow(Math.Sin(dLon / 2), 2);
+
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        return earthRadiusKm * c;
+    }
+
+    private static double DegreeToRadian(double degree) => degree * Math.PI / 180d;
+
+    private static (decimal Score, IReadOnlyList<string> Reasons) ComputePriority(
+        DeliveryGroupState status,
+        int totalOrders,
+        int completedOrders,
+        DateTime? slotEndAtUtc,
+        double? distanceKm)
+    {
+        var score = 0m;
+        var reasons = new List<string>();
+
+        var statusWeight = status switch
+        {
+            DeliveryGroupState.InTransit => 120m,
+            DeliveryGroupState.Assigned => 95m,
+            DeliveryGroupState.Pending => 75m,
+            DeliveryGroupState.Completed => 15m,
+            DeliveryGroupState.Failed => 5m,
+            _ => 0m
+        };
+        score += statusWeight;
+        reasons.Add($"status:{status}");
+
+        if (slotEndAtUtc.HasValue)
+        {
+            var remainingMinutes = (slotEndAtUtc.Value - DateTime.UtcNow).TotalMinutes;
+            if (remainingMinutes < 0)
+            {
+                score += 60m;
+                reasons.Add("time:overdue");
+            }
+            else if (remainingMinutes <= 60)
+            {
+                score += 50m;
+                reasons.Add("time:<=60m");
+            }
+            else if (remainingMinutes <= 180)
+            {
+                score += 30m;
+                reasons.Add("time:<=180m");
+            }
+            else
+            {
+                score += 10m;
+                reasons.Add("time:later");
+            }
+        }
+
+        if (distanceKm.HasValue)
+        {
+            if (distanceKm.Value <= 2)
+            {
+                score += 30m;
+                reasons.Add("distance:<=2km");
+            }
+            else if (distanceKm.Value <= 5)
+            {
+                score += 20m;
+                reasons.Add("distance:<=5km");
+            }
+            else if (distanceKm.Value <= 10)
+            {
+                score += 10m;
+                reasons.Add("distance:<=10km");
+            }
+            else
+            {
+                score += 3m;
+                reasons.Add("distance:>10km");
+            }
+        }
+
+        var pendingOrders = Math.Max(0, totalOrders - completedOrders);
+        if (pendingOrders > 0)
+        {
+            var pendingWeight = Math.Min(25, pendingOrders * 2);
+            score += pendingWeight;
+            reasons.Add($"pendingOrders:{pendingOrders}");
+        }
+
+        return (Math.Round(score, 2), reasons);
     }
 
     private static bool IsTerminalRouteOrderState(OrderState status) =>

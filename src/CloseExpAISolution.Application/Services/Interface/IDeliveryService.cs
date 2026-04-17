@@ -17,6 +17,19 @@ public interface IDeliveryService
         DateTime? deliveryDate = null,
         int pageNumber = 1,
         int pageSize = 20,
+        string? sortBy = null,
+        double? currentLatitude = null,
+        double? currentLongitude = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<DeliveryGroupSummaryDto>> GetMyDeliveryWorkQueueAsync(
+        Guid deliveryStaffId,
+        string? status = null,
+        DateTime? deliveryDate = null,
+        int limit = 10,
+        string? sortBy = null,
+        double? currentLatitude = null,
+        double? currentLongitude = null,
         CancellationToken cancellationToken = default);
 
     Task<DeliveryGroupResponseDto?> GetDeliveryGroupDetailAsync(

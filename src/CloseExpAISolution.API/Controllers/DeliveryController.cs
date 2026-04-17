@@ -296,10 +296,7 @@ public class DeliveryController : ControllerBase
     [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("groups/my")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>>> GetMyGroups(
-        [FromQuery] string? status = null,
-        [FromQuery] DateTime? deliveryDate = null,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] MyDeliveryGroupsQueryDto query)
     {
         try
         {
@@ -309,10 +306,17 @@ public class DeliveryController : ControllerBase
                     "Không thể xác định người dùng"));
             }
 
-            (pageNumber, pageSize) = NormalizePaging(pageNumber, pageSize);
+            var (pageNumber, pageSize) = NormalizePaging(query.PageNumber, query.PageSize);
 
             var (items, totalCount) = await _services.DeliveryService.GetMyDeliveryGroupsAsync(
-                staffId, status, deliveryDate, pageNumber, pageSize);
+                staffId,
+                query.Status,
+                query.DeliveryDate,
+                pageNumber,
+                pageSize,
+                query.SortBy,
+                query.CurrentLatitude,
+                query.CurrentLongitude);
 
             var result = new PaginatedResult<DeliveryGroupSummaryDto>
             {
@@ -332,6 +336,45 @@ public class DeliveryController : ControllerBase
         {
             return StatusCode(500, ApiResponse<PaginatedResult<DeliveryGroupSummaryDto>>.ErrorResponse(
                 "Lỗi khi lấy danh sách nhóm giao hàng."));
+        }
+    }
+
+    [Authorize(Roles = "DeliveryStaff")]
+    [HttpGet("groups/my/work-queue")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>>> GetMyWorkQueue(
+        [FromQuery] DeliveryWorkQueueQueryDto query)
+    {
+        try
+        {
+            if (!TryGetCurrentUserId(out var staffId))
+            {
+                return Unauthorized(ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.ErrorResponse(
+                    "Không thể xác định người dùng"));
+            }
+
+            var limit = query.Limit;
+            if (limit < 1) limit = 1;
+            if (limit > 50) limit = 50;
+
+            var items = await _services.DeliveryService.GetMyDeliveryWorkQueueAsync(
+                staffId,
+                query.Status,
+                query.DeliveryDate,
+                limit,
+                query.SortBy,
+                query.CurrentLatitude,
+                query.CurrentLongitude);
+
+            return Ok(ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.SuccessResponse(items));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<IEnumerable<DeliveryGroupSummaryDto>>.ErrorResponse(
+                "Lỗi khi lấy danh sách ưu tiên giao hàng."));
         }
     }
 

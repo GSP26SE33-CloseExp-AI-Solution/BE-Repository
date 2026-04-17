@@ -51,3 +51,34 @@ public class MoveOrderItemsToDraftGroupRequestDto
     /// </summary>
     public Guid? DeliveryGroupId { get; set; }
 }
+
+public class MyDeliveryGroupsQueryDto
+{
+    public string? Status { get; set; }
+    public DateTime? DeliveryDate { get; set; }
+    public int PageNumber { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+
+    /// <summary>
+    /// supported: balanced, timeFirst, distanceFirst
+    /// </summary>
+    public string? SortBy { get; set; }
+
+    public double? CurrentLatitude { get; set; }
+    public double? CurrentLongitude { get; set; }
+}
+
+public class DeliveryWorkQueueQueryDto
+{
+    public string? Status { get; set; }
+    public DateTime? DeliveryDate { get; set; }
+    public int Limit { get; set; } = 10;
+
+    /// <summary>
+    /// supported: balanced, timeFirst, distanceFirst
+    /// </summary>
+    public string? SortBy { get; set; }
+
+    public double? CurrentLatitude { get; set; }
+    public double? CurrentLongitude { get; set; }
+}
