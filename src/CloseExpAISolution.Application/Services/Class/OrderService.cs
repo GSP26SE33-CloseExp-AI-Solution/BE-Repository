@@ -1,4 +1,5 @@
 using AutoMapper;
+using CloseExpAISolution.Application;
 using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
@@ -9,6 +10,7 @@ using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -196,6 +198,7 @@ public class OrderService : IOrderService
             DiscountAmount = request.DiscountAmount,
             FinalAmount = request.FinalAmount,
             DeliveryFee = request.DeliveryFee,
+            SystemUsageFeeAmount = 0m,
             Status = Enum.Parse<OrderState>(request.Status),
             OrderDate = DateTime.UtcNow,
             AddressId = request.AddressId,
@@ -223,8 +226,14 @@ public class OrderService : IOrderService
 
             order.PromotionId = validation.PromotionId.Value;
             order.DiscountAmount = validation.DiscountAmount;
-            order.FinalAmount = validation.FinalAmount;
         }
+
+        order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+        order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+            order.TotalAmount,
+            order.DiscountAmount,
+            order.DeliveryFee,
+            order.SystemUsageFeeAmount);
 
         foreach (var item in request.OrderItems)
         {
@@ -301,7 +310,6 @@ public class OrderService : IOrderService
 
             order.PromotionId = validation.PromotionId.Value;
             order.DiscountAmount = validation.DiscountAmount;
-            order.FinalAmount = validation.FinalAmount;
         }
 
         OrderDeliveryLocationValidator.ValidateOrThrow(order.DeliveryType, order.CollectionId, order.AddressId);
@@ -322,6 +330,26 @@ public class OrderService : IOrderService
                     TotalPrice = totalPrice
                 });
             }
+        }
+
+        if (request.PromotionId.HasValue)
+        {
+            order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+            order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+                order.TotalAmount,
+                order.DiscountAmount,
+                order.DeliveryFee,
+                order.SystemUsageFeeAmount);
+        }
+        else if (!request.FinalAmount.HasValue &&
+                 (request.TotalAmount.HasValue || request.DeliveryFee.HasValue || request.DiscountAmount.HasValue))
+        {
+            order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+            order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+                order.TotalAmount,
+                order.DiscountAmount,
+                order.DeliveryFee,
+                order.SystemUsageFeeAmount);
         }
 
         order.UpdatedAt = DateTime.UtcNow;
@@ -420,7 +448,7 @@ public class OrderService : IOrderService
             DeliveryType = request.DeliveryType,
             TotalAmount = totalAmount,
             DiscountAmount = 0m,
-            FinalAmount = totalAmount + request.DeliveryFee,
+            FinalAmount = 0m,
             DeliveryFee = request.DeliveryFee,
             Status = OrderState.Pending.ToString(),
             AddressId = request.AddressId,
@@ -464,7 +492,12 @@ public class OrderService : IOrderService
 
         order.PromotionId = validation.PromotionId.Value;
         order.DiscountAmount = validation.DiscountAmount;
-        order.FinalAmount = validation.FinalAmount;
+        order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+        order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+            order.TotalAmount,
+            order.DiscountAmount,
+            order.DeliveryFee,
+            order.SystemUsageFeeAmount);
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -596,6 +629,27 @@ public class OrderService : IOrderService
                 $"SystemConfig '{SystemConfigKeys.OrderCancelWindowMinutesAfterPaid}' không hợp lệ. Giá trị phải là số nguyên dương.");
 
         return minutes;
+    }
+
+    private async Task<decimal> GetOrderSystemUsageFeeVndAsync(CancellationToken cancellationToken)
+    {
+        var config = await _unitOfWork.Repository<SystemConfig>()
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderSystemUsageFeeVnd);
+
+        if (config == null)
+            throw new InvalidOperationException(
+                $"Thiếu SystemConfig '{SystemConfigKeys.OrderSystemUsageFeeVnd}'. Vui lòng cấu hình phí sử dụng hệ thống (VND mỗi đơn).");
+
+        if (!decimal.TryParse(
+                config.ConfigValue,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var fee)
+            || fee < 0)
+            throw new InvalidOperationException(
+                $"SystemConfig '{SystemConfigKeys.OrderSystemUsageFeeVnd}' không hợp lệ. Giá trị phải là số không âm.");
+
+        return fee;
     }
 
     private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)

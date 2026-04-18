@@ -9,6 +9,7 @@ namespace CloseExpAISolution.Infrastructure.Data;
 public static class DataSeeder
 {
     private const string OrderCancelWindowMinutesAfterPaidValue = "30";
+    private const string OrderSystemUsageFeeVndValue = "5000";
 
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -123,10 +124,11 @@ public static class DataSeeder
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
     {
         var now = DateTime.UtcNow;
-        var existing = await context.SystemConfigs
+
+        var cancelWindow = await context.SystemConfigs
             .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderCancelWindowMinutesAfterPaid);
 
-        if (existing == null)
+        if (cancelWindow == null)
         {
             await context.SystemConfigs.AddAsync(new SystemConfig
             {
@@ -134,18 +136,34 @@ public static class DataSeeder
                 ConfigValue = OrderCancelWindowMinutesAfterPaidValue,
                 UpdatedAt = now
             });
-            await context.SaveChangesAsync();
-            return;
+        }
+        else if (!int.TryParse(cancelWindow.ConfigValue, out var minutes) || minutes <= 0)
+        {
+            cancelWindow.ConfigValue = OrderCancelWindowMinutesAfterPaidValue;
+            cancelWindow.UpdatedAt = now;
+            context.SystemConfigs.Update(cancelWindow);
         }
 
-        // Ensure key is always valid for runtime services that require SystemConfig
-        if (!int.TryParse(existing.ConfigValue, out var minutes) || minutes <= 0)
+        var usageFee = await context.SystemConfigs
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderSystemUsageFeeVnd);
+
+        if (usageFee == null)
         {
-            existing.ConfigValue = OrderCancelWindowMinutesAfterPaidValue;
-            existing.UpdatedAt = now;
-            context.SystemConfigs.Update(existing);
-            await context.SaveChangesAsync();
+            await context.SystemConfigs.AddAsync(new SystemConfig
+            {
+                ConfigKey = SystemConfigKeys.OrderSystemUsageFeeVnd,
+                ConfigValue = OrderSystemUsageFeeVndValue,
+                UpdatedAt = now
+            });
         }
+        else if (!decimal.TryParse(usageFee.ConfigValue, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var fee) || fee < 0)
+        {
+            usageFee.ConfigValue = OrderSystemUsageFeeVndValue;
+            usageFee.UpdatedAt = now;
+            context.SystemConfigs.Update(usageFee);
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedRolesAsync(ApplicationDbContext context)
@@ -1517,6 +1535,7 @@ public static class DataSeeder
             DiscountAmount = 12000,
             FinalAmount = 168000,
             DeliveryFee = 0,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.Paid,
             OrderDate = now.AddHours(-3),
             DeliveryNote = "Ưu tiên đóng gói gọn",
@@ -1537,6 +1556,7 @@ public static class DataSeeder
             DiscountAmount = 15000,
             FinalAmount = 205000,
             DeliveryFee = 10000,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.Paid,
             OrderDate = now.AddHours(-2),
             DeliveryNote = "Giao trước 16h",
@@ -1557,6 +1577,7 @@ public static class DataSeeder
             DiscountAmount = 5000,
             FinalAmount = 135000,
             DeliveryFee = 0,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.ReadyToShip,
             OrderDate = now.AddHours(-5),
             DeliveryNote = "Đã đóng gói",
@@ -1683,6 +1704,7 @@ public static class DataSeeder
                 DiscountAmount = 0,
                 FinalAmount = orderTotal,
                 DeliveryFee = isPickup ? 0 : 10000,
+                SystemUsageFeeAmount = 0,
                 Status = OrderState.Paid,
                 OrderDate = now.AddMinutes(-(20 + i * 4)),
                 DeliveryNote = "Seed data for delivery-group generation test",
@@ -1747,6 +1769,7 @@ public static class DataSeeder
             DiscountAmount = 0,
             FinalAmount = 120000,
             DeliveryFee = 0,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.Pending,
             OrderDate = now.AddMinutes(-30),
             DeliveryNote = "Đơn seed cho vendor@gmail.com — chờ thanh toán",
