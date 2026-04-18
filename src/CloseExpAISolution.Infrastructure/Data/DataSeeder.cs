@@ -1654,33 +1654,58 @@ public static class DataSeeder
         };
 
         // Extra seed dataset for delivery-group generation tests.
-        // Generate uses OrderItems as input, so we seed multiple packaged-completed items.
+        // Use fixed plans (non-random) so test data is stable across runs.
         var generatedOrders = new List<Order>();
         var generatedItems = new List<OrderItem>();
         var generatedPackagingRecords = new List<OrderPackaging>();
 
-        for (var i = 0; i < 12; i++)
+        var isPickupPlan = new[]
         {
-            var isPickup = i % 2 == 0;
+            true, false, true, false, true, false,
+            true, false, true, false, true, false
+        };
+
+        var useAfternoonSlotPlan = new[]
+        {
+            false, true, false, true, false, true,
+            false, true, false, true, false, true
+        };
+
+        var itemPlans = new (int LotIndex, short Quantity, decimal UnitPrice)[][]
+        {
+            new[] { (0, (short)1, 45000m), (1, (short)2, 50000m), (2, (short)1, 55000m), (3, (short)1, 60000m) },
+            new[] { (2, (short)2, 55000m) },
+            new[] { (3, (short)1, 60000m), (0, (short)1, 45000m), (2, (short)1, 55000m), (1, (short)1, 50000m), (0, (short)1, 45000m) },
+            new[] { (1, (short)2, 50000m), (3, (short)1, 60000m) },
+            new[] { (0, (short)3, 45000m), (2, (short)1, 55000m), (1, (short)1, 50000m) },
+            new[] { (2, (short)1, 55000m), (1, (short)1, 50000m), (3, (short)1, 60000m), (0, (short)2, 45000m) },
+            new[] { (3, (short)2, 60000m), (0, (short)1, 45000m) },
+            new[] { (1, (short)1, 50000m) },
+            new[] { (2, (short)2, 55000m), (0, (short)1, 45000m), (1, (short)1, 50000m), (3, (short)1, 60000m), (1, (short)1, 50000m) },
+            new[] { (3, (short)1, 60000m), (2, (short)1, 55000m) },
+            new[] { (0, (short)2, 45000m), (2, (short)1, 55000m), (3, (short)1, 60000m), (1, (short)1, 50000m) },
+            new[] { (1, (short)1, 50000m), (2, (short)1, 55000m), (3, (short)1, 60000m), (0, (short)1, 45000m), (2, (short)1, 55000m) }
+        };
+
+        for (var i = 0; i < itemPlans.Length; i++)
+        {
+            var isPickup = isPickupPlan[i];
             var orderId = Guid.NewGuid();
-            var itemCount = 1 + (i % 3);
             var orderItemsForCurrentOrder = new List<OrderItem>();
             decimal orderTotal = 0;
 
-            for (var j = 0; j < itemCount; j++)
+            foreach (var itemPlan in itemPlans[i])
             {
-                var lot = activeLots[(i + j) % activeLots.Count];
-                var quantity = (short)(1 + ((i + j) % 3));
-                var unitPrice = 45000m + ((i + j) % 4) * 5000m;
-                var itemTotal = quantity * unitPrice;
+                var lot = activeLots[itemPlan.LotIndex];
+                var itemTotal = itemPlan.Quantity * itemPlan.UnitPrice;
 
                 orderItemsForCurrentOrder.Add(new OrderItem
                 {
                     OrderItemId = Guid.NewGuid(),
                     OrderId = orderId,
                     LotId = lot.LotId,
-                    Quantity = quantity,
-                    UnitPrice = unitPrice,
+                    Quantity = itemPlan.Quantity,
+                    UnitPrice = itemPlan.UnitPrice,
                     TotalPrice = itemTotal,
                     PackagingStatus = PackagingState.Completed,
                     PackagedAt = now.AddMinutes(-(10 + i * 3))
@@ -1694,7 +1719,7 @@ public static class DataSeeder
                 OrderId = orderId,
                 OrderCode = $"PKG-GRP-{(i + 1).ToString("D3")}",
                 UserId = isPickup ? VendorUserId1 : VendorUserId2,
-                TimeSlotId = i % 3 == 0 ? TimeSlotAfternoonId : TimeSlotMorningId,
+                TimeSlotId = useAfternoonSlotPlan[i] ? TimeSlotAfternoonId : TimeSlotMorningId,
                 CollectionId = isPickup ? CollectionPointDistrict1Id : null,
                 AddressId = isPickup ? null : CustomerAddressVendor2Id,
                 DeliveryType = isPickup ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
