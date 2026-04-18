@@ -52,6 +52,15 @@ namespace CloseExpAISolution.Application.Email.Extensions
                     .WithSimpleSchedule(x => x
                         .WithIntervalInSeconds(15)
                         .RepeatForever()));
+
+                var autoConfirmDeliveredOrdersJobKey = new JobKey("AutoConfirmDeliveredOrdersJob");
+                q.AddJob<AutoConfirmDeliveredOrdersJob>(opts => opts.WithIdentity(autoConfirmDeliveredOrdersJobKey));
+                q.AddTrigger(opts => opts
+                    .ForJob(autoConfirmDeliveredOrdersJobKey)
+                    .WithIdentity("AutoConfirmDeliveredOrdersJob-trigger")
+                    .WithSimpleSchedule(x => x
+                        .WithIntervalInMinutes(15)
+                        .RepeatForever()));
             });
             services.AddQuartzHostedService(options =>
             {

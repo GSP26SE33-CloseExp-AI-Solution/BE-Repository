@@ -9,6 +9,7 @@ namespace CloseExpAISolution.Infrastructure.Data;
 public static class DataSeeder
 {
     private const string OrderCancelWindowMinutesAfterPaidValue = "30";
+    private const string OrderAutoConfirmDaysAfterDeliveredValue = "3";
 
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -123,25 +124,43 @@ public static class DataSeeder
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
     {
         var now = DateTime.UtcNow;
+        await EnsurePositiveIntSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderCancelWindowMinutesAfterPaid,
+            OrderCancelWindowMinutesAfterPaidValue,
+            now);
+
+        await EnsurePositiveIntSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered,
+            OrderAutoConfirmDaysAfterDeliveredValue,
+            now);
+    }
+
+    private static async Task EnsurePositiveIntSystemConfigAsync(
+        ApplicationDbContext context,
+        string configKey,
+        string defaultValue,
+        DateTime now)
+    {
         var existing = await context.SystemConfigs
-            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderCancelWindowMinutesAfterPaid);
+            .FirstOrDefaultAsync(x => x.ConfigKey == configKey);
 
         if (existing == null)
         {
             await context.SystemConfigs.AddAsync(new SystemConfig
             {
-                ConfigKey = SystemConfigKeys.OrderCancelWindowMinutesAfterPaid,
-                ConfigValue = OrderCancelWindowMinutesAfterPaidValue,
+                ConfigKey = configKey,
+                ConfigValue = defaultValue,
                 UpdatedAt = now
             });
             await context.SaveChangesAsync();
             return;
         }
 
-        // Ensure key is always valid for runtime services that require SystemConfig
-        if (!int.TryParse(existing.ConfigValue, out var minutes) || minutes <= 0)
+        if (!int.TryParse(existing.ConfigValue, out var value) || value <= 0)
         {
-            existing.ConfigValue = OrderCancelWindowMinutesAfterPaidValue;
+            existing.ConfigValue = defaultValue;
             existing.UpdatedAt = now;
             context.SystemConfigs.Update(existing);
             await context.SaveChangesAsync();

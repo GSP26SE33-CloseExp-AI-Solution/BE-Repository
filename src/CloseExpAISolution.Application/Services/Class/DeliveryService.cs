@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Services.Routing;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -670,6 +671,113 @@ public class DeliveryService : IDeliveryService
         }
 
         return await MapToDeliveryOrderResponseAsync(order);
+    }
+
+    public async Task<int> AutoConfirmDeliveredOrdersAsync(CancellationToken cancellationToken = default)
+    {
+        var waitingDays = await GetOrderAutoConfirmDaysAfterDeliveredAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        var cutoffUtc = now.AddDays(-waitingDays);
+
+        var candidateOrders = (await _unitOfWork.Repository<Order>()
+                .FindAsync(o => o.Status == OrderState.DeliveredWaitConfirm))
+            .ToList();
+
+        var affectedOrders = 0;
+
+        foreach (var order in candidateOrders)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var orderItems = (await _unitOfWork.Repository<OrderItem>()
+                    .FindAsync(oi => oi.OrderId == order.OrderId))
+                .ToList();
+
+            var waitingItems = orderItems
+                .Where(i => i.DeliveryStatus == DeliveryState.DeliveredWaitConfirm)
+                .ToList();
+
+            if (waitingItems.Count == 0)
+                continue;
+
+            // Partial-safe: only transition when every waiting line passed timeout.
+            var eligible = waitingItems.All(i => i.DeliveredAt.HasValue && i.DeliveredAt.Value <= cutoffUtc);
+            if (!eligible)
+                continue;
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                foreach (var item in waitingItems)
+                {
+                    item.DeliveryStatus = DeliveryState.Completed;
+                    item.DeliveredAt ??= now;
+                    _unitOfWork.Repository<OrderItem>().Update(item);
+                }
+
+                OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
+                OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
+                order.UpdatedAt = now;
+
+                var autoNote = $"Tự động xác nhận hoàn tất sau {waitingDays} ngày kể từ lúc giao.";
+                order.DeliveryNote = string.IsNullOrWhiteSpace(order.DeliveryNote)
+                    ? autoNote
+                    : $"{order.DeliveryNote} | {autoNote}";
+                _unitOfWork.Repository<Order>().Update(order);
+
+                var deliveryLogs = (await _unitOfWork.Repository<DeliveryLog>()
+                        .FindAsync(l => l.OrderId == order.OrderId && l.Status == DeliveryState.DeliveredWaitConfirm))
+                    .ToList();
+                foreach (var log in deliveryLogs)
+                {
+                    log.Status = DeliveryState.Completed;
+                    log.DeliveredAt ??= now;
+                    _unitOfWork.Repository<DeliveryLog>().Update(log);
+                }
+
+                await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                    order.OrderId,
+                    order.UserId,
+                    order.OrderCode,
+                    DeliveryState.Completed,
+                    cancellationToken: cancellationToken);
+
+                var staffIds = new HashSet<Guid>();
+                foreach (var deliveryGroupId in orderItems.Where(i => i.DeliveryGroupId.HasValue)
+                             .Select(i => i.DeliveryGroupId!.Value)
+                             .Distinct())
+                {
+                    var deliveryGroup = await _unitOfWork.Repository<DeliveryGroup>()
+                        .FirstOrDefaultAsync(g => g.DeliveryGroupId == deliveryGroupId);
+                    if (deliveryGroup?.DeliveryStaffId is { } staffId)
+                        staffIds.Add(staffId);
+                }
+
+                foreach (var staffId in staffIds)
+                {
+                    await _unitOfWork.Repository<Notification>().AddAsync(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        UserId = staffId,
+                        Title = "Đơn được tự động xác nhận",
+                        Content = $"Đơn {order.OrderCode} đã được tự động xác nhận hoàn tất do quá hạn chờ khách xác nhận.",
+                        Type = NotificationType.OrderUpdate,
+                        IsRead = false,
+                        CreatedAt = now
+                    });
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+                affectedOrders++;
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+
+        return affectedOrders;
     }
 
     public async Task<(IEnumerable<DeliveryRecordResponseDto> Items, int TotalCount)> GetDeliveryHistoryAsync(
@@ -1488,6 +1596,23 @@ public class DeliveryService : IDeliveryService
 
         return (orderIds.Count, completed);
     }
+
+    private async Task<int> GetOrderAutoConfirmDaysAfterDeliveredAsync(CancellationToken cancellationToken)
+    {
+        var config = await _unitOfWork.Repository<SystemConfig>()
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered);
+
+        if (config == null)
+            throw new InvalidOperationException(
+                $"Thiếu SystemConfig '{SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered}'. Vui lòng cấu hình số ngày tự động xác nhận sau khi giao.");
+
+        if (!int.TryParse(config.ConfigValue, out var days) || days <= 0)
+            throw new InvalidOperationException(
+                $"SystemConfig '{SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered}' không hợp lệ. Giá trị phải là số nguyên dương.");
+
+        return days;
+    }
+
     /// <summary>
     /// Tìm nhóm giao hàng được gán cho <paramref name="deliveryStaffId"/> bao phủ đơn hàng này
     /// (thông qua <see cref="OrderItem.DeliveryGroupId"/> hoặc <see cref="Order.DeliveryGroupId"/> cũ).

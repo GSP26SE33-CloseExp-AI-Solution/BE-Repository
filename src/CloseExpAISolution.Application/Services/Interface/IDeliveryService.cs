@@ -106,4 +106,10 @@ public interface IDeliveryService
         Guid deliveryStaffId,
         DeliveryRoutePlanRequestDto request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Auto-confirm lines in DeliveredWaitConfirm after configured waiting days,
+    /// then recompute order status from all lines.
+    /// </summary>
+    Task<int> AutoConfirmDeliveredOrdersAsync(CancellationToken cancellationToken = default);
 }
