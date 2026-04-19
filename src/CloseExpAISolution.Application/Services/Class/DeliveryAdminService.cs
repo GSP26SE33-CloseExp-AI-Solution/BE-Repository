@@ -257,7 +257,7 @@ public class DeliveryAdminService : IDeliveryAdminService
                 continue;
             if (oi.DeliveryGroupId.HasValue)
                 continue;
-            if (oi.DeliveryStatus is DeliveryState.Failed or DeliveryState.Completed)
+            if (!IsDraftEligibleDeliveryStatus(oi.DeliveryStatus))
                 continue;
 
             if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip))
@@ -449,6 +449,28 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (group.Status != DeliveryGroupState.Draft)
             throw new InvalidOperationException("Chỉ có thể xác nhận nhóm ở trạng thái Draft.");
 
+        var scopedItems = (await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(i => i.DeliveryGroupId == deliveryGroupId))
+            .ToList();
+
+        if (scopedItems.Count == 0)
+            throw new InvalidOperationException("Nhóm Draft không có dòng hàng để xác nhận. Vui lòng tạo lại nhóm Draft.");
+
+        var staleItems = scopedItems
+            .Where(i => i.PackagingStatus != PackagingState.Completed || !IsDraftEligibleDeliveryStatus(i.DeliveryStatus))
+            .ToList();
+
+        if (staleItems.Count > 0)
+        {
+            _logger.LogWarning(
+                "ConfirmDraftGroup blocked because draft group {GroupId} contains {StaleItemCount} stale items.",
+                deliveryGroupId,
+                staleItems.Count);
+
+            throw new InvalidOperationException(
+                "Nhóm Draft đã có dòng hàng không còn hợp lệ (đang giao/đã giao/đã hoàn tất hoặc đóng gói chưa hoàn tất). Vui lòng tạo lại nhóm Draft mới.");
+        }
+
         group.Status = DeliveryGroupState.Confirmed;
         group.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
@@ -523,6 +545,10 @@ public class DeliveryAdminService : IDeliveryAdminService
         {
             if (!ordersById.TryGetValue(item.OrderId, out var order))
                 throw new InvalidOperationException($"Không tìm thấy đơn {item.OrderId} của dòng {item.OrderItemId}.");
+
+            if (targetId.HasValue && !IsDraftEligibleDeliveryStatus(item.DeliveryStatus))
+                throw new InvalidOperationException(
+                    $"Không thể chuyển orderItem {item.OrderItemId}: trạng thái giao hiện tại là {item.DeliveryStatus?.ToString() ?? "N/A"}, chỉ nhận dòng ReadyToShip.");
 
             if (item.DeliveryGroupId.HasValue)
             {
@@ -740,6 +766,11 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 100) pageSize = 100;
         return (pageNumber, pageSize);
+    }
+
+    private static bool IsDraftEligibleDeliveryStatus(DeliveryState? status)
+    {
+        return status is null or DeliveryState.ReadyToShip;
     }
 
     private static double CalculateHaversineKm(double lat1, double lon1, double lat2, double lon2)

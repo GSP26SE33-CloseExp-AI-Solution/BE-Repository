@@ -980,6 +980,13 @@ public class DeliveryService : IDeliveryService
                      .FindAsync(x => x.DeliveryGroupId == deliveryGroupId))
             orderIdSet.Add(o.OrderId);
 
+        var scopedGroupItems = (await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(i => i.DeliveryGroupId == deliveryGroupId))
+            .ToList();
+        var scopedItemsByOrderId = scopedGroupItems
+            .GroupBy(i => i.OrderId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var orders = new List<Order>();
         foreach (var oid in orderIdSet)
         {
@@ -990,12 +997,23 @@ public class DeliveryService : IDeliveryService
 
         orders = orders.OrderBy(o => o.OrderCode).ToList();
 
-        var skipped = new List<Guid>();
+        var skipped = new List<Guid>(); 
         var stops = new List<(Guid OrderId, double Lat, double Lng)>();
         foreach (var order in orders)
         {
-            if (IsTerminalRouteOrderState(order.Status))
+            if (scopedItemsByOrderId.TryGetValue(order.OrderId, out var scopedItems)
+                && scopedItems.Count > 0)
+            {
+                var hasRoutableItems = HasRoutableItemsForRoute(scopedItems);
+
+                if (!hasRoutableItems)
+                    continue;
+            }
+            else if (IsTerminalRouteOrderState(order.Status))
+            {
+                // Backward compatibility: legacy groups that only use Order.DeliveryGroupId.
                 continue;
+            }
 
             var coord = await GetOrderDeliveryCoordinateAsync(order, cancellationToken);
             if (coord == null)
@@ -1342,6 +1360,15 @@ public class DeliveryService : IDeliveryService
             or OrderState.Failed
             or OrderState.Canceled
             or OrderState.Refunded;
+
+    internal static bool HasRoutableItemsForRoute(IReadOnlyCollection<OrderItem> items)
+    {
+        return items.Any(i =>
+            i.PackagingStatus == PackagingState.Completed
+            && i.DeliveryStatus is not (DeliveryState.Completed
+                or DeliveryState.Failed
+                or DeliveryState.DeliveredWaitConfirm));
+    }
 
     private static string NormalizeRouteMetric(string? metric)
     {
