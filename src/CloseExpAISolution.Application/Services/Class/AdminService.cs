@@ -531,6 +531,7 @@ public class AdminService : IAdminService
             DiscountAmount = o.DiscountAmount,
             FinalAmount = o.FinalAmount,
             DeliveryFee = o.DeliveryFee,
+            SystemUsageFeeAmount = o.SystemUsageFeeAmount,
             UserId = o.UserId,
             UserName = o.User?.FullName,
             TimeSlotId = o.TimeSlotId,

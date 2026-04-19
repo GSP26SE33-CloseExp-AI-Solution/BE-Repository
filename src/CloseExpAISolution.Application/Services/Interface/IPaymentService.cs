@@ -5,7 +5,7 @@ namespace CloseExpAISolution.Application.Services.Interface;
 
 public interface IPaymentService
 {
-    Task<string> CreatePaymentLinkAsync(
+    Task<CreatePaymentLinkResponseDto> CreatePaymentLinkAsync(
         Guid userId,
         Guid orderId,
         string? returnUrl,

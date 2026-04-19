@@ -47,7 +47,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         });
     }
 
-    public async Task<string> CreatePaymentLinkAsync(
+    public async Task<CreatePaymentLinkResponseDto> CreatePaymentLinkAsync(
         Guid userId,
         Guid orderId,
         string? returnUrl,
@@ -109,7 +109,17 @@ public sealed class PaymentService : IPaymentService, IDisposable
             tx.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Transaction>().Update(tx);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return link.CheckoutUrl ?? string.Empty;
+            return new CreatePaymentLinkResponseDto
+            {
+                CheckoutUrl = link.CheckoutUrl ?? string.Empty,
+                OrderId = order.OrderId,
+                OrderCode = order.OrderCode,
+                TotalAmount = order.TotalAmount,
+                DiscountAmount = order.DiscountAmount,
+                DeliveryFee = order.DeliveryFee,
+                SystemUsageFeeAmount = order.SystemUsageFeeAmount,
+                FinalAmount = order.FinalAmount
+            };
         }
         catch (Exception ex)
         {
