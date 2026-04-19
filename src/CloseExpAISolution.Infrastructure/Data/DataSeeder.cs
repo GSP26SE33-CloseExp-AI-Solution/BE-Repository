@@ -136,6 +136,12 @@ public static class DataSeeder
             SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered,
             OrderAutoConfirmDaysAfterDeliveredValue,
             now);
+
+        await EnsureNonNegativeDecimalSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderSystemUsageFeeVnd,
+            OrderSystemUsageFeeVndValue,
+            now);
     }
 
     private static async Task EnsurePositiveIntSystemConfigAsync(
@@ -160,6 +166,41 @@ public static class DataSeeder
         }
 
         if (!int.TryParse(existing.ConfigValue, out var value) || value <= 0)
+        {
+            existing.ConfigValue = defaultValue;
+            existing.UpdatedAt = now;
+            context.SystemConfigs.Update(existing);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private static async Task EnsureNonNegativeDecimalSystemConfigAsync(
+        ApplicationDbContext context,
+        string configKey,
+        string defaultValue,
+        DateTime now)
+    {
+        var existing = await context.SystemConfigs
+            .FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+
+        if (existing == null)
+        {
+            await context.SystemConfigs.AddAsync(new SystemConfig
+            {
+                ConfigKey = configKey,
+                ConfigValue = defaultValue,
+                UpdatedAt = now
+            });
+            await context.SaveChangesAsync();
+            return;
+        }
+
+        if (!decimal.TryParse(
+                existing.ConfigValue,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var value)
+            || value < 0)
         {
             existing.ConfigValue = defaultValue;
             existing.UpdatedAt = now;
