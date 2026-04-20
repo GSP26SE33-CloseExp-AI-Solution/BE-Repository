@@ -151,7 +151,7 @@ public class StaleReadyToShipRefundProcessor : IStaleReadyToShipRefundProcessor
 
             var reason = StaleReadyToShipPolicy.BuildRefundReason(latestRtsLog.ChangedAt, maxWaitMinutes);
 
-            await _services.RefundService.CreateAsync(
+            var createdRefund = await _services.RefundService.CreateAsync(
                 new CreateRefundRequestDto
                 {
                     OrderId = orderId,
@@ -166,8 +166,11 @@ public class StaleReadyToShipRefundProcessor : IStaleReadyToShipRefundProcessor
             await _unitOfWork.CommitTransactionAsync();
 
             _logger.LogInformation(
-                "Auto-refunded stale ReadyToShip order {OrderId}. rtsAt={RtsAt}, maxWaitMinutes={N}, amount={Amount}",
-                orderId, latestRtsLog.ChangedAt, maxWaitMinutes, refundable);
+                "Auto-refunded stale ReadyToShip order {OrderId}. rtsAt={RtsAt}, maxWaitMinutes={N}, amount={Amount}, refundId={RefundId}",
+                orderId, latestRtsLog.ChangedAt, maxWaitMinutes, refundable, createdRefund.RefundId);
+
+            await TryEnqueuePendingRefundEmailAsync(createdRefund.RefundId, cancellationToken);
+
             return true;
         }
         catch
@@ -175,6 +178,41 @@ public class StaleReadyToShipRefundProcessor : IStaleReadyToShipRefundProcessor
             if (_unitOfWork.HasActiveTransaction)
                 await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+    }
+
+    private async Task TryEnqueuePendingRefundEmailAsync(Guid refundId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var existing = await _unitOfWork.Repository<RefundEmailOutbox>()
+                .FindAsync(o => o.RefundId == refundId
+                    && o.Kind == RefundNotificationKind.Pending
+                    && (o.Status == RefundEmailOutboxStatus.Pending
+                        || o.Status == RefundEmailOutboxStatus.Sent));
+            if (existing.Any())
+            {
+                _logger.LogDebug(
+                    "Pending refund email outbox already exists for refund {RefundId}; skipping enqueue.",
+                    refundId);
+                return;
+            }
+
+            await _services.RefundService.EnqueueRefundCustomerNotificationAsync(
+                refundId, RefundNotificationKind.Pending, cancellationToken);
+
+            _logger.LogInformation(
+                "Enqueued pending refund email for auto-refunded refund {RefundId}.", refundId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to enqueue pending refund email after auto-refund. refundId={RefundId}",
+                refundId);
         }
     }
 
