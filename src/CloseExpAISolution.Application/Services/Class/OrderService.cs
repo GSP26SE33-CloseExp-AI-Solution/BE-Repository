@@ -374,7 +374,7 @@ public class OrderService : IOrderService
     public async Task UpdateStatusAsync(
         Guid orderId,
         OrderState status,
-        string? cancellationReason,
+        string? statusNote,
         CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
@@ -387,7 +387,7 @@ public class OrderService : IOrderService
 
         if (status == OrderState.Canceled)
         {
-            if (string.IsNullOrWhiteSpace(cancellationReason))
+            if (string.IsNullOrWhiteSpace(statusNote))
                 throw new InvalidOperationException("Vui lòng nhập lý do hủy đơn hàng.");
 
             if (order.Status == OrderState.Pending)
@@ -417,11 +417,24 @@ public class OrderService : IOrderService
         if (status == OrderState.Canceled && oldStatus == OrderState.Paid)
             await RestoreStockForOrderAsync(orderId, now, cancellationToken);
 
+        // RTS -> Refunded: hoàn kho + detach khỏi DeliveryGroup (tương tự luồng hủy sau Paid).
+        if (status == OrderState.Refunded && oldStatus == OrderState.ReadyToShip)
+        {
+            await RestoreStockForOrderAsync(orderId, now, cancellationToken);
+            await DetachOrderFromDeliveryGroupIfNeededAsync(order, now, cancellationToken);
+        }
+
         order.Status = status;
         order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
-        var cancelNote = status == OrderState.Canceled ? cancellationReason!.Trim() : null;
-        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", cancelNote, cancellationToken);
+        var normalizedNote = string.IsNullOrWhiteSpace(statusNote) ? null : statusNote.Trim();
+        var logNote = status switch
+        {
+            OrderState.Canceled => normalizedNote,
+            OrderState.Refunded => normalizedNote,
+            _ => null
+        };
+        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", logNote, cancellationToken);
         await _orderNotificationPublisher.PublishOrderStatusChangedAsync(
             order.OrderId,
             order.UserId,
@@ -598,6 +611,25 @@ public class OrderService : IOrderService
         existing.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<DeliveryGroup>().Update(existing);
         order.DeliveryGroupId = existing.DeliveryGroupId;
+    }
+
+    private async Task DetachOrderFromDeliveryGroupIfNeededAsync(Order order, DateTime now, CancellationToken cancellationToken)
+    {
+        if (!order.DeliveryGroupId.HasValue)
+            return;
+
+        var groupId = order.DeliveryGroupId.Value;
+        var group = await _unitOfWork.Repository<DeliveryGroup>()
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == groupId);
+
+        if (group != null && group.TotalOrders > 0)
+        {
+            group.TotalOrders -= 1;
+            group.UpdatedAt = now;
+            _unitOfWork.Repository<DeliveryGroup>().Update(group);
+        }
+
+        order.DeliveryGroupId = null;
     }
 
     private async Task TryCreateStatusLogAsync(Guid orderId, OrderState from, OrderState to, string? changedBy, string? note, CancellationToken cancellationToken)
