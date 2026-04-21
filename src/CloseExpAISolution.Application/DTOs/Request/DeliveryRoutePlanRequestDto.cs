@@ -18,4 +18,11 @@ public class DeliveryRoutePlanRequestDto
     /// Mặc định <c>duration</c> để tối ưu trải nghiệm food-freshness cho Leg B.
     /// </summary>
     public string Metric { get; set; } = "duration";
+
+    /// <summary>
+    /// Khi shipper đã lấy hàng tại siêu thị, client set <c>true</c> để BE bỏ hẳn Leg A
+    /// (pickup). Response sẽ trả <c>PickupLeg = null</c> và tổng distance/duration chỉ tính
+    /// theo Leg B (siêu thị → khách).
+    /// </summary>
+    public bool SkipPickupLeg { get; set; }
 }

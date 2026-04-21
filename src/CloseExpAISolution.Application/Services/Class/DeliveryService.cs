@@ -1055,12 +1055,15 @@ public class DeliveryService : IDeliveryService
         var supermarketPoint = await ResolveSupermarketPointAsync(group, cancellationToken);
         var shipperPoint = ResolveShipperStartPoint(group, request, stops);
 
-        // Leg B (supermarket -> customers). Nếu thiếu toạ độ siêu thị, fallback dùng shipperPoint.
-        var legBStart = supermarketPoint ?? shipperPoint;
+        // Leg B (supermarket -> customers). Khi shipper đã bấm "Đã lấy hàng" (SkipPickupLeg),
+        // Leg B xuất phát từ chính vị trí shipper hiện tại, bỏ hoàn toàn siêu thị khỏi route.
+        // Nếu thiếu toạ độ siêu thị, cũng fallback dùng shipperPoint.
+        var useSupermarketAsLegBStart = supermarketPoint.HasValue && !request.SkipPickupLeg;
+        var legBStart = useSupermarketAsLegBStart ? supermarketPoint!.Value : shipperPoint;
         var legB = await _routingStrategy.PlanAsync(stops, legBStart, metric, cancellationToken);
 
         RouteLegDto? pickupLeg = null;
-        if (supermarketPoint.HasValue)
+        if (supermarketPoint.HasValue && !request.SkipPickupLeg)
         {
             pickupLeg = await BuildPickupLegAsync(shipperPoint, supermarketPoint.Value, cancellationToken);
         }
@@ -1077,7 +1080,7 @@ public class DeliveryService : IDeliveryService
             {
                 Latitude = legBStart.Lat,
                 Longitude = legBStart.Lng,
-                Label = supermarketPoint.HasValue ? "supermarket" : "shipper"
+                Label = useSupermarketAsLegBStart ? "supermarket" : "shipper"
             },
             To = stops.Count > 0
                 ? new RouteLegEndpointDto
@@ -1097,10 +1100,11 @@ public class DeliveryService : IDeliveryService
         var totalDurationMinutes = (pickupLeg?.DurationMinutes ?? 0d) + legB.DurationMinutes;
 
         _logger.LogInformation(
-            "Route-plan built: group={GroupId}, stops={StopCount}, pickupLeg={PickupLegUsed}, strategyB={StrategyB}, totalDistanceKm={TotalDistanceKm}, totalDurationMin={TotalDurationMin}",
+            "Route-plan built: group={GroupId}, stops={StopCount}, pickupLeg={PickupLegUsed}, skipPickup={SkipPickup}, strategyB={StrategyB}, totalDistanceKm={TotalDistanceKm}, totalDurationMin={TotalDurationMin}",
             deliveryGroupId,
             stops.Count,
             pickupLeg != null,
+            request.SkipPickupLeg,
             legB.StrategyUsed,
             Math.Round(totalDistanceKm, 3),
             Math.Round(totalDurationMinutes, 1));
