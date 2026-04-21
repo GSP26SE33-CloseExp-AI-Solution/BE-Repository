@@ -91,6 +91,26 @@ public static class DataSeeder
     private static readonly Guid RouteDemoLargeGroupId = Guid.Parse("eeee2003-0003-0003-0003-000000000003");
     private static readonly Guid RouteDemoOverLimitGroupId = Guid.Parse("eeee2004-0004-0004-0004-000000000004");
 
+    // 5 địa chỉ dense quanh Nguyễn Huệ (bán kính ~1.5 km) — generate-draft gom 1 nhóm.
+    private static readonly (Guid AddressId, decimal Lat, decimal Lng, string Line)[] ClusterDemoDenseAddresses =
+    {
+        (Guid.Parse("eeee4001-0001-0001-0001-000000000001"), 10.7765m, 106.7012m, "05 Nguyễn Huệ, Bến Nghé, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee4002-0002-0002-0002-000000000002"), 10.7780m, 106.7005m, "20 Đồng Khởi, Bến Nghé, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee4003-0003-0003-0003-000000000003"), 10.7755m, 106.6998m, "33 Lê Lợi, Bến Nghé, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee4004-0004-0004-0004-000000000004"), 10.7792m, 106.7020m, "48 Pasteur, Bến Nghé, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee4005-0005-0005-0005-000000000005"), 10.7750m, 106.7030m, "60 Hàm Nghi, Bến Thành, Quận 1, TP.HCM")
+    };
+
+    // 5 địa chỉ trải rộng ~4-5 km từ điểm neo → SLA guard tách nhóm.
+    private static readonly (Guid AddressId, decimal Lat, decimal Lng, string Line)[] ClusterDemoSlaAddresses =
+    {
+        (Guid.Parse("eeee4011-0001-0001-0001-000000000001"), 10.7760m, 106.7008m, "Anchor - 03 Nguyễn Huệ, Quận 1"),
+        (Guid.Parse("eeee4012-0002-0002-0002-000000000002"), 10.7790m, 106.7020m, "18 Pasteur, Quận 1"),
+        (Guid.Parse("eeee4013-0003-0003-0003-000000000003"), 10.8060m, 106.7180m, "Far-1 - 200 Xô Viết Nghệ Tĩnh, Bình Thạnh"),
+        (Guid.Parse("eeee4014-0004-0004-0004-000000000004"), 10.8120m, 106.6880m, "Far-2 - 144 Phan Đăng Lưu, Phú Nhuận"),
+        (Guid.Parse("eeee4015-0005-0005-0005-000000000005"), 10.7400m, 106.7200m, "Far-3 - 12 Nguyễn Văn Linh, Quận 7")
+    };
+
     /// <summary>
     /// 14 địa chỉ phủ Quận 1 / Quận 3 / Bình Thạnh (bán kính ≤ 4km quanh Nguyễn Huệ, 10.7769, 106.7009).
     /// Dùng chung cho 4 kịch bản demo Hybrid (Small=3, Medium=7, Large=11, Over=13).
@@ -155,6 +175,7 @@ public static class DataSeeder
         await SeedVendorUser3SampleOrderAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
         await SeedHybridRouteDemoDataAsync(context);
+        await SeedClusterDraftDemoDataAsync(context);
     }
 
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
@@ -2210,6 +2231,174 @@ public static class DataSeeder
                 UserId = VendorUserId1,
                 RecipientName = "Khách demo Hybrid route",
                 Phone = "0900000000",
+                AddressLine = a.Line,
+                Latitude = a.Lat,
+                Longitude = a.Lng,
+                IsDefault = false
+            })
+            .ToList();
+
+        if (toAdd.Count > 0)
+        {
+            await context.CustomerAddresses.AddRangeAsync(toAdd);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private static async Task SeedClusterDraftDemoDataAsync(ApplicationDbContext context)
+    {
+        // Sentinel: đã seed rồi thì bỏ qua.
+        var sentinelAddressId = ClusterDemoDenseAddresses[0].AddressId;
+        if (await context.CustomerAddresses.AnyAsync(a => a.CustomerAddressId == sentinelAddressId))
+            return;
+
+        await SeedClusterDemoAddressesAsync(context);
+
+        var activeLots = await context.StockLots
+            .Where(l => l.Status == ProductState.Published)
+            .OrderBy(l => l.ExpiryDate)
+            .Take(2)
+            .ToListAsync();
+
+        if (activeLots.Count == 0)
+            return;
+
+        var now = DateTime.UtcNow;
+        var deliveryDate = now.Date;
+
+        var ordersToAdd = new List<Order>();
+        var itemsToAdd = new List<OrderItem>();
+        var packagingToAdd = new List<OrderPackaging>();
+
+        // --- Scenario A: 5 đơn dense (bán kính ~1.5 km) → generate-draft gom 1 nhóm.
+        for (var i = 0; i < ClusterDemoDenseAddresses.Length; i++)
+        {
+            var addr = ClusterDemoDenseAddresses[i];
+            var lot = activeLots[i % activeLots.Count];
+            var orderId = Guid.NewGuid();
+
+            ordersToAdd.Add(new Order
+            {
+                OrderId = orderId,
+                OrderCode = $"DEMO-CLUSTER-DENSE-{(i + 1):D3}",
+                UserId = VendorUserId1,
+                TimeSlotId = TimeSlotMorningId,
+                CollectionId = null,
+                AddressId = addr.AddressId,
+                DeliveryType = DeliveryMethod.Delivery,
+                TotalAmount = 90_000,
+                DiscountAmount = 0,
+                FinalAmount = 90_000,
+                DeliveryFee = 10_000,
+                SystemUsageFeeAmount = 0,
+                Status = OrderState.Paid,
+                OrderDate = deliveryDate,
+                DeliveryGroupId = null,
+                DeliveryNote = "Seed demo cluster-dense (generate-draft sẽ gom vào 1 nhóm)",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            itemsToAdd.Add(new OrderItem
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = orderId,
+                LotId = lot.LotId,
+                Quantity = 1,
+                UnitPrice = 90_000,
+                TotalPrice = 90_000,
+                PackagingStatus = PackagingState.Completed,
+                DeliveryStatus = DeliveryState.ReadyToShip,
+                DeliveryGroupId = null,
+                PackagedAt = now.AddMinutes(-20)
+            });
+
+            packagingToAdd.Add(new OrderPackaging
+            {
+                PackagingId = Guid.NewGuid(),
+                OrderId = orderId,
+                UserId = StaffUserId1,
+                Status = PackagingState.Completed,
+                PackagedAt = now.AddMinutes(-20)
+            });
+        }
+
+        // --- Scenario B: 5 đơn trải rộng → SLA guard sẽ tách ra nhiều nhóm nhỏ hơn.
+        for (var i = 0; i < ClusterDemoSlaAddresses.Length; i++)
+        {
+            var addr = ClusterDemoSlaAddresses[i];
+            var lot = activeLots[i % activeLots.Count];
+            var orderId = Guid.NewGuid();
+
+            ordersToAdd.Add(new Order
+            {
+                OrderId = orderId,
+                OrderCode = $"DEMO-CLUSTER-SLA-{(i + 1):D3}",
+                UserId = VendorUserId1,
+                TimeSlotId = TimeSlotAfternoonId,
+                CollectionId = null,
+                AddressId = addr.AddressId,
+                DeliveryType = DeliveryMethod.Delivery,
+                TotalAmount = 95_000,
+                DiscountAmount = 0,
+                FinalAmount = 95_000,
+                DeliveryFee = 12_000,
+                SystemUsageFeeAmount = 0,
+                Status = OrderState.Paid,
+                OrderDate = deliveryDate,
+                DeliveryGroupId = null,
+                DeliveryNote = "Seed demo cluster-SLA (đơn rải xa → SLA guard tách nhóm)",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            itemsToAdd.Add(new OrderItem
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = orderId,
+                LotId = lot.LotId,
+                Quantity = 1,
+                UnitPrice = 95_000,
+                TotalPrice = 95_000,
+                PackagingStatus = PackagingState.Completed,
+                DeliveryStatus = DeliveryState.ReadyToShip,
+                DeliveryGroupId = null,
+                PackagedAt = now.AddMinutes(-15)
+            });
+
+            packagingToAdd.Add(new OrderPackaging
+            {
+                PackagingId = Guid.NewGuid(),
+                OrderId = orderId,
+                UserId = StaffUserId1,
+                Status = PackagingState.Completed,
+                PackagedAt = now.AddMinutes(-15)
+            });
+        }
+
+        await context.Orders.AddRangeAsync(ordersToAdd);
+        await context.OrderItems.AddRangeAsync(itemsToAdd);
+        await context.PackagingRecords.AddRangeAsync(packagingToAdd);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedClusterDemoAddressesAsync(ApplicationDbContext context)
+    {
+        var allPairs = ClusterDemoDenseAddresses.Concat(ClusterDemoSlaAddresses).ToList();
+        var desiredIds = allPairs.Select(a => a.AddressId).ToList();
+        var existingIds = await context.CustomerAddresses
+            .Where(a => desiredIds.Contains(a.CustomerAddressId))
+            .Select(a => a.CustomerAddressId)
+            .ToListAsync();
+
+        var toAdd = allPairs
+            .Where(a => !existingIds.Contains(a.AddressId))
+            .Select(a => new CustomerAddress
+            {
+                CustomerAddressId = a.AddressId,
+                UserId = VendorUserId1,
+                RecipientName = "Khách demo Cluster generate-draft",
+                Phone = "0900000001",
                 AddressLine = a.Line,
                 Latitude = a.Lat,
                 Longitude = a.Lng,
