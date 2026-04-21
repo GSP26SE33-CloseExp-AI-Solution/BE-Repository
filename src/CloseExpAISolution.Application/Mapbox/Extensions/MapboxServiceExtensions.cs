@@ -24,6 +24,7 @@ public static class MapboxServiceExtensions
         if (string.IsNullOrWhiteSpace(settings.AccessToken))
         {
             services.AddSingleton<IMapboxService, NoOpMapboxService>();
+            services.AddSingleton<IMapboxOptimizationService, NoOpMapboxOptimizationService>();
             return services;
         }
 
@@ -42,6 +43,21 @@ public static class MapboxServiceExtensions
         if (settings.RetryCount > 0)
         {
             httpClientBuilder.AddPolicyHandler(GetRetryPolicy(settings));
+        }
+
+        var optimizationBuilder = services.AddHttpClient<IMapboxOptimizationService, MapboxOptimizationService>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<MapboxSettings>>().Value;
+
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("CloseExpAI-Backend/1.0");
+        });
+
+        if (settings.RetryCount > 0)
+        {
+            optimizationBuilder.AddPolicyHandler(GetRetryPolicy(settings));
         }
 
         return services;

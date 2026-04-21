@@ -79,6 +79,39 @@ public static class DataSeeder
     private static readonly Guid CollectionPointDistrict3Id = Guid.Parse("dddd0002-0002-0002-0002-000000000002");
     private static readonly Guid CustomerAddressVendor1Id = Guid.Parse("eeee0001-0001-0001-0001-000000000001");
     private static readonly Guid CustomerAddressVendor2Id = Guid.Parse("eeee0002-0002-0002-0002-000000000002");
+
+    // --- Hybrid route demo constants -----------------------------------------------------------
+    private static readonly Guid RouteDemoSlotSmallId = Guid.Parse("eeee1001-0001-0001-0001-000000000001");
+    private static readonly Guid RouteDemoSlotMediumId = Guid.Parse("eeee1002-0002-0002-0002-000000000002");
+    private static readonly Guid RouteDemoSlotLargeId = Guid.Parse("eeee1003-0003-0003-0003-000000000003");
+    private static readonly Guid RouteDemoSlotOverId = Guid.Parse("eeee1004-0004-0004-0004-000000000004");
+
+    private static readonly Guid RouteDemoSmallGroupId = Guid.Parse("eeee2001-0001-0001-0001-000000000001");
+    private static readonly Guid RouteDemoMediumGroupId = Guid.Parse("eeee2002-0002-0002-0002-000000000002");
+    private static readonly Guid RouteDemoLargeGroupId = Guid.Parse("eeee2003-0003-0003-0003-000000000003");
+    private static readonly Guid RouteDemoOverLimitGroupId = Guid.Parse("eeee2004-0004-0004-0004-000000000004");
+
+    /// <summary>
+    /// 14 địa chỉ phủ Quận 1 / Quận 3 / Bình Thạnh (bán kính ≤ 4km quanh Nguyễn Huệ, 10.7769, 106.7009).
+    /// Dùng chung cho 4 kịch bản demo Hybrid (Small=3, Medium=7, Large=11, Over=13).
+    /// </summary>
+    private static readonly (Guid AddressId, decimal Lat, decimal Lng, string Line)[] RouteDemoAddresses =
+    {
+        (Guid.Parse("eeee3001-0001-0001-0001-000000000001"), 10.7769m, 106.7009m, "01 Nguyễn Huệ, Bến Nghé, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee3002-0002-0002-0002-000000000002"), 10.7721m, 106.6980m, "12 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee3003-0003-0003-0003-000000000003"), 10.7812m, 106.6956m, "45 Cách Mạng Tháng 8, Phường 10, Quận 3, TP.HCM"),
+        (Guid.Parse("eeee3004-0004-0004-0004-000000000004"), 10.7863m, 106.6922m, "210 Điện Biên Phủ, Phường 7, Quận 3, TP.HCM"),
+        (Guid.Parse("eeee3005-0005-0005-0005-000000000005"), 10.7940m, 106.7025m, "88 Phan Xích Long, Phường 2, Quận Phú Nhuận, TP.HCM"),
+        (Guid.Parse("eeee3006-0006-0006-0006-000000000006"), 10.8005m, 106.7100m, "122 Nguyễn Hữu Cảnh, Phường 22, Bình Thạnh, TP.HCM"),
+        (Guid.Parse("eeee3007-0007-0007-0007-000000000007"), 10.7892m, 106.7080m, "9 Võ Văn Kiệt, Phường Cầu Ông Lãnh, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee3008-0008-0008-0008-000000000008"), 10.7705m, 106.7050m, "150 Hàm Nghi, Phường Nguyễn Thái Bình, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee3009-0009-0009-0009-000000000009"), 10.7760m, 106.6920m, "30 Lý Tự Trọng, Phường Bến Nghé, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee3010-000a-000a-000a-00000000000a"), 10.7830m, 106.6880m, "72 Võ Thị Sáu, Phường Võ Thị Sáu, Quận 3, TP.HCM"),
+        (Guid.Parse("eeee3011-000b-000b-000b-00000000000b"), 10.7780m, 106.7170m, "200 Trần Hưng Đạo, Phường Cầu Kho, Quận 1, TP.HCM"),
+        (Guid.Parse("eeee3012-000c-000c-000c-00000000000c"), 10.7920m, 106.7150m, "55 Ung Văn Khiêm, Phường 25, Bình Thạnh, TP.HCM"),
+        (Guid.Parse("eeee3013-000d-000d-000d-00000000000d"), 10.8050m, 106.6950m, "141 Phan Đăng Lưu, Phường 1, Phú Nhuận, TP.HCM"),
+        (Guid.Parse("eeee3014-000e-000e-000e-00000000000e"), 10.7640m, 106.7020m, "10 Tôn Đức Thắng, Phường Bến Nghé, Quận 1, TP.HCM")
+    };
     private static readonly Guid PackagingOrderPickupId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
     private static readonly Guid PackagingOrderHomeId = Guid.Parse("ffff0002-0002-0002-0002-000000000002");
     private static readonly Guid PackagingOrderReadyId = Guid.Parse("ffff0003-0003-0003-0003-000000000003");
@@ -121,6 +154,7 @@ public static class DataSeeder
         await SeedPackagingOrdersAsync(context);
         await SeedVendorUser3SampleOrderAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
+        await SeedHybridRouteDemoDataAsync(context);
     }
 
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
@@ -1976,6 +2010,218 @@ public static class DataSeeder
 
         await context.Refunds.AddRangeAsync(refunds);
         await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seed 4 nhóm giao hàng demo cho Hybrid route optimization:
+    /// - Small (3 stops): backend NN+2-opt.
+    /// - Medium (7 stops): Mapbox Optimization v1 (khi metric=duration).
+    /// - Large (11 stops): biên 12 toạ độ của Optimization v1.
+    /// - Over (13 stops): vượt giới hạn → plan-route throw.
+    /// Nhóm được seed trực tiếp (không qua generate-draft) vì GenerateDraftGroupsAsync
+    /// gom theo AddressId nên không cho phép nhiều địa chỉ khác nhau cùng 1 nhóm.
+    /// </summary>
+    private static async Task SeedHybridRouteDemoDataAsync(ApplicationDbContext context)
+    {
+        if (await context.DeliveryGroups.AnyAsync(g => g.DeliveryGroupId == RouteDemoSmallGroupId))
+            return;
+
+        await SeedHybridRouteDemoSlotsAsync(context);
+        await SeedHybridRouteDemoAddressesAsync(context);
+
+        var activeLots = await context.StockLots
+            .Where(x => x.Status == ProductState.Published)
+            .OrderBy(x => x.ExpiryDate)
+            .Take(4)
+            .ToListAsync();
+
+        if (activeLots.Count < 4)
+            return;
+
+        var deliveryDate = DateTime.UtcNow.Date;
+        var now = DateTime.UtcNow;
+
+        var scenarios = new[]
+        {
+            new
+            {
+                GroupId = RouteDemoSmallGroupId,
+                GroupCode = "DEMO-SMALL-0001",
+                SlotId = RouteDemoSlotSmallId,
+                StopCount = 3,
+                CodePrefix = "DEMO-S"
+            },
+            new
+            {
+                GroupId = RouteDemoMediumGroupId,
+                GroupCode = "DEMO-MEDIUM-0001",
+                SlotId = RouteDemoSlotMediumId,
+                StopCount = 7,
+                CodePrefix = "DEMO-M"
+            },
+            new
+            {
+                GroupId = RouteDemoLargeGroupId,
+                GroupCode = "DEMO-LARGE-0001",
+                SlotId = RouteDemoSlotLargeId,
+                StopCount = 11,
+                CodePrefix = "DEMO-L"
+            },
+            new
+            {
+                GroupId = RouteDemoOverLimitGroupId,
+                GroupCode = "DEMO-OVER-0001",
+                SlotId = RouteDemoSlotOverId,
+                StopCount = 13,
+                CodePrefix = "DEMO-O"
+            }
+        };
+
+        var groupsToAdd = new List<DeliveryGroup>();
+        var ordersToAdd = new List<Order>();
+        var itemsToAdd = new List<OrderItem>();
+        var packagingRecordsToAdd = new List<OrderPackaging>();
+
+        foreach (var s in scenarios)
+        {
+            // Lấy StopCount địa chỉ đầu tiên cho kịch bản; bảo đảm coords khác nhau.
+            var addresses = RouteDemoAddresses.Take(s.StopCount).ToArray();
+            var centerLat = addresses.Average(a => a.Lat);
+            var centerLng = addresses.Average(a => a.Lng);
+
+            groupsToAdd.Add(new DeliveryGroup
+            {
+                DeliveryGroupId = s.GroupId,
+                GroupCode = s.GroupCode,
+                DeliveryStaffId = DeliveryStaffUserId1,
+                TimeSlotId = s.SlotId,
+                DeliveryType = DeliveryMethod.Delivery,
+                DeliveryArea = "DELIVERY",
+                CenterLatitude = centerLat,
+                CenterLongitude = centerLng,
+                Status = DeliveryGroupState.Assigned,
+                TotalOrders = s.StopCount,
+                Notes = $"Seed demo Hybrid route ({s.StopCount} stops)",
+                DeliveryDate = deliveryDate,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            for (var i = 0; i < s.StopCount; i++)
+            {
+                var addr = addresses[i];
+                var orderId = Guid.NewGuid();
+                var lot = activeLots[i % activeLots.Count];
+
+                ordersToAdd.Add(new Order
+                {
+                    OrderId = orderId,
+                    OrderCode = $"{s.CodePrefix}-{(i + 1).ToString("D3")}",
+                    UserId = VendorUserId1,
+                    TimeSlotId = s.SlotId,
+                    CollectionId = null,
+                    AddressId = addr.AddressId,
+                    DeliveryType = DeliveryMethod.Delivery,
+                    TotalAmount = 80_000,
+                    DiscountAmount = 0,
+                    FinalAmount = 80_000,
+                    DeliveryFee = 10_000,
+                    SystemUsageFeeAmount = 0,
+                    Status = OrderState.ReadyToShip,
+                    OrderDate = deliveryDate,
+                    DeliveryGroupId = s.GroupId,
+                    DeliveryNote = $"Seed demo {s.CodePrefix}",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+
+                itemsToAdd.Add(new OrderItem
+                {
+                    OrderItemId = Guid.NewGuid(),
+                    OrderId = orderId,
+                    LotId = lot.LotId,
+                    Quantity = 1,
+                    UnitPrice = 80_000,
+                    TotalPrice = 80_000,
+                    PackagingStatus = PackagingState.Completed,
+                    DeliveryStatus = DeliveryState.ReadyToShip,
+                    DeliveryGroupId = s.GroupId,
+                    PackagedAt = now.AddMinutes(-30)
+                });
+
+                packagingRecordsToAdd.Add(new OrderPackaging
+                {
+                    PackagingId = Guid.NewGuid(),
+                    OrderId = orderId,
+                    UserId = StaffUserId1,
+                    Status = PackagingState.Completed,
+                    PackagedAt = now.AddMinutes(-30)
+                });
+            }
+        }
+
+        await context.DeliveryGroups.AddRangeAsync(groupsToAdd);
+        await context.Orders.AddRangeAsync(ordersToAdd);
+        await context.OrderItems.AddRangeAsync(itemsToAdd);
+        await context.PackagingRecords.AddRangeAsync(packagingRecordsToAdd);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedHybridRouteDemoSlotsAsync(ApplicationDbContext context)
+    {
+        var existingIds = await context.DeliveryTimeSlots
+            .Where(s =>
+                s.DeliveryTimeSlotId == RouteDemoSlotSmallId ||
+                s.DeliveryTimeSlotId == RouteDemoSlotMediumId ||
+                s.DeliveryTimeSlotId == RouteDemoSlotLargeId ||
+                s.DeliveryTimeSlotId == RouteDemoSlotOverId)
+            .Select(s => s.DeliveryTimeSlotId)
+            .ToListAsync();
+
+        var desired = new List<DeliveryTimeSlot>
+        {
+            new() { DeliveryTimeSlotId = RouteDemoSlotSmallId, StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(10, 30, 0) },
+            new() { DeliveryTimeSlotId = RouteDemoSlotMediumId, StartTime = new TimeSpan(10, 30, 0), EndTime = new TimeSpan(12, 0, 0) },
+            new() { DeliveryTimeSlotId = RouteDemoSlotLargeId, StartTime = new TimeSpan(13, 0, 0), EndTime = new TimeSpan(15, 0, 0) },
+            new() { DeliveryTimeSlotId = RouteDemoSlotOverId, StartTime = new TimeSpan(15, 30, 0), EndTime = new TimeSpan(17, 30, 0) }
+        };
+
+        var toAdd = desired.Where(s => !existingIds.Contains(s.DeliveryTimeSlotId)).ToList();
+        if (toAdd.Count > 0)
+        {
+            await context.DeliveryTimeSlots.AddRangeAsync(toAdd);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private static async Task SeedHybridRouteDemoAddressesAsync(ApplicationDbContext context)
+    {
+        var desiredIds = RouteDemoAddresses.Select(a => a.AddressId).ToList();
+        var existingIds = await context.CustomerAddresses
+            .Where(a => desiredIds.Contains(a.CustomerAddressId))
+            .Select(a => a.CustomerAddressId)
+            .ToListAsync();
+
+        var toAdd = RouteDemoAddresses
+            .Where(a => !existingIds.Contains(a.AddressId))
+            .Select(a => new CustomerAddress
+            {
+                CustomerAddressId = a.AddressId,
+                UserId = VendorUserId1,
+                RecipientName = "Khách demo Hybrid route",
+                Phone = "0900000000",
+                AddressLine = a.Line,
+                Latitude = a.Lat,
+                Longitude = a.Lng,
+                IsDefault = false
+            })
+            .ToList();
+
+        if (toAdd.Count > 0)
+        {
+            await context.CustomerAddresses.AddRangeAsync(toAdd);
+            await context.SaveChangesAsync();
+        }
     }
 }
 
