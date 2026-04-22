@@ -51,6 +51,7 @@ public interface IDeliveryService
     Task<DeliveryOrderResponseDto?> GetOrderDetailForDeliveryAsync(
         Guid orderId,
         Guid deliveryStaffId,
+        Guid? deliveryGroupId = null,
         CancellationToken cancellationToken = default);
 
     Task<DeliveryOrderResponseDto> ConfirmDeliveryAsync(
