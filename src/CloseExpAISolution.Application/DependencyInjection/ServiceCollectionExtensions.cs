@@ -9,6 +9,7 @@ using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Mapbox.Extensions;
+using CloseExpAISolution.Application.Services.Routing;
 using CloseExpAISolution.Application.Email.Extensions;
 using StackExchange.Redis;
 using CloseExpAISolution.Application.Configuration;
@@ -51,6 +52,9 @@ public static class ServiceCollectionExtensions
 
         // Register Mapbox Geocoding Service
         services.AddMapboxService(configuration);
+
+        // Register hybrid routing (backend NN+2-opt + Mapbox Optimization v1)
+        services.AddScoped<HybridRoutingStrategy>();
 
         // Register Email + Quartz background jobs
         services.AddEmailServices(configuration);

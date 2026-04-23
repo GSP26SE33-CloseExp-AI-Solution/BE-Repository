@@ -248,6 +248,7 @@ public class DeliveryAdminService : IDeliveryAdminService
             request.MaxOrdersPerGroup,
             1,
             Math.Min(200, DeliveryRoutePlanner.MaxCoordinatesPerRequest - 1));
+        var maxRouteDurationMinutes = Math.Clamp(request.MaxRouteDurationMinutes, 5, 240);
 
         var allOrders = (await _unitOfWork.Repository<Order>().GetAllAsync()).ToDictionary(o => o.OrderId);
         var allItems = (await _unitOfWork.Repository<OrderItem>().GetAllAsync()).ToList();
@@ -286,6 +287,8 @@ public class DeliveryAdminService : IDeliveryAdminService
             eligibleItems.Add(oi);
         }
 
+        // Key gom CLUSTER-based: bỏ AddressId khỏi key để nhiều địa chỉ gần nhau
+        // cùng rơi vào một nhóm. Các bước sau mới phân cụm theo bán kính + SLA duration.
         var byKey = eligibleItems.GroupBy(oi =>
         {
             var order = allOrders[oi.OrderId];
@@ -296,9 +299,13 @@ public class DeliveryAdminService : IDeliveryAdminService
                 order.OrderDate.Date,
                 order.TimeSlotId,
                 order.CollectionId,
-                order.AddressId,
                 order.DeliveryType);
         });
+
+        var supermarketIds = byKey.Select(g => g.Key.SupermarketId).Distinct().ToList();
+        var supermarkets = (await _unitOfWork.Repository<Supermarket>()
+                .FindAsync(s => supermarketIds.Contains(s.SupermarketId)))
+            .ToDictionary(s => s.SupermarketId);
 
         var created = new List<DeliveryGroup>();
         var usedItemIds = new HashSet<Guid>();
@@ -339,6 +346,7 @@ public class DeliveryAdminService : IDeliveryAdminService
 
                 var bucketOrderIds = new HashSet<Guid> { anchorOrder.OrderId };
                 var bucketOrders = new List<Order> { anchorOrder };
+                var bucketPoints = new List<(double Lat, double Lng)> { anchorPoint.Value };
 
                 foreach (var oid in candidateOrderIds)
                 {
@@ -359,6 +367,7 @@ public class DeliveryAdminService : IDeliveryAdminService
                     {
                         bucketOrders.Add(o);
                         bucketOrderIds.Add(o.OrderId);
+                        bucketPoints.Add(p.Value);
                     }
                 }
 
@@ -367,16 +376,56 @@ public class DeliveryAdminService : IDeliveryAdminService
                 var keySlot = keyGroup.Key.TimeSlotId;
                 var keyCollection = keyGroup.Key.CollectionId;
 
-                var pointList = new List<(double Lat, double Lng)>();
-                foreach (var o in bucketOrders)
+                // SLA guard: nếu tổng duration route sau pickup vượt ngưỡng, tách bớt stop xa nhất
+                // để lần lặp kế tạo bucket mới với các stop còn lại.
+                (double Lat, double Lng)? supermarketPoint = null;
+                if (supermarkets.TryGetValue(smId, out var supermarket))
+                    supermarketPoint = ((double)supermarket.Latitude, (double)supermarket.Longitude);
+
+                if (supermarketPoint.HasValue && bucketOrders.Count > 1)
                 {
-                    var p = await ResolveOrderPointAsync(o);
-                    if (p.HasValue)
-                        pointList.Add(p.Value);
+                    while (bucketOrders.Count > 1)
+                    {
+                        var estimate = ClusterSlaEstimator.EstimateRouteDurationMinutes(supermarketPoint.Value, bucketPoints);
+                        if (estimate <= maxRouteDurationMinutes)
+                            break;
+
+                        // Bỏ order xa anchor nhất (trừ chính anchor ở index 0).
+                        var farthestIdx = -1;
+                        var farthestDist = double.MinValue;
+                        for (var idx = 1; idx < bucketPoints.Count; idx++)
+                        {
+                            var d = CalculateHaversineKm(
+                                anchorPoint.Value.Lat,
+                                anchorPoint.Value.Lng,
+                                bucketPoints[idx].Lat,
+                                bucketPoints[idx].Lng);
+                            if (d > farthestDist)
+                            {
+                                farthestDist = d;
+                                farthestIdx = idx;
+                            }
+                        }
+
+                        if (farthestIdx < 0)
+                            break;
+
+                        var droppedOrder = bucketOrders[farthestIdx];
+                        bucketOrders.RemoveAt(farthestIdx);
+                        bucketPoints.RemoveAt(farthestIdx);
+                        bucketOrderIds.Remove(droppedOrder.OrderId);
+
+                        _logger.LogInformation(
+                            "SLA split: dropped order {OrderId} (farthest {DistanceKm:F2} km) from draft bucket anchored at {AnchorOrderId} in supermarket {SupermarketId}.",
+                            droppedOrder.OrderId,
+                            farthestDist,
+                            anchorOrder.OrderId,
+                            smId);
+                    }
                 }
 
-                var centerLat = pointList.Count > 0 ? pointList.Average(p => p.Lat) : anchorPoint.Value.Lat;
-                var centerLng = pointList.Count > 0 ? pointList.Average(p => p.Lng) : anchorPoint.Value.Lng;
+                var centerLat = bucketPoints.Count > 0 ? bucketPoints.Average(p => p.Lat) : anchorPoint.Value.Lat;
+                var centerLng = bucketPoints.Count > 0 ? bucketPoints.Average(p => p.Lng) : anchorPoint.Value.Lng;
 
                 var group = new DeliveryGroup
                 {
@@ -390,7 +439,7 @@ public class DeliveryAdminService : IDeliveryAdminService
                     CenterLongitude = (decimal)centerLng,
                     Status = DeliveryGroupState.Draft,
                     TotalOrders = bucketOrderIds.Count,
-                    Notes = $"Auto draft by admin {adminId} (item buckets)",
+                    Notes = $"Auto draft by admin {adminId} (cluster-based: radius<={maxDistanceKm}km, maxOrders={maxOrdersPerGroup}, slaMin<={maxRouteDurationMinutes})",
                     DeliveryDate = keyDate,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -811,18 +860,7 @@ public class DeliveryAdminService : IDeliveryAdminService
     }
 
     private static double CalculateHaversineKm(double lat1, double lon1, double lat2, double lon2)
-    {
-        const double r = 6371d;
-        var dLat = ToRad(lat2 - lat1);
-        var dLon = ToRad(lon2 - lon1);
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
-                + Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2))
-                * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return r * c;
-    }
-
-    private static double ToRad(double degree) => degree * Math.PI / 180d;
+        => ClusterSlaEstimator.HaversineKm(lat1, lon1, lat2, lon2);
 }
 
 

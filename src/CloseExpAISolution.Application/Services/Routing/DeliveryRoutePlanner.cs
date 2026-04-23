@@ -7,7 +7,11 @@ namespace CloseExpAISolution.Application.Services.Routing;
 /// </summary>
 public static class DeliveryRoutePlanner
 {
-    public const int MaxCoordinatesPerRequest = 10;
+    /// <summary>
+    /// Số toạ độ tối đa cho một request route-plan, khớp với giới hạn Mapbox Optimization v1
+    /// (12 = 1 start + tối đa 11 stops).
+    /// </summary>
+    public const int MaxCoordinatesPerRequest = 12;
 
     public static string FormatCoordinatesPath(IReadOnlyList<(double Latitude, double Longitude)> points)
     {

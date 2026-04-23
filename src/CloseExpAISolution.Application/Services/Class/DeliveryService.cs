@@ -21,19 +21,22 @@ public class DeliveryService : IDeliveryService
     private readonly IMapboxService _mapboxService;
     private readonly ILogger<DeliveryService> _logger;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
+    private readonly HybridRoutingStrategy _routingStrategy;
 
     public DeliveryService(
         IUnitOfWork unitOfWork,
         IR2StorageService r2Storage,
         IMapboxService mapboxService,
         ILogger<DeliveryService> logger,
-        IOrderNotificationPublisher orderNotificationPublisher)
+        IOrderNotificationPublisher orderNotificationPublisher,
+        HybridRoutingStrategy routingStrategy)
     {
         _unitOfWork = unitOfWork;
         _r2Storage = r2Storage;
         _mapboxService = mapboxService;
         _logger = logger;
         _orderNotificationPublisher = orderNotificationPublisher;
+        _routingStrategy = routingStrategy;
     }
 
     public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
@@ -300,6 +303,7 @@ public class DeliveryService : IDeliveryService
     public async Task<DeliveryOrderResponseDto?> GetOrderDetailForDeliveryAsync(
         Guid orderId,
         Guid deliveryStaffId,
+        Guid? deliveryGroupId = null,
         CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.Repository<Order>()
@@ -308,7 +312,9 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             return null;
 
-        var staffGroup = await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken);
+        // Khi FE truyền groupId (vd. app đang đứng trong route-map của nhóm cụ thể),
+        // ưu tiên scope theo đúng nhóm đó để đơn đa-siêu-thị không bị trả về item của nhóm khác.
+        var staffGroup = await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, deliveryGroupId, cancellationToken);
         if (staffGroup == null)
             throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
 
@@ -331,7 +337,7 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        if (await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken) == null)
+        if (await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken: cancellationToken) == null)
             throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
 
         if (order.Status is not (OrderState.ReadyToShip or OrderState.DeliveredWaitConfirm))
@@ -364,7 +370,11 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        var staffGroup = await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken);
+        var staffGroup = await ResolveStaffGroupForOrderAsync(
+            order,
+            deliveryStaffId,
+            request.DeliveryGroupId,
+            cancellationToken: cancellationToken);
         if (staffGroup == null)
             throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
 
@@ -481,7 +491,11 @@ public class DeliveryService : IDeliveryService
         if (order == null)
             throw new KeyNotFoundException("Không tìm thấy đơn hàng.");
 
-        var staffGroup = await ResolveStaffGroupForOrderAsync(order, deliveryStaffId, cancellationToken);
+        var staffGroup = await ResolveStaffGroupForOrderAsync(
+            order,
+            deliveryStaffId,
+            request.DeliveryGroupId,
+            cancellationToken: cancellationToken);
         if (staffGroup == null)
             throw new UnauthorizedAccessException("Bạn không được phân công giao đơn hàng này.");
 
@@ -1051,57 +1065,137 @@ public class DeliveryService : IDeliveryService
                 "Vui lòng chia nhóm giao hoặc liên hệ quản trị.");
         }
 
-        var (startLat, startLng) = ResolveRouteStart(group, request, stops);
+        var supermarketPoint = await ResolveSupermarketPointAsync(group, cancellationToken);
+        var shipperPoint = ResolveShipperStartPoint(group, request, stops);
 
-        var matrixCoords = new List<(double Latitude, double Longitude)>(totalCoords)
-        {
-            (startLat, startLng)
-        };
-        foreach (var s in stops)
-            matrixCoords.Add((s.Lat, s.Lng));
+        // Leg B (supermarket -> customers). Khi shipper đã bấm "Đã lấy hàng" (SkipPickupLeg),
+        // Leg B xuất phát từ chính vị trí shipper hiện tại, bỏ hoàn toàn siêu thị khỏi route.
+        // Nếu thiếu toạ độ siêu thị, cũng fallback dùng shipperPoint.
+        var useSupermarketAsLegBStart = supermarketPoint.HasValue && !request.SkipPickupLeg;
+        var legBStart = useSupermarketAsLegBStart ? supermarketPoint!.Value : shipperPoint;
+        var legB = await _routingStrategy.PlanAsync(stops, legBStart, metric, cancellationToken);
 
-        var matrix = await _mapboxService.GetDrivingMatrixAsync(matrixCoords, cancellationToken);
-        if (matrix == null)
-            throw new InvalidOperationException(
-                "Không lấy được ma trận lộ trình từ Mapbox. Kiểm tra cấu hình token hoặc thử lại sau.");
-
-        var cost = metric == "duration" ? matrix.DurationsSeconds : matrix.DistancesMeters;
-        List<int> tourIndices;
-        try
+        RouteLegDto? pickupLeg = null;
+        if (supermarketPoint.HasValue && !request.SkipPickupLeg)
         {
-            tourIndices = DeliveryRoutePlanner.BuildOptimizedStopOrder(cost, stops.Count);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw new InvalidOperationException(
-                "Không tính được thứ tự điểm: " + ex.Message, ex);
+            pickupLeg = await BuildPickupLegAsync(shipperPoint, supermarketPoint.Value, cancellationToken);
         }
 
-        var orderedStops = tourIndices.Select(idx => stops[idx - 1]).ToList();
-        var orderedIds = orderedStops.Select(s => s.OrderId).ToList();
-
-        var waypoints = new List<(double Latitude, double Longitude)>
+        var legBDto = new RouteLegDto
         {
-            (startLat, startLng)
+            Kind = "delivery",
+            DistanceKm = legB.DistanceKm,
+            DurationMinutes = legB.DurationMinutes,
+            EncodedPolyline = legB.EncodedPolyline,
+            PolylineEncoding = "polyline6",
+            StrategyUsed = legB.StrategyUsed,
+            From = new RouteLegEndpointDto
+            {
+                Latitude = legBStart.Lat,
+                Longitude = legBStart.Lng,
+                Label = useSupermarketAsLegBStart ? "supermarket" : "shipper"
+            },
+            To = stops.Count > 0
+                ? new RouteLegEndpointDto
+                {
+                    Latitude = legB.OrderedIds.Count > 0
+                        ? stops.First(s => s.OrderId == legB.OrderedIds[^1]).Lat
+                        : stops[^1].Lat,
+                    Longitude = legB.OrderedIds.Count > 0
+                        ? stops.First(s => s.OrderId == legB.OrderedIds[^1]).Lng
+                        : stops[^1].Lng,
+                    Label = "customer"
+                }
+                : null
         };
-        waypoints.AddRange(orderedStops.Select(s => (s.Lat, s.Lng)));
-        waypoints = CollapseConsecutiveDuplicateCoordinates(waypoints);
 
-        var route = await _mapboxService.GetDrivingRoutePolylineAsync(waypoints, cancellationToken);
-        if (route == null)
-            throw new InvalidOperationException(
-                "Không lấy được đường đi chi tiết từ Mapbox. Thử lại sau.");
+        var totalDistanceKm = (pickupLeg?.DistanceKm ?? 0d) + legB.DistanceKm;
+        var totalDurationMinutes = (pickupLeg?.DurationMinutes ?? 0d) + legB.DurationMinutes;
+
+        _logger.LogInformation(
+            "Route-plan built: group={GroupId}, stops={StopCount}, pickupLeg={PickupLegUsed}, skipPickup={SkipPickup}, strategyB={StrategyB}, totalDistanceKm={TotalDistanceKm}, totalDurationMin={TotalDurationMin}",
+            deliveryGroupId,
+            stops.Count,
+            pickupLeg != null,
+            request.SkipPickupLeg,
+            legB.StrategyUsed,
+            Math.Round(totalDistanceKm, 3),
+            Math.Round(totalDurationMinutes, 1));
 
         return new DeliveryRoutePlanResponseDto
         {
-            OrderedOrderIds = orderedIds,
-            TotalDistanceKm = Math.Round(route.DistanceMeters / 1000d, 3),
-            TotalDurationMinutes = Math.Round(route.DurationSeconds / 60d, 1),
-            EncodedPolyline = route.EncodedPolyline,
+            OrderedOrderIds = legB.OrderedIds,
+            TotalDistanceKm = Math.Round(totalDistanceKm, 3),
+            TotalDurationMinutes = Math.Round(totalDurationMinutes, 1),
+            EncodedPolyline = legB.EncodedPolyline,
             PolylineEncoding = "polyline6",
             Metric = metric,
-            SkippedOrderIds = skipped
+            SkippedOrderIds = skipped,
+            PickupLeg = pickupLeg,
+            DeliveryLeg = legBDto
         };
+    }
+
+    private async Task<RouteLegDto?> BuildPickupLegAsync(
+        (double Lat, double Lng) shipper,
+        (double Lat, double Lng) supermarket,
+        CancellationToken cancellationToken)
+    {
+        // Hai điểm trùng nhau (shipper đang ở siêu thị) → leg A rỗng, không cần gọi Mapbox.
+        if (Math.Abs(shipper.Lat - supermarket.Lat) < 1e-7 && Math.Abs(shipper.Lng - supermarket.Lng) < 1e-7)
+        {
+            return new RouteLegDto
+            {
+                Kind = "pickup",
+                DistanceKm = 0,
+                DurationMinutes = 0,
+                EncodedPolyline = string.Empty,
+                PolylineEncoding = "polyline6",
+                StrategyUsed = "noop",
+                From = new RouteLegEndpointDto { Latitude = shipper.Lat, Longitude = shipper.Lng, Label = "shipper" },
+                To = new RouteLegEndpointDto { Latitude = supermarket.Lat, Longitude = supermarket.Lng, Label = "supermarket" }
+            };
+        }
+
+        var waypoints = new List<(double Latitude, double Longitude)>
+        {
+            (shipper.Lat, shipper.Lng),
+            (supermarket.Lat, supermarket.Lng)
+        };
+
+        var route = await _mapboxService.GetDrivingRoutePolylineAsync(waypoints, cancellationToken);
+        if (route == null)
+        {
+            _logger.LogWarning("Pickup leg Directions call failed; returning null PickupLeg (two-leg degrades to Leg B only).");
+            return null;
+        }
+
+        return new RouteLegDto
+        {
+            Kind = "pickup",
+            DistanceKm = Math.Round(route.DistanceMeters / 1000d, 3),
+            DurationMinutes = Math.Round(route.DurationSeconds / 60d, 1),
+            EncodedPolyline = route.EncodedPolyline,
+            PolylineEncoding = "polyline6",
+            StrategyUsed = "directions",
+            From = new RouteLegEndpointDto { Latitude = shipper.Lat, Longitude = shipper.Lng, Label = "shipper" },
+            To = new RouteLegEndpointDto { Latitude = supermarket.Lat, Longitude = supermarket.Lng, Label = "supermarket" }
+        };
+    }
+
+    private async Task<(double Lat, double Lng)?> ResolveSupermarketPointAsync(
+        DeliveryGroup group,
+        CancellationToken cancellationToken)
+    {
+        if (!group.SupermarketId.HasValue)
+            return null;
+
+        var sm = await _unitOfWork.Repository<Supermarket>()
+            .FirstOrDefaultAsync(s => s.SupermarketId == group.SupermarketId.Value);
+        if (sm == null)
+            return null;
+
+        return ((double)sm.Latitude, (double)sm.Longitude);
     }
 
     private async Task<List<DeliveryGroupSummaryDto>> BuildMyGroupSummariesAsync(
@@ -1380,7 +1474,11 @@ public class DeliveryService : IDeliveryService
         return m == "duration" || m == "time" ? "duration" : "distance";
     }
 
-    private static (double StartLat, double StartLng) ResolveRouteStart(
+    /// <summary>
+    /// Điểm xuất phát của shipper cho chặng A (pickup). Ưu tiên GPS trong request,
+    /// fallback sang center nhóm, cuối cùng mới dùng stop đầu tiên.
+    /// </summary>
+    private static (double Lat, double Lng) ResolveShipperStartPoint(
         DeliveryGroup group,
         DeliveryRoutePlanRequestDto request,
         IReadOnlyList<(Guid OrderId, double Lat, double Lng)> stops)
@@ -1392,30 +1490,6 @@ public class DeliveryService : IDeliveryService
             return ((double)clat, (double)clng);
 
         return (stops[0].Lat, stops[0].Lng);
-    }
-
-    private static List<(double Latitude, double Longitude)> CollapseConsecutiveDuplicateCoordinates(
-        IReadOnlyList<(double Latitude, double Longitude)> waypoints)
-    {
-        var result = new List<(double Latitude, double Longitude)>(waypoints.Count);
-        foreach (var p in waypoints)
-        {
-            if (result.Count == 0)
-            {
-                result.Add(p);
-                continue;
-            }
-
-            var last = result[^1];
-            if (Math.Abs(last.Latitude - p.Latitude) < 1e-7 && Math.Abs(last.Longitude - p.Longitude) < 1e-7)
-                continue;
-            result.Add(p);
-        }
-
-        if (result.Count < 2 && waypoints.Count >= 2)
-            return waypoints.Take(2).ToList();
-
-        return result;
     }
 
     private async Task<(double Lat, double Lng)?> GetOrderDeliveryCoordinateAsync(
@@ -1675,10 +1749,27 @@ public class DeliveryService : IDeliveryService
     private async Task<DeliveryGroup?> ResolveStaffGroupForOrderAsync(
         Order order,
         Guid deliveryStaffId,
+        Guid? preferredGroupId = null,
         CancellationToken cancellationToken = default)
     {
-        var items = await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == order.OrderId);
-        foreach (var gId in items.Where(i => i.DeliveryGroupId != null).Select(i => i.DeliveryGroupId!.Value).Distinct())
+        var items = (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == order.OrderId)).ToList();
+        var itemGroupIds = items.Where(i => i.DeliveryGroupId != null)
+            .Select(i => i.DeliveryGroupId!.Value)
+            .Distinct()
+            .ToList();
+
+        // Ưu tiên groupId do FE truyền: chỉ chấp nhận nếu nhóm đó thực sự chứa item của đơn
+        // và staff hiện tại đang sở hữu nhóm đó. Tránh việc BE tự chọn "nhóm đầu tiên"
+        // khi một shipper được gán nhiều nhóm chứa cùng order (đơn đa-siêu-thị).
+        if (preferredGroupId.HasValue && itemGroupIds.Contains(preferredGroupId.Value))
+        {
+            var preferred = await _unitOfWork.Repository<DeliveryGroup>()
+                .FirstOrDefaultAsync(x => x.DeliveryGroupId == preferredGroupId.Value);
+            if (preferred != null && preferred.DeliveryStaffId == deliveryStaffId)
+                return preferred;
+        }
+
+        foreach (var gId in itemGroupIds)
         {
             var g = await _unitOfWork.Repository<DeliveryGroup>()
                 .FirstOrDefaultAsync(x => x.DeliveryGroupId == gId);

@@ -24,8 +24,24 @@ public class GenerateDeliveryGroupDraftRequestDto
     public DateTime? DeliveryDate { get; set; }
     public Guid? TimeSlotId { get; set; }
     public Guid? CollectionId { get; set; }
-    public decimal MaxDistanceKm { get; set; } = 5m;
-    public int MaxOrdersPerGroup { get; set; } = 20;
+
+    /// <summary>
+    /// Bán kính cluster (km) quanh anchor của nhóm. Mặc định 1.8 km để gom các đơn
+    /// gần nhau mà vẫn ngắn chặng giao sau khi rời siêu thị.
+    /// </summary>
+    public decimal MaxDistanceKm { get; set; } = 1.8m;
+
+    /// <summary>
+    /// Giới hạn số đơn / nhóm. Giữ mức thấp (mặc định 5) để mỗi cluster hoàn tất
+    /// trong SLA và tránh food-waiting.
+    /// </summary>
+    public int MaxOrdersPerGroup { get; set; } = 5;
+
+    /// <summary>
+    /// SLA tổng thời gian lái xe trên chặng giao (sau pickup), phút.
+    /// Khi ước lượng duration vượt ngưỡng, admin sẽ tự động split bucket thành nhiều nhóm nhỏ hơn.
+    /// </summary>
+    public int MaxRouteDurationMinutes { get; set; } = 40;
 }
 
 public class DraftDeliveryGroupQueryDto

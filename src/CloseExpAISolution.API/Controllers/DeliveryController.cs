@@ -551,7 +551,9 @@ public class DeliveryController : ControllerBase
 
     [Authorize(Roles = "DeliveryStaff")]
     [HttpGet("orders/{orderId:guid}")]
-    public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> GetOrderDetail(Guid orderId)
+    public async Task<ActionResult<ApiResponse<DeliveryOrderResponseDto>>> GetOrderDetail(
+        Guid orderId,
+        [FromQuery] Guid? groupId = null)
     {
         try
         {
@@ -561,7 +563,7 @@ public class DeliveryController : ControllerBase
                     "Không thể xác định người dùng"));
             }
 
-            var order = await _services.DeliveryService.GetOrderDetailForDeliveryAsync(orderId, staffId);
+            var order = await _services.DeliveryService.GetOrderDetailForDeliveryAsync(orderId, staffId, groupId);
             if (order == null)
                 return NotFound(ApiResponse<DeliveryOrderResponseDto>.ErrorResponse("Không tìm thấy đơn hàng."));
 
