@@ -1,5 +1,8 @@
+using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Payment;
+using CloseExpAISolution.Application.Policies;
+using CloseExpAISolution.Application.ServiceProviders;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -28,6 +31,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
     private readonly ILogger<PaymentService> _logger;
     private readonly PayOSClient _client;
     private readonly StackExchange.Redis.IConnectionMultiplexer? _redis;
+    private readonly IServiceProviders? _services;
 
     public PaymentService(
         IUnitOfWork unitOfWork,
@@ -39,6 +43,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         _settings = options.Value;
         _logger = logger;
         _redis = serviceProvider.GetService<StackExchange.Redis.IConnectionMultiplexer>();
+        _services = serviceProvider.GetService<IServiceProviders>();
         _client = new PayOSClient(new PayOSOptions
         {
             ClientId = _settings.ClientId,
@@ -59,14 +64,19 @@ public sealed class PaymentService : IPaymentService, IDisposable
             || string.IsNullOrWhiteSpace(_settings.ChecksumKey))
             throw new InvalidOperationException("PayOS is not configured. Set PayOsSettings:ClientId, ApiKey, and ChecksumKey.");
 
-        var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
+        var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order not found: {orderId}");
 
         if (order.UserId != userId)
             throw new UnauthorizedAccessException("You do not own this order.");
 
+        if (order.Status != OrderState.Pending)
+            throw new InvalidOperationException("Only pending orders can create payment links.");
+
         if (IsOrderAlreadyPaid(order.Status))
             throw new InvalidOperationException(AlreadyPaidMessage);
+
+        EnsureOrderLotsStillOrderable(order);
 
         var amountVnd = (long)Math.Round(order.FinalAmount, MidpointRounding.AwayFromZero);
         if (amountVnd < MinimumAmount)
@@ -256,7 +266,10 @@ public sealed class PaymentService : IPaymentService, IDisposable
             order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(transaction.OrderId, cancellationToken);
             if (order != null)
             {
-                await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
+                if (order.Status == OrderState.Canceled)
+                    await AutoRefundCanceledOrderAsync(order, transaction, cancellationToken);
+                else
+                    await ApplyPaidTransitionSafelyAsync(order, cancellationToken);
             }
         }
 
@@ -355,17 +368,27 @@ public sealed class PaymentService : IPaymentService, IDisposable
             .FindAsync(l => lotIds.Contains(l.LotId));
 
         var lotById = lots.ToDictionary(l => l.LotId);
+        var now = DateTime.UtcNow;
+        var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
 
         foreach (var req in requiredByLot)
         {
             if (!lotById.TryGetValue(req.LotId, out var lot))
                 return false;
 
+            if (lot.Status != ProductState.Published)
+                return false;
+
+            if (lot.ExpiryDate <= now)
+                return false;
+
+            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
+                return false;
+
             if (lot.Quantity < req.RequiredQuantity)
                 return false;
         }
 
-        var now = DateTime.UtcNow;
         foreach (var req in requiredByLot)
         {
             var lot = lotById[req.LotId];
@@ -375,6 +398,72 @@ public sealed class PaymentService : IPaymentService, IDisposable
         }
 
         return true;
+    }
+
+    private void EnsureOrderLotsStillOrderable(Order order)
+    {
+        if (order.OrderItems == null || order.OrderItems.Count == 0)
+            throw new InvalidOperationException("Order has no items to pay.");
+
+        var now = DateTime.UtcNow;
+        var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
+        var requiredByLot = order.OrderItems
+            .GroupBy(oi => oi.LotId)
+            .ToDictionary(g => g.Key, g => (decimal)g.Sum(x => x.Quantity));
+
+        foreach (var req in requiredByLot)
+        {
+            var lot = order.OrderItems
+                .Select(oi => oi.StockLot)
+                .FirstOrDefault(l => l != null && l.LotId == req.Key);
+
+            if (lot == null)
+                throw new InvalidOperationException($"StockLot {req.Key} không tồn tại hoặc đã bị xóa.");
+
+            if (lot.Status != ProductState.Published || lot.Quantity <= 0 || lot.ExpiryDate <= now)
+                throw new InvalidOperationException($"StockLot {req.Key} không còn khả dụng để thanh toán.");
+
+            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
+                throw new InvalidOperationException("Sau 21:00, không thể thanh toán đơn có lô hàng hết hạn trong ngày.");
+
+            if (lot.Quantity < req.Value)
+                throw new InvalidOperationException($"StockLot {req.Key} không đủ số lượng để thanh toán.");
+        }
+    }
+
+    private async Task AutoRefundCanceledOrderAsync(
+        Order order,
+        Transaction transaction,
+        CancellationToken cancellationToken)
+    {
+        if (_services == null)
+            throw new InvalidOperationException("ServiceProviders is not available for refund flow.");
+
+        var hasActiveRefund = (await _unitOfWork.Repository<Refund>()
+            .FindAsync(r => r.TransactionId == transaction.TransactionId && r.Status != RefundState.Rejected))
+            .Any();
+
+        if (!hasActiveRefund)
+        {
+            await _services.RefundService.CreateAsync(
+                new CreateRefundRequestDto
+                {
+                    OrderId = order.OrderId,
+                    TransactionId = transaction.TransactionId,
+                    Amount = transaction.Amount,
+                    Reason = "Auto refund: late payment received after cutoff cancellation."
+                },
+                cancellationToken);
+        }
+
+        if (order.Status != OrderState.Refunded)
+        {
+            await _services.OrderService.UpdateStatusAsync(
+                order.OrderId,
+                OrderState.Refunded,
+                "Auto-refunded after canceled order received successful payment.",
+                cancellationToken);
+        }
     }
 
     private async Task<int> GetCancelWindowMinutesAfterPaidAsync(CancellationToken cancellationToken)

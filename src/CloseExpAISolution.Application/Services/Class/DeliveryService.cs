@@ -14,6 +14,8 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class DeliveryService : IDeliveryService
 {
+    private const int DefaultOrderAutoConfirmDaysAfterDelivered = 3;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2Storage;
     private readonly IMapboxService _mapboxService;
@@ -1630,12 +1632,38 @@ public class DeliveryService : IDeliveryService
             .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered);
 
         if (config == null)
-            throw new InvalidOperationException(
-                $"Thiếu SystemConfig '{SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered}'. Vui lòng cấu hình số ngày tự động xác nhận sau khi giao.");
+        {
+            _logger.LogWarning(
+                "Missing SystemConfig '{ConfigKey}'. Falling back to default value {DefaultDays}.",
+                SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered,
+                DefaultOrderAutoConfirmDaysAfterDelivered);
+
+            await _unitOfWork.Repository<SystemConfig>().AddAsync(new SystemConfig
+            {
+                ConfigKey = SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered,
+                ConfigValue = DefaultOrderAutoConfirmDaysAfterDelivered.ToString(),
+                UpdatedAt = DateTime.UtcNow
+            });
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return DefaultOrderAutoConfirmDaysAfterDelivered;
+        }
 
         if (!int.TryParse(config.ConfigValue, out var days) || days <= 0)
-            throw new InvalidOperationException(
-                $"SystemConfig '{SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered}' không hợp lệ. Giá trị phải là số nguyên dương.");
+        {
+            _logger.LogWarning(
+                "Invalid SystemConfig '{ConfigKey}' value '{ConfigValue}'. Resetting to default value {DefaultDays}.",
+                SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered,
+                config.ConfigValue,
+                DefaultOrderAutoConfirmDaysAfterDelivered);
+
+            config.ConfigValue = DefaultOrderAutoConfirmDaysAfterDelivered.ToString();
+            config.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<SystemConfig>().Update(config);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return DefaultOrderAutoConfirmDaysAfterDelivered;
+        }
 
         return days;
     }

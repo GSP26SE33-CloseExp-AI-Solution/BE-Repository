@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
@@ -9,6 +11,7 @@ using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -197,11 +200,16 @@ public class DeliveryAdminService : IDeliveryAdminService
         var total = ordered.Count;
         var paged = ordered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
+        var staffNameMap = await ResolveDeliveryStaffDisplayNamesAsync(paged.Select(x => x.DeliveryStaffId), cancellationToken);
         var summary = new List<DeliveryGroupSummaryDto>(paged.Count);
         foreach (var g in paged)
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
                 .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == g.TimeSlotId);
+            string? staffName = null;
+            if (g.DeliveryStaffId.HasValue && staffNameMap.TryGetValue(g.DeliveryStaffId.Value, out var resolvedName))
+                staffName = resolvedName;
+
             summary.Add(new DeliveryGroupSummaryDto
             {
                 DeliveryGroupId = g.DeliveryGroupId,
@@ -214,7 +222,9 @@ public class DeliveryAdminService : IDeliveryAdminService
                 Status = g.Status.ToString(),
                 TotalOrders = g.TotalOrders,
                 CompletedOrders = 0,
-                DeliveryDate = g.DeliveryDate
+                DeliveryDate = g.DeliveryDate,
+                DeliveryStaffId = g.DeliveryStaffId,
+                DeliveryStaffName = staffName
             });
         }
 
@@ -674,6 +684,7 @@ public class DeliveryAdminService : IDeliveryAdminService
         IReadOnlyList<DeliveryGroup> groups,
         CancellationToken cancellationToken)
     {
+        var staffNameMap = await ResolveDeliveryStaffDisplayNamesAsync(groups.Select(g => g.DeliveryStaffId), cancellationToken);
         var result = new List<DeliveryGroupSummaryDto>(groups.Count);
         foreach (var group in groups)
         {
@@ -698,6 +709,10 @@ public class DeliveryAdminService : IDeliveryAdminService
                     completedCount++;
             }
 
+            string? staffName = null;
+            if (group.DeliveryStaffId.HasValue && staffNameMap.TryGetValue(group.DeliveryStaffId.Value, out var resolvedName))
+                staffName = resolvedName;
+
             result.Add(new DeliveryGroupSummaryDto
             {
                 DeliveryGroupId = group.DeliveryGroupId,
@@ -712,11 +727,33 @@ public class DeliveryAdminService : IDeliveryAdminService
                 Status = group.Status.ToString(),
                 TotalOrders = group.TotalOrders,
                 CompletedOrders = completedCount,
-                DeliveryDate = group.DeliveryDate
+                DeliveryDate = group.DeliveryDate,
+                DeliveryStaffId = group.DeliveryStaffId,
+                DeliveryStaffName = staffName
             });
         }
 
         return result;
+    }
+
+    private static string? FormatStaffDisplayName(User u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.FullName))
+            return u.FullName.Trim();
+        return string.IsNullOrWhiteSpace(u.Email) ? null : u.Email.Trim();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string?>> ResolveDeliveryStaffDisplayNamesAsync(
+        IEnumerable<Guid?> staffIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = staffIds.Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, string?>();
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var users = (await _unitOfWork.Repository<User>().FindAsync(u => ids.Contains(u.UserId))).ToList();
+        return users.ToDictionary(u => u.UserId, u => FormatStaffDisplayName(u));
     }
 
     private async Task RecalculateDeliveryGroupTotalOrdersAsync(

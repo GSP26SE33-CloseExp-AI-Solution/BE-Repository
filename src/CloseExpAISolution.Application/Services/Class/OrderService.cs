@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Geo;
+using CloseExpAISolution.Application.Policies;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -182,6 +183,7 @@ public class OrderService : IOrderService
     {
         var deliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
         OrderDeliveryLocationValidator.ValidateOrThrow(deliveryType, request.CollectionId, request.AddressId);
+        await ValidateOrderLotsForCreationAsync(request.OrderItems, cancellationToken);
 
         var orderId = Guid.NewGuid();
         var orderCode = "ORD-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
@@ -519,6 +521,49 @@ public class OrderService : IOrderService
 
         var updated = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
         return _mapper.Map<OrderResponseDto>(updated!);
+    }
+
+    private async Task ValidateOrderLotsForCreationAsync(
+        IReadOnlyCollection<CreateOrderItemDto> items,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+            throw new InvalidOperationException("Đơn hàng phải có ít nhất một sản phẩm.");
+
+        var requiredByLot = items
+            .GroupBy(x => x.LotId)
+            .Select(g => new
+            {
+                LotId = g.Key,
+                RequiredQuantity = g.Sum(x => (decimal)x.Quantity)
+            })
+            .ToList();
+
+        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lots = (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId)))
+            .ToDictionary(l => l.LotId);
+
+        var now = DateTime.UtcNow;
+        var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
+        foreach (var req in requiredByLot)
+        {
+            if (!lots.TryGetValue(req.LotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId}.");
+
+            if (lot.Status != ProductState.Published)
+                throw new InvalidOperationException($"StockLot {req.LotId} không còn ở trạng thái Published.");
+
+            if (lot.ExpiryDate <= now)
+                throw new InvalidOperationException($"StockLot {req.LotId} đã hết hạn, không thể đặt.");
+
+            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
+                throw new InvalidOperationException(
+                    "Sau 21:00, không thể đặt lô hàng có hạn sử dụng trong ngày.");
+
+            if (lot.Quantity < req.RequiredQuantity)
+                throw new InvalidOperationException(
+                    $"StockLot {req.LotId} không đủ số lượng. Cần {req.RequiredQuantity}, còn {lot.Quantity}.");
+        }
     }
 
     public async Task DeleteAsync(Guid orderId, CancellationToken cancellationToken = default)

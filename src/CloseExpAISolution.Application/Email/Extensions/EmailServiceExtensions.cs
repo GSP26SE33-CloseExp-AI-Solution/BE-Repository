@@ -70,6 +70,15 @@ namespace CloseExpAISolution.Application.Email.Extensions
                     .WithSimpleSchedule(x => x
                         .WithIntervalInMinutes(5)
                         .RepeatForever()));
+
+                var cancelPendingOrdersByTodayExpiryJobKey = new JobKey("CancelPendingOrdersByTodayExpiryJob");
+                q.AddJob<CancelPendingOrdersByTodayExpiryJob>(opts => opts.WithIdentity(cancelPendingOrdersByTodayExpiryJobKey));
+                q.AddTrigger(opts => opts
+                    .ForJob(cancelPendingOrdersByTodayExpiryJobKey)
+                    .WithIdentity("CancelPendingOrdersByTodayExpiryJob-trigger")
+                    .WithCronSchedule(
+                        "0 0 21 * * ?",
+                        x => x.InTimeZone(TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"))));
             });
             services.AddQuartzHostedService(options =>
             {

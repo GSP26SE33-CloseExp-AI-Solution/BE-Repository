@@ -378,7 +378,7 @@ public class DeliveryController : ControllerBase
         }
     }
 
-    [Authorize(Roles = "DeliveryStaff")]
+    [Authorize(Roles = "Admin,DeliveryStaff")]
     [HttpGet("groups/{deliveryGroupId:guid}")]
     public async Task<ActionResult<ApiResponse<DeliveryGroupResponseDto>>> GetGroupDetail(Guid deliveryGroupId)
     {
