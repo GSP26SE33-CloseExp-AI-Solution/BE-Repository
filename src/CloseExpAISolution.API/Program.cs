@@ -21,10 +21,11 @@ var app = builder.Build();
 var env = app.Services.GetRequiredService<IWebHostEnvironment>();
 var config = app.Services.GetRequiredService<IConfiguration>();
 var runMigrations = config.GetValue<bool>("Database:RunMigrationsOnStartup");
+var runSeeding = config.GetValue<bool>("Database:RunSeedingOnStartup");
 var migrationTimeoutSeconds = config.GetValue<int>("Database:MigrationStartupTimeoutSeconds");
 if (migrationTimeoutSeconds <= 0) migrationTimeoutSeconds = 90;
 
-if (env.IsDevelopment() && runMigrations)
+if (env.IsDevelopment() && (runMigrations || runSeeding))
 {
     using var scope = app.Services.CreateScope();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
@@ -33,10 +34,21 @@ if (env.IsDevelopment() && runMigrations)
     try
     {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        context.Database.SetCommandTimeout(TimeSpan.FromSeconds(Math.Min(120, migrationTimeoutSeconds)));
-        await context.Database.MigrateAsync(cts.Token);
-        await DataSeeder.SeedAsync(context);
-        logger.LogInformation("Database migrations and seeding completed.");
+        if (runMigrations)
+        {
+            context.Database.SetCommandTimeout(TimeSpan.FromSeconds(Math.Min(120, migrationTimeoutSeconds)));
+            await context.Database.MigrateAsync(cts.Token);
+        }
+
+        if (runSeeding)
+        {
+            await DataSeeder.SeedAsync(context);
+        }
+
+        logger.LogInformation(
+            "Database startup tasks completed. Migrations: {RunMigrations}, Seeding: {RunSeeding}",
+            runMigrations,
+            runSeeding);
     }
     catch (OperationCanceledException)
     {
