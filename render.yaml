@@ -29,6 +29,12 @@ services:
         sync: false
       - key: Mapbox__AccessToken
         sync: false
+      - key: PayOsSettings__ClientId
+        sync: false
+      - key: PayOsSettings__ApiKey
+        sync: false
+      - key: PayOsSettings__ChecksumKey
+        sync: false
       - key: EmailSettings__SmtpServer
         sync: false
       - key: EmailSettings__SmtpPort
