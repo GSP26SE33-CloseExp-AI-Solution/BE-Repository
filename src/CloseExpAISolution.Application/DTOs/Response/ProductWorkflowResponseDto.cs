@@ -155,6 +155,11 @@ public class CreateNewProductResponseDto
     public bool IsManualFallback { get; set; }
     public string NextAction { get; set; } = "VERIFY_PRODUCT";
     public string NextActionDescription { get; set; } = "Xác nhận thông tin sản phẩm trước khi tạo StockLot";
+
+    public Guid? UnitId { get; set; }
+    public string? UnitName { get; set; }
+    public string? UnitType { get; set; }
+    public string? UnitSymbol { get; set; }
 }
 
 public class OcrAnalysisResponseDto
@@ -204,6 +209,11 @@ public class StockLotResponseDto
     public decimal? SuggestedPrice { get; set; }
     public decimal? FinalPrice { get; set; }
     public float? PricingConfidence { get; set; }
+
+    public Guid? UnitId { get; set; }
+    public string? UnitName { get; set; }
+    public string? UnitType { get; set; }
+    public string? UnitSymbol { get; set; }
 }
 
 public class WorkflowTimeoutInfoDto
@@ -227,6 +237,11 @@ public class StaffProductIdentificationResponseDto
     public Guid? VerificationProductId { get; set; }
     public bool CanCreateLotDirectly { get; set; }
     public WorkflowTimeoutInfoDto TimeoutInfo { get; set; } = new();
+
+    public Guid? UnitId { get; set; }
+    public string? UnitName { get; set; }
+    public string? UnitType { get; set; }
+    public string? UnitSymbol { get; set; }
 }
 
 public class StaffCreateLotAndPublishResponseDto
@@ -266,4 +281,29 @@ public class ExcelImportErrorDto
     public int RowNumber { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
     public Dictionary<string, string> RowData { get; set; } = new();
+}
+
+public class UnitOfMeasureDto
+{
+    public Guid UnitId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string Symbol { get; set; } = string.Empty;
+}
+
+public class MarketPriceReferenceDto
+{
+    public string? Barcode { get; set; }
+    public string? ProductName { get; set; }
+    public bool HasData { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? AvgPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
+    public int SourceCount { get; set; }
+    public DateTime? LastUpdated { get; set; }
+    public List<string> Sources { get; set; } = new();
+    public List<MarketPriceSourceDto> Details { get; set; } = new();
+    public bool Crawled { get; set; }
+    public string? CrawlError { get; set; }
+    public string? Message { get; set; }
 }

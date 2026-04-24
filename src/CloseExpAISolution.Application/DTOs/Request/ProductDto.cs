@@ -125,6 +125,8 @@ public class CreateStockLotFromExistingDto
 
     [Required]
     public string CreatedBy { get; set; } = string.Empty;
+
+    public Guid? UnitId { get; set; }
 }
 
 public class StaffProductIdentificationRequestDto
@@ -154,6 +156,8 @@ public class StaffCreateProductFromWorkflowRequestDto
     public string? OcrExtractedData { get; set; }
     public float? OcrConfidence { get; set; }
     public bool IsManualFallback { get; set; }
+
+    public Guid? UnitId { get; set; }
 }
 
 public class StaffCreateLotAndPublishRequestDto
@@ -179,6 +183,8 @@ public class StaffCreateLotAndPublishRequestDto
     public bool? AcceptedSuggestion { get; set; }
     public string? PriceFeedback { get; set; }
     public bool IsManualFallback { get; set; }
+
+    public Guid? UnitId { get; set; }
 }
 
 public class CreateNewProductRequestDto

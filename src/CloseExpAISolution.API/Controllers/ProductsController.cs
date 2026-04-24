@@ -299,6 +299,60 @@ public class ProductsController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "SupermarketStaff,Admin")]
+    [HttpGet("workflow/units")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UnitOfMeasureDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<UnitOfMeasureDto>>>> GetUnits(
+        [FromQuery] string? type = null,
+        CancellationToken cancellationToken = default)
+    {
+        var units = await _workflowService.GetUnitsAsync(type, cancellationToken);
+        return Ok(ApiResponse<IEnumerable<UnitOfMeasureDto>>.SuccessResponse(
+            units,
+            "Danh sách đơn vị đo lường"));
+    }
+
+    [Authorize(Roles = "SupermarketStaff,Admin")]
+    [HttpGet("workflow/market-price-reference")]
+    [ProducesResponseType(typeof(ApiResponse<MarketPriceReferenceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<MarketPriceReferenceDto>>> GetMarketPriceReference(
+        [FromQuery] string? barcode,
+        [FromQuery] string? productName,
+        [FromQuery] bool autoCrawl = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(barcode) && string.IsNullOrWhiteSpace(productName))
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Vui lòng cung cấp barcode hoặc productName."));
+        }
+
+        try
+        {
+            var result = await _workflowService.GetMarketPriceReferenceAsync(
+                barcode,
+                productName,
+                autoCrawl,
+                cancellationToken);
+
+            var message = result.HasData
+                ? result.Message ?? $"Tìm thấy {result.SourceCount} nguồn giá tham khảo."
+                : result.Message ?? "Không tìm thấy giá tham khảo.";
+
+            return Ok(ApiResponse<MarketPriceReferenceDto>.SuccessResponse(result, message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting market price reference for barcode {Barcode} / name {Name}", barcode, productName);
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
     #endregion
 
     #region Lookup APIs
