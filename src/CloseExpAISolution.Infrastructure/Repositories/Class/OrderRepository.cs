@@ -77,8 +77,17 @@ public class OrderRepository : IOrderRepository
             var normalized = status.Trim();
             if (Enum.TryParse<CloseExpAISolution.Domain.Enums.OrderState>(normalized, ignoreCase: true, out var orderState))
             {
-                // Compare enum directly so EF can translate to SQL.
-                q = q.Where(o => o.Status == orderState);
+                if (orderState == CloseExpAISolution.Domain.Enums.OrderState.Paid)
+                {
+                    // Backward-compatible admin filter: "Paid" also includes packaged-ready orders.
+                    q = q.Where(o => o.Status == CloseExpAISolution.Domain.Enums.OrderState.Paid
+                                     || o.Status == CloseExpAISolution.Domain.Enums.OrderState.ReadyToShip);
+                }
+                else
+                {
+                    // Compare enum directly so EF can translate to SQL.
+                    q = q.Where(o => o.Status == orderState);
+                }
             }
         }
 

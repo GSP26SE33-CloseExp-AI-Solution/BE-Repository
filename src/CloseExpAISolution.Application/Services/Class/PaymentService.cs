@@ -183,6 +183,13 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         if (!IsPaymentLinkSettled(link))
         {
+            var pendingTx = await _unitOfWork.Repository<Transaction>()
+                .FirstOrDefaultAsync(t => t.PayOSOrderCode == payOsOrderCode);
+            if (pendingTx != null)
+            {
+                await ApplyUnsuccessfulPaymentStateAsync(pendingTx, link.Status, cancellationToken);
+            }
+
             var statusStr = link.Status.ToString();
             _logger.LogInformation(
                 "PayOS link {Code} not settled yet: Status={Status}, AmountPaid={AmountPaid}, Amount={Amount}",
@@ -276,6 +283,18 @@ public sealed class PaymentService : IPaymentService, IDisposable
         _unitOfWork.Repository<Transaction>().Update(transaction);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (!success)
+        {
+            var orderForFailedPayment = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
+            if (orderForFailedPayment != null && orderForFailedPayment.Status == OrderState.Pending)
+            {
+                orderForFailedPayment.Status = OrderState.Canceled;
+                orderForFailedPayment.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.OrderRepository.Update(orderForFailedPayment);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         if (success
             && order != null
             && order.Status is OrderState.Paid
@@ -302,6 +321,32 @@ public sealed class PaymentService : IPaymentService, IDisposable
         }
 
         throw new InvalidOperationException("Could not generate a unique PayOS order code.");
+    }
+
+    private async Task ApplyUnsuccessfulPaymentStateAsync(
+        Transaction transaction,
+        PaymentLinkStatus paymentLinkStatus,
+        CancellationToken cancellationToken)
+    {
+        if (paymentLinkStatus is not (PaymentLinkStatus.Cancelled or PaymentLinkStatus.Expired or PaymentLinkStatus.Failed))
+            return;
+
+        if (transaction.PaymentStatus != PaymentState.Pending)
+            return;
+
+        transaction.PaymentStatus = PaymentState.Failed;
+        transaction.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Repository<Transaction>().Update(transaction);
+
+        var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
+        if (order != null && order.Status == OrderState.Pending)
+        {
+            order.Status = OrderState.Canceled;
+            order.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.OrderRepository.Update(order);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task ApplyPaidTransitionSafelyAsync(Order order, CancellationToken cancellationToken)

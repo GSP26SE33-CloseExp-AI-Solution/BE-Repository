@@ -7,15 +7,17 @@ using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using StackExchange.Redis;
+using System.Collections.Concurrent;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
 public class CartService : ICartService
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IConnectionMultiplexer _redis;
+    private readonly IConnectionMultiplexer? _redis;
+    private static readonly ConcurrentDictionary<string, string> InMemoryCartStore = new();
 
-    public CartService(IUnitOfWork unitOfWork, IConnectionMultiplexer redis)
+    public CartService(IUnitOfWork unitOfWork, IConnectionMultiplexer? redis = null)
     {
         _unitOfWork = unitOfWork;
         _redis = redis;
@@ -87,22 +89,40 @@ public class CartService : ICartService
 
     public async Task ClearAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var db = _redis.GetDatabase();
-        await db.KeyDeleteAsync(GetCartKey(userId));
+        var key = GetCartKey(userId);
+        if (_redis != null)
+        {
+            var db = _redis.GetDatabase();
+            await db.KeyDeleteAsync(key);
+            return;
+        }
+
+        InMemoryCartStore.TryRemove(key, out _);
     }
 
     private static string GetCartKey(Guid userId) => $"cart:{userId:D}";
 
     private async Task<RedisCart> LoadCartAsync(Guid userId)
     {
-        var db = _redis.GetDatabase();
-        var raw = await db.StringGetAsync(GetCartKey(userId));
-        if (!raw.HasValue)
-            return new RedisCart();
+        var key = GetCartKey(userId);
+        string? raw;
+        if (_redis != null)
+        {
+            var db = _redis.GetDatabase();
+            var redisRaw = await db.StringGetAsync(key);
+            if (!redisRaw.HasValue)
+                return new RedisCart();
+            raw = redisRaw!;
+        }
+        else
+        {
+            if (!InMemoryCartStore.TryGetValue(key, out raw) || string.IsNullOrWhiteSpace(raw))
+                return new RedisCart();
+        }
 
         try
         {
-            return JsonSerializer.Deserialize<RedisCart>(raw!) ?? new RedisCart();
+            return JsonSerializer.Deserialize<RedisCart>(raw) ?? new RedisCart();
         }
         catch
         {
@@ -118,9 +138,16 @@ public class CartService : ICartService
                 item.CartItemId = Guid.NewGuid();
         }
 
-        var db = _redis.GetDatabase();
+        var key = GetCartKey(userId);
         var raw = JsonSerializer.Serialize(cart);
-        await db.StringSetAsync(GetCartKey(userId), raw, expiry: TimeSpan.FromDays(7));
+        if (_redis != null)
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync(key, raw, expiry: TimeSpan.FromDays(7));
+            return;
+        }
+
+        InMemoryCartStore[key] = raw;
     }
 
     private async Task<CartResponseDto> MapCartAsync(Guid userId, RedisCart cart, CancellationToken cancellationToken)
