@@ -40,7 +40,7 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
-*.json
+
 
 # Allow shared VS Code / Cursor config (override *.json above)
 !*.postman_collection.json
