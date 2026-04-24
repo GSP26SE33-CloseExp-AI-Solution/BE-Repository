@@ -1,0 +1,31 @@
+services:
+  api:
+    container_name: closeexpai-api
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: src/CloseExpAISolution.API/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=${CONNECTIONSTRINGS__DEFAULTCONNECTION}
+      - Jwt__Key=${JWT__KEY}
+      - Jwt__Issuer=${JWT__ISSUER}
+      - Jwt__Audience=${JWT__AUDIENCE}
+      - Jwt__ExpiryInMinutes=${JWT__EXPIRYINMINUTES:-60}
+      - GoogleAuth__ClientId=${GOOGLEAUTH__CLIENTID}
+      - GoogleAuth__ClientSecret=${GOOGLEAUTH__CLIENTSECRET}
+      - Mapbox__AccessToken=${MAPBOX__ACCESSTOKEN}
+      - EmailSettings__SmtpServer=${EMAILSETTINGS__SMTPSERVER}
+      - EmailSettings__SmtpPort=${EMAILSETTINGS__SMTPPORT:-587}
+      - EmailSettings__SmtpUsername=${EMAILSETTINGS__SMTPUSERNAME}
+      - EmailSettings__SmtpPassword=${EMAILSETTINGS__SMTPPASSWORD}
+      - EmailSettings__FromEmail=${EMAILSETTINGS__FROMEMAIL}
+      - EmailSettings__FromName=${EMAILSETTINGS__FROMNAME:-CloseExp AI}
+      - R2Storage__AccountId=${R2STORAGE__ACCOUNTID}
+      - R2Storage__AccessKeyId=${R2STORAGE__ACCESSKEYID}
+      - R2Storage__SecretAccessKey=${R2STORAGE__SECRETACCESSKEY}
+      - R2Storage__BucketName=${R2STORAGE__BUCKETNAME}
+      - R2Storage__AccountUrl=${R2STORAGE__ACCOUNTURL}

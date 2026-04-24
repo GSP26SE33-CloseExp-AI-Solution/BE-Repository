@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: closeexpai-api
+    runtime: dotnet
+    plan: free
+    region: singapore
+    rootDir: .
+    buildCommand: dotnet publish src/CloseExpAISolution.API/CloseExpAISolution.API.csproj -c Release -o out
+    startCommand: ASPNETCORE_URLS=http://0.0.0.0:$PORT dotnet out/CloseExpAISolution.API.dll
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__Key
+        sync: false
+      - key: Jwt__Issuer
+        value: CloseExpAI_Issuer
+      - key: Jwt__Audience
+        value: CloseExpAI_Audience
+      - key: Jwt__ExpiryInMinutes
+        value: "60"
+      - key: GoogleAuth__ClientId
+        sync: false
+      - key: GoogleAuth__ClientSecret
+        sync: false
+      - key: Mapbox__AccessToken
+        sync: false
+      - key: EmailSettings__SmtpServer
+        sync: false
+      - key: EmailSettings__SmtpPort
+        value: "587"
+      - key: EmailSettings__SmtpUsername
+        sync: false
+      - key: EmailSettings__SmtpPassword
+        sync: false
+      - key: EmailSettings__FromEmail
+        sync: false
+      - key: EmailSettings__FromName
+        value: CloseExp AI
+      - key: R2Storage__AccountId
+        sync: false
+      - key: R2Storage__AccessKeyId
+        sync: false
+      - key: R2Storage__SecretAccessKey
+        sync: false
+      - key: R2Storage__BucketName
+        sync: false
+      - key: R2Storage__AccountUrl
+        sync: false
