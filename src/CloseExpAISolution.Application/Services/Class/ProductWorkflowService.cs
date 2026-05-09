@@ -3,6 +3,7 @@ using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.AIService.Models;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Mappings;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -322,6 +323,120 @@ public class ProductWorkflowService : IProductWorkflowService
 
         var responses = await Task.WhenAll(products.Select(p => MapToResponseDtoAsync(p)));
         return responses;
+    }
+
+    public async Task<MarketPriceReferenceDto> GetMarketPriceReferenceAsync(
+        string? barcode,
+        string? productName,
+        bool autoCrawl = true,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedBarcode = barcode?.Trim();
+        var normalizedName = productName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedBarcode) && string.IsNullOrWhiteSpace(normalizedName))
+        {
+            throw new ArgumentException("Vui lòng cung cấp barcode hoặc productName để tra cứu giá tham khảo.");
+        }
+
+        var response = new MarketPriceReferenceDto
+        {
+            Barcode = normalizedBarcode,
+            ProductName = normalizedName
+        };
+
+        MarketPriceResult? lookup = null;
+
+        if (!string.IsNullOrWhiteSpace(normalizedBarcode))
+        {
+            lookup = await _marketPriceService.GetMarketPriceAsync(normalizedBarcode, cancellationToken);
+        }
+
+        if ((lookup == null || !lookup.Details.Any()) && !string.IsNullOrWhiteSpace(normalizedName))
+        {
+            lookup = await _marketPriceService.SearchMarketPriceAsync(normalizedName, cancellationToken);
+        }
+
+        if ((lookup == null || !lookup.Details.Any()) && autoCrawl && !string.IsNullOrWhiteSpace(normalizedBarcode))
+        {
+            try
+            {
+                var crawl = await _marketPriceService.TriggerCrawlAsync(normalizedBarcode, normalizedName, cancellationToken);
+                response.Crawled = true;
+
+                if (!crawl.Success)
+                {
+                    response.CrawlError = crawl.Error;
+                }
+
+                if (crawl.Success && crawl.PricesFound > 0)
+                {
+                    lookup = await _marketPriceService.GetMarketPriceAsync(normalizedBarcode, cancellationToken);
+                    if ((lookup == null || !lookup.Details.Any()) && !string.IsNullOrWhiteSpace(normalizedName))
+                    {
+                        lookup = await _marketPriceService.SearchMarketPriceAsync(normalizedName, cancellationToken);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Market price crawl failed for barcode {Barcode}", normalizedBarcode);
+                response.Crawled = true;
+                response.CrawlError = ex.Message;
+            }
+        }
+
+        if (lookup == null || !lookup.Details.Any())
+        {
+            response.HasData = false;
+            response.Message = response.Crawled
+                ? "Không tìm thấy giá tham khảo sau khi crawl."
+                : "Không tìm thấy giá tham khảo trong dữ liệu hiện có.";
+            return response;
+        }
+
+        response.HasData = true;
+        response.MinPrice = lookup.MinPrice;
+        response.AvgPrice = lookup.AvgPrice;
+        response.MaxPrice = lookup.MaxPrice;
+        response.SourceCount = lookup.SourceCount;
+        response.LastUpdated = lookup.LastUpdated;
+        response.Sources = lookup.Sources ?? new List<string>();
+        response.Details = lookup.Details.Select(d => new MarketPriceSourceDto
+        {
+            StoreName = string.IsNullOrWhiteSpace(d.StoreName) ? d.Source : d.StoreName,
+            Price = d.Price,
+            Source = d.Source
+        }).ToList();
+        response.Message = $"Tìm thấy {response.SourceCount} nguồn giá tham khảo.";
+
+        return response;
+    }
+
+    public async Task<IEnumerable<UnitOfMeasureDto>> GetUnitsAsync(
+        string? type = null,
+        CancellationToken cancellationToken = default)
+    {
+        var units = await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync();
+
+        var query = units.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            var normalized = type.Trim();
+            query = query.Where(u => string.Equals(u.Type, normalized, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return query
+            .OrderBy(u => u.Type)
+            .ThenBy(u => u.Name)
+            .Select(u => new UnitOfMeasureDto
+            {
+                UnitId = u.UnitId,
+                Name = u.Name,
+                Type = u.Type,
+                Symbol = u.Symbol
+            })
+            .ToList();
     }
 
     public async Task<WorkflowSummaryDto> GetWorkflowSummaryAsync(
@@ -696,6 +811,18 @@ public class ProductWorkflowService : IProductWorkflowService
     {
         var scanResult = await ScanBarcodeAsync(barcode, supermarketId, cancellationToken);
 
+        UnitOfMeasure? unitForResponse = null;
+        if (scanResult.ExistingProduct != null)
+        {
+            var latestLot = await GetLatestStockLotByProductIdAsync(scanResult.ExistingProduct.ProductId);
+            if (latestLot != null && latestLot.UnitId != Guid.Empty)
+            {
+                unitForResponse = await _unitOfWork.Repository<UnitOfMeasure>()
+                    .FirstOrDefaultAsync(u => u.UnitId == latestLot.UnitId);
+            }
+        }
+        unitForResponse ??= await GetUnitByIdOrDefaultAsync(null, cancellationToken);
+
         return new StaffProductIdentificationResponseDto
         {
             Barcode = scanResult.Barcode,
@@ -717,7 +844,11 @@ public class ProductWorkflowService : IProductWorkflowService
                 TimeoutSeconds = WorkflowAiTimeoutSeconds,
                 IsAiStep = !scanResult.ProductExists,
                 SupportsManualFallback = true
-            }
+            },
+            UnitId = unitForResponse?.UnitId,
+            UnitName = unitForResponse?.Name,
+            UnitType = unitForResponse?.Type,
+            UnitSymbol = unitForResponse?.Symbol
         };
     }
 
@@ -829,6 +960,8 @@ public class ProductWorkflowService : IProductWorkflowService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var unitForResponse = await GetUnitByIdOrDefaultAsync(request.UnitId, cancellationToken);
+
         return new CreateNewProductResponseDto
         {
             ProductId = product.ProductId,
@@ -845,7 +978,11 @@ public class ProductWorkflowService : IProductWorkflowService
             CreatedAt = product.CreatedAt,
             IsManualFallback = request.IsManualFallback,
             NextAction = "CREATE_STOCKLOT",
-            NextActionDescription = "Sản phẩm đã xác nhận. Tiếp tục tạo lô hàng và gợi ý giá."
+            NextActionDescription = "Sản phẩm đã xác nhận. Tiếp tục tạo lô hàng và gợi ý giá.",
+            UnitId = unitForResponse?.UnitId,
+            UnitName = unitForResponse?.Name,
+            UnitType = unitForResponse?.Type,
+            UnitSymbol = unitForResponse?.Symbol
         };
     }
 
@@ -873,7 +1010,9 @@ public class ProductWorkflowService : IProductWorkflowService
             ManufactureDate = request.ManufactureDate.HasValue ? EnsureUtc(request.ManufactureDate.Value) : null,
             Quantity = request.Quantity,
             Weight = request.Weight,
-            CreatedBy = staffName
+            OriginalUnitPrice = request.OriginalUnitPrice,
+            CreatedBy = staffName,
+            UnitId = request.UnitId
         }, cancellationToken);
 
         PricingSuggestionResponseDto pricingSuggestion;
@@ -915,9 +1054,14 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             ProductId = request.ProductId,
             LotId = publishedLot.LotId,
+            PricingSuggestionResolvedBeforePublish = true,
             PricingSuggestion = pricingSuggestion,
             StockLot = publishedLot,
             IsManualFallback = request.IsManualFallback,
+            ProductCategory = product.CategoryRef?.Name ?? string.Empty,
+            ProductNutritionFacts = product.ProductDetail != null
+                ? NutritionFactsParser.Parse(product.ProductDetail.NutritionFacts)
+                : null,
             TimeoutInfo = new WorkflowTimeoutInfoDto
             {
                 TimeoutSeconds = WorkflowAiTimeoutSeconds,
@@ -954,22 +1098,24 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new InvalidOperationException($"Cannot create StockLot. Remaining shelf life must be > {minHours} hours.");
         }
 
-        var defaultUnit = (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
-        if (defaultUnit == null)
-            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
+        var resolvedUnit = await ResolveUnitAsync(request.UnitId, cancellationToken);
 
         var stockLot = new StockLot
         {
             LotId = Guid.NewGuid(),
             ProductId = product.ProductId,
-            UnitId = defaultUnit.UnitId,
+            UnitId = resolvedUnit.UnitId,
             ExpiryDate = expiryUtc,
             ManufactureDate = manufactureUtc ?? DateTime.UtcNow,
             Quantity = request.Quantity,
             Weight = request.Weight,
+            OriginalUnitPrice = request.OriginalUnitPrice,
             Status = ProductState.Draft,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            CreatedBy = string.IsNullOrWhiteSpace(request.CreatedBy) ? null : request.CreatedBy.Trim()
         };
+        stockLot.Unit = resolvedUnit;
 
         await _unitOfWork.Repository<StockLot>().AddAsync(stockLot);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1226,7 +1372,8 @@ public class ProductWorkflowService : IProductWorkflowService
         var daysToExpiry = (int)(lot.ExpiryDate - DateTime.UtcNow).TotalDays;
 
         var priceHistory = await _unitOfWork.Repository<PricingHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
-        if (priceHistory == null)
+        bool isNewPricingHistory = priceHistory == null;
+        if (isNewPricingHistory)
         {
             priceHistory = new PricingHistory
             {
@@ -1237,13 +1384,18 @@ public class ProductWorkflowService : IProductWorkflowService
             await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
         }
 
-        priceHistory.SuggestedPrice = originalUnitPrice;
+        priceHistory!.SuggestedPrice = originalUnitPrice;
         priceHistory.AIConfidence = 0;
         priceHistory.Reason = "Manual fallback (AI pricing skipped)";
         priceHistory.MarketMinPrice = null;
         priceHistory.MarketAvgPrice = null;
         priceHistory.MarketMaxPrice = null;
-        _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
+
+        if (!isNewPricingHistory)
+        {
+            _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new PricingSuggestionResponseDto
@@ -1293,10 +1445,8 @@ public class ProductWorkflowService : IProductWorkflowService
                 CreatedAt = DateTime.UtcNow
             };
             await _unitOfWork.Repository<PricingHistory>().AddAsync(priceHistory);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
-        _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var suggestion = await GetPricingSuggestionInternalAsync(product, request.OriginalPrice, cancellationToken);
 
@@ -1343,11 +1493,14 @@ public class ProductWorkflowService : IProductWorkflowService
 
         _unitOfWork.Repository<PricingHistory>().Update(priceHistory);
 
+        lot.FinalUnitPrice = finalPrice;
+        lot.SuggestedUnitPrice = priceHistory.SuggestedPrice;
         lot.Status = ProductState.Priced;
         _unitOfWork.Repository<StockLot>().Update(lot);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await EnsureLotUnitLoadedAsync(lot);
         return MapToLotResponseDto(lot, product, priceHistory);
     }
 
@@ -1383,6 +1536,7 @@ public class ProductWorkflowService : IProductWorkflowService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var priceHistory = await _unitOfWork.Repository<PricingHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
+        await EnsureLotUnitLoadedAsync(lot);
         return MapToLotResponseDto(lot, product, priceHistory);
     }
 
@@ -1396,6 +1550,7 @@ public class ProductWorkflowService : IProductWorkflowService
         var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(lot.ProductId);
         var priceHistory = await _unitOfWork.Repository<PricingHistory>().FirstOrDefaultAsync(h => h.LotId == lotId);
 
+        await EnsureLotUnitLoadedAsync(lot);
         return MapToLotResponseDto(lot, product, priceHistory);
     }
 
@@ -1415,6 +1570,7 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             var product = products.FirstOrDefault(p => p.ProductId == lot.ProductId);
             var priceHistory = await _unitOfWork.Repository<PricingHistory>().FirstOrDefaultAsync(h => h.LotId == lot.LotId);
+            await EnsureLotUnitLoadedAsync(lot);
             result.Add(MapToLotResponseDto(lot, product, priceHistory));
         }
 
@@ -1424,6 +1580,7 @@ public class ProductWorkflowService : IProductWorkflowService
     private StockLotResponseDto MapToLotResponseDto(StockLot lot, Product? product, PricingHistory? priceHistory = null)
     {
         var images = product?.ProductImages?.OrderByDescending(i => i.CreatedAt).FirstOrDefault();
+        var unit = lot.Unit;
 
         return new StockLotResponseDto
         {
@@ -1440,13 +1597,61 @@ public class ProductWorkflowService : IProductWorkflowService
             Weight = lot.Weight,
             Status = lot.Status,
             CreatedAt = lot.CreatedAt,
+            CreatedBy = lot.CreatedBy,
             PublishedBy = lot.PublishedBy,
             PublishedAt = lot.PublishedAt,
             OriginalPrice = lot?.OriginalUnitPrice,
             SuggestedPrice = priceHistory?.SuggestedPrice,
-            FinalPrice = null,
-            PricingConfidence = priceHistory != null ? (float?)priceHistory.AIConfidence : null
+            FinalPrice = lot?.FinalUnitPrice,
+            PricingConfidence = priceHistory != null ? (float?)priceHistory.AIConfidence : null,
+            UnitId = lot?.UnitId,
+            UnitName = unit?.Name,
+            UnitType = unit?.Type,
+            UnitSymbol = unit?.Symbol
         };
+    }
+
+    private async Task<UnitOfMeasure> ResolveUnitAsync(Guid? requestedUnitId, CancellationToken cancellationToken)
+    {
+        if (requestedUnitId.HasValue && requestedUnitId.Value != Guid.Empty)
+        {
+            var requested = await _unitOfWork.Repository<UnitOfMeasure>()
+                .FirstOrDefaultAsync(u => u.UnitId == requestedUnitId.Value);
+            if (requested == null)
+            {
+                throw new InvalidOperationException($"UnitOfMeasure {requestedUnitId} not found.");
+            }
+            return requested;
+        }
+
+        var defaultUnit = (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
+        if (defaultUnit == null)
+        {
+            throw new InvalidOperationException("No Unit found in database. Please seed Units first.");
+        }
+        return defaultUnit;
+    }
+
+    private async Task<UnitOfMeasure?> GetUnitByIdOrDefaultAsync(Guid? requestedUnitId, CancellationToken cancellationToken)
+    {
+        if (requestedUnitId.HasValue && requestedUnitId.Value != Guid.Empty)
+        {
+            var requested = await _unitOfWork.Repository<UnitOfMeasure>()
+                .FirstOrDefaultAsync(u => u.UnitId == requestedUnitId.Value);
+            if (requested != null)
+                return requested;
+        }
+
+        return (await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync()).FirstOrDefault();
+    }
+
+    private async Task EnsureLotUnitLoadedAsync(StockLot? lot)
+    {
+        if (lot == null || lot.Unit != null || lot.UnitId == Guid.Empty)
+            return;
+
+        lot.Unit = await _unitOfWork.Repository<UnitOfMeasure>()
+            .FirstOrDefaultAsync(u => u.UnitId == lot.UnitId);
     }
 
     private async Task<Category?> ResolveCategoryByNameAsync(string? categoryName, CancellationToken cancellationToken)

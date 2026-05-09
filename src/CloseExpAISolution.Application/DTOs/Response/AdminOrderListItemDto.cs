@@ -16,6 +16,7 @@ public class AdminOrderListItemDto
     public decimal DiscountAmount { get; set; }
     public decimal FinalAmount { get; set; }
     public decimal DeliveryFee { get; set; }
+    public decimal SystemUsageFeeAmount { get; set; }
 
     public Guid UserId { get; set; }
     public string? UserName { get; set; }

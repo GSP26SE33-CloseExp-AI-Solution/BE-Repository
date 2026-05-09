@@ -15,6 +15,7 @@ public class OrderResponseDto
     public decimal DiscountAmount { get; set; }
     public decimal FinalAmount { get; set; }
     public decimal DeliveryFee { get; set; }
+    public decimal SystemUsageFeeAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime OrderDate { get; set; }
     public Guid? AddressId { get; set; }

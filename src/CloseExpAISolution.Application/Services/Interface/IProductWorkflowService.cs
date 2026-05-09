@@ -86,5 +86,15 @@ public interface IProductWorkflowService
         Guid supermarketId,
         CancellationToken cancellationToken = default);
 
+    Task<MarketPriceReferenceDto> GetMarketPriceReferenceAsync(
+        string? barcode,
+        string? productName,
+        bool autoCrawl = true,
+        CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<UnitOfMeasureDto>> GetUnitsAsync(
+        string? type = null,
+        CancellationToken cancellationToken = default);
+
 }
 

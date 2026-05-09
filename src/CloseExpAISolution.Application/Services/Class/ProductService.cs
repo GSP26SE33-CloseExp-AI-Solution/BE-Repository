@@ -3,6 +3,7 @@ using System.Text.Json;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Policies;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -263,6 +264,7 @@ public class ProductService : IProductService
         bool includeHiddenDeletedProducts = false)
     {
         var query = _context.StockLots
+            .Include(pl => pl.Unit)
             .Include(pl => pl.Product)
                 .ThenInclude(p => p!.Supermarket)
             .Include(pl => pl.Product)
@@ -289,9 +291,13 @@ public class ProductService : IProductService
             query = query.Where(pl => pl.Product!.CategoryRef != null && pl.Product.CategoryRef.IsFreshFood == filter.IsFreshFood.Value);
         }
 
-        if (!string.IsNullOrEmpty(filter.Category))
+        if (!string.IsNullOrWhiteSpace(filter.Category))
         {
-            query = query.Where(pl => pl.Product!.CategoryRef != null && pl.Product.CategoryRef.Name == filter.Category);
+            var catNorm = filter.Category.Trim().ToLowerInvariant();
+            query = query.Where(pl =>
+                pl.Product!.CategoryRef != null
+                && pl.Product.CategoryRef.Name != null
+                && pl.Product.CategoryRef.Name.ToLower() == catNorm);
         }
 
         if (!string.IsNullOrEmpty(filter.SearchTerm))
@@ -400,6 +406,8 @@ public class ProductService : IProductService
         if (pageSize > 200) pageSize = 200;
 
         var now = DateTime.UtcNow;
+        var (todayStartUtc, todayEndUtc) = DailyExpiryOrderingPolicy.GetVietnamDateRangeUtc(now);
+        var isCutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
 
         var baseQuery = _context.StockLots
             .AsNoTracking()
@@ -410,6 +418,12 @@ public class ProductService : IProductService
                 && l.Status == ProductState.Published &&
                 l.Quantity > 0 &&
                 l.ExpiryDate > now);
+
+        if (isCutoffReached)
+        {
+            baseQuery = baseQuery.Where(l =>
+                l.ExpiryDate < todayStartUtc || l.ExpiryDate >= todayEndUtc);
+        }
 
         var totalCount = await baseQuery.CountAsync(cancellationToken);
 

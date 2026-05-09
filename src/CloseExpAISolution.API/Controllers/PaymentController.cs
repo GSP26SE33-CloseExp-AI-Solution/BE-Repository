@@ -33,12 +33,12 @@ public class PaymentController : ControllerBase
 
         try
         {
-            var checkoutUrl = await _paymentService.CreatePaymentLinkAsync(
+            var result = await _paymentService.CreatePaymentLinkAsync(
                 userId,
                 requestDto.OrderId,
                 requestDto.ReturnUrl,
                 requestDto.CancelUrl);
-            return Ok(new { CheckoutUrl = checkoutUrl });
+            return Ok(result);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("already been paid", StringComparison.OrdinalIgnoreCase))
         {

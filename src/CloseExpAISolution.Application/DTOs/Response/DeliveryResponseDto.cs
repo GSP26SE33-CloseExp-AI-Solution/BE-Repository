@@ -115,6 +115,15 @@ public class DeliveryGroupSummaryDto
     public int TotalOrders { get; set; }
     public int CompletedOrders { get; set; }
     public DateTime DeliveryDate { get; set; }
+    public Guid? DeliveryStaffId { get; set; }
+    public string? DeliveryStaffName { get; set; }
+
+    // Additive fields for queue prioritization/sorting on client side.
+    public DateTime? SlotStartAtUtc { get; set; }
+    public DateTime? SlotEndAtUtc { get; set; }
+    public double? DistanceFromCurrentKm { get; set; }
+    public decimal? PriorityScore { get; set; }
+    public IEnumerable<string> PriorityReasons { get; set; } = Array.Empty<string>();
 }
 
 public class MoveOrderItemsToDraftGroupResultDto

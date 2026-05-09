@@ -467,6 +467,8 @@ public class ApplicationDbContext : DbContext
         var entries = ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
 
+        var now = DateTime.UtcNow;
+
         foreach (var entry in entries)
         {
             if (entry.State == EntityState.Added)
@@ -474,7 +476,17 @@ public class ApplicationDbContext : DbContext
                 var createdAtProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "CreatedAt");
                 if (createdAtProperty != null && createdAtProperty.CurrentValue == null)
                 {
-                    createdAtProperty.CurrentValue = DateTime.UtcNow;
+                    createdAtProperty.CurrentValue = now;
+                }
+
+                var updatedAtOnAddProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "UpdatedAt");
+                if (updatedAtOnAddProperty != null)
+                {
+                    var current = updatedAtOnAddProperty.CurrentValue;
+                    if (current == null || (current is DateTime dt && dt == default))
+                    {
+                        updatedAtOnAddProperty.CurrentValue = now;
+                    }
                 }
             }
 
@@ -483,7 +495,7 @@ public class ApplicationDbContext : DbContext
                 var updatedAtProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "UpdatedAt");
                 if (updatedAtProperty != null)
                 {
-                    updatedAtProperty.CurrentValue = DateTime.UtcNow;
+                    updatedAtProperty.CurrentValue = now;
                 }
             }
         }

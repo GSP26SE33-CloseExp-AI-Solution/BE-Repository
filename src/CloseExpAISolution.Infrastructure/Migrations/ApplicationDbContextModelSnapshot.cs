@@ -546,6 +546,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("SystemUsageFeeAmount")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("TimeSlotId")
                         .HasColumnType("uuid");
 
@@ -1172,6 +1175,9 @@ namespace CloseExpAISolution.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("ExpiryDate")
                         .HasColumnType("timestamp with time zone");

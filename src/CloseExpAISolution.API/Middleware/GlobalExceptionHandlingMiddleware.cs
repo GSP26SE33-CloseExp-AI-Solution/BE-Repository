@@ -68,7 +68,8 @@ public class GlobalExceptionHandlingMiddleware
             }
         }
 
-        if (ex.Message.Contains("Cannot write DateTime with Kind=Local", StringComparison.OrdinalIgnoreCase))
+        if (ex.Message.Contains("Cannot write DateTime with Kind=Local", StringComparison.OrdinalIgnoreCase) ||
+            ex.Message.Contains("Cannot write DateTime with Kind=Unspecified", StringComparison.OrdinalIgnoreCase))
         {
             return (StatusCodes.Status400BadRequest,
                 "Datetime must be UTC (or include timezone offset) for this endpoint.",

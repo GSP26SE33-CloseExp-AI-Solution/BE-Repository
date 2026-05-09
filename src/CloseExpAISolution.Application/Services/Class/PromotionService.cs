@@ -36,6 +36,9 @@ public class PromotionService : IPromotionService
         if (await _unitOfWork.Repository<Promotion>().ExistsAsync(x => x.Code == request.Code.Trim()))
             throw new InvalidOperationException("Mã khuyến mãi đã tồn tại");
 
+        if (!TryParsePromotionStatus(request.Status, out var parsedStatus))
+            throw new InvalidOperationException("Status không hợp lệ. Giá trị cho phép: Draft, Active, Inactive, Expired.");
+
         var entity = new Promotion
         {
             PromotionId = Guid.NewGuid(),
@@ -51,7 +54,7 @@ public class PromotionService : IPromotionService
             UsedCount = 0,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
-            Status = Enum.Parse<PromotionState>(request.Status.Trim(), true)
+            Status = parsedStatus
         };
 
         await _unitOfWork.Repository<Promotion>().AddAsync(entity);
@@ -89,7 +92,13 @@ public class PromotionService : IPromotionService
         if (request.EndDate.HasValue) entity.EndDate = request.EndDate.Value;
         if (entity.EndDate < entity.StartDate)
             throw new InvalidOperationException("EndDate phải lớn hơn hoặc bằng StartDate");
-        if (!string.IsNullOrWhiteSpace(request.Status)) entity.Status = Enum.Parse<PromotionState>(request.Status.Trim(), true);
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            if (!TryParsePromotionStatus(request.Status, out var parsedStatus))
+                throw new InvalidOperationException("Status không hợp lệ. Giá trị cho phép: Draft, Active, Inactive, Expired.");
+
+            entity.Status = parsedStatus;
+        }
 
         _unitOfWork.Repository<Promotion>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -106,11 +115,17 @@ public class PromotionService : IPromotionService
         if (entity == null)
             return null;
 
-        entity.Status = Enum.Parse<PromotionState>(status.Trim(), true);
+        if (!TryParsePromotionStatus(status, out var parsedStatus))
+            throw new ArgumentException("Status không hợp lệ. Giá trị cho phép: Draft, Active, Inactive, Expired.", nameof(status));
+
+        entity.Status = parsedStatus;
         _unitOfWork.Repository<Promotion>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapPromotion(entity);
     }
+
+    private static bool TryParsePromotionStatus(string status, out PromotionState parsedStatus)
+        => Enum.TryParse(status?.Trim(), ignoreCase: true, out parsedStatus);
 
     public async Task<PromotionValidationResultDto> ValidatePromotionAsync(Guid userId, ValidatePromotionRequestDto request, CancellationToken cancellationToken = default)
     {

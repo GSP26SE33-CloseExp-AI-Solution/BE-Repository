@@ -132,7 +132,7 @@ public class CategoriesController : ControllerBase
         }
     }
     [HttpPost("get-all-with-parent-names")]
-    //[Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<CategoryResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllWithParentNames([FromBody] string parentName, CancellationToken cancellationToken = default)

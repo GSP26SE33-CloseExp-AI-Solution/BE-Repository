@@ -1,8 +1,10 @@
 using System.Text.Json;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Policies;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using StackExchange.Redis;
 
@@ -32,6 +34,13 @@ public class CartService : ICartService
 
         var lot = await _unitOfWork.Repository<StockLot>().FirstOrDefaultAsync(x => x.LotId == request.LotId)
             ?? throw new KeyNotFoundException("Không tìm thấy lô hàng.");
+        var now = DateTime.UtcNow;
+
+        if (lot.Status != ProductState.Published || lot.Quantity <= 0 || lot.ExpiryDate <= now)
+            throw new InvalidOperationException("Lô hàng không còn khả dụng để đặt.");
+
+        if (DailyExpiryOrderingPolicy.IsLotBlockedForOrdering(lot.ExpiryDate, now))
+            throw new InvalidOperationException("Sau 21:00, không thể đặt lô hàng có hạn sử dụng trong ngày.");
 
         var cart = await LoadCartAsync(userId);
         var item = cart.Items.FirstOrDefault(x => x.LotId == request.LotId);

@@ -20,6 +20,7 @@ public class Order
     public Guid? DeliveryGroupId { get; set; }
     public string? DeliveryNote { get; set; }
     public decimal DeliveryFee { get; set; }
+    public decimal SystemUsageFeeAmount { get; set; }
     public DateTime? CancelDeadline { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

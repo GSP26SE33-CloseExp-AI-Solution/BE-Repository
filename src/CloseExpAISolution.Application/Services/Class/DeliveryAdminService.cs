@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
@@ -9,6 +11,7 @@ using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -197,11 +200,16 @@ public class DeliveryAdminService : IDeliveryAdminService
         var total = ordered.Count;
         var paged = ordered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
+        var staffNameMap = await ResolveDeliveryStaffDisplayNamesAsync(paged.Select(x => x.DeliveryStaffId), cancellationToken);
         var summary = new List<DeliveryGroupSummaryDto>(paged.Count);
         foreach (var g in paged)
         {
             var timeSlot = await _unitOfWork.Repository<DeliveryTimeSlot>()
                 .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == g.TimeSlotId);
+            string? staffName = null;
+            if (g.DeliveryStaffId.HasValue && staffNameMap.TryGetValue(g.DeliveryStaffId.Value, out var resolvedName))
+                staffName = resolvedName;
+
             summary.Add(new DeliveryGroupSummaryDto
             {
                 DeliveryGroupId = g.DeliveryGroupId,
@@ -214,7 +222,9 @@ public class DeliveryAdminService : IDeliveryAdminService
                 Status = g.Status.ToString(),
                 TotalOrders = g.TotalOrders,
                 CompletedOrders = 0,
-                DeliveryDate = g.DeliveryDate
+                DeliveryDate = g.DeliveryDate,
+                DeliveryStaffId = g.DeliveryStaffId,
+                DeliveryStaffName = staffName
             });
         }
 
@@ -257,7 +267,7 @@ public class DeliveryAdminService : IDeliveryAdminService
                 continue;
             if (oi.DeliveryGroupId.HasValue)
                 continue;
-            if (oi.DeliveryStatus is DeliveryState.Failed or DeliveryState.Completed)
+            if (!IsDraftEligibleDeliveryStatus(oi.DeliveryStatus))
                 continue;
 
             if (order.Status is not (OrderState.Paid or OrderState.ReadyToShip))
@@ -449,6 +459,28 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (group.Status != DeliveryGroupState.Draft)
             throw new InvalidOperationException("Chỉ có thể xác nhận nhóm ở trạng thái Draft.");
 
+        var scopedItems = (await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(i => i.DeliveryGroupId == deliveryGroupId))
+            .ToList();
+
+        if (scopedItems.Count == 0)
+            throw new InvalidOperationException("Nhóm Draft không có dòng hàng để xác nhận. Vui lòng tạo lại nhóm Draft.");
+
+        var staleItems = scopedItems
+            .Where(i => i.PackagingStatus != PackagingState.Completed || !IsDraftEligibleDeliveryStatus(i.DeliveryStatus))
+            .ToList();
+
+        if (staleItems.Count > 0)
+        {
+            _logger.LogWarning(
+                "ConfirmDraftGroup blocked because draft group {GroupId} contains {StaleItemCount} stale items.",
+                deliveryGroupId,
+                staleItems.Count);
+
+            throw new InvalidOperationException(
+                "Nhóm Draft đã có dòng hàng không còn hợp lệ (đang giao/đã giao/đã hoàn tất hoặc đóng gói chưa hoàn tất). Vui lòng tạo lại nhóm Draft mới.");
+        }
+
         group.Status = DeliveryGroupState.Confirmed;
         group.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Repository<DeliveryGroup>().Update(group);
@@ -523,6 +555,10 @@ public class DeliveryAdminService : IDeliveryAdminService
         {
             if (!ordersById.TryGetValue(item.OrderId, out var order))
                 throw new InvalidOperationException($"Không tìm thấy đơn {item.OrderId} của dòng {item.OrderItemId}.");
+
+            if (targetId.HasValue && !IsDraftEligibleDeliveryStatus(item.DeliveryStatus))
+                throw new InvalidOperationException(
+                    $"Không thể chuyển orderItem {item.OrderItemId}: trạng thái giao hiện tại là {item.DeliveryStatus?.ToString() ?? "N/A"}, chỉ nhận dòng ReadyToShip.");
 
             if (item.DeliveryGroupId.HasValue)
             {
@@ -648,6 +684,7 @@ public class DeliveryAdminService : IDeliveryAdminService
         IReadOnlyList<DeliveryGroup> groups,
         CancellationToken cancellationToken)
     {
+        var staffNameMap = await ResolveDeliveryStaffDisplayNamesAsync(groups.Select(g => g.DeliveryStaffId), cancellationToken);
         var result = new List<DeliveryGroupSummaryDto>(groups.Count);
         foreach (var group in groups)
         {
@@ -672,6 +709,10 @@ public class DeliveryAdminService : IDeliveryAdminService
                     completedCount++;
             }
 
+            string? staffName = null;
+            if (group.DeliveryStaffId.HasValue && staffNameMap.TryGetValue(group.DeliveryStaffId.Value, out var resolvedName))
+                staffName = resolvedName;
+
             result.Add(new DeliveryGroupSummaryDto
             {
                 DeliveryGroupId = group.DeliveryGroupId,
@@ -686,11 +727,33 @@ public class DeliveryAdminService : IDeliveryAdminService
                 Status = group.Status.ToString(),
                 TotalOrders = group.TotalOrders,
                 CompletedOrders = completedCount,
-                DeliveryDate = group.DeliveryDate
+                DeliveryDate = group.DeliveryDate,
+                DeliveryStaffId = group.DeliveryStaffId,
+                DeliveryStaffName = staffName
             });
         }
 
         return result;
+    }
+
+    private static string? FormatStaffDisplayName(User u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.FullName))
+            return u.FullName.Trim();
+        return string.IsNullOrWhiteSpace(u.Email) ? null : u.Email.Trim();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string?>> ResolveDeliveryStaffDisplayNamesAsync(
+        IEnumerable<Guid?> staffIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = staffIds.Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, string?>();
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var users = (await _unitOfWork.Repository<User>().FindAsync(u => ids.Contains(u.UserId))).ToList();
+        return users.ToDictionary(u => u.UserId, u => FormatStaffDisplayName(u));
     }
 
     private async Task RecalculateDeliveryGroupTotalOrdersAsync(
@@ -740,6 +803,11 @@ public class DeliveryAdminService : IDeliveryAdminService
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 100) pageSize = 100;
         return (pageNumber, pageSize);
+    }
+
+    private static bool IsDraftEligibleDeliveryStatus(DeliveryState? status)
+    {
+        return status is null or DeliveryState.ReadyToShip;
     }
 
     private static double CalculateHaversineKm(double lat1, double lon1, double lat2, double lon2)

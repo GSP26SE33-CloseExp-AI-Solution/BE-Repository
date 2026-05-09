@@ -34,6 +34,7 @@ public class StockLotDetailDto
     public List<string> Ingredients { get; set; } = new();
     public Dictionary<string, string>? NutritionFacts { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
 }
 
 public class StockLotFilterDto

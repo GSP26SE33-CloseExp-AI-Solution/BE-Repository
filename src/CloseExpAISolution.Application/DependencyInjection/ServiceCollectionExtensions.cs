@@ -63,6 +63,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDeliveryAdminService, DeliveryAdminService>();
         services.AddScoped<IRefundService, RefundService>();
         services.AddScoped<IPackagingService, PackagingService>();
+        services.AddScoped<IStaleReadyToShipRefundProcessor, StaleReadyToShipRefundProcessor>();
+        services.AddScoped<ITodayExpiryPendingOrderCancellationProcessor, TodayExpiryPendingOrderCancellationProcessor>();
 
         // Register Product workflow services
         services.AddScoped<IR2StorageService, R2StorageService>();

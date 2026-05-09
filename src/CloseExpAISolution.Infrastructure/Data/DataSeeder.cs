@@ -9,6 +9,9 @@ namespace CloseExpAISolution.Infrastructure.Data;
 public static class DataSeeder
 {
     private const string OrderCancelWindowMinutesAfterPaidValue = "30";
+    private const string OrderAutoConfirmDaysAfterDeliveredValue = "3";
+    private const string OrderSystemUsageFeeVndValue = "5000";
+    private const string OrderReadyToShipMaxWaitMinutesValue = "90";
 
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -123,25 +126,90 @@ public static class DataSeeder
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
     {
         var now = DateTime.UtcNow;
+        await EnsurePositiveIntSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderCancelWindowMinutesAfterPaid,
+            OrderCancelWindowMinutesAfterPaidValue,
+            now);
+
+        await EnsurePositiveIntSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderAutoConfirmDaysAfterDelivered,
+            OrderAutoConfirmDaysAfterDeliveredValue,
+            now);
+
+        await EnsureNonNegativeDecimalSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderSystemUsageFeeVnd,
+            OrderSystemUsageFeeVndValue,
+            now);
+
+        await EnsurePositiveIntSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderReadyToShipMaxWaitMinutes,
+            OrderReadyToShipMaxWaitMinutesValue,
+            now);
+    }
+
+    private static async Task EnsurePositiveIntSystemConfigAsync(
+        ApplicationDbContext context,
+        string configKey,
+        string defaultValue,
+        DateTime now)
+    {
         var existing = await context.SystemConfigs
-            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderCancelWindowMinutesAfterPaid);
+            .FirstOrDefaultAsync(x => x.ConfigKey == configKey);
 
         if (existing == null)
         {
             await context.SystemConfigs.AddAsync(new SystemConfig
             {
-                ConfigKey = SystemConfigKeys.OrderCancelWindowMinutesAfterPaid,
-                ConfigValue = OrderCancelWindowMinutesAfterPaidValue,
+                ConfigKey = configKey,
+                ConfigValue = defaultValue,
                 UpdatedAt = now
             });
             await context.SaveChangesAsync();
             return;
         }
 
-        // Ensure key is always valid for runtime services that require SystemConfig
-        if (!int.TryParse(existing.ConfigValue, out var minutes) || minutes <= 0)
+        if (!int.TryParse(existing.ConfigValue, out var value) || value <= 0)
         {
-            existing.ConfigValue = OrderCancelWindowMinutesAfterPaidValue;
+            existing.ConfigValue = defaultValue;
+            existing.UpdatedAt = now;
+            context.SystemConfigs.Update(existing);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private static async Task EnsureNonNegativeDecimalSystemConfigAsync(
+        ApplicationDbContext context,
+        string configKey,
+        string defaultValue,
+        DateTime now)
+    {
+        var existing = await context.SystemConfigs
+            .FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+
+        if (existing == null)
+        {
+            await context.SystemConfigs.AddAsync(new SystemConfig
+            {
+                ConfigKey = configKey,
+                ConfigValue = defaultValue,
+                UpdatedAt = now
+            });
+            await context.SaveChangesAsync();
+            return;
+        }
+
+        if (!decimal.TryParse(
+                existing.ConfigValue,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var value)
+            || value < 0)
+        {
+            existing.ConfigValue = defaultValue;
             existing.UpdatedAt = now;
             context.SystemConfigs.Update(existing);
             await context.SaveChangesAsync();
@@ -1517,6 +1585,7 @@ public static class DataSeeder
             DiscountAmount = 12000,
             FinalAmount = 168000,
             DeliveryFee = 0,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.Paid,
             OrderDate = now.AddHours(-3),
             DeliveryNote = "Ưu tiên đóng gói gọn",
@@ -1537,6 +1606,7 @@ public static class DataSeeder
             DiscountAmount = 15000,
             FinalAmount = 205000,
             DeliveryFee = 10000,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.Paid,
             OrderDate = now.AddHours(-2),
             DeliveryNote = "Giao trước 16h",
@@ -1557,6 +1627,7 @@ public static class DataSeeder
             DiscountAmount = 5000,
             FinalAmount = 135000,
             DeliveryFee = 0,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.ReadyToShip,
             OrderDate = now.AddHours(-5),
             DeliveryNote = "Đã đóng gói",
@@ -1573,7 +1644,9 @@ public static class DataSeeder
                 LotId = activeLots[0].LotId,
                 Quantity = 2,
                 UnitPrice = 60000,
-                TotalPrice = 120000
+                TotalPrice = 120000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-2)
             },
             new()
             {
@@ -1582,7 +1655,9 @@ public static class DataSeeder
                 LotId = activeLots[1].LotId,
                 Quantity = 1,
                 UnitPrice = 60000,
-                TotalPrice = 60000
+                TotalPrice = 60000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-2)
             },
             new()
             {
@@ -1591,7 +1666,9 @@ public static class DataSeeder
                 LotId = activeLots[2].LotId,
                 Quantity = 2,
                 UnitPrice = 90000,
-                TotalPrice = 180000
+                TotalPrice = 180000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
             },
             new()
             {
@@ -1600,9 +1677,127 @@ public static class DataSeeder
                 LotId = activeLots[3].LotId,
                 Quantity = 1,
                 UnitPrice = 40000,
-                TotalPrice = 40000
+                TotalPrice = 40000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = readyOrder.OrderId,
+                LotId = activeLots[0].LotId,
+                Quantity = 1,
+                UnitPrice = 80000,
+                TotalPrice = 80000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
+            },
+            new()
+            {
+                OrderItemId = Guid.NewGuid(),
+                OrderId = readyOrder.OrderId,
+                LotId = activeLots[1].LotId,
+                Quantity = 1,
+                UnitPrice = 60000,
+                TotalPrice = 60000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
             }
         };
+
+        // Extra seed dataset for delivery-group generation tests.
+        // Use fixed plans (non-random) so test data is stable across runs.
+        var generatedOrders = new List<Order>();
+        var generatedItems = new List<OrderItem>();
+        var generatedPackagingRecords = new List<OrderPackaging>();
+
+        var isPickupPlan = new[]
+        {
+            true, false, true, false, true, false,
+            true, false, true, false, true, false
+        };
+
+        var useAfternoonSlotPlan = new[]
+        {
+            false, true, false, true, false, true,
+            false, true, false, true, false, true
+        };
+
+        var itemPlans = new (int LotIndex, short Quantity, decimal UnitPrice)[][]
+        {
+            new[] { (0, (short)1, 45000m), (1, (short)2, 50000m), (2, (short)1, 55000m), (3, (short)1, 60000m) },
+            new[] { (2, (short)2, 55000m) },
+            new[] { (3, (short)1, 60000m), (0, (short)1, 45000m), (2, (short)1, 55000m), (1, (short)1, 50000m), (0, (short)1, 45000m) },
+            new[] { (1, (short)2, 50000m), (3, (short)1, 60000m) },
+            new[] { (0, (short)3, 45000m), (2, (short)1, 55000m), (1, (short)1, 50000m) },
+            new[] { (2, (short)1, 55000m), (1, (short)1, 50000m), (3, (short)1, 60000m), (0, (short)2, 45000m) },
+            new[] { (3, (short)2, 60000m), (0, (short)1, 45000m) },
+            new[] { (1, (short)1, 50000m) },
+            new[] { (2, (short)2, 55000m), (0, (short)1, 45000m), (1, (short)1, 50000m), (3, (short)1, 60000m), (1, (short)1, 50000m) },
+            new[] { (3, (short)1, 60000m), (2, (short)1, 55000m) },
+            new[] { (0, (short)2, 45000m), (2, (short)1, 55000m), (3, (short)1, 60000m), (1, (short)1, 50000m) },
+            new[] { (1, (short)1, 50000m), (2, (short)1, 55000m), (3, (short)1, 60000m), (0, (short)1, 45000m), (2, (short)1, 55000m) }
+        };
+
+        for (var i = 0; i < itemPlans.Length; i++)
+        {
+            var isPickup = isPickupPlan[i];
+            var orderId = Guid.NewGuid();
+            var orderItemsForCurrentOrder = new List<OrderItem>();
+            decimal orderTotal = 0;
+
+            foreach (var itemPlan in itemPlans[i])
+            {
+                var lot = activeLots[itemPlan.LotIndex];
+                var itemTotal = itemPlan.Quantity * itemPlan.UnitPrice;
+
+                orderItemsForCurrentOrder.Add(new OrderItem
+                {
+                    OrderItemId = Guid.NewGuid(),
+                    OrderId = orderId,
+                    LotId = lot.LotId,
+                    Quantity = itemPlan.Quantity,
+                    UnitPrice = itemPlan.UnitPrice,
+                    TotalPrice = itemTotal,
+                    PackagingStatus = PackagingState.Completed,
+                    PackagedAt = now.AddMinutes(-(10 + i * 3))
+                });
+
+                orderTotal += itemTotal;
+            }
+
+            var order = new Order
+            {
+                OrderId = orderId,
+                OrderCode = $"PKG-GRP-{(i + 1).ToString("D3")}",
+                UserId = isPickup ? VendorUserId1 : VendorUserId2,
+                TimeSlotId = useAfternoonSlotPlan[i] ? TimeSlotAfternoonId : TimeSlotMorningId,
+                CollectionId = isPickup ? CollectionPointDistrict1Id : null,
+                AddressId = isPickup ? null : CustomerAddressVendor2Id,
+                DeliveryType = isPickup ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
+                TotalAmount = orderTotal,
+                DiscountAmount = 0,
+                FinalAmount = orderTotal,
+                DeliveryFee = isPickup ? 0 : 10000,
+                SystemUsageFeeAmount = 0,
+                Status = OrderState.Paid,
+                OrderDate = now.AddMinutes(-(20 + i * 4)),
+                DeliveryNote = "Seed data for delivery-group generation test",
+                CreatedAt = now.AddMinutes(-(20 + i * 4)),
+                UpdatedAt = now.AddMinutes(-(20 + i * 4))
+            };
+
+            generatedOrders.Add(order);
+            generatedItems.AddRange(orderItemsForCurrentOrder);
+            generatedPackagingRecords.Add(new OrderPackaging
+            {
+                PackagingId = Guid.NewGuid(),
+                OrderId = orderId,
+                UserId = i % 2 == 0 ? StaffUserId1 : StaffUserId2,
+                Status = PackagingState.Completed,
+                PackagedAt = now.AddMinutes(-(10 + i * 3))
+            });
+        }
 
         var packagingRecord = new OrderPackaging
         {
@@ -1614,8 +1809,11 @@ public static class DataSeeder
         };
 
         await context.Orders.AddRangeAsync(pickupOrder, homeOrder, readyOrder);
+        await context.Orders.AddRangeAsync(generatedOrders);
         await context.OrderItems.AddRangeAsync(orderItems);
+        await context.OrderItems.AddRangeAsync(generatedItems);
         await context.PackagingRecords.AddAsync(packagingRecord);
+        await context.PackagingRecords.AddRangeAsync(generatedPackagingRecords);
         await context.SaveChangesAsync();
     }
 
@@ -1646,6 +1844,7 @@ public static class DataSeeder
             DiscountAmount = 0,
             FinalAmount = 120000,
             DeliveryFee = 0,
+            SystemUsageFeeAmount = 0,
             Status = OrderState.Pending,
             OrderDate = now.AddMinutes(-30),
             DeliveryNote = "Đơn seed cho vendor@gmail.com — chờ thanh toán",

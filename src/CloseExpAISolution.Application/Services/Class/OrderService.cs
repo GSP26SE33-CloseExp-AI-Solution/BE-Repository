@@ -1,14 +1,17 @@
 using AutoMapper;
+using CloseExpAISolution.Application;
 using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Geo;
+using CloseExpAISolution.Application.Policies;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.Services.Class;
@@ -180,6 +183,7 @@ public class OrderService : IOrderService
     {
         var deliveryType = DeliveryMethod.NormalizeOrThrow(request.DeliveryType);
         OrderDeliveryLocationValidator.ValidateOrThrow(deliveryType, request.CollectionId, request.AddressId);
+        await ValidateOrderLotsForCreationAsync(request.OrderItems, cancellationToken);
 
         var orderId = Guid.NewGuid();
         var orderCode = "ORD-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
@@ -196,6 +200,7 @@ public class OrderService : IOrderService
             DiscountAmount = request.DiscountAmount,
             FinalAmount = request.FinalAmount,
             DeliveryFee = request.DeliveryFee,
+            SystemUsageFeeAmount = 0m,
             Status = Enum.Parse<OrderState>(request.Status),
             OrderDate = DateTime.UtcNow,
             AddressId = request.AddressId,
@@ -223,8 +228,14 @@ public class OrderService : IOrderService
 
             order.PromotionId = validation.PromotionId.Value;
             order.DiscountAmount = validation.DiscountAmount;
-            order.FinalAmount = validation.FinalAmount;
         }
+
+        order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+        order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+            order.TotalAmount,
+            order.DiscountAmount,
+            order.DeliveryFee,
+            order.SystemUsageFeeAmount);
 
         foreach (var item in request.OrderItems)
         {
@@ -241,7 +252,6 @@ public class OrderService : IOrderService
         }
 
         await _unitOfWork.OrderRepository.AddAsync(order, cancellationToken);
-        // TODO: Sugge
         await TryAutoAssignDeliveryGroupAsync(order, cancellationToken);
         await _orderNotificationPublisher.PublishOrderPlacedAsync(order.OrderId, order.UserId, order.OrderCode, cancellationToken);
         await TryCreateStatusLogAsync(order.OrderId, order.Status, order.Status, "system", "Order created", cancellationToken);
@@ -302,7 +312,6 @@ public class OrderService : IOrderService
 
             order.PromotionId = validation.PromotionId.Value;
             order.DiscountAmount = validation.DiscountAmount;
-            order.FinalAmount = validation.FinalAmount;
         }
 
         OrderDeliveryLocationValidator.ValidateOrThrow(order.DeliveryType, order.CollectionId, order.AddressId);
@@ -323,6 +332,26 @@ public class OrderService : IOrderService
                     TotalPrice = totalPrice
                 });
             }
+        }
+
+        if (request.PromotionId.HasValue)
+        {
+            order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+            order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+                order.TotalAmount,
+                order.DiscountAmount,
+                order.DeliveryFee,
+                order.SystemUsageFeeAmount);
+        }
+        else if (!request.FinalAmount.HasValue &&
+                 (request.TotalAmount.HasValue || request.DeliveryFee.HasValue || request.DiscountAmount.HasValue))
+        {
+            order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+            order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+                order.TotalAmount,
+                order.DiscountAmount,
+                order.DeliveryFee,
+                order.SystemUsageFeeAmount);
         }
 
         order.UpdatedAt = DateTime.UtcNow;
@@ -347,7 +376,7 @@ public class OrderService : IOrderService
     public async Task UpdateStatusAsync(
         Guid orderId,
         OrderState status,
-        string? cancellationReason,
+        string? statusNote,
         CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(orderId, cancellationToken)
@@ -360,7 +389,7 @@ public class OrderService : IOrderService
 
         if (status == OrderState.Canceled)
         {
-            if (string.IsNullOrWhiteSpace(cancellationReason))
+            if (string.IsNullOrWhiteSpace(statusNote))
                 throw new InvalidOperationException("Vui lòng nhập lý do hủy đơn hàng.");
 
             if (order.Status == OrderState.Pending)
@@ -390,11 +419,24 @@ public class OrderService : IOrderService
         if (status == OrderState.Canceled && oldStatus == OrderState.Paid)
             await RestoreStockForOrderAsync(orderId, now, cancellationToken);
 
+        // RTS -> Refunded: hoàn kho + detach khỏi DeliveryGroup (tương tự luồng hủy sau Paid).
+        if (status == OrderState.Refunded && oldStatus == OrderState.ReadyToShip)
+        {
+            await RestoreStockForOrderAsync(orderId, now, cancellationToken);
+            await DetachOrderFromDeliveryGroupIfNeededAsync(order, now, cancellationToken);
+        }
+
         order.Status = status;
         order.UpdatedAt = now;
         _unitOfWork.OrderRepository.Update(order);
-        var cancelNote = status == OrderState.Canceled ? cancellationReason!.Trim() : null;
-        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", cancelNote, cancellationToken);
+        var normalizedNote = string.IsNullOrWhiteSpace(statusNote) ? null : statusNote.Trim();
+        var logNote = status switch
+        {
+            OrderState.Canceled => normalizedNote,
+            OrderState.Refunded => normalizedNote,
+            _ => null
+        };
+        await TryCreateStatusLogAsync(order.OrderId, oldStatus, status, "system", logNote, cancellationToken);
         await _orderNotificationPublisher.PublishOrderStatusChangedAsync(
             order.OrderId,
             order.UserId,
@@ -421,7 +463,7 @@ public class OrderService : IOrderService
             DeliveryType = request.DeliveryType,
             TotalAmount = totalAmount,
             DiscountAmount = 0m,
-            FinalAmount = totalAmount + request.DeliveryFee,
+            FinalAmount = 0m,
             DeliveryFee = request.DeliveryFee,
             Status = OrderState.Pending.ToString(),
             AddressId = request.AddressId,
@@ -465,7 +507,12 @@ public class OrderService : IOrderService
 
         order.PromotionId = validation.PromotionId.Value;
         order.DiscountAmount = validation.DiscountAmount;
-        order.FinalAmount = validation.FinalAmount;
+        order.SystemUsageFeeAmount = await GetOrderSystemUsageFeeVndAsync(cancellationToken);
+        order.FinalAmount = OrderTotalsHelper.ComputeFinalAmount(
+            order.TotalAmount,
+            order.DiscountAmount,
+            order.DeliveryFee,
+            order.SystemUsageFeeAmount);
         order.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.OrderRepository.Update(order);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -474,6 +521,49 @@ public class OrderService : IOrderService
 
         var updated = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
         return _mapper.Map<OrderResponseDto>(updated!);
+    }
+
+    private async Task ValidateOrderLotsForCreationAsync(
+        IReadOnlyCollection<CreateOrderItemDto> items,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+            throw new InvalidOperationException("Đơn hàng phải có ít nhất một sản phẩm.");
+
+        var requiredByLot = items
+            .GroupBy(x => x.LotId)
+            .Select(g => new
+            {
+                LotId = g.Key,
+                RequiredQuantity = g.Sum(x => (decimal)x.Quantity)
+            })
+            .ToList();
+
+        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lots = (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId)))
+            .ToDictionary(l => l.LotId);
+
+        var now = DateTime.UtcNow;
+        var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
+        foreach (var req in requiredByLot)
+        {
+            if (!lots.TryGetValue(req.LotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId}.");
+
+            if (lot.Status != ProductState.Published)
+                throw new InvalidOperationException($"StockLot {req.LotId} không còn ở trạng thái Published.");
+
+            if (lot.ExpiryDate <= now)
+                throw new InvalidOperationException($"StockLot {req.LotId} đã hết hạn, không thể đặt.");
+
+            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
+                throw new InvalidOperationException(
+                    "Sau 21:00, không thể đặt lô hàng có hạn sử dụng trong ngày.");
+
+            if (lot.Quantity < req.RequiredQuantity)
+                throw new InvalidOperationException(
+                    $"StockLot {req.LotId} không đủ số lượng. Cần {req.RequiredQuantity}, còn {lot.Quantity}.");
+        }
     }
 
     public async Task DeleteAsync(Guid orderId, CancellationToken cancellationToken = default)
@@ -568,6 +658,25 @@ public class OrderService : IOrderService
         order.DeliveryGroupId = existing.DeliveryGroupId;
     }
 
+    private async Task DetachOrderFromDeliveryGroupIfNeededAsync(Order order, DateTime now, CancellationToken cancellationToken)
+    {
+        if (!order.DeliveryGroupId.HasValue)
+            return;
+
+        var groupId = order.DeliveryGroupId.Value;
+        var group = await _unitOfWork.Repository<DeliveryGroup>()
+            .FirstOrDefaultAsync(g => g.DeliveryGroupId == groupId);
+
+        if (group != null && group.TotalOrders > 0)
+        {
+            group.TotalOrders -= 1;
+            group.UpdatedAt = now;
+            _unitOfWork.Repository<DeliveryGroup>().Update(group);
+        }
+
+        order.DeliveryGroupId = null;
+    }
+
     private async Task TryCreateStatusLogAsync(Guid orderId, OrderState from, OrderState to, string? changedBy, string? note, CancellationToken cancellationToken)
     {
         var log = new OrderStatusLog
@@ -597,6 +706,27 @@ public class OrderService : IOrderService
                 $"SystemConfig '{SystemConfigKeys.OrderCancelWindowMinutesAfterPaid}' không hợp lệ. Giá trị phải là số nguyên dương.");
 
         return minutes;
+    }
+
+    private async Task<decimal> GetOrderSystemUsageFeeVndAsync(CancellationToken cancellationToken)
+    {
+        var config = await _unitOfWork.Repository<SystemConfig>()
+            .FirstOrDefaultAsync(x => x.ConfigKey == SystemConfigKeys.OrderSystemUsageFeeVnd);
+
+        if (config == null)
+            throw new InvalidOperationException(
+                $"Thiếu SystemConfig '{SystemConfigKeys.OrderSystemUsageFeeVnd}'. Vui lòng cấu hình phí sử dụng hệ thống (VND mỗi đơn).");
+
+        if (!decimal.TryParse(
+                config.ConfigValue,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var fee)
+            || fee < 0)
+            throw new InvalidOperationException(
+                $"SystemConfig '{SystemConfigKeys.OrderSystemUsageFeeVnd}' không hợp lệ. Giá trị phải là số không âm.");
+
+        return fee;
     }
 
     private async Task<Dictionary<Guid, int>> GetOrderTimeSlotCountsAsync(CancellationToken cancellationToken = default)
