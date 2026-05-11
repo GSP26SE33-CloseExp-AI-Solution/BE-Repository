@@ -13,7 +13,7 @@ public interface IMarketPriceRepository
     Task<MarketPriceStats?> GetPriceStatsAsync(string barcode, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
     Task<List<MarketPrice>> GetLatestDetailsAsync(string barcode, DateTime fromUtc, CancellationToken cancellationToken = default);
     Task<DateTime?> GetLatestCollectedAtAsync(string barcode, CancellationToken cancellationToken = default);
-    Task<List<string>> GetDistinctBarcodesNeedingRefreshAsync(DateTime staleBeforeUtc, int take = 200, CancellationToken cancellationToken = default);
+    Task<List<MarketPriceRefreshTarget>> GetPublishedProductsForRefreshAsync(CancellationToken cancellationToken = default);
 }
 
 
@@ -28,3 +28,5 @@ public class MarketPriceStats
     public List<string> Sources { get; set; } = new();
     public DateTime LastUpdated { get; set; }
 }
+
+public sealed record MarketPriceRefreshTarget(string? Barcode, string ProductName);

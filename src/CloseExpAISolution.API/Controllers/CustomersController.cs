@@ -59,4 +59,37 @@ public class CustomersController : ControllerBase
             result,
             $"Tìm thấy {totalCount} lô hàng khả dụng"));
     }
+
+    [HttpGet("products/search-by-ai")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AvailableStocklotDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<AvailableStocklotDto>>>> SearchAvailableStockLotsWithAi(
+        [FromQuery] string description,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("Mô tả tìm kiếm không được để trống."));
+        }
+
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var (items, totalCount) = await _services.ProductService
+            .SearchAvailableStockLotsWithAiAsync(description, pageNumber, pageSize, cancellationToken);
+
+        var result = new PaginatedResult<AvailableStocklotDto>
+        {
+            Items = items,
+            TotalResult = totalCount,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+
+        return Ok(ApiResponse<PaginatedResult<AvailableStocklotDto>>.SuccessResponse(
+            result,
+            $"Tìm thấy {totalCount} lô hàng khả dụng dựa trên mô tả AI"));
+    }
 }

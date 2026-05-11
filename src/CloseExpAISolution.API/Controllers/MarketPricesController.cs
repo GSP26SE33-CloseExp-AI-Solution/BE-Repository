@@ -62,6 +62,21 @@ public class MarketPricesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{barcode}/history")]
+    [ProducesResponseType(typeof(IEnumerable<MarketPriceHistoryItemDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<MarketPriceHistoryItemDto>>> GetPriceHistory(
+        string barcode,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(barcode))
+        {
+            return BadRequest(new { message = "Barcode is required" });
+        }
+
+        var result = await _marketPriceService.GetPriceHistoryAsync(barcode, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost("crawl")]
     public async Task<ActionResult<CrawlResult>> TriggerCrawl(
         [FromBody] CrawlRequest request,

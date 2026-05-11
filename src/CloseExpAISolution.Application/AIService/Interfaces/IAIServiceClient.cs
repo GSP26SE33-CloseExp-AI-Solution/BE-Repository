@@ -34,7 +34,17 @@ public interface IAIServiceClient
         string barcode,
         string? productName = null,
         CancellationToken cancellationToken = default);
+    #endregion
 
+    #region Recommendation Operations
+    Task<StructuredSearchCriteria?> ParseRecommendationQueryAsync(
+        string queryText,
+        CancellationToken cancellationToken = default);
+
+    Task<RankStockLotsResponse?> RankStockLotsByQueryAsync(
+        string queryText,
+        List<StockLotInputDto> stockLots,
+        CancellationToken cancellationToken = default);
     #endregion
 }
 

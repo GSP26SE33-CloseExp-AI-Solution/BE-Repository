@@ -103,19 +103,19 @@ public class PackagingService : IPackagingService
             foreach (var item in targets)
             {
                 var record = await GetOrCreateItemPackagingRecordAsync(orderId, item.OrderItemId, packagingStaffId, cancellationToken);
-                EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
                 if (record.Status == PackagingState.Completed || record.Status == PackagingState.Failed)
                     throw new InvalidOperationException($"Dòng hàng {item.OrderItemId} đã kết thúc đóng gói.");
 
-                record.Status = PackagingState.Pending;
+        record.Status = PackagingState.Pending;
                 record.PackagedAt = null;
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
+        _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Pending;
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
         }
         catch
@@ -152,16 +152,16 @@ public class PackagingService : IPackagingService
                     $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận (Pending) trước khi thu gom.");
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
             if (record.Status == PackagingState.Packaging)
                 continue;
 
-            if (record.Status != PackagingState.Pending)
+        if (record.Status != PackagingState.Pending)
                 throw new InvalidOperationException("Bản ghi đóng gói không ở trạng thái chờ thu gom.");
 
-            record.Status = PackagingState.Packaging;
-            _unitOfWork.Repository<OrderPackaging>().Update(record);
+        record.Status = PackagingState.Packaging;
+        _unitOfWork.Repository<OrderPackaging>().Update(record);
 
             item.PackagingStatus = PackagingState.Packaging;
             _unitOfWork.Repository<OrderItem>().Update(item);
@@ -210,7 +210,7 @@ public class PackagingService : IPackagingService
                     $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận hoặc đang thu gom.");
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
         }
 
         var now = DateTime.UtcNow;
@@ -225,9 +225,9 @@ public class PackagingService : IPackagingService
                     continue;
 
                 var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-                record.Status = PackagingState.Completed;
+            record.Status = PackagingState.Completed;
                 record.PackagedAt = now;
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
+            _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Completed;
                 item.PackagedAt = now;
@@ -671,21 +671,21 @@ public class PackagingService : IPackagingService
 
     private async Task NotifyDeliveryStaffOrderReadyAsync(Order order, DateTime now, CancellationToken cancellationToken)
     {
-        var deliveryStaffs = await _unitOfWork.Repository<User>()
-            .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
+            var deliveryStaffs = await _unitOfWork.Repository<User>()
+                .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
 
-        var notifications = deliveryStaffs.Select(staff => new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = staff.UserId,
-            Title = "Có đơn cần giao",
-            Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
-            Type = NotificationType.DeliveryUpdate,
-            IsRead = false,
+            var notifications = deliveryStaffs.Select(staff => new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = staff.UserId,
+                Title = "Có đơn cần giao",
+                Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
+                Type = NotificationType.DeliveryUpdate,
+                IsRead = false,
             CreatedAt = now
-        }).ToList();
+            }).ToList();
 
-        if (notifications.Count > 0)
+            if (notifications.Count > 0)
             await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

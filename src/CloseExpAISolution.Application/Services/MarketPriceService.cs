@@ -195,20 +195,57 @@ public class MarketPriceService : IMarketPriceService
         return await _marketPriceRepository.DeleteExpiredAsync(daysOld, cancellationToken);
     }
 
-    public async Task<int> RefreshStaleBarcodesAsync(DateTime staleBeforeUtc, int take = 200, int concurrency = 3, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<MarketPriceHistoryItemDto>> GetPriceHistoryAsync(string barcode, CancellationToken cancellationToken = default)
     {
-        var barcodes = await _marketPriceRepository.GetDistinctBarcodesNeedingRefreshAsync(staleBeforeUtc, take, cancellationToken);
-        if (!barcodes.Any())
+        _logger.LogInformation("Fetching price history for barcode: {Barcode}", barcode);
+
+        var normalizedBarcode = barcode.Trim();
+        var history = await _marketPriceRepository.GetByBarcodeAsync(normalizedBarcode, cancellationToken);
+
+        return history
+            .OrderByDescending(m => m.CollectedAt)
+            .Select(m => new MarketPriceHistoryItemDto
+            {
+                MarketPriceId = m.MarketPriceId,
+                Barcode = m.Barcode,
+                ProductName = m.ProductName,
+                Price = m.Price,
+                OriginalPrice = m.OriginalPrice,
+                Source = m.Source,
+                StoreName = m.StoreName ?? m.Source,
+                SourceUrl = m.SourceUrl,
+                Unit = m.Unit,
+                Weight = m.Weight,
+                Region = m.Region,
+                IsInStock = m.IsInStock,
+                Confidence = m.Confidence,
+                Status = m.Status.ToString(),
+                CollectedAt = m.CollectedAt,
+                LastUpdated = m.LastUpdated,
+                Notes = m.Notes
+            });
+    }
+
+    public async Task<int> RefreshPublishedProductsAsync(int concurrency = 3, CancellationToken cancellationToken = default)
+    {
+        var targets = await _marketPriceRepository.GetPublishedProductsForRefreshAsync(cancellationToken);
+        if (!targets.Any())
             return 0;
 
         var successCount = 0;
         using var throttle = new SemaphoreSlim(Math.Clamp(concurrency, 1, 10));
-        var tasks = barcodes.Select(async barcode =>
+        var tasks = targets.Select(async target =>
         {
             await throttle.WaitAsync(cancellationToken);
             try
             {
-                var result = await TriggerCrawlAsync(barcode, null, cancellationToken);
+                if (string.IsNullOrWhiteSpace(target.Barcode) && string.IsNullOrWhiteSpace(target.ProductName))
+                {
+                    _logger.LogWarning("Skipping published product refresh because both barcode and product name are empty");
+                    return;
+                }
+
+                var result = await TriggerCrawlAsync(target.Barcode ?? string.Empty, target.ProductName, cancellationToken);
                 if (result.Success) Interlocked.Increment(ref successCount);
             }
             finally
@@ -218,7 +255,7 @@ public class MarketPriceService : IMarketPriceService
         });
         await Task.WhenAll(tasks);
 
-        _logger.LogInformation("Market refresh job processed {Total} stale barcodes, success={Success}", barcodes.Count, successCount);
+        _logger.LogInformation("Market refresh job processed {Total} published products, success={Success}", targets.Count, successCount);
         return successCount;
     }
 

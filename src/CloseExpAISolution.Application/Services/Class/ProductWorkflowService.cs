@@ -131,10 +131,11 @@ public class ProductWorkflowService : IProductWorkflowService
 
     private async Task<PricingSuggestionResponseDto> GetPricingSuggestionInternalAsync(
         Product product,
+        StockLot lot,
         decimal originalPrice,
         CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Getting pricing suggestion for product {ProductId}", product.ProductId);
+        _logger.LogInformation("Getting pricing suggestion for product {ProductId}, lot {LotId}", product.ProductId, lot?.LotId);
 
         List<MarketPriceSourceDto> marketSources = new();
         decimal? minMarketPrice = null;
@@ -202,8 +203,6 @@ public class ProductWorkflowService : IProductWorkflowService
             }
         }
 
-        // Get expiry date from StockLot
-        var lot = await GetLatestStockLotByProductIdAsync(product.ProductId);
         var expiryDate = lot?.ExpiryDate;
 
         int? daysToExpiry = null;
@@ -889,10 +888,17 @@ public class ProductWorkflowService : IProductWorkflowService
                 request.Barcode);
         }
 
+        var unitForProduct = await GetUnitByIdOrDefaultAsync(request.UnitId, cancellationToken);
+        if (unitForProduct == null)
+        {
+            throw new InvalidOperationException("No suitable UnitOfMeasure found to assign to the product.");
+        }
+
         var product = new Product
         {
             ProductId = Guid.NewGuid(),
             SupermarketId = supermarketId,
+            UnitId = unitForProduct.UnitId,
             Name = request.Name.Trim(),
             Barcode = request.Barcode.Trim(),
             CreatedBy = staffName,
@@ -960,8 +966,6 @@ public class ProductWorkflowService : IProductWorkflowService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var unitForResponse = await GetUnitByIdOrDefaultAsync(request.UnitId, cancellationToken);
-
         return new CreateNewProductResponseDto
         {
             ProductId = product.ProductId,
@@ -979,10 +983,10 @@ public class ProductWorkflowService : IProductWorkflowService
             IsManualFallback = request.IsManualFallback,
             NextAction = "CREATE_STOCKLOT",
             NextActionDescription = "Sản phẩm đã xác nhận. Tiếp tục tạo lô hàng và gợi ý giá.",
-            UnitId = unitForResponse?.UnitId,
-            UnitName = unitForResponse?.Name,
-            UnitType = unitForResponse?.Type,
-            UnitSymbol = unitForResponse?.Symbol
+            UnitId = unitForProduct.UnitId,
+            UnitName = unitForProduct.Name,
+            UnitType = unitForProduct.Type,
+            UnitSymbol = unitForProduct.Symbol
         };
     }
 
@@ -1448,7 +1452,7 @@ public class ProductWorkflowService : IProductWorkflowService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        var suggestion = await GetPricingSuggestionInternalAsync(product, request.OriginalPrice, cancellationToken);
+        var suggestion = await GetPricingSuggestionInternalAsync(product, lot, request.OriginalPrice, cancellationToken);
 
         priceHistory.SuggestedPrice = suggestion.SuggestedPrice;
         priceHistory.AIConfidence = (decimal)suggestion.Confidence;

@@ -156,7 +156,7 @@ public class ProductsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status408RequestTimeout)]
     public async Task<ActionResult<ApiResponse<OcrAnalysisResponseDto>>> AnalyzeProductImageForStaff(
         IFormFile file,
-        [FromForm] bool manualFallback = false,
+        [FromQuery] bool manualFallback = false,
         CancellationToken cancellationToken = default)
     {
         if (file == null || file.Length == 0)

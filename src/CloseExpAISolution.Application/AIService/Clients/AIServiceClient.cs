@@ -213,7 +213,89 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     }
 
     #endregion
+    #region Recommendation Operations
 
+    public async Task<StructuredSearchCriteria?> ParseRecommendationQueryAsync(
+        string queryText,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Parsing recommendation query: {QueryText}", queryText);
+
+        try
+        {
+            var request = new RecommendationRequest { QueryText = queryText };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/v1/recommendation/parse",
+                request,
+                _jsonOptions,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<StructuredSearchCriteria>(
+                    _jsonOptions,
+                    cancellationToken);
+            }
+
+            _logger.LogWarning("AI recommendation parse failed: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing recommendation query");
+            return null; // Return null instead of throwing to prevent crashing the caller
+        }
+    }
+
+    public async Task<RankStockLotsResponse?> RankStockLotsByQueryAsync(
+        string queryText,
+        List<StockLotInputDto> stockLots,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Ranking {StockLotCount} stocklots for query: {QueryText}",
+            stockLots?.Count ?? 0, queryText);
+
+        try
+        {
+            if (stockLots == null || stockLots.Count == 0)
+            {
+                return new RankStockLotsResponse { RankedStockLots = new List<RankedStockLotDto>(), TotalRanked = 0 };
+            }
+
+            var request = new RankStockLotsRequest
+            {
+                QueryText = queryText,
+                StockLots = stockLots
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/v1/recommendation/rank-stocklots",
+                request,
+                _jsonOptions,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<RankStockLotsResponse>(
+                    _jsonOptions,
+                    cancellationToken);
+
+                _logger.LogInformation("Successfully ranked stocklots: {TotalRanked}", result?.TotalRanked ?? 0);
+                return result;
+            }
+
+            _logger.LogWarning("AI stocklot ranking failed: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ranking stocklots by query");
+            return null;
+        }
+    }
+
+    #endregion
     #region Batch Operations
 
     public async Task<IEnumerable<OcrResponse?>> ExtractBatchAsync(
