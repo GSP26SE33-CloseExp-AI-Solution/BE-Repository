@@ -605,7 +605,7 @@ public static class DataSeeder
 
     private static async Task SeedUnitsAsync(ApplicationDbContext context)
     {
-        if (await context.UnitOfMeasures.AnyAsync())
+        if (await context.UnitOfMeasures.AnyAsync(x => x.UnitId == UnitKgId))
             return;
 
         var units = new List<UnitOfMeasure>
@@ -1271,9 +1271,13 @@ public static class DataSeeder
             }
         };
 
+        var validUnitIds = await context.UnitOfMeasures.Select(u => u.UnitId).ToListAsync();
+        var defaultUnitId = validUnitIds.FirstOrDefault();
+
         foreach (var lot in stockLots)
         {
-            lot.UnitId = ResolveUnitIdByProduct(lot.ProductId);
+            var targetUnitId = ResolveUnitIdByProduct(lot.ProductId);
+            lot.UnitId = validUnitIds.Contains(targetUnitId) ? targetUnitId : defaultUnitId;
             lot.UpdatedAt = lot.CreatedAt == default ? now : lot.CreatedAt;
 
             var originalPrice = ResolveOriginalPriceByProduct(lot.ProductId);
@@ -1451,9 +1455,13 @@ public static class DataSeeder
         if (!missingLots.Any())
             return;
 
+        var validUnitIds = await context.UnitOfMeasures.Select(u => u.UnitId).ToListAsync();
+        var defaultUnitId = validUnitIds.FirstOrDefault();
+
         foreach (var lot in missingLots)
         {
-            lot.UnitId = ResolveUnitIdByProduct(lot.ProductId);
+            var targetUnitId = ResolveUnitIdByProduct(lot.ProductId);
+            lot.UnitId = validUnitIds.Contains(targetUnitId) ? targetUnitId : defaultUnitId;
 
             var originalPrice = ResolveOriginalPriceByProduct(lot.ProductId);
             var suggestedPrice = CalculateSuggestedPrice(originalPrice, lot.ExpiryDate, now);

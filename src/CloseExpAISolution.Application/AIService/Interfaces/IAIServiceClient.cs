@@ -46,6 +46,27 @@ public interface IAIServiceClient
         List<StockLotInputDto> stockLots,
         CancellationToken cancellationToken = default);
     #endregion
+
+    #region Token Operations
+
+    Task<TokenAllFeaturesUsage?> GetAllTokenUsageAsync(
+        string userId,
+        string? month = null,
+        CancellationToken cancellationToken = default);
+
+    Task<TokenUsageInfo?> GetTokenUsageAsync(
+        string userId,
+        string feature,
+        string? month = null,
+        CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, Dictionary<string, TokenHistoryEntry>>?> GetTokenHistoryAsync(
+        string userId,
+        CancellationToken cancellationToken = default);
+
+    Task<TokenConfigInfo?> GetTokenConfigAsync(CancellationToken cancellationToken = default);
+
+    #endregion
 }
 
 public interface IAIServiceBatchClient : IAIServiceClient

@@ -77,7 +77,7 @@ public class AIController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<PricingSuggestionResult>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<PricingSuggestionResult>), StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<ApiResponse<PricingSuggestionResult>>> GetPricingSuggestion(
-        [FromBody] PricingRequest request,
+        [FromBody] CloseExpAISolution.Application.DTOs.Request.PricingRequest request,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(request.Category))

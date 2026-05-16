@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IR2StorageService, R2StorageService>();
         services.AddScoped<IMarketPriceService, MarketPriceService>();
         services.AddScoped<IBarcodeLookupService, BarcodeLookupService>();
+        services.AddScoped<IAIProductService, AIProductService>();
         services.AddScoped<IExcelImportService, ExcelImportService>();
         services.AddScoped<IProductWorkflowService, ProductWorkflowService>();
 

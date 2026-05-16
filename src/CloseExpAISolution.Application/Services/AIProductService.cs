@@ -159,7 +159,7 @@ public class AIProductService : IAIProductService
 
             var request = new PricingRequest
             {
-                ProductType = category,
+                ProductType = NormalizeProductTypeForAi(category),
                 DaysToExpire = daysToExpire,
                 BasePrice = originalPrice,
                 ExpiryDate = expiryDate,
@@ -233,6 +233,80 @@ public class AIProductService : IAIProductService
     }
 
     #region Private Helper Methods
+
+    private static string NormalizeProductTypeForAi(string category)
+    {
+        var normalized = category.Trim().ToLowerInvariant();
+
+        if (normalized.Contains("sữa")
+            || normalized.Contains("dairy")
+            || normalized.Contains("milk")
+            || normalized.Contains("yogurt")
+            || normalized.Contains("phô mai")
+            || normalized.Contains("pho mai"))
+            return "dairy";
+
+        if (normalized.Contains("đồ uống")
+            || normalized.Contains("do uong")
+            || normalized.Contains("beverage")
+            || normalized.Contains("nước")
+            || normalized.Contains("nuoc")
+            || normalized.Contains("drink"))
+            return "beverage";
+
+        if (normalized.Contains("thịt")
+            || normalized.Contains("thit")
+            || normalized.Contains("meat"))
+            return "meat";
+
+        if (normalized.Contains("hải sản")
+            || normalized.Contains("hai san")
+            || normalized.Contains("seafood")
+            || normalized.Contains("cá")
+            || normalized.Contains("ca "))
+            return "seafood";
+
+        if (normalized.Contains("bánh")
+            || normalized.Contains("banh")
+            || normalized.Contains("bakery")
+            || normalized.Contains("bread"))
+            return "bakery";
+
+        if (normalized.Contains("rau")
+            || normalized.Contains("củ")
+            || normalized.Contains("cu ")
+            || normalized.Contains("quả")
+            || normalized.Contains("qua ")
+            || normalized.Contains("produce")
+            || normalized.Contains("vegetable")
+            || normalized.Contains("fruit"))
+            return "produce";
+
+        if (normalized.Contains("đông lạnh")
+            || normalized.Contains("dong lanh")
+            || normalized.Contains("frozen"))
+            return "frozen";
+
+        if (normalized.Contains("snack")
+            || normalized.Contains("ăn vặt")
+            || normalized.Contains("an vat")
+            || normalized.Contains("bim bim"))
+            return "snack";
+
+        if (normalized.Contains("gia vị")
+            || normalized.Contains("gia vi")
+            || normalized.Contains("condiment")
+            || normalized.Contains("sauce")
+            || normalized.Contains("nước chấm")
+            || normalized.Contains("nuoc cham"))
+            return "condiment";
+
+        return normalized switch
+        {
+            "dairy" or "meat" or "seafood" or "bakery" or "produce" or "frozen" or "beverage" or "snack" or "condiment" or "other" => normalized,
+            _ => "other"
+        };
+    }
 
     private async Task<string> DownloadImageAsBase64Async(string imageUrl, CancellationToken cancellationToken)
     {
