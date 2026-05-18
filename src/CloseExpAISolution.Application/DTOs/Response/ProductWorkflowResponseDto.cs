@@ -48,6 +48,12 @@ public class ProductResponseDto
     public List<string> Ingredients { get; set; } = new();
     public Dictionary<string, string>? NutritionFacts { get; set; }
     public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
+
+    public Guid UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public string UnitType { get; set; } = string.Empty;
+    public string UnitSymbol { get; set; } = string.Empty;
+    public decimal ConversionRate { get; set; } = 1m;
 }
 
 public class BarcodeLookupInfoDto

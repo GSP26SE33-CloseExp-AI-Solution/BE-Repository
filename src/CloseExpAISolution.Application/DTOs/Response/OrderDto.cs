@@ -40,6 +40,9 @@ public class OrderItemResponseDto
     public Guid OrderItemId { get; set; }
     public Guid OrderId { get; set; }
     public Guid LotId { get; set; }
+    public Guid? PurchaseUnitId { get; set; }
+    public string? PurchaseUnitName { get; set; }
+    public string? PurchaseUnitSymbol { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal TotalPrice { get; set; }

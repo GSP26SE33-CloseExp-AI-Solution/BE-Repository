@@ -1,5 +1,6 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -26,10 +27,17 @@ public class AdminService : IAdminService
     };
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
+    private readonly IUnitConversionRateService _unitConversion;
 
-    public AdminService(IUnitOfWork unitOfWork)
+    public AdminService(
+        IUnitOfWork unitOfWork,
+        PurchaseUnitOrderHelper purchaseUnitHelper,
+        IUnitConversionRateService unitConversion)
     {
         _unitOfWork = unitOfWork;
+        _purchaseUnitHelper = purchaseUnitHelper;
+        _unitConversion = unitConversion;
     }
 
     public async Task<AdminDashboardOverviewDto> GetDashboardOverviewAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken = default)
@@ -531,6 +539,20 @@ public class AdminService : IAdminService
             request.PageSize,
             cancellationToken);
 
+        var unitIds = orders
+            .SelectMany(o => o.OrderItems)
+            .Select(oi => oi.PurchaseUnitId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Concat(orders.SelectMany(o => o.OrderItems).Select(oi => oi.StockLot?.Product?.UnitId ?? Guid.Empty))
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        var units = unitIds.Count == 0
+            ? new Dictionary<Guid, UnitConversionInfo>()
+            : await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
+
         var items = orders.Select(o => new AdminOrderListItemDto
         {
             OrderId = o.OrderId,
@@ -553,7 +575,35 @@ public class AdminService : IAdminService
                 : null,
             CollectionId = o.CollectionId,
             CollectionPointName = o.CollectionPoint?.Name,
-            DeliveryGroupId = o.DeliveryGroupId
+            DeliveryGroupId = o.DeliveryGroupId,
+            OrderItems = o.OrderItems.Select(oi =>
+            {
+                var productUnitId = oi.StockLot?.Product?.UnitId ?? Guid.Empty;
+                decimal? purchaseQty = null;
+                if (productUnitId != Guid.Empty && oi.PurchaseUnitId.HasValue && units.Count > 0)
+                {
+                    purchaseQty = _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
+                        oi.Quantity,
+                        productUnitId,
+                        oi.PurchaseUnitId,
+                        units);
+                }
+
+                return new AdminOrderItemDto
+                {
+                    OrderItemId = oi.OrderItemId,
+                    LotId = oi.LotId,
+                    PurchaseUnitId = oi.PurchaseUnitId,
+                    PurchaseUnitName = oi.PurchaseUnit?.Name,
+                    PurchaseUnitSymbol = oi.PurchaseUnit?.Symbol,
+                    PurchaseQuantity = purchaseQty,
+                    Quantity = oi.Quantity,
+                    UnitPrice = oi.UnitPrice,
+                    TotalPrice = oi.TotalPrice,
+                    ProductName = oi.StockLot?.Product?.Name,
+                    ExpiryDate = oi.StockLot?.ExpiryDate
+                };
+            }).ToList()
         }).ToList();
 
         return new PaginatedResult<AdminOrderListItemDto>

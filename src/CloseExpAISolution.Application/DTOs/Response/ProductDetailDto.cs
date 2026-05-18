@@ -20,7 +20,11 @@ public class ProductDetailDto
     public string Distributor { get; set; } = "Chưa có mô tả chi tiết";
     public Dictionary<string, string>? NutritionFacts { get; set; }
     public string Category { get; set; } = string.Empty;
+    public Guid UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public string UnitType { get; set; } = string.Empty;
+    public string UnitSymbol { get; set; } = string.Empty;
+    public decimal ConversionRate { get; set; } = 1m;
     public decimal Quantity { get; set; }
     public decimal OriginalPrice { get; set; }
     public decimal FinalPrice { get; set; }

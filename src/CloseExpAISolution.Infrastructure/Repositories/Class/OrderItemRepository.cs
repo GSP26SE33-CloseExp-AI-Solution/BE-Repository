@@ -24,6 +24,7 @@ public class OrderItemRepository : IOrderItemRepository
     {
         return await _context.OrderItems
             .Include(oi => oi.Order)
+            .Include(oi => oi.PurchaseUnit)
             .Include(oi => oi.StockLot)
                 .ThenInclude(pl => pl!.Product)
             .FirstOrDefaultAsync(oi => oi.OrderItemId == orderItemId, cancellationToken);
@@ -32,6 +33,7 @@ public class OrderItemRepository : IOrderItemRepository
     public async Task<IEnumerable<OrderItem>> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         return await _context.OrderItems
+            .Include(oi => oi.PurchaseUnit)
             .Include(oi => oi.StockLot)
                 .ThenInclude(pl => pl!.Product)
             .Where(oi => oi.OrderId == orderId)

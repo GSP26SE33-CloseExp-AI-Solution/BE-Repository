@@ -27,6 +27,7 @@ public class OrderService : IOrderService
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
     private readonly OrderItemUnitConverter _orderItemUnitConverter;
     private readonly OrderStockQuantityHelper _orderStockQuantityHelper;
+    private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
 
     public OrderService(
         IUnitOfWork unitOfWork,
@@ -36,7 +37,8 @@ public class OrderService : IOrderService
         IOptions<PickupSearchOptions> pickupSearchOptions,
         IOrderNotificationPublisher orderNotificationPublisher,
         OrderItemUnitConverter orderItemUnitConverter,
-        OrderStockQuantityHelper orderStockQuantityHelper)
+        OrderStockQuantityHelper orderStockQuantityHelper,
+        PurchaseUnitOrderHelper purchaseUnitHelper)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
@@ -46,6 +48,7 @@ public class OrderService : IOrderService
         _orderNotificationPublisher = orderNotificationPublisher;
         _orderItemUnitConverter = orderItemUnitConverter;
         _orderStockQuantityHelper = orderStockQuantityHelper;
+        _purchaseUnitHelper = purchaseUnitHelper;
     }
 
     public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
@@ -194,6 +197,8 @@ public class OrderService : IOrderService
 
         var orderId = Guid.NewGuid();
         var orderCode = "ORD-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+        var orderPlacedAt = DateTime.UtcNow;
+        var requestedDeliveryDate = ResolveRequestedDeliveryDate(request.DeliveryDate, orderPlacedAt);
 
         var order = new Order
         {
@@ -209,14 +214,14 @@ public class OrderService : IOrderService
             DeliveryFee = request.DeliveryFee,
             SystemUsageFeeAmount = 0m,
             Status = Enum.Parse<OrderState>(request.Status),
-            OrderDate = DateTime.UtcNow,
+            OrderDate = requestedDeliveryDate,
             AddressId = request.AddressId,
             PromotionId = request.PromotionId,
             DeliveryGroupId = request.DeliveryGroupId,
             DeliveryNote = request.DeliveryNote,
             CancelDeadline = request.CancelDeadline,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = orderPlacedAt,
+            UpdatedAt = orderPlacedAt
         };
 
         if (request.PromotionId.HasValue)
@@ -256,6 +261,7 @@ public class OrderService : IOrderService
                 OrderItemId = Guid.NewGuid(),
                 OrderId = orderId,
                 LotId = item.LotId,
+                PurchaseUnitId = item.PurchaseUnitId,
                 Quantity = item.Quantity,
                 UnitPrice = item.UnitPrice,
                 TotalPrice = totalPrice
@@ -333,6 +339,7 @@ public class OrderService : IOrderService
                 request.OrderItems.Select(dto => new CreateOrderItemDto
                 {
                     LotId = dto.LotId,
+                    PurchaseUnitId = dto.PurchaseUnitId,
                     Quantity = dto.Quantity,
                     UnitPrice = dto.UnitPrice
                 }).ToList(),
@@ -349,6 +356,7 @@ public class OrderService : IOrderService
                     OrderItemId = dto.OrderItemId == Guid.Empty ? Guid.NewGuid() : dto.OrderItemId,
                     OrderId = orderId,
                     LotId = item.LotId,
+                    PurchaseUnitId = item.PurchaseUnitId,
                     Quantity = item.Quantity,
                     UnitPrice = item.UnitPrice,
                     TotalPrice = totalPrice
@@ -492,10 +500,35 @@ public class OrderService : IOrderService
             PromotionId = request.PromotionId,
             DeliveryNote = request.DeliveryNote,
             CancelDeadline = request.CancelDeadline,
+            DeliveryDate = request.DeliveryDate,
             OrderItems = request.OrderItems
         };
 
         return await CreateAsync(model, cancellationToken);
+    }
+
+    private static DateTime ResolveRequestedDeliveryDate(DateTime? deliveryDate, DateTime orderPlacedAtUtc)
+    {
+        if (!deliveryDate.HasValue)
+            return orderPlacedAtUtc;
+
+        var requested = deliveryDate.Value;
+        if (requested.Kind == DateTimeKind.Unspecified)
+            requested = DateTime.SpecifyKind(requested, DateTimeKind.Utc);
+        else if (requested.Kind == DateTimeKind.Local)
+            requested = requested.ToUniversalTime();
+
+        var requestedDate = requested.Date;
+        var todayUtc = orderPlacedAtUtc.Date;
+        const int maxDaysAhead = 6;
+
+        if (requestedDate < todayUtc)
+            throw new InvalidOperationException("Ngày giao / nhận không được ở quá khứ.");
+
+        if (requestedDate > todayUtc.AddDays(maxDaysAhead))
+            throw new InvalidOperationException("Chỉ có thể đặt giao / nhận trong vòng 1 tuần (7 ngày).");
+
+        return DateTime.SpecifyKind(requestedDate, DateTimeKind.Utc);
     }
 
     public async Task<(IEnumerable<OrderResponseDto> Items, int TotalCount)> GetByUserIdAsync(Guid userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
@@ -552,39 +585,35 @@ public class OrderService : IOrderService
         if (items.Count == 0)
             throw new InvalidOperationException("Đơn hàng phải có ít nhất một sản phẩm.");
 
-        var requiredByLot = items
-            .GroupBy(x => x.LotId)
-            .Select(g => new
-            {
-                LotId = g.Key,
-                RequiredQuantity = g.Sum(x => (decimal)x.Quantity)
-            })
-            .ToList();
-
-        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lotIds = items.Select(x => x.LotId).Distinct().ToList();
         var lots = (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId)))
             .ToDictionary(l => l.LotId);
 
+        var requiredByLot = await _purchaseUnitHelper.SumRequiredQuantitiesInLotUnitAsync(
+            items,
+            lots,
+            cancellationToken);
+
         var now = DateTime.UtcNow;
         var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
-        foreach (var req in requiredByLot)
+        foreach (var (lotId, requiredQuantity) in requiredByLot)
         {
-            if (!lots.TryGetValue(req.LotId, out var lot))
-                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId}.");
+            if (!lots.TryGetValue(lotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {lotId}.");
 
             if (lot.Status != ProductState.Published)
-                throw new InvalidOperationException($"StockLot {req.LotId} không còn ở trạng thái Published.");
+                throw new InvalidOperationException($"StockLot {lotId} không còn ở trạng thái Published.");
 
             if (lot.ExpiryDate <= now)
-                throw new InvalidOperationException($"StockLot {req.LotId} đã hết hạn, không thể đặt.");
+                throw new InvalidOperationException($"StockLot {lotId} đã hết hạn, không thể đặt.");
 
             if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
                 throw new InvalidOperationException(
                     "Sau 21:00, không thể đặt lô hàng có hạn sử dụng trong ngày.");
 
-            if (lot.Quantity < req.RequiredQuantity)
+            if (lot.Quantity < requiredQuantity)
                 throw new InvalidOperationException(
-                    $"StockLot {req.LotId} không đủ số lượng. Cần {req.RequiredQuantity}, còn {lot.Quantity}.");
+                    $"StockLot {lotId} không đủ số lượng. Cần {requiredQuantity} (đơn vị lô), còn {lot.Quantity}.");
         }
     }
 

@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.AIService.Models;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mappings;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -422,7 +423,7 @@ public class ProductWorkflowService : IProductWorkflowService
         if (!string.IsNullOrWhiteSpace(type))
         {
             var normalized = type.Trim();
-            query = query.Where(u => string.Equals(u.Type, normalized, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(u => UnitMeasureTypeCompatibility.AreCompatible(u.Type, normalized));
         }
 
         return query
@@ -814,13 +815,16 @@ public class ProductWorkflowService : IProductWorkflowService
         UnitOfMeasure? unitForResponse = null;
         if (scanResult.ExistingProduct != null)
         {
-            var latestLot = await GetLatestStockLotByProductIdAsync(scanResult.ExistingProduct.ProductId);
-            if (latestLot != null && latestLot.UnitId != Guid.Empty)
+            var product = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(
+                scanResult.ExistingProduct.ProductId);
+            if (product != null && product.UnitId != Guid.Empty)
             {
-                unitForResponse = await _unitOfWork.Repository<UnitOfMeasure>()
-                    .FirstOrDefaultAsync(u => u.UnitId == latestLot.UnitId);
+                unitForResponse = product.Unit
+                    ?? await _unitOfWork.Repository<UnitOfMeasure>()
+                        .FirstOrDefaultAsync(u => u.UnitId == product.UnitId);
             }
         }
+
         unitForResponse ??= await GetUnitByIdOrDefaultAsync(null, cancellationToken);
 
         return new StaffProductIdentificationResponseDto
@@ -1104,6 +1108,12 @@ public class ProductWorkflowService : IProductWorkflowService
         }
 
         var resolvedUnit = await ResolveUnitAsync(request.UnitId, cancellationToken);
+
+        var productUnit = await _unitOfWork.Repository<UnitOfMeasure>()
+            .FirstOrDefaultAsync(u => u.UnitId == product.UnitId)
+            ?? throw new InvalidOperationException($"Không tìm thấy đơn vị chuẩn sản phẩm: {product.UnitId}.");
+
+        StockLotUnitRules.EnsureLotUnitMatchesProductType(productUnit.Type, resolvedUnit.Type);
 
         var stockLot = new StockLot
         {

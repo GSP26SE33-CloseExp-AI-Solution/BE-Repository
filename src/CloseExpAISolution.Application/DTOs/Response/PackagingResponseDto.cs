@@ -48,6 +48,10 @@ public class PackagingOrderItemDto
     public DateTime? ExpiryDate { get; set; }
     public DateTime? ManufactureDate { get; set; }
     public string? UnitName { get; set; }
+    public Guid? PurchaseUnitId { get; set; }
+    public string? PurchaseUnitName { get; set; }
+    public string? PurchaseUnitSymbol { get; set; }
+    public decimal? PurchaseQuantity { get; set; }
     public string? SupermarketName { get; set; }
     public string PackagingStatus { get; set; } = string.Empty;
     public string? DeliveryStatus { get; set; }

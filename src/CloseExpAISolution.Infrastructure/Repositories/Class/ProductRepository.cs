@@ -18,6 +18,7 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
             .Include(p => p.ProductDetail)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
+            .Include(p => p.Unit)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
     }
 }

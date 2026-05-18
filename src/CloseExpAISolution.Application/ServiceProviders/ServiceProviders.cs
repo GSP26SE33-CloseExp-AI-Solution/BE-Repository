@@ -99,7 +99,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
         public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
         public IOrderService OrderService => _orderService ??= ActivatorUtilities.CreateInstance<OrderService>(_serviceProvider);
-        public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
+        public IOrderItemService OrderItemService => _orderItemService ??= ActivatorUtilities.CreateInstance<OrderItemService>(_serviceProvider);
         public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
         public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
         public IRefundService RefundService => _refundService ??= ActivatorUtilities.CreateInstance<RefundService>(_serviceProvider);

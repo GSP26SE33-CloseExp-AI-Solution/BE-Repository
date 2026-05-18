@@ -217,10 +217,17 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(oi => oi.DeliveryGroupId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        modelBuilder.Entity<OrderItem>()
+            .HasOne(oi => oi.PurchaseUnit)
+            .WithMany()
+            .HasForeignKey(oi => oi.PurchaseUnitId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<OrderItem>(entity =>
         {
             entity.HasIndex(oi => oi.OrderId);
             entity.HasIndex(oi => oi.LotId);
+            entity.HasIndex(oi => oi.PurchaseUnitId);
             entity.HasIndex(oi => oi.DeliveryGroupId);
             entity.Property(oi => oi.UnitPrice).HasPrecision(18, 2);
             entity.Property(oi => oi.TotalPrice).HasPrecision(18, 2);

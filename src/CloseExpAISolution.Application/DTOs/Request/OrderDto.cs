@@ -43,6 +43,8 @@ public class CreateOrderRequestDto
 
     public DateTime? CancelDeadline { get; set; }
 
+    public DateTime? DeliveryDate { get; set; }
+
     [Required]
     [MinLength(1, ErrorMessage = "Order must have at least one item")]
     public List<CreateOrderItemDto> OrderItems { get; set; } = new();
@@ -52,6 +54,8 @@ public class CreateOrderItemDto
 {
     [Required]
     public Guid LotId { get; set; }
+
+    public Guid? PurchaseUnitId { get; set; }
 
     [Required]
     [Range(1, int.MaxValue)]
@@ -81,6 +85,8 @@ public class CreateOwnOrderRequestDto
     public decimal DeliveryFee { get; set; }
 
     public DateTime? CancelDeadline { get; set; }
+
+    public DateTime? DeliveryDate { get; set; }
 
     [Required]
     [MinLength(1, ErrorMessage = "Order must have at least one item")]
@@ -131,6 +137,7 @@ public class UpdateOrderItemDto
 {
     public Guid OrderItemId { get; set; }
     public Guid LotId { get; set; }
+    public Guid? PurchaseUnitId { get; set; }
     [Range(1, int.MaxValue)]
     public int Quantity { get; set; }
     [Range(0, double.MaxValue)]
@@ -145,6 +152,8 @@ public class CreateOrderItemRequestDto
     [Required]
     public Guid LotId { get; set; }
 
+    public Guid? PurchaseUnitId { get; set; }
+
     [Required]
     [Range(1, int.MaxValue)]
     public int Quantity { get; set; }
@@ -157,6 +166,8 @@ public class CreateOrderItemRequestDto
 public class UpdateOrderItemRequestDto
 {
     public Guid? LotId { get; set; }
+
+    public Guid? PurchaseUnitId { get; set; }
 
     [Range(1, int.MaxValue)]
     public int? Quantity { get; set; }

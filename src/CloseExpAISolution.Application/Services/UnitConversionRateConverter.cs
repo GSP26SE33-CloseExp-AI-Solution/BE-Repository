@@ -18,7 +18,7 @@ public static class UnitConversionRateConverter
         if (fromUnitId == toUnitId)
             return quantity;
 
-        if (!string.Equals(from.Type, to.Type, StringComparison.OrdinalIgnoreCase))
+        if (!UnitMeasureTypeCompatibility.AreCompatible(from.Type, to.Type))
         {
             throw new InvalidOperationException(
                 $"Không thể quy đổi giữa đơn vị khác loại ({from.Type} -> {to.Type}).");

@@ -29,6 +29,8 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.Promotion)
             .Include(o => o.Transactions)
             .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.PurchaseUnit)
+            .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.StockLot)
                     .ThenInclude(pl => pl!.Product)
             .FirstOrDefaultAsync(o => o.OrderId == orderId, cancellationToken);
@@ -68,7 +70,12 @@ public class OrderRepository : IOrderRepository
             .AsNoTracking()
             .Include(o => o.User)
             .Include(o => o.DeliveryTimeSlot)
-            .Include(o => o.CollectionPoint);
+            .Include(o => o.CollectionPoint)
+            .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.PurchaseUnit)
+            .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.StockLot)
+                    .ThenInclude(sl => sl!.Product);
 
         if (fromUtc.HasValue) q = q.Where(o => o.OrderDate >= fromUtc.Value);
         if (toUtc.HasValue) q = q.Where(o => o.OrderDate <= toUtc.Value);

@@ -1,6 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Application.Services.Routing;
@@ -22,6 +23,8 @@ public class DeliveryService : IDeliveryService
     private readonly ILogger<DeliveryService> _logger;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
     private readonly HybridRoutingStrategy _routingStrategy;
+    private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
+    private readonly IUnitConversionRateService _unitConversion;
 
     public DeliveryService(
         IUnitOfWork unitOfWork,
@@ -29,7 +32,9 @@ public class DeliveryService : IDeliveryService
         IMapboxService mapboxService,
         ILogger<DeliveryService> logger,
         IOrderNotificationPublisher orderNotificationPublisher,
-        HybridRoutingStrategy routingStrategy)
+        HybridRoutingStrategy routingStrategy,
+        PurchaseUnitOrderHelper purchaseUnitHelper,
+        IUnitConversionRateService unitConversion)
     {
         _unitOfWork = unitOfWork;
         _r2Storage = r2Storage;
@@ -37,6 +42,8 @@ public class DeliveryService : IDeliveryService
         _logger = logger;
         _orderNotificationPublisher = orderNotificationPublisher;
         _routingStrategy = routingStrategy;
+        _purchaseUnitHelper = purchaseUnitHelper;
+        _unitConversion = unitConversion;
     }
 
     public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
@@ -1615,32 +1622,81 @@ public class DeliveryService : IDeliveryService
             longitude = customerAddress?.Longitude;
         }
 
-        var orderItems = await _unitOfWork.Repository<OrderItem>()
-            .FindAsync(oi => oi.OrderId == order.OrderId);
+        var orderItems = (await _unitOfWork.Repository<OrderItem>()
+            .FindAsync(oi => oi.OrderId == order.OrderId)).ToList();
         if (scopedDeliveryGroupId.HasValue)
-            orderItems = orderItems.Where(oi => oi.DeliveryGroupId == scopedDeliveryGroupId.Value);
+            orderItems = orderItems.Where(oi => oi.DeliveryGroupId == scopedDeliveryGroupId.Value).ToList();
+
+        var lotIds = orderItems.Select(i => i.LotId).Distinct().ToList();
+        var lots = lotIds.Count == 0
+            ? new Dictionary<Guid, StockLot>()
+            : (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId)))
+                .ToDictionary(l => l.LotId);
+
+        var productIds = lots.Values.Select(l => l.ProductId).Distinct().ToList();
+        var products = productIds.Count == 0
+            ? new Dictionary<Guid, Product>()
+            : (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId)))
+                .ToDictionary(p => p.ProductId);
+
+        var purchaseUnitIds = orderItems
+            .Where(i => i.PurchaseUnitId.HasValue)
+            .Select(i => i.PurchaseUnitId!.Value)
+            .Distinct()
+            .ToList();
+
+        var unitIds = lots.Values.Select(l => l.UnitId)
+            .Concat(purchaseUnitIds)
+            .Concat(products.Values.Select(p => p.UnitId))
+            .Distinct()
+            .ToList();
+
+        var unitEntities = unitIds.Count == 0
+            ? new Dictionary<Guid, UnitOfMeasure>()
+            : (await _unitOfWork.Repository<UnitOfMeasure>().FindAsync(u => unitIds.Contains(u.UnitId)))
+                .ToDictionary(u => u.UnitId);
+
+        var conversionUnits = await _unitConversion.LoadUnitInfoAsync(unitIds);
 
         var itemDtos = new List<DeliveryOrderItemDto>();
         foreach (var item in orderItems)
         {
-            var lot = await _unitOfWork.Repository<StockLot>()
-                .FirstOrDefaultAsync(pl => pl.LotId == item.LotId);
+            lots.TryGetValue(item.LotId, out var lot);
+            Product? product = null;
+            UnitOfMeasure? lotUnit = null;
+            UnitOfMeasure? purchaseUnit = null;
 
-            string productName = "N/A";
             if (lot != null)
             {
-                var product = await _unitOfWork.Repository<Product>()
-                    .FirstOrDefaultAsync(p => p.ProductId == lot.ProductId);
-                productName = product?.Name ?? "N/A";
+                products.TryGetValue(lot.ProductId, out product);
+                unitEntities.TryGetValue(lot.UnitId, out lotUnit);
+            }
+
+            if (item.PurchaseUnitId.HasValue)
+                unitEntities.TryGetValue(item.PurchaseUnitId.Value, out purchaseUnit);
+
+            decimal? purchaseQuantity = null;
+            if (product != null)
+            {
+                purchaseQuantity = _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
+                    item.Quantity,
+                    product.UnitId,
+                    item.PurchaseUnitId,
+                    conversionUnits);
             }
 
             itemDtos.Add(new DeliveryOrderItemDto
             {
                 OrderItemId = item.OrderItemId,
-                ProductName = productName,
+                ProductName = product?.Name ?? "N/A",
                 Quantity = item.Quantity,
                 UnitPrice = item.UnitPrice,
                 SubTotal = item.Quantity * item.UnitPrice,
+                PurchaseUnitId = item.PurchaseUnitId,
+                PurchaseUnitName = purchaseUnit?.Name,
+                PurchaseUnitSymbol = purchaseUnit?.Symbol,
+                PurchaseQuantity = purchaseQuantity,
+                LotUnitName = lotUnit?.Name,
                 PackagingStatus = item.PackagingStatus.ToString(),
                 DeliveryStatus = item.DeliveryStatus?.ToString(),
                 DeliveryGroupId = item.DeliveryGroupId

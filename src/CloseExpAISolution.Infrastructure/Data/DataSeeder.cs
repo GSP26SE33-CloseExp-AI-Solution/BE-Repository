@@ -155,6 +155,8 @@ public static class DataSeeder
     private static readonly Guid CoverageShortTermLot2Id = Guid.Parse("aaaa8888-8888-8888-8888-888888888888");
     private static readonly Guid CoverageLongTermLot1Id = Guid.Parse("aaaa9999-9999-9999-9999-999999999999");
     private static readonly Guid CoverageLongTermLot2Id = Guid.Parse("aaaa0000-9999-9999-9999-999999999999");
+    private static readonly Guid MultiUnitDemoLotId = Guid.Parse("bbbb1111-1111-1111-1111-111111111111");
+    private static readonly Guid MultiUnitOreoDemoLotId = Guid.Parse("bbbb1111-2222-2222-2222-222222222222");
 
     public static async Task SeedAsync(ApplicationDbContext context)
     {
@@ -176,6 +178,184 @@ public static class DataSeeder
         await SeedSampleTransactionsAndRefundsAsync(context);
         await SeedHybridRouteDemoDataAsync(context);
         await SeedClusterDraftDemoDataAsync(context);
+        await SeedMultiUnitPurchaseDemoAsync(context);
+        await BackfillOrderItemPurchaseUnitsAsync(context);
+    }
+
+    private static async Task SeedMultiUnitPurchaseDemoAsync(ApplicationDbContext context)
+    {
+        var now = DateTime.UtcNow;
+
+        var packUnit = await context.UnitOfMeasures.FirstOrDefaultAsync(u => u.UnitId == UnitPackId);
+        if (packUnit != null && packUnit.ConversionRate == 1m)
+        {
+            packUnit.ConversionRate = 6m;
+            packUnit.UpdatedAt = now;
+        }
+
+        var boxUnit = await context.UnitOfMeasures.FirstOrDefaultAsync(u => u.UnitId == UnitBoxId);
+        if (boxUnit != null && boxUnit.ConversionRate == 1m)
+        {
+            boxUnit.ConversionRate = 12m;
+            boxUnit.UpdatedAt = now;
+        }
+
+        await UpsertMultiUnitProductDemoAsync(
+            context,
+            Product6Id,
+            MultiUnitDemoLotId,
+            UnitPackId,
+            MarketStaffUserId1,
+            quantity: 24,
+            expiryDays: 4,
+            now);
+
+        await UpsertMultiUnitProductDemoAsync(
+            context,
+            Product8Id,
+            MultiUnitOreoDemoLotId,
+            UnitPackId,
+            MarketStaffUserId3,
+            quantity: 48,
+            expiryDays: 30,
+            now);
+
+        await UpsertMultiUnitProductDemoByProductNameAsync(
+            context,
+            "Oreo",
+            MultiUnitOreoDemoLotId,
+            UnitPackId,
+            MarketStaffUserId3,
+            quantity: 48,
+            expiryDays: 30,
+            now);
+
+        await UpsertMultiUnitProductDemoByProductNameAsync(
+            context,
+            "Bánh mì sandwich",
+            MultiUnitDemoLotId,
+            UnitPackId,
+            MarketStaffUserId1,
+            quantity: 24,
+            expiryDays: 4,
+            now);
+
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task UpsertMultiUnitProductDemoByProductNameAsync(
+        ApplicationDbContext context,
+        string productNameContains,
+        Guid demoLotId,
+        Guid demoLotUnitId,
+        Guid publishedByStaffId,
+        int quantity,
+        int expiryDays,
+        DateTime now)
+    {
+        var product = await context.Products
+            .FirstOrDefaultAsync(p => p.Name.Contains(productNameContains));
+
+        if (product == null)
+            return;
+
+        await UpsertMultiUnitProductDemoAsync(
+            context,
+            product.ProductId,
+            demoLotId,
+            demoLotUnitId,
+            publishedByStaffId,
+            quantity,
+            expiryDays,
+            now);
+    }
+
+    private static async Task UpsertMultiUnitProductDemoAsync(
+        ApplicationDbContext context,
+        Guid productId,
+        Guid demoLotId,
+        Guid demoLotUnitId,
+        Guid publishedByStaffId,
+        int quantity,
+        int expiryDays,
+        DateTime now)
+    {
+        var product = await context.Products.FirstOrDefaultAsync(p => p.ProductId == productId);
+        if (product == null)
+            return;
+
+        product.UnitId = UnitPieceId;
+        product.UpdatedAt = now;
+
+        var originalPrice = ResolveOriginalPriceByProduct(productId);
+        var expiry = now.AddDays(expiryDays);
+        var lot = await context.StockLots.FirstOrDefaultAsync(l => l.LotId == demoLotId);
+
+        if (lot == null)
+        {
+            lot = new StockLot
+            {
+                LotId = demoLotId,
+                ProductId = productId,
+                UnitId = demoLotUnitId,
+                ExpiryDate = expiry,
+                ManufactureDate = now.AddDays(-2),
+                Quantity = quantity,
+                Status = ProductState.Published,
+                CreatedAt = now,
+                UpdatedAt = now,
+                PublishedBy = publishedByStaffId.ToString(),
+                PublishedAt = now.AddMinutes(-15),
+                OriginalUnitPrice = originalPrice,
+                SuggestedUnitPrice = CalculateSuggestedPrice(originalPrice, expiry, now),
+                FinalUnitPrice = CalculateSuggestedPrice(originalPrice, expiry, now)
+            };
+            await context.StockLots.AddAsync(lot);
+            return;
+        }
+
+        lot.ProductId = productId;
+        lot.UnitId = demoLotUnitId;
+        lot.ExpiryDate = expiry > now ? expiry : now.AddDays(expiryDays);
+        lot.Quantity = lot.Quantity > 0 ? lot.Quantity : quantity;
+        lot.Status = ProductState.Published;
+        lot.UpdatedAt = now;
+        if (lot.PublishedAt == null)
+        {
+            lot.PublishedBy = publishedByStaffId.ToString();
+            lot.PublishedAt = now.AddMinutes(-15);
+        }
+
+        if (lot.OriginalUnitPrice <= 0)
+            lot.OriginalUnitPrice = originalPrice;
+        if (lot.SuggestedUnitPrice <= 0)
+            lot.SuggestedUnitPrice = CalculateSuggestedPrice(originalPrice, lot.ExpiryDate, now);
+        if (lot.FinalUnitPrice is null or <= 0)
+            lot.FinalUnitPrice = lot.SuggestedUnitPrice;
+    }
+
+    private static async Task BackfillOrderItemPurchaseUnitsAsync(ApplicationDbContext context)
+    {
+        var items = await context.OrderItems
+            .Where(oi => oi.PurchaseUnitId == null)
+            .ToListAsync();
+
+        if (items.Count == 0)
+            return;
+
+        var lotIds = items.Select(oi => oi.LotId).Distinct().ToList();
+        var lots = await context.StockLots
+            .AsNoTracking()
+            .Where(l => lotIds.Contains(l.LotId))
+            .ToDictionaryAsync(l => l.LotId);
+
+        foreach (var item in items)
+        {
+            if (lots.TryGetValue(item.LotId, out var lot))
+                item.PurchaseUnitId = lot.UnitId;
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)

@@ -28,5 +28,7 @@ public class AdminOrderListItemDto
     public string? CollectionPointName { get; set; }
 
     public Guid? DeliveryGroupId { get; set; }
+
+    public List<AdminOrderItemDto> OrderItems { get; set; } = new();
 }
 

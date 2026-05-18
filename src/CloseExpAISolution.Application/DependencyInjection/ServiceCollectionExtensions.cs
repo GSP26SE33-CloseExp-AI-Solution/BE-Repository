@@ -42,7 +42,9 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IUnitConversionRateService, UnitConversionRateService>();
         services.AddScoped<OrderStockQuantityHelper>();
+        services.AddScoped<PurchaseUnitOrderHelper>();
         services.AddScoped<OrderItemUnitConverter>();
+        services.AddScoped<IStockLotUnitCompatibilityService, StockLotUnitCompatibilityService>();
 
         services.AddScoped<IOrderNotificationPublisher, OrderNotificationPublisher>();
 
@@ -70,6 +72,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDeliveryService, DeliveryService>();
         services.AddScoped<IDeliveryAdminService, DeliveryAdminService>();
         services.AddScoped<IRefundService, RefundService>();
+        services.AddScoped<IPromotionService, PromotionService>();
+        services.AddScoped<IPromotionUsageService, PromotionUsageService>();
+        services.AddScoped<IPromotionAnalyticsService, PromotionAnalyticsService>();
         services.AddScoped<IPackagingService, PackagingService>();
         services.AddScoped<IStaleReadyToShipRefundProcessor, StaleReadyToShipRefundProcessor>();
         services.AddScoped<ITodayExpiryPendingOrderCancellationProcessor, TodayExpiryPendingOrderCancellationProcessor>();

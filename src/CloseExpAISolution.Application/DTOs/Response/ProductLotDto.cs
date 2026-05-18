@@ -61,6 +61,16 @@ public class AvailableStocklotDto
     public string SupermarketName { get; set; } = string.Empty;
     public Guid UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public string UnitType { get; set; } = string.Empty;
+    public string UnitSymbol { get; set; } = string.Empty;
+    public decimal ConversionRate { get; set; } = 1m;
+
+    public Guid ProductUnitId { get; set; }
+    public string ProductUnitName { get; set; } = string.Empty;
+    public string ProductUnitType { get; set; } = string.Empty;
+    public string ProductUnitSymbol { get; set; } = string.Empty;
+    public decimal ProductConversionRate { get; set; } = 1m;
+
     public decimal Quantity { get; set; }
     public decimal Weight { get; set; }
     public string Status { get; set; } = string.Empty;

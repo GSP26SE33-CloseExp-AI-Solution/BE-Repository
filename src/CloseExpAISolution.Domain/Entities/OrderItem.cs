@@ -7,6 +7,7 @@ public class OrderItem
     public Guid OrderItemId { get; set; }
     public Guid OrderId { get; set; }
     public Guid LotId { get; set; }
+    public Guid? PurchaseUnitId { get; set; }
     public short Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal TotalPrice { get; set; }
@@ -20,5 +21,6 @@ public class OrderItem
 
     public Order? Order { get; set; }
     public StockLot? StockLot { get; set; }
+    public UnitOfMeasure? PurchaseUnit { get; set; }
     public DeliveryGroup? DeliveryGroup { get; set; }
 }

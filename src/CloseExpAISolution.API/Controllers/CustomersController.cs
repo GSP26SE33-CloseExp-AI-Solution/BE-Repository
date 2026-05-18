@@ -33,6 +33,34 @@ public class CustomersController : ControllerBase
         return Ok(ApiResponse<IEnumerable<CustomerAddressDto>>.SuccessResponse(addresses));
     }
 
+    [HttpGet("products/{productId:guid}/purchase-units")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>>> GetProductPurchaseUnits(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var units = await _services.ProductService
+                .GetPurchaseUnitsForProductAsync(productId, cancellationToken);
+
+            return Ok(ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>.SuccessResponse(
+                units,
+                units.Count == 0
+                    ? "Sản phẩm chưa có đơn vị mua khả dụng"
+                    : $"Tìm thấy {units.Count} đơn vị mua"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
     [HttpGet("stocklots/available")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AvailableStocklotDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<AvailableStocklotDto>>>> GetAvailableStockLots(

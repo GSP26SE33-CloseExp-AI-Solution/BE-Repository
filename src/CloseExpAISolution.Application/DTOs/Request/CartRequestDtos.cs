@@ -7,6 +7,8 @@ public class AddCartItemRequestDto
     [Required]
     public Guid LotId { get; set; }
 
+    public Guid? PurchaseUnitId { get; set; }
+
     [Range(typeof(decimal), "0.0001", "999999999")]
     public decimal Quantity { get; set; }
 }

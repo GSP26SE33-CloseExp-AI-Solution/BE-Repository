@@ -1,6 +1,7 @@
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
@@ -11,11 +12,16 @@ public class OrderItemService : IOrderItemService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly OrderItemUnitConverter _orderItemUnitConverter;
 
-    public OrderItemService(IUnitOfWork unitOfWork, IMapper mapper)
+    public OrderItemService(
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        OrderItemUnitConverter orderItemUnitConverter)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _orderItemUnitConverter = orderItemUnitConverter;
     }
 
     public async Task<(IEnumerable<OrderItemResponseDto> Items, int TotalCount)> GetAllAsync(int pageNumber, int pageSize, Guid? orderId = null, CancellationToken cancellationToken = default)
@@ -53,14 +59,31 @@ public class OrderItemService : IOrderItemService
 
     public async Task<OrderItemResponseDto> CreateAsync(CreateOrderItemRequestDto request, CancellationToken cancellationToken = default)
     {
+        var converted = await _orderItemUnitConverter.ConvertCreateItemsToProductUnitAsync(
+            new[]
+            {
+                new CreateOrderItemDto
+                {
+                    LotId = request.LotId,
+                    PurchaseUnitId = request.PurchaseUnitId,
+                    Quantity = request.Quantity,
+                    UnitPrice = request.UnitPrice
+                }
+            },
+            cancellationToken);
+
+        var line = converted[0];
         var orderItem = new OrderItem
         {
             OrderItemId = Guid.NewGuid(),
             OrderId = request.OrderId,
-            LotId = request.LotId,
-            Quantity = (short)request.Quantity,
-            UnitPrice = request.UnitPrice
+            LotId = line.LotId,
+            PurchaseUnitId = line.PurchaseUnitId,
+            Quantity = line.Quantity,
+            UnitPrice = line.UnitPrice,
+            TotalPrice = line.Quantity * line.UnitPrice
         };
+
         await _unitOfWork.OrderItemRepository.AddAsync(orderItem, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -73,9 +96,24 @@ public class OrderItemService : IOrderItemService
         var item = await _unitOfWork.OrderItemRepository.GetByOrderItemIdAsync(orderItemId, cancellationToken)
             ?? throw new KeyNotFoundException($"Order item not found: {orderItemId}");
 
-        if (request.LotId.HasValue) item.LotId = request.LotId.Value;
-        if (request.Quantity.HasValue) item.Quantity = (short)request.Quantity.Value;
-        if (request.UnitPrice.HasValue) item.UnitPrice = request.UnitPrice.Value;
+        var hasUnitChange = request.PurchaseUnitId.HasValue
+            || request.LotId.HasValue
+            || request.Quantity.HasValue
+            || request.UnitPrice.HasValue;
+
+        if (hasUnitChange)
+        {
+            var converted = await _orderItemUnitConverter.ConvertUpdateItemToProductUnitAsync(
+                item,
+                request,
+                cancellationToken);
+
+            item.LotId = converted.LotId;
+            item.PurchaseUnitId = converted.PurchaseUnitId;
+            item.Quantity = converted.Quantity;
+            item.UnitPrice = converted.UnitPrice;
+            item.TotalPrice = converted.Quantity * converted.UnitPrice;
+        }
 
         _unitOfWork.OrderItemRepository.Update(item);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

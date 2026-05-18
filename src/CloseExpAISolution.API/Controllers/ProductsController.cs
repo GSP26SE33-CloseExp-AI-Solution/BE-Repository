@@ -21,18 +21,21 @@ public class ProductsController : ControllerBase
     private readonly IServiceProviders _services;
     private readonly IProductWorkflowService _workflowService;
     private readonly IExcelImportService _excelImportService;
+    private readonly IStockLotUnitCompatibilityService _stockLotUnitCompatibility;
     private readonly ILogger<ProductsController> _logger;
 
     public ProductsController(
         IServiceProviders services,
         IProductWorkflowService workflowService,
         IExcelImportService excelImportService,
+        IStockLotUnitCompatibilityService stockLotUnitCompatibility,
         IOptions<AIServiceSettings> aiServiceOptions,
         ILogger<ProductsController> logger)
     {
         _services = services;
         _workflowService = workflowService;
         _excelImportService = excelImportService;
+        _stockLotUnitCompatibility = stockLotUnitCompatibility;
         _logger = logger;
         WorkflowAiTimeoutSeconds = aiServiceOptions.Value.TimeoutSeconds;
 
@@ -299,6 +302,35 @@ public class ProductsController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "SupermarketStaff,Admin,Vendor,MarketingStaff")]
+    [HttpGet("{productId:guid}/purchase-units")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>>> GetProductPurchaseUnits(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var units = await _services.ProductService
+                .GetPurchaseUnitsForProductAsync(productId, cancellationToken);
+
+            return Ok(ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>.SuccessResponse(
+                units,
+                units.Count == 0
+                    ? "Sản phẩm chưa có đơn vị mua khả dụng"
+                    : $"Tìm thấy {units.Count} đơn vị mua"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
     [Authorize(Roles = "SupermarketStaff,Admin")]
     [HttpGet("workflow/units")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UnitOfMeasureDto>>), StatusCodes.Status200OK)]
@@ -532,6 +564,58 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<ProductResponseDto>>.SuccessResponse(
             result,
             $"Tìm thấy {totalCount} sản phẩm"));
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
+    [HttpPatch("lots/{lotId:guid}/unit")]
+    [ProducesResponseType(typeof(ApiResponse<StockLotDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<StockLotDetailDto>>> UpdateStockLotUnit(
+        Guid lotId,
+        [FromBody] UpdateStockLotUnitRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+            return supermarketIdResult.ErrorResult!;
+
+        try
+        {
+            var data = await _services.ProductService.UpdateStockLotUnitAsync(
+                lotId,
+                supermarketIdResult.SupermarketId!.Value,
+                request,
+                cancellationToken);
+
+            return Ok(ApiResponse<StockLotDetailDto>.SuccessResponse(data, "Cập nhật đơn vị lô hàng thành công"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [Authorize(Roles = "Admin,SupermarketStaff")]
+    [HttpPost("maintenance/remove-incompatible-lot-units")]
+    [ProducesResponseType(typeof(ApiResponse<StockLotUnitCleanupResult>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<StockLotUnitCleanupResult>>> RemoveIncompatibleLotUnits(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _stockLotUnitCompatibility.RemoveIncompatibleStockLotsAsync(cancellationToken);
+        var message = result.TotalIncompatible == 0
+            ? "Không có lô hàng nào vi phạm quy tắc đơn vị."
+            : $"Đã xử lý {result.TotalIncompatible} lô: xóa {result.DeletedCount}, ẩn {result.ArchivedCount} (lô đã có dòng đơn).";
+
+        return Ok(ApiResponse<StockLotUnitCleanupResult>.SuccessResponse(result, message));
     }
 
     #endregion

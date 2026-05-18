@@ -89,7 +89,12 @@ public class ProductMappingProfile : Profile
             .ForMember(dest => dest.VerifiedBy, opt => opt.MapFrom(_ => (string?)null))
             .ForMember(dest => dest.VerifiedAt, opt => opt.MapFrom(_ => (DateTime?)null))
             .ForMember(dest => dest.PricedBy, opt => opt.MapFrom(_ => (string?)null))
-            .ForMember(dest => dest.PricedAt, opt => opt.MapFrom(_ => (DateTime?)null));
+            .ForMember(dest => dest.PricedAt, opt => opt.MapFrom(_ => (DateTime?)null))
+            .ForMember(dest => dest.UnitId, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.UnitId : src.UnitId))
+            .ForMember(dest => dest.UnitName, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.Name : string.Empty))
+            .ForMember(dest => dest.UnitType, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.Type : string.Empty))
+            .ForMember(dest => dest.UnitSymbol, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.Symbol : string.Empty))
+            .ForMember(dest => dest.ConversionRate, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.ConversionRate : 1m));
 
         CreateMap<Product, ProductDto>()
             .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.ProductDetail != null ? src.ProductDetail.Brand ?? string.Empty : string.Empty))

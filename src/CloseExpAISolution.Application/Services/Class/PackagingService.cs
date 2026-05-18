@@ -22,6 +22,8 @@ public class PackagingService : IPackagingService
     private readonly IRefundService _refundService;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
     private readonly OrderStockQuantityHelper _orderStockQuantityHelper;
+    private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
+    private readonly IUnitConversionRateService _unitConversion;
 
     public PackagingService(
         IUnitOfWork unitOfWork,
@@ -29,7 +31,9 @@ public class PackagingService : IPackagingService
         ISchedulerFactory schedulerFactory,
         IRefundService refundService,
         IOrderNotificationPublisher orderNotificationPublisher,
-        OrderStockQuantityHelper orderStockQuantityHelper)
+        OrderStockQuantityHelper orderStockQuantityHelper,
+        PurchaseUnitOrderHelper purchaseUnitHelper,
+        IUnitConversionRateService unitConversion)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -37,6 +41,8 @@ public class PackagingService : IPackagingService
         _refundService = refundService;
         _orderNotificationPublisher = orderNotificationPublisher;
         _orderStockQuantityHelper = orderStockQuantityHelper;
+        _purchaseUnitHelper = purchaseUnitHelper;
+        _unitConversion = unitConversion;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -1059,11 +1065,23 @@ public class PackagingService : IPackagingService
             : (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId))).ToList();
         var productById = products.ToDictionary(p => p.ProductId);
 
-        var unitIds = lots.Select(l => l.UnitId).Distinct().ToList();
+        var purchaseUnitIds = orderItems
+            .Where(i => i.PurchaseUnitId.HasValue)
+            .Select(i => i.PurchaseUnitId!.Value)
+            .Distinct()
+            .ToList();
+
+        var unitIds = lots.Select(l => l.UnitId)
+            .Concat(purchaseUnitIds)
+            .Concat(products.Select(p => p.UnitId))
+            .Distinct()
+            .ToList();
         var units = unitIds.Count == 0
             ? new List<UnitOfMeasure>()
             : (await _unitOfWork.Repository<UnitOfMeasure>().FindAsync(u => unitIds.Contains(u.UnitId))).ToList();
         var unitById = units.ToDictionary(u => u.UnitId);
+
+        var conversionUnits = await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
 
         var supermarketIds = products.Select(p => p.SupermarketId).Distinct().ToList();
         var supermarkets = supermarketIds.Count == 0
@@ -1077,15 +1095,29 @@ public class PackagingService : IPackagingService
         {
             lotById.TryGetValue(item.LotId, out var lot);
             Product? product = null;
-            UnitOfMeasure? unit = null;
+            UnitOfMeasure? lotUnit = null;
+            UnitOfMeasure? purchaseUnit = null;
             Supermarket? supermarket = null;
 
             if (lot != null)
             {
                 productById.TryGetValue(lot.ProductId, out product);
-                unitById.TryGetValue(lot.UnitId, out unit);
+                unitById.TryGetValue(lot.UnitId, out lotUnit);
                 if (product != null)
                     supermarketById.TryGetValue(product.SupermarketId, out supermarket);
+            }
+
+            if (item.PurchaseUnitId.HasValue)
+                unitById.TryGetValue(item.PurchaseUnitId.Value, out purchaseUnit);
+
+            decimal? purchaseQuantity = null;
+            if (product != null)
+            {
+                purchaseQuantity = _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
+                    item.Quantity,
+                    product.UnitId,
+                    item.PurchaseUnitId,
+                    conversionUnits);
             }
 
             itemDtos.Add(new PackagingOrderItemDto
@@ -1098,7 +1130,11 @@ public class PackagingService : IPackagingService
                 SubTotal = item.Quantity * item.UnitPrice,
                 ExpiryDate = lot?.ExpiryDate,
                 ManufactureDate = lot?.ManufactureDate,
-                UnitName = unit?.Name,
+                UnitName = lotUnit?.Name,
+                PurchaseUnitId = item.PurchaseUnitId,
+                PurchaseUnitName = purchaseUnit?.Name,
+                PurchaseUnitSymbol = purchaseUnit?.Symbol,
+                PurchaseQuantity = purchaseQuantity,
                 SupermarketName = supermarket?.Name,
                 PackagingStatus = item.PackagingStatus.ToString(),
                 DeliveryStatus = item.DeliveryStatus?.ToString(),

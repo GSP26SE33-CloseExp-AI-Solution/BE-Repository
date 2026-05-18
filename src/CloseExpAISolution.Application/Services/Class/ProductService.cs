@@ -6,6 +6,7 @@ using CloseExpAISolution.Application.AIService.Models;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Policies;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -23,19 +24,25 @@ public class ProductService : IProductService
     private readonly IMapper _mapper;
     private readonly IAIServiceClient _aiServiceClient;
     private readonly ILogger<ProductService> _logger;
+    private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
+    private readonly IUnitConversionRateService _unitConversion;
 
     public ProductService(
         IUnitOfWork unitOfWork,
         ApplicationDbContext context,
         IMapper mapper,
         IAIServiceClient aiServiceClient,
-        ILogger<ProductService> logger)
+        ILogger<ProductService> logger,
+        PurchaseUnitOrderHelper purchaseUnitHelper,
+        IUnitConversionRateService unitConversion)
     {
         _unitOfWork = unitOfWork;
         _context = context;
         _mapper = mapper;
         _aiServiceClient = aiServiceClient;
         _logger = logger;
+        _purchaseUnitHelper = purchaseUnitHelper;
+        _unitConversion = unitConversion;
     }
 
     public Task<IEnumerable<Product>> GetAllAsync() => _unitOfWork.ProductRepository.GetAllAsync();
@@ -88,6 +95,7 @@ public class ProductService : IProductService
             .Include(p => p.ProductDetail)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
+            .Include(p => p.Unit)
             .FirstOrDefaultAsync(p => p.ProductId == id);
 
         if (product == null) return null;
@@ -532,6 +540,14 @@ public class ProductService : IProductService
                     : string.Empty,
                 UnitId = l.UnitId,
                 UnitName = l.Unit != null ? l.Unit.Name : string.Empty,
+                UnitType = l.Unit != null ? l.Unit.Type : string.Empty,
+                UnitSymbol = l.Unit != null ? l.Unit.Symbol : string.Empty,
+                ConversionRate = l.Unit != null ? l.Unit.ConversionRate : 1m,
+                ProductUnitId = l.Product != null ? l.Product.UnitId : Guid.Empty,
+                ProductUnitName = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Name : string.Empty,
+                ProductUnitType = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Type : string.Empty,
+                ProductUnitSymbol = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Symbol : string.Empty,
+                ProductConversionRate = l.Product != null && l.Product.Unit != null ? l.Product.Unit.ConversionRate : 1m,
                 Quantity = l.Quantity,
                 Weight = l.Weight,
                 Status = l.Status.ToString(),
@@ -615,6 +631,14 @@ public class ProductService : IProductService
                     : string.Empty,
                 UnitId = l.UnitId,
                 UnitName = l.Unit != null ? l.Unit.Name : string.Empty,
+                UnitType = l.Unit != null ? l.Unit.Type : string.Empty,
+                UnitSymbol = l.Unit != null ? l.Unit.Symbol : string.Empty,
+                ConversionRate = l.Unit != null ? l.Unit.ConversionRate : 1m,
+                ProductUnitId = l.Product != null ? l.Product.UnitId : Guid.Empty,
+                ProductUnitName = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Name : string.Empty,
+                ProductUnitType = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Type : string.Empty,
+                ProductUnitSymbol = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Symbol : string.Empty,
+                ProductConversionRate = l.Product != null && l.Product.Unit != null ? l.Product.Unit.ConversionRate : 1m,
                 Quantity = l.Quantity,
                 Weight = l.Weight,
                 Status = l.Status.ToString(),
@@ -641,6 +665,78 @@ public class ProductService : IProductService
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<ProductPurchaseUnitDto>> GetPurchaseUnitsForProductAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await _context.Products
+            .AsNoTracking()
+            .Include(p => p.Unit)
+            .FirstOrDefaultAsync(p => p.ProductId == productId, cancellationToken)
+            ?? throw new KeyNotFoundException("Không tìm thấy sản phẩm.");
+
+        if (product.Status is ProductState.Hidden or ProductState.Deleted)
+            throw new InvalidOperationException("Sản phẩm không khả dụng.");
+
+        var now = DateTime.UtcNow;
+        var publishedLots = await _context.StockLots
+            .AsNoTracking()
+            .Where(l =>
+                l.ProductId == productId
+                && l.Status == ProductState.Published
+                && l.Quantity > 0
+                && l.ExpiryDate > now)
+            .ToListAsync(cancellationToken);
+
+        // Align with customer listing: still expose units when product is sellable via lots.
+        if (publishedLots.Count == 0)
+        {
+            publishedLots = await _context.StockLots
+                .AsNoTracking()
+                .Where(l =>
+                    l.ProductId == productId
+                    && l.Status == ProductState.Published
+                    && l.Quantity > 0)
+                .ToListAsync(cancellationToken);
+        }
+
+        var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
+            product,
+            publishedLots,
+            cancellationToken);
+
+        if (allowedUnitIds.Count == 0)
+            return Array.Empty<ProductPurchaseUnitDto>();
+
+        var units = await _unitConversion.LoadUnitInfoAsync(allowedUnitIds, cancellationToken);
+        var unitEntities = (await _unitOfWork.Repository<UnitOfMeasure>()
+            .FindAsync(u => allowedUnitIds.Contains(u.UnitId)))
+            .ToDictionary(u => u.UnitId);
+        var lotUnitIds = publishedLots.Select(l => l.UnitId).ToHashSet();
+
+        return allowedUnitIds
+            .Where(units.ContainsKey)
+            .Select(id =>
+            {
+                var info = units[id];
+                unitEntities.TryGetValue(id, out var entity);
+                return new ProductPurchaseUnitDto
+                {
+                    UnitId = id,
+                    Name = entity?.Name ?? id.ToString(),
+                    Type = info.Type,
+                    Symbol = entity?.Symbol ?? string.Empty,
+                    ConversionRate = info.ConversionRate,
+                    IsProductDefault = id == product.UnitId,
+                    HasPublishedLot = lotUnitIds.Contains(id)
+                };
+            })
+            .OrderByDescending(u => u.IsProductDefault)
+            .ThenByDescending(u => u.HasPublishedLot)
+            .ThenBy(u => u.Name)
+            .ToList();
+    }
+
     public async Task<(IEnumerable<ProductResponseDto> Items, int TotalCount)> GetProductsBySupermarketAsync(
         Guid supermarketId,
         string? searchTerm = null,
@@ -653,6 +749,7 @@ public class ProductService : IProductService
             .Include(p => p.ProductDetail)
             .Include(p => p.CategoryRef)
             .Include(p => p.Supermarket)
+            .Include(p => p.Unit)
             .Where(p => p.SupermarketId == supermarketId)
             .AsQueryable();
 
@@ -719,6 +816,7 @@ public class ProductService : IProductService
             .Include(p => p.ProductDetail)
             .Include(p => p.Supermarket)
             .Include(p => p.CategoryRef)
+            .Include(p => p.Unit)
             .FirstOrDefaultAsync(p => p.ProductId == productId);
 
         if (product == null)
@@ -735,7 +833,20 @@ public class ProductService : IProductService
         var pricing = await GetLatestPricingHistoryByProductIdAsync(productId, default);
 
         var detail = _mapper.Map<ProductDetailDto>(product);
-        detail.UnitName = "Đang cập nhật";
+        if (product.Unit != null)
+        {
+            detail.UnitId = product.Unit.UnitId;
+            detail.UnitName = product.Unit.Name;
+            detail.UnitType = product.Unit.Type;
+            detail.UnitSymbol = product.Unit.Symbol;
+            detail.ConversionRate = product.Unit.ConversionRate;
+        }
+        else
+        {
+            detail.UnitId = product.UnitId;
+            detail.UnitName = "—";
+        }
+
         detail.MainImageUrl = images.Any() ? images.First().ImageUrl : null;
         detail.TotalImages = images.Count;
         detail.ProductImages = _mapper.Map<List<ProductImageDto>>(images);
@@ -832,6 +943,113 @@ public class ProductService : IProductService
             .ToDictionary(
                 g => g.Key,
                 g => g.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).First());
+    }
+
+    public async Task<StockLotDetailDto> UpdateStockLotUnitAsync(
+        Guid lotId,
+        Guid supermarketId,
+        UpdateStockLotUnitRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _context.StockLots
+            .Include(l => l.Product)
+            .Include(l => l.Unit)
+            .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Không tìm thấy lô hàng {lotId}.");
+
+        if (lot.Product == null)
+            throw new InvalidOperationException("Lô hàng không gắn sản phẩm hợp lệ.");
+
+        if (lot.Product.SupermarketId != supermarketId)
+            throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
+
+        if (lot.UnitId == request.UnitId)
+            return _mapper.Map<StockLotDetailDto>(lot);
+
+        if (lot.Status == ProductState.Published)
+        {
+            var hasOrderLines = await _context.OrderItems
+                .AnyAsync(oi => oi.LotId == lotId, cancellationToken);
+            if (hasOrderLines)
+            {
+                throw new InvalidOperationException(
+                    "Lô đang bán đã có đơn hàng, không thể đổi đơn vị bán. Vui lòng tạo lô mới với đơn vị mong muốn.");
+            }
+        }
+
+        var product = lot.Product;
+        var now = DateTime.UtcNow;
+        var publishedLots = await _context.StockLots
+            .AsNoTracking()
+            .Where(l =>
+                l.ProductId == product.ProductId
+                && l.Status == ProductState.Published
+                && l.Quantity > 0
+                && l.ExpiryDate > now)
+            .ToListAsync(cancellationToken);
+
+        var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
+            product,
+            publishedLots,
+            cancellationToken);
+
+        if (!allowedUnitIds.Contains(request.UnitId) && request.UnitId != product.UnitId)
+        {
+            throw new InvalidOperationException(
+                "Đơn vị mới không nằm trong danh sách đơn vị bán khả dụng của sản phẩm.");
+        }
+
+        var unitIds = new[] { lot.UnitId, request.UnitId, product.UnitId }.Distinct();
+        var units = await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
+
+        if (!units.TryGetValue(product.UnitId, out var productUnitInfo)
+            || !units.TryGetValue(request.UnitId, out var newUnitInfo))
+        {
+            throw new InvalidOperationException("Không tìm thấy thông tin đơn vị để quy đổi.");
+        }
+
+        StockLotUnitRules.EnsureLotUnitMatchesProductType(
+            productUnitInfo.Type,
+            newUnitInfo.Type);
+
+        var oldUnitId = lot.UnitId;
+        lot.Quantity = UnitConversionRateConverter.ConvertQuantity(
+            oldUnitId,
+            request.UnitId,
+            lot.Quantity,
+            units);
+
+        lot.OriginalUnitPrice = UnitConversionRateConverter.ConvertUnitPrice(
+            oldUnitId,
+            request.UnitId,
+            lot.OriginalUnitPrice,
+            units);
+
+        lot.SuggestedUnitPrice = UnitConversionRateConverter.ConvertUnitPrice(
+            oldUnitId,
+            request.UnitId,
+            lot.SuggestedUnitPrice,
+            units);
+
+        if (lot.FinalUnitPrice.HasValue)
+        {
+            lot.FinalUnitPrice = UnitConversionRateConverter.ConvertUnitPrice(
+                oldUnitId,
+                request.UnitId,
+                lot.FinalUnitPrice.Value,
+                units);
+        }
+
+        lot.UnitId = request.UnitId;
+        _unitOfWork.Repository<StockLot>().Update(lot);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var refreshed = await _context.StockLots
+            .Include(l => l.Product)
+            .Include(l => l.Unit)
+            .FirstAsync(l => l.LotId == lotId, cancellationToken);
+
+        return _mapper.Map<StockLotDetailDto>(refreshed);
     }
 }
 
