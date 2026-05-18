@@ -13,6 +13,45 @@ public class OcrRequest
     public float MinConfidence { get; set; } = 0.5f;
 }
 
+// ---- Multi-image (batch) OCR ----
+
+public class ImageItemRequest
+{
+    public string? ImageUrl { get; set; }
+    public string? ImageB64 { get; set; }
+    public string? Label { get; set; }
+}
+
+public class MultiOcrRequest
+{
+    public List<ImageItemRequest> Images { get; set; } = new();
+    public bool ExtractDates { get; set; } = true;
+    public bool ExtractBarcode { get; set; } = true;
+    public bool ReturnRegions { get; set; } = false;
+    public float MinConfidence { get; set; } = 0.5f;
+    public List<string> Languages { get; set; } = new() { "vi", "en" };
+}
+
+public class SingleOcrResultItem
+{
+    public int Index { get; set; }
+    public string? Label { get; set; }
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public OcrResponse? Result { get; set; }
+    public int TokenCost { get; set; } = 1;
+}
+
+public class MultiOcrResponse
+{
+    public int TotalImages { get; set; }
+    public int Successful { get; set; }
+    public int Failed { get; set; }
+    public int TotalTokenCost { get; set; }
+    public TokenUsageInfo? TokenUsage { get; set; }
+    public List<SingleOcrResultItem> Results { get; set; } = new();
+}
+
 public class OcrResponse
 {
     public DateInfo? ExpiryDate { get; set; }
@@ -387,6 +426,46 @@ public class MarketPriceStats
     public decimal AvgPrice { get; set; }
     public int SourceCount { get; set; }
     public List<string> Sources { get; set; } = new();
+}
+
+#endregion
+
+#region Token Models
+
+public class TokenUsageInfo
+{
+    public string Feature { get; set; } = string.Empty;
+    public string Month { get; set; } = string.Empty;
+    public int Budget { get; set; }
+    public int Used { get; set; }
+    public int Remaining { get; set; }
+    public double PercentageUsed { get; set; }
+}
+
+public class TokenAllFeaturesUsage
+{
+    public string Month { get; set; } = string.Empty;
+    public Dictionary<string, TokenUsageInfo> Features { get; set; } = new();
+}
+
+public class TokenConfigInfo
+{
+    public Dictionary<string, int> MonthlyBudgets { get; set; } = new();
+    public Dictionary<string, int> TokenCosts { get; set; } = new();
+    public Dictionary<string, string> Description { get; set; } = new();
+}
+
+public class TokenHistoryEntry
+{
+    public int Used { get; set; }
+    public int Budget { get; set; }
+    public int Remaining { get; set; }
+}
+
+public class AIServiceApiResponse<T>
+{
+    public bool Success { get; set; }
+    public T? Data { get; set; }
 }
 
 #endregion

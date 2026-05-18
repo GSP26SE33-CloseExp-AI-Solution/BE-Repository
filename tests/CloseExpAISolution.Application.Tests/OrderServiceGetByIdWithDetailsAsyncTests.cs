@@ -1,6 +1,7 @@
 using AutoMapper;
 using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -22,13 +23,18 @@ namespace CloseExpAISolution.Application.Tests;
 public sealed class OrderServiceGetByIdWithDetailsAsyncTests
 {
     private static OrderService CreateSut(IUnitOfWork uow, IMapper mapper)
-        => new(
+    {
+        var unitConv = UnitConversionTestDoubles.PassiveIdentity();
+        return new OrderService(
             uow,
             mapper,
             Mock.Of<IPromotionService>(),
             Mock.Of<IPromotionUsageService>(),
             Options.Create(new PickupSearchOptions()),
-            Mock.Of<IOrderNotificationPublisher>());
+            Mock.Of<IOrderNotificationPublisher>(),
+            new OrderItemUnitConverter(uow, unitConv),
+            new OrderStockQuantityHelper(uow, unitConv));
+    }
 
     [Fact]
     public async Task UTCID01_RepoNull_ReturnsNull_MapNotCalled()

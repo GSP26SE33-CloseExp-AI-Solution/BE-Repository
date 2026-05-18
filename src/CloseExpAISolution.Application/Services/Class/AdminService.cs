@@ -381,6 +381,7 @@ public class AdminService : IAdminService
                     Name = x.Name,
                     Type = x.Type,
                     Symbol = x.Symbol,
+                    ConversionRate = x.ConversionRate,
                     CreatedAt = x.CreatedAt,
                     UpdatedAt = x.UpdatedAt,
                     RelatedStockLotCount = count,
@@ -391,13 +392,18 @@ public class AdminService : IAdminService
 
     public async Task<AdminUnitDto> CreateUnitAsync(UpsertUnitRequestDto request, CancellationToken cancellationToken = default)
     {
+        if (request.ConversionRate is <= 0)
+            throw new InvalidOperationException("Hệ số quy đổi (conversionRate) phải lớn hơn 0.");
+
         var now = DateTime.UtcNow;
+        var conversionRate = request.ConversionRate is > 0 ? request.ConversionRate.Value : 1m;
         var entity = new UnitOfMeasure
         {
             UnitId = Guid.NewGuid(),
             Name = request.Name.Trim(),
             Type = request.Type.Trim(),
             Symbol = request.Symbol.Trim(),
+            ConversionRate = conversionRate,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -411,6 +417,7 @@ public class AdminService : IAdminService
             Name = entity.Name,
             Type = entity.Type,
             Symbol = entity.Symbol,
+            ConversionRate = entity.ConversionRate,
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt,
             RelatedStockLotCount = 0,
@@ -426,9 +433,14 @@ public class AdminService : IAdminService
         if (entity == null)
             return null;
 
+        if (request.ConversionRate is <= 0)
+            throw new InvalidOperationException("Hệ số quy đổi (conversionRate) phải lớn hơn 0.");
+
         entity.Name = request.Name.Trim();
         entity.Type = request.Type.Trim();
         entity.Symbol = request.Symbol.Trim();
+        if (request.ConversionRate is > 0)
+            entity.ConversionRate = request.ConversionRate.Value;
         entity.UpdatedAt = DateTime.UtcNow;
 
         _unitOfWork.Repository<UnitOfMeasure>().Update(entity);
@@ -442,6 +454,7 @@ public class AdminService : IAdminService
             Name = entity.Name,
             Type = entity.Type,
             Symbol = entity.Symbol,
+            ConversionRate = entity.ConversionRate,
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt,
             RelatedStockLotCount = relatedLotCount,

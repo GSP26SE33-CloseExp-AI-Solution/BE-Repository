@@ -1,5 +1,6 @@
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Payment;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
@@ -225,6 +226,8 @@ public sealed class PaymentServiceConfirmPaymentTests : IDisposable
         var services = new ServiceCollection();
         if (redis != null)
             services.AddSingleton(redis);
+        var unitConversion = new UnitConversionRateService(uow);
+        services.AddSingleton(new OrderStockQuantityHelper(uow, unitConversion));
         var sp = services.BuildServiceProvider();
         return new PaymentService(
             uow,

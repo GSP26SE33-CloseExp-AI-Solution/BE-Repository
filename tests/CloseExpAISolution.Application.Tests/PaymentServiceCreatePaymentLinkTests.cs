@@ -1,5 +1,6 @@
 using CloseExpAISolution.Application.Payment;
 using CloseExpAISolution.Application.Policies;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
@@ -213,7 +214,10 @@ public sealed class PaymentServiceCreatePaymentLinkTests : IDisposable
         TimeProvider? time = null,
         ILogger<PaymentService>? logger = null)
     {
-        var sp = new ServiceCollection().BuildServiceProvider();
+        var services = new ServiceCollection();
+        var unitConversion = new UnitConversionRateService(uow);
+        services.AddSingleton(new OrderStockQuantityHelper(uow, unitConversion));
+        var sp = services.BuildServiceProvider();
         return new PaymentService(
             uow,
             Options.Create(ValidPayOsSettings),

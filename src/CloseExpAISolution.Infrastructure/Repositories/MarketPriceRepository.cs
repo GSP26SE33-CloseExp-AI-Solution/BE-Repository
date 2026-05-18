@@ -33,9 +33,9 @@ public class MarketPriceRepository : IMarketPriceRepository
     public async Task<List<MarketPrice>> SearchByProductNameAsync(string productName, CancellationToken cancellationToken = default)
     {
         var searchTerms = productName.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        
+
         return await _context.MarketPrices
-            .Where(mp => mp.Status == MarketPriceState.Active && 
+            .Where(mp => mp.Status == MarketPriceState.Active &&
                          mp.ProductName != null &&
                          searchTerms.All(term => mp.ProductName.ToLower().Contains(term)))
             .OrderBy(mp => mp.Price)
@@ -81,7 +81,7 @@ public class MarketPriceRepository : IMarketPriceRepository
     public async Task<int> DeleteExpiredAsync(int olderThanDays = 7, CancellationToken cancellationToken = default)
     {
         var cutoffDate = DateTime.UtcNow.AddDays(-olderThanDays);
-        
+
         var expiredPrices = await _context.MarketPrices
             .Where(mp => mp.CollectedAt < cutoffDate && mp.LastUpdated == null ||
                          mp.LastUpdated < cutoffDate)
@@ -89,7 +89,7 @@ public class MarketPriceRepository : IMarketPriceRepository
 
         _context.MarketPrices.RemoveRange(expiredPrices);
         await _context.SaveChangesAsync(cancellationToken);
-        
+
         return expiredPrices.Count;
     }
 
@@ -142,28 +142,15 @@ public class MarketPriceRepository : IMarketPriceRepository
             .MaxAsync(mp => (DateTime?)mp.CollectedAt, cancellationToken);
     }
 
-    public async Task<List<string>> GetDistinctBarcodesNeedingRefreshAsync(DateTime staleBeforeUtc, int take = 200, CancellationToken cancellationToken = default)
+    public async Task<List<MarketPriceRefreshTarget>> GetPublishedProductsForRefreshAsync(CancellationToken cancellationToken = default)
     {
-        var activeBarcodes = _context.StockLots
-            .Where(s => s.Status == ProductState.Published && s.Quantity > 0)
-            .Join(_context.Products, s => s.ProductId, p => p.ProductId, (_, p) => p.Barcode)
-            .Where(b => b != null && b != "")
-            .Distinct();
-
-        var latestByBarcode = _context.MarketPrices
-            .GroupBy(mp => mp.Barcode)
-            .Select(g => new { Barcode = g.Key, Latest = g.Max(x => x.CollectedAt) });
-
-        return await activeBarcodes
-            .GroupJoin(
-                latestByBarcode,
-                b => b!,
-                m => m.Barcode,
-                (b, m) => new { Barcode = b!, Latest = m.Select(x => (DateTime?)x.Latest).FirstOrDefault() })
-            .Where(x => !x.Latest.HasValue || x.Latest.Value < staleBeforeUtc)
-            .OrderBy(x => x.Latest)
-            .Take(Math.Clamp(take, 1, 1000))
-            .Select(x => x.Barcode)
+        return await _context.Products
+            .Where(p => p.Status == ProductState.Published)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Barcode) || !string.IsNullOrWhiteSpace(p.Name))
+            .OrderByDescending(p => p.PublishedAt ?? p.UpdatedAt)
+            .Select(p => new MarketPriceRefreshTarget(
+                string.IsNullOrWhiteSpace(p.Barcode) ? null : p.Barcode,
+                p.Name))
             .ToListAsync(cancellationToken);
     }
 }

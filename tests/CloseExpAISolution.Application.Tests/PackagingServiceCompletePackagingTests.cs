@@ -1,4 +1,5 @@
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -47,6 +48,8 @@ public sealed class PackagingServiceCompletePackagingTests
         ctx.Database.EnsureCreated();
 
         var uow = new UnitOfWork(ctx);
+        var unitConversion = new UnitConversionRateService(uow);
+        var stockQtyHelper = new OrderStockQuantityHelper(uow, unitConversion);
         var logger = new Mock<ILogger<PackagingService>>();
         var schedulerFactory = new Mock<ISchedulerFactory>();
         var scheduler = new Mock<IScheduler>();
@@ -64,7 +67,7 @@ public sealed class PackagingServiceCompletePackagingTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new PackagingService(uow, logger.Object, schedulerFactory.Object, refund.Object, notifications.Object);
+        var sut = new PackagingService(uow, logger.Object, schedulerFactory.Object, refund.Object, notifications.Object, stockQtyHelper);
         return (conn, ctx, sut, notifications, logger);
     }
 

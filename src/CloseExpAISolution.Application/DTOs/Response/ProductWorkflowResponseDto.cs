@@ -289,6 +289,7 @@ public class UnitOfMeasureDto
     public string Name { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public string Symbol { get; set; } = string.Empty;
+    public decimal ConversionRate { get; set; } = 1m;
 }
 
 public class MarketPriceReferenceDto

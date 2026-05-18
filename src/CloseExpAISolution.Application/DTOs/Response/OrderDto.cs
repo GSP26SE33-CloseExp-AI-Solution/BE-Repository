@@ -26,6 +26,12 @@ public class OrderResponseDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
+    public Guid? LatestTransactionId { get; set; }
+    public string? PaymentStatus { get; set; }
+    public string? PaymentMethod { get; set; }
+    public long? PayOsOrderCode { get; set; }
+    public string? CheckoutUrl { get; set; }
+
     public List<OrderItemResponseDto> OrderItems { get; set; } = new();
 }
 

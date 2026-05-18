@@ -5,6 +5,7 @@ using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Geo;
 using CloseExpAISolution.Application.Policies;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -24,6 +25,8 @@ public class OrderService : IOrderService
     private readonly IPromotionUsageService _promotionUsageService;
     private readonly IOptions<PickupSearchOptions> _pickupSearchOptions;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
+    private readonly OrderItemUnitConverter _orderItemUnitConverter;
+    private readonly OrderStockQuantityHelper _orderStockQuantityHelper;
 
     public OrderService(
         IUnitOfWork unitOfWork,
@@ -31,7 +34,9 @@ public class OrderService : IOrderService
         IPromotionService promotionService,
         IPromotionUsageService promotionUsageService,
         IOptions<PickupSearchOptions> pickupSearchOptions,
-        IOrderNotificationPublisher orderNotificationPublisher)
+        IOrderNotificationPublisher orderNotificationPublisher,
+        OrderItemUnitConverter orderItemUnitConverter,
+        OrderStockQuantityHelper orderStockQuantityHelper)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
@@ -39,6 +44,8 @@ public class OrderService : IOrderService
         _promotionUsageService = promotionUsageService;
         _pickupSearchOptions = pickupSearchOptions;
         _orderNotificationPublisher = orderNotificationPublisher;
+        _orderItemUnitConverter = orderItemUnitConverter;
+        _orderStockQuantityHelper = orderStockQuantityHelper;
     }
 
     public async Task<IEnumerable<DeliveryTimeSlotDto>> GetDeliveryTimeSlotsAsync(CancellationToken cancellationToken = default)
@@ -237,7 +244,11 @@ public class OrderService : IOrderService
             order.DeliveryFee,
             order.SystemUsageFeeAmount);
 
-        foreach (var item in request.OrderItems)
+        var convertedItems = await _orderItemUnitConverter.ConvertCreateItemsToProductUnitAsync(
+            request.OrderItems,
+            cancellationToken);
+
+        foreach (var item in convertedItems)
         {
             var totalPrice = item.Quantity * item.UnitPrice;
             order.OrderItems.Add(new OrderItem
@@ -245,7 +256,7 @@ public class OrderService : IOrderService
                 OrderItemId = Guid.NewGuid(),
                 OrderId = orderId,
                 LotId = item.LotId,
-                Quantity = (short)item.Quantity,
+                Quantity = item.Quantity,
                 UnitPrice = item.UnitPrice,
                 TotalPrice = totalPrice
             });
@@ -318,17 +329,28 @@ public class OrderService : IOrderService
 
         if (request.OrderItems != null && request.OrderItems.Count > 0)
         {
+            var convertedItems = await _orderItemUnitConverter.ConvertCreateItemsToProductUnitAsync(
+                request.OrderItems.Select(dto => new CreateOrderItemDto
+                {
+                    LotId = dto.LotId,
+                    Quantity = dto.Quantity,
+                    UnitPrice = dto.UnitPrice
+                }).ToList(),
+                cancellationToken);
+
             order.OrderItems.Clear();
-            foreach (var dto in request.OrderItems)
+            for (var i = 0; i < request.OrderItems.Count; i++)
             {
-                var totalPrice = dto.Quantity * dto.UnitPrice;
+                var dto = request.OrderItems[i];
+                var item = convertedItems[i];
+                var totalPrice = item.Quantity * item.UnitPrice;
                 order.OrderItems.Add(new OrderItem
                 {
                     OrderItemId = dto.OrderItemId == Guid.Empty ? Guid.NewGuid() : dto.OrderItemId,
                     OrderId = orderId,
-                    LotId = dto.LotId,
-                    Quantity = (short)dto.Quantity,
-                    UnitPrice = dto.UnitPrice,
+                    LotId = item.LotId,
+                    Quantity = item.Quantity,
+                    UnitPrice = item.UnitPrice,
                     TotalPrice = totalPrice
                 });
             }
@@ -591,25 +613,20 @@ public class OrderService : IOrderService
         if (orderItems.Count == 0)
             return;
 
-        var requiredByLot = orderItems
-            .GroupBy(oi => oi.LotId)
-            .Select(g => new
-            {
-                LotId = g.Key,
-                RequiredQuantity = (decimal)g.Sum(x => x.Quantity)
-            })
-            .ToList();
+        var requiredByLot = await _orderStockQuantityHelper.ComputeRequiredStockQuantityByLotAsync(
+            orderItems,
+            cancellationToken);
 
-        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lotIds = requiredByLot.Keys.ToList();
         var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId));
         var lotById = lots.ToDictionary(l => l.LotId);
 
-        foreach (var req in requiredByLot)
+        foreach (var (lotId, requiredQuantity) in requiredByLot)
         {
-            if (!lotById.TryGetValue(req.LotId, out var lot))
-                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId} để hoàn kho cho order {orderId}.");
+            if (!lotById.TryGetValue(lotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {lotId} để hoàn kho cho order {orderId}.");
 
-            lot.Quantity += req.RequiredQuantity;
+            lot.Quantity += requiredQuantity;
             lot.UpdatedAt = now;
             _unitOfWork.Repository<StockLot>().Update(lot);
         }

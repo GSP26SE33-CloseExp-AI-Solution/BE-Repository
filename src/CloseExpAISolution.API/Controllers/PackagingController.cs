@@ -196,6 +196,58 @@ public class PackagingController : ControllerBase
         }
     }
 
+    [HttpGet("history")]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>>> GetPackagingHistory(
+        [FromQuery] DateTime? fromDate = null,
+        [FromQuery] DateTime? toDate = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? orderCode = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 1;
+            if (pageSize > 100) pageSize = 100;
+
+            var staffId = GetCurrentUserId();
+            var (items, totalCount) = await _packagingService.GetPackagingHistoryAsync(
+                staffId,
+                fromDate,
+                toDate,
+                status,
+                orderCode,
+                pageNumber,
+                pageSize,
+                cancellationToken);
+
+            var result = new PaginatedResult<PackagingHistoryRecordDto>
+            {
+                Items = items,
+                TotalResult = totalCount,
+                Page = pageNumber,
+                PageSize = pageSize
+            };
+
+            return Ok(ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>.SuccessResponse(result));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get packaging history");
+            return StatusCode(500, ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>.ErrorResponse(InternalErrorMessage()));
+        }
+    }
+
     [HttpPost("orders/{orderId:guid}/fail")]
     public async Task<ActionResult<ApiResponse<PackagingOrderDetailDto>>> FailPackaging(
         Guid orderId,

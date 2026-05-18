@@ -1,11 +1,14 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CloseExpAISolution.Application.AIService.Configuration;
 using CloseExpAISolution.Application.AIService.Interfaces;
 using CloseExpAISolution.Application.AIService.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,6 +20,7 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     private readonly HttpClient _httpClient;
     private readonly AIServiceSettings _settings;
     private readonly IMemoryCache _cache;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
     private readonly ILogger<AIServiceClient> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
 
@@ -28,11 +32,13 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
         HttpClient httpClient,
         IOptions<AIServiceSettings> settings,
         IMemoryCache cache,
-        ILogger<AIServiceClient> logger)
+        ILogger<AIServiceClient> logger,
+        IHttpContextAccessor? httpContextAccessor = null)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
         _cache = cache;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
 
         _jsonOptions = new JsonSerializerOptions
@@ -213,6 +219,130 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
     }
 
     #endregion
+    #region Recommendation Operations
+
+    public async Task<StructuredSearchCriteria?> ParseRecommendationQueryAsync(
+        string queryText,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Parsing recommendation query: {QueryText}", queryText);
+
+        try
+        {
+            var request = new RecommendationRequest { QueryText = queryText };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/v1/recommendation/parse",
+                request,
+                _jsonOptions,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<StructuredSearchCriteria>(
+                    _jsonOptions,
+                    cancellationToken);
+            }
+
+            _logger.LogWarning("AI recommendation parse failed: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing recommendation query");
+            return null; // Return null instead of throwing to prevent crashing the caller
+        }
+    }
+
+    public async Task<RankStockLotsResponse?> RankStockLotsByQueryAsync(
+        string queryText,
+        List<StockLotInputDto> stockLots,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Ranking {StockLotCount} stocklots for query: {QueryText}",
+            stockLots?.Count ?? 0, queryText);
+
+        try
+        {
+            if (stockLots == null || stockLots.Count == 0)
+            {
+                return new RankStockLotsResponse { RankedStockLots = new List<RankedStockLotDto>(), TotalRanked = 0 };
+            }
+
+            var request = new RankStockLotsRequest
+            {
+                QueryText = queryText,
+                StockLots = stockLots
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/v1/recommendation/rank-stocklots",
+                request,
+                _jsonOptions,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<RankStockLotsResponse>(
+                    _jsonOptions,
+                    cancellationToken);
+
+                _logger.LogInformation("Successfully ranked stocklots: {TotalRanked}", result?.TotalRanked ?? 0);
+                return result;
+            }
+
+            _logger.LogWarning("AI stocklot ranking failed: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ranking stocklots by query");
+            return null;
+        }
+    }
+
+    #endregion
+
+    #region Token Operations
+
+    public Task<TokenAllFeaturesUsage?> GetAllTokenUsageAsync(
+        string userId,
+        string? month = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = string.IsNullOrWhiteSpace(month) ? string.Empty : $"?month={Uri.EscapeDataString(month)}";
+        return GetTokenResourceAsync<TokenAllFeaturesUsage>($"/v1/tokens/status{query}", userId, cancellationToken);
+    }
+
+    public Task<TokenUsageInfo?> GetTokenUsageAsync(
+        string userId,
+        string feature,
+        string? month = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = string.IsNullOrWhiteSpace(month) ? string.Empty : $"?month={Uri.EscapeDataString(month)}";
+        return GetTokenResourceAsync<TokenUsageInfo>(
+            $"/v1/tokens/status/{Uri.EscapeDataString(feature)}{query}",
+            userId,
+            cancellationToken);
+    }
+
+    public Task<Dictionary<string, Dictionary<string, TokenHistoryEntry>>?> GetTokenHistoryAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        return GetTokenResourceAsync<Dictionary<string, Dictionary<string, TokenHistoryEntry>>>(
+            "/v1/tokens/history",
+            userId,
+            cancellationToken);
+    }
+
+    public Task<TokenConfigInfo?> GetTokenConfigAsync(CancellationToken cancellationToken = default)
+    {
+        return GetTokenResourceAsync<TokenConfigInfo>("/v1/tokens/config", null, cancellationToken);
+    }
+
+    #endregion
 
     #region Batch Operations
 
@@ -314,6 +444,52 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
         throw new HttpRequestException($"Failed to call {endpoint} after {_settings.RetryCount + 1} attempts", lastException);
     }
 
+    private string? GetCurrentUserId()
+    {
+        var user = _httpContextAccessor?.HttpContext?.User;
+        if (user == null)
+            return null;
+
+        return user.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub);
+    }
+
+    private static void ApplyUserIdHeader(HttpRequestMessage request, string? userId)
+    {
+        if (!string.IsNullOrWhiteSpace(userId))
+            request.Headers.TryAddWithoutValidation("X-User-Id", userId);
+    }
+
+    private async Task<T?> GetTokenResourceAsync<T>(
+        string endpoint,
+        string? userId,
+        CancellationToken cancellationToken) where T : class
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+        ApplyUserIdHeader(request, userId ?? GetCurrentUserId());
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (_settings.EnableLogging)
+        {
+            _logger.LogDebug(
+                "AI Service token response from {Endpoint} ({StatusCode}): {Response}",
+                endpoint,
+                response.StatusCode,
+                responseBody);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("AI token request failed: {StatusCode} {Body}", response.StatusCode, responseBody);
+            return null;
+        }
+
+        var wrapper = JsonSerializer.Deserialize<AIServiceApiResponse<T>>(responseBody, _jsonOptions);
+        return wrapper?.Data;
+    }
+
     private async Task<T?> SendRequestAsync<T>(string endpoint, object request, CancellationToken cancellationToken) where T : class
     {
         var json = JsonSerializer.Serialize(request, _jsonOptions);
@@ -324,7 +500,9 @@ public class AIServiceClient : IAIServiceClient, IAIServiceBatchClient
         }
 
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync(endpoint, content, cancellationToken);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
+        ApplyUserIdHeader(httpRequest, GetCurrentUserId());
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 

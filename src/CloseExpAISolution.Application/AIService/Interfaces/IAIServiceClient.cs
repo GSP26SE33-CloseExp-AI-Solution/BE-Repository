@@ -34,6 +34,37 @@ public interface IAIServiceClient
         string barcode,
         string? productName = null,
         CancellationToken cancellationToken = default);
+    #endregion
+
+    #region Recommendation Operations
+    Task<StructuredSearchCriteria?> ParseRecommendationQueryAsync(
+        string queryText,
+        CancellationToken cancellationToken = default);
+
+    Task<RankStockLotsResponse?> RankStockLotsByQueryAsync(
+        string queryText,
+        List<StockLotInputDto> stockLots,
+        CancellationToken cancellationToken = default);
+    #endregion
+
+    #region Token Operations
+
+    Task<TokenAllFeaturesUsage?> GetAllTokenUsageAsync(
+        string userId,
+        string? month = null,
+        CancellationToken cancellationToken = default);
+
+    Task<TokenUsageInfo?> GetTokenUsageAsync(
+        string userId,
+        string feature,
+        string? month = null,
+        CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, Dictionary<string, TokenHistoryEntry>>?> GetTokenHistoryAsync(
+        string userId,
+        CancellationToken cancellationToken = default);
+
+    Task<TokenConfigInfo?> GetTokenConfigAsync(CancellationToken cancellationToken = default);
 
     #endregion
 }

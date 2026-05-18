@@ -4,6 +4,7 @@ using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Policies;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -31,13 +32,18 @@ public sealed class OrderServiceCreateForCustomerAsyncTests
         IPromotionService promotionService,
         IPromotionUsageService promotionUsageService,
         IOrderNotificationPublisher notifier)
-        => new(
+    {
+        var unitConv = UnitConversionTestDoubles.PassiveIdentity();
+        return new OrderService(
             uow,
             mapper,
             promotionService,
             promotionUsageService,
             Options.Create(new PickupSearchOptions()),
-            notifier);
+            notifier,
+            new OrderItemUnitConverter(uow, unitConv),
+            new OrderStockQuantityHelper(uow, unitConv));
+    }
 
     private static User ActiveUser(Guid userId) => new()
     {
@@ -154,6 +160,16 @@ public sealed class OrderServiceCreateForCustomerAsyncTests
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<StockLot, bool>>>()))
             .ReturnsAsync((Expression<Func<StockLot, bool>> pred) => list.Where(pred.Compile()).ToList());
         uow.Setup(x => x.Repository<StockLot>()).Returns(lotRepo.Object);
+    }
+
+    private static void SetupProducts(Mock<IUnitOfWork> uow, IReadOnlyList<Product> products)
+    {
+        var list = products.ToList();
+        var productRepo = new Mock<IGenericRepository<Product>>();
+        productRepo
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Product, bool>>>()))
+            .ReturnsAsync((Expression<Func<Product, bool>> pred) => list.Where(pred.Compile()).ToList());
+        uow.Setup(x => x.Repository<Product>()).Returns(productRepo.Object);
     }
 
     private static void SetupOrderPersistence(Mock<IUnitOfWork> uow, Mock<IOrderRepository> orderRepo, Order?[] capture)
@@ -462,9 +478,21 @@ public sealed class OrderServiceCreateForCustomerAsyncTests
 
         var uow = CreateUowWithUser(ActiveUser(userId));
         SetupSystemUsageFee(uow, 500m);
-        SetupStockLots(uow,
+        var lot = BuildStockLot(lotId, ProductState.Published, 50m, DateTime.UtcNow.AddDays(2));
+        SetupStockLots(uow, [lot]);
+        SetupProducts(uow,
         [
-            BuildStockLot(lotId, ProductState.Published, 50m, DateTime.UtcNow.AddDays(2))
+            new Product
+            {
+                ProductId = lot.ProductId,
+                UnitId = lot.UnitId,
+                SupermarketId = Guid.NewGuid(),
+                Name = "t",
+                Barcode = "",
+                Sku = "",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
         ]);
 
         var orderRepo = new Mock<IOrderRepository>();

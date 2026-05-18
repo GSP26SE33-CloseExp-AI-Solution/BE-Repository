@@ -40,6 +40,10 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
 
+        services.AddScoped<IUnitConversionRateService, UnitConversionRateService>();
+        services.AddScoped<OrderStockQuantityHelper>();
+        services.AddScoped<OrderItemUnitConverter>();
+
         services.AddScoped<IOrderNotificationPublisher, OrderNotificationPublisher>();
 
         var redisConn = configuration.GetConnectionString("Redis");
@@ -74,6 +78,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IR2StorageService, R2StorageService>();
         services.AddScoped<IMarketPriceService, MarketPriceService>();
         services.AddScoped<IBarcodeLookupService, BarcodeLookupService>();
+        services.AddScoped<IAIProductService, AIProductService>();
         services.AddScoped<IExcelImportService, ExcelImportService>();
         services.AddScoped<IProductWorkflowService, ProductWorkflowService>();
 

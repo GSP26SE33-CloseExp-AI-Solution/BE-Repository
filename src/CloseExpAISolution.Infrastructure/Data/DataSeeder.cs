@@ -618,8 +618,9 @@ public static class DataSeeder
             {
                 UnitId = UnitKgId,
                 Name = "Kg",
-                Symbol = "kg",
                 Type = "Weight",
+                Symbol = "kg",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -627,8 +628,9 @@ public static class DataSeeder
             {
                 UnitId = UnitGramId,
                 Name = "Gram",
-                Symbol = "g",
                 Type = "Weight",
+                Symbol = "g",
+                ConversionRate = 0.001m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -636,8 +638,9 @@ public static class DataSeeder
             {
                 UnitId = UnitLiterId,
                 Name = "Lít",
-                Symbol = "L",
                 Type = "Volume",
+                Symbol = "L",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -645,8 +648,9 @@ public static class DataSeeder
             {
                 UnitId = UnitMlId,
                 Name = "ml",
-                Symbol = "ml",
                 Type = "Volume",
+                Symbol = "ml",
+                ConversionRate = 0.001m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -654,8 +658,9 @@ public static class DataSeeder
             {
                 UnitId = UnitBoxId,
                 Name = "Hộp",
-                Symbol = "hộp",
                 Type = "Count",
+                Symbol = "hộp",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -663,8 +668,9 @@ public static class DataSeeder
             {
                 UnitId = UnitBottleId,
                 Name = "Chai",
-                Symbol = "chai",
                 Type = "Count",
+                Symbol = "chai",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -672,8 +678,9 @@ public static class DataSeeder
             {
                 UnitId = UnitPackId,
                 Name = "Gói",
-                Symbol = "gói",
                 Type = "Count",
+                Symbol = "gói",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -681,8 +688,9 @@ public static class DataSeeder
             {
                 UnitId = UnitPieceId,
                 Name = "Cái",
-                Symbol = "cái",
                 Type = "Count",
+                Symbol = "cái",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -690,8 +698,9 @@ public static class DataSeeder
             {
                 UnitId = UnitCanId,
                 Name = "Lon",
-                Symbol = "lon",
                 Type = "Count",
+                Symbol = "lon",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             },
@@ -699,8 +708,9 @@ public static class DataSeeder
             {
                 UnitId = UnitBagId,
                 Name = "Túi",
-                Symbol = "túi",
                 Type = "Count",
+                Symbol = "túi",
+                ConversionRate = 1m,
                 CreatedAt = now,
                 UpdatedAt = now
             }
@@ -1328,9 +1338,13 @@ public static class DataSeeder
             }
         };
 
+        var validUnitIds = await context.UnitOfMeasures.Select(u => u.UnitId).ToListAsync();
+        var defaultUnitId = validUnitIds.FirstOrDefault();
+
         foreach (var lot in stockLots)
         {
-            lot.UnitId = ResolveUnitIdByProduct(lot.ProductId);
+            var targetUnitId = ResolveUnitIdByProduct(lot.ProductId);
+            lot.UnitId = validUnitIds.Contains(targetUnitId) ? targetUnitId : defaultUnitId;
             lot.UpdatedAt = lot.CreatedAt == default ? now : lot.CreatedAt;
 
             var originalPrice = ResolveOriginalPriceByProduct(lot.ProductId);
@@ -1508,9 +1522,13 @@ public static class DataSeeder
         if (!missingLots.Any())
             return;
 
+        var validUnitIds = await context.UnitOfMeasures.Select(u => u.UnitId).ToListAsync();
+        var defaultUnitId = validUnitIds.FirstOrDefault();
+
         foreach (var lot in missingLots)
         {
-            lot.UnitId = ResolveUnitIdByProduct(lot.ProductId);
+            var targetUnitId = ResolveUnitIdByProduct(lot.ProductId);
+            lot.UnitId = validUnitIds.Contains(targetUnitId) ? targetUnitId : defaultUnitId;
 
             var originalPrice = ResolveOriginalPriceByProduct(lot.ProductId);
             var suggestedPrice = CalculateSuggestedPrice(originalPrice, lot.ExpiryDate, now);

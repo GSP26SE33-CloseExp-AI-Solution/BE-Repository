@@ -1,6 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Jobs;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
@@ -20,19 +21,22 @@ public class PackagingService : IPackagingService
     private readonly ISchedulerFactory _schedulerFactory;
     private readonly IRefundService _refundService;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
+    private readonly OrderStockQuantityHelper _orderStockQuantityHelper;
 
     public PackagingService(
         IUnitOfWork unitOfWork,
         ILogger<PackagingService> logger,
         ISchedulerFactory schedulerFactory,
         IRefundService refundService,
-        IOrderNotificationPublisher orderNotificationPublisher)
+        IOrderNotificationPublisher orderNotificationPublisher,
+        OrderStockQuantityHelper orderStockQuantityHelper)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _schedulerFactory = schedulerFactory;
         _refundService = refundService;
         _orderNotificationPublisher = orderNotificationPublisher;
+        _orderStockQuantityHelper = orderStockQuantityHelper;
     }
 
     public async Task<(IEnumerable<PackagingOrderSummaryDto> Items, int TotalCount)> GetPendingOrdersAsync(
@@ -79,6 +83,123 @@ public class PackagingService : IPackagingService
         return await MapToDetailAsync(order, cancellationToken);
     }
 
+    public async Task<(IEnumerable<PackagingHistoryRecordDto> Items, int TotalCount)> GetPackagingHistoryAsync(
+        Guid packagingStaffId,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        string? status = null,
+        string? orderCode = null,
+        int pageNumber = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsurePackagingStaffAsync(packagingStaffId);
+
+        var records = (await _unitOfWork.Repository<OrderPackaging>()
+                .FindAsync(r =>
+                    r.UserId == packagingStaffId
+                    && r.OrderItemId != null
+                    && (r.Status == PackagingState.Completed || r.Status == PackagingState.Failed)))
+            .AsEnumerable();
+
+        if (fromDate.HasValue)
+            records = records.Where(r => r.PackagedAt.HasValue && r.PackagedAt.Value >= fromDate.Value);
+
+        if (toDate.HasValue)
+            records = records.Where(r => r.PackagedAt.HasValue && r.PackagedAt.Value <= toDate.Value);
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            records = records.Where(r =>
+                r.Status.ToString().Equals(status.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        var orderedRecords = records
+            .OrderByDescending(r => r.PackagedAt ?? DateTime.MinValue)
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(orderCode))
+        {
+            var orderIds = orderedRecords.Select(r => r.OrderId).Distinct().ToList();
+            var ordersForFilter = orderIds.Count == 0
+                ? new List<Order>()
+                : (await _unitOfWork.Repository<Order>().FindAsync(o => orderIds.Contains(o.OrderId))).ToList();
+            var matchingOrderIds = ordersForFilter
+                .Where(o => o.OrderCode.Contains(orderCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                .Select(o => o.OrderId)
+                .ToHashSet();
+            orderedRecords = orderedRecords.Where(r => matchingOrderIds.Contains(r.OrderId)).ToList();
+        }
+
+        var totalCount = orderedRecords.Count;
+        var pagedRecords = orderedRecords.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+
+        if (pagedRecords.Count == 0)
+            return (Array.Empty<PackagingHistoryRecordDto>(), totalCount);
+
+        var pagedOrderIds = pagedRecords.Select(r => r.OrderId).Distinct().ToList();
+        var orders = (await _unitOfWork.Repository<Order>().FindAsync(o => pagedOrderIds.Contains(o.OrderId)))
+            .ToDictionary(o => o.OrderId);
+
+        var staff = await _unitOfWork.Repository<User>()
+            .FirstOrDefaultAsync(u => u.UserId == packagingStaffId);
+
+        var orderItemIds = pagedRecords
+            .Where(r => r.OrderItemId.HasValue)
+            .Select(r => r.OrderItemId!.Value)
+            .Distinct()
+            .ToList();
+        var orderItems = orderItemIds.Count == 0
+            ? new List<OrderItem>()
+            : (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => orderItemIds.Contains(oi.OrderItemId)))
+                .ToList();
+        var orderItemById = orderItems.ToDictionary(oi => oi.OrderItemId);
+
+        var lotIds = orderItems.Select(oi => oi.LotId).Distinct().ToList();
+        var lots = lotIds.Count == 0
+            ? new List<StockLot>()
+            : (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId))).ToList();
+        var lotById = lots.ToDictionary(l => l.LotId);
+
+        var productIds = lots.Select(l => l.ProductId).Distinct().ToList();
+        var products = productIds.Count == 0
+            ? new List<Product>()
+            : (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId))).ToList();
+        var productById = products.ToDictionary(p => p.ProductId);
+
+        var result = new List<PackagingHistoryRecordDto>();
+        foreach (var record in pagedRecords)
+        {
+            orders.TryGetValue(record.OrderId, out var order);
+            orderItemById.TryGetValue(record.OrderItemId ?? Guid.Empty, out var orderItem);
+
+            string? productName = null;
+            var quantity = orderItem?.Quantity ?? 0;
+            if (orderItem != null && lotById.TryGetValue(orderItem.LotId, out var lot)
+                && productById.TryGetValue(lot.ProductId, out var product))
+            {
+                productName = product.Name;
+            }
+
+            result.Add(new PackagingHistoryRecordDto
+            {
+                PackagingId = record.PackagingId,
+                OrderId = record.OrderId,
+                OrderItemId = record.OrderItemId,
+                OrderCode = order?.OrderCode ?? "N/A",
+                ProductName = productName,
+                Quantity = quantity,
+                UserId = record.UserId,
+                PackagingStaffName = staff?.FullName ?? "N/A",
+                Status = record.Status.ToString(),
+                FailureReason = orderItem?.PackagingFailedReason,
+                PackagedAt = record.PackagedAt
+            });
+        }
+
+        return (result, totalCount);
+    }
+
     public async Task<PackagingOrderDetailDto> ConfirmOrderAsync(
         Guid orderId,
         Guid packagingStaffId,
@@ -103,19 +224,19 @@ public class PackagingService : IPackagingService
             foreach (var item in targets)
             {
                 var record = await GetOrCreateItemPackagingRecordAsync(orderId, item.OrderItemId, packagingStaffId, cancellationToken);
-                EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
                 if (record.Status == PackagingState.Completed || record.Status == PackagingState.Failed)
                     throw new InvalidOperationException($"Dòng hàng {item.OrderItemId} đã kết thúc đóng gói.");
 
-                record.Status = PackagingState.Pending;
+        record.Status = PackagingState.Pending;
                 record.PackagedAt = null;
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
+        _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Pending;
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
         }
         catch
@@ -152,16 +273,16 @@ public class PackagingService : IPackagingService
                     $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận (Pending) trước khi thu gom.");
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
 
             if (record.Status == PackagingState.Packaging)
                 continue;
 
-            if (record.Status != PackagingState.Pending)
+        if (record.Status != PackagingState.Pending)
                 throw new InvalidOperationException("Bản ghi đóng gói không ở trạng thái chờ thu gom.");
 
-            record.Status = PackagingState.Packaging;
-            _unitOfWork.Repository<OrderPackaging>().Update(record);
+        record.Status = PackagingState.Packaging;
+        _unitOfWork.Repository<OrderPackaging>().Update(record);
 
             item.PackagingStatus = PackagingState.Packaging;
             _unitOfWork.Repository<OrderItem>().Update(item);
@@ -210,7 +331,7 @@ public class PackagingService : IPackagingService
                     $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận hoặc đang thu gom.");
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
         }
 
         var now = DateTime.UtcNow;
@@ -225,9 +346,9 @@ public class PackagingService : IPackagingService
                     continue;
 
                 var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-                record.Status = PackagingState.Completed;
+            record.Status = PackagingState.Completed;
                 record.PackagedAt = now;
-                _unitOfWork.Repository<OrderPackaging>().Update(record);
+            _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Completed;
                 item.PackagedAt = now;
@@ -671,21 +792,21 @@ public class PackagingService : IPackagingService
 
     private async Task NotifyDeliveryStaffOrderReadyAsync(Order order, DateTime now, CancellationToken cancellationToken)
     {
-        var deliveryStaffs = await _unitOfWork.Repository<User>()
-            .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
+            var deliveryStaffs = await _unitOfWork.Repository<User>()
+                .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
 
-        var notifications = deliveryStaffs.Select(staff => new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            UserId = staff.UserId,
-            Title = "Có đơn cần giao",
-            Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
-            Type = NotificationType.DeliveryUpdate,
-            IsRead = false,
+            var notifications = deliveryStaffs.Select(staff => new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = staff.UserId,
+                Title = "Có đơn cần giao",
+                Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
+                Type = NotificationType.DeliveryUpdate,
+                IsRead = false,
             CreatedAt = now
-        }).ToList();
+            }).ToList();
 
-        if (notifications.Count > 0)
+            if (notifications.Count > 0)
             await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -769,21 +890,20 @@ public class PackagingService : IPackagingService
         if (items.Count == 0)
             return;
 
-        var requiredByLot = items
-            .GroupBy(oi => oi.LotId)
-            .Select(g => new { LotId = g.Key, RequiredQuantity = (decimal)g.Sum(x => x.Quantity) })
-            .ToList();
+        var requiredByLot = await _orderStockQuantityHelper.ComputeRequiredStockQuantityByLotAsync(
+            items,
+            cancellationToken);
 
-        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lotIds = requiredByLot.Keys.ToList();
         var lots = await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId));
         var lotById = lots.ToDictionary(l => l.LotId);
 
-        foreach (var req in requiredByLot)
+        foreach (var (lotId, requiredQuantity) in requiredByLot)
         {
-            if (!lotById.TryGetValue(req.LotId, out var lot))
-                throw new InvalidOperationException($"Không tìm thấy StockLot {req.LotId} để hoàn kho.");
+            if (!lotById.TryGetValue(lotId, out var lot))
+                throw new InvalidOperationException($"Không tìm thấy StockLot {lotId} để hoàn kho.");
 
-            lot.Quantity += req.RequiredQuantity;
+            lot.Quantity += requiredQuantity;
             lot.UpdatedAt = now;
             _unitOfWork.Repository<StockLot>().Update(lot);
         }
@@ -927,27 +1047,59 @@ public class PackagingService : IPackagingService
             ? orderItems.Where(i => i.PackagedAt.HasValue).Max(i => i.PackagedAt)
             : null;
 
+        var lotIds = orderItems.Select(i => i.LotId).Distinct().ToList();
+        var lots = lotIds.Count == 0
+            ? new List<StockLot>()
+            : (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId))).ToList();
+        var lotById = lots.ToDictionary(l => l.LotId);
+
+        var productIds = lots.Select(l => l.ProductId).Distinct().ToList();
+        var products = productIds.Count == 0
+            ? new List<Product>()
+            : (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId))).ToList();
+        var productById = products.ToDictionary(p => p.ProductId);
+
+        var unitIds = lots.Select(l => l.UnitId).Distinct().ToList();
+        var units = unitIds.Count == 0
+            ? new List<UnitOfMeasure>()
+            : (await _unitOfWork.Repository<UnitOfMeasure>().FindAsync(u => unitIds.Contains(u.UnitId))).ToList();
+        var unitById = units.ToDictionary(u => u.UnitId);
+
+        var supermarketIds = products.Select(p => p.SupermarketId).Distinct().ToList();
+        var supermarkets = supermarketIds.Count == 0
+            ? new List<Supermarket>()
+            : (await _unitOfWork.Repository<Supermarket>()
+                .FindAsync(s => supermarketIds.Contains(s.SupermarketId))).ToList();
+        var supermarketById = supermarkets.ToDictionary(s => s.SupermarketId);
+
         var itemDtos = new List<PackagingOrderItemDto>();
         foreach (var item in orderItems)
         {
-            var lot = await _unitOfWork.Repository<StockLot>()
-                .FirstOrDefaultAsync(pl => pl.LotId == item.LotId);
+            lotById.TryGetValue(item.LotId, out var lot);
+            Product? product = null;
+            UnitOfMeasure? unit = null;
+            Supermarket? supermarket = null;
 
-            var productName = "N/A";
             if (lot != null)
             {
-                var product = await _unitOfWork.Repository<Product>()
-                    .FirstOrDefaultAsync(p => p.ProductId == lot.ProductId);
-                productName = product?.Name ?? "N/A";
+                productById.TryGetValue(lot.ProductId, out product);
+                unitById.TryGetValue(lot.UnitId, out unit);
+                if (product != null)
+                    supermarketById.TryGetValue(product.SupermarketId, out supermarket);
             }
 
             itemDtos.Add(new PackagingOrderItemDto
             {
                 OrderItemId = item.OrderItemId,
-                ProductName = productName,
+                LotId = item.LotId,
+                ProductName = product?.Name ?? "N/A",
                 Quantity = item.Quantity,
                 UnitPrice = item.UnitPrice,
                 SubTotal = item.Quantity * item.UnitPrice,
+                ExpiryDate = lot?.ExpiryDate,
+                ManufactureDate = lot?.ManufactureDate,
+                UnitName = unit?.Name,
+                SupermarketName = supermarket?.Name,
                 PackagingStatus = item.PackagingStatus.ToString(),
                 DeliveryStatus = item.DeliveryStatus?.ToString(),
                 PackagedAt = item.PackagedAt,

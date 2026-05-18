@@ -15,6 +15,16 @@ public interface IPackagingService
         Guid orderId,
         CancellationToken cancellationToken = default);
 
+    Task<(IEnumerable<PackagingHistoryRecordDto> Items, int TotalCount)> GetPackagingHistoryAsync(
+        Guid packagingStaffId,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        string? status = null,
+        string? orderCode = null,
+        int pageNumber = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
+
     Task<PackagingOrderDetailDto> ConfirmOrderAsync(
         Guid orderId,
         Guid packagingStaffId,

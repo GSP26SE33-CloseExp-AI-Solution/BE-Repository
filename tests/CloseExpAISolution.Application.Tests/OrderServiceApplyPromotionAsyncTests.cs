@@ -4,6 +4,7 @@ using CloseExpAISolution.Application;
 using CloseExpAISolution.Application.Configuration;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -30,13 +31,18 @@ public sealed class OrderServiceApplyPromotionAsyncTests
         IMapper mapper,
         IPromotionService promotionService,
         IPromotionUsageService promotionUsageService)
-        => new(
+    {
+        var unitConv = UnitConversionTestDoubles.PassiveIdentity();
+        return new OrderService(
             uow,
             mapper,
             promotionService,
             promotionUsageService,
             Options.Create(new PickupSearchOptions()),
-            Mock.Of<IOrderNotificationPublisher>());
+            Mock.Of<IOrderNotificationPublisher>(),
+            new OrderItemUnitConverter(uow, unitConv),
+            new OrderStockQuantityHelper(uow, unitConv));
+    }
 
     private static Order BuildOrder(Guid orderId, Guid ownerUserId, OrderState status, decimal totalAmount, decimal deliveryFee = 5000m)
     {

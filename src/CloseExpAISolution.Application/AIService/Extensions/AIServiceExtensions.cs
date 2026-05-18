@@ -55,7 +55,7 @@ public static class AIServiceExtensions
     {
         return HttpPolicyExtensions
             .HandleTransientHttpError()
-            .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            // Note: 429 (Token Budget Exceeded) is NOT retried – it's a business rule, not a transient error
             .WaitAndRetryAsync(
                 retryCount: settings.RetryCount,
                 sleepDurationProvider: retryAttempt =>

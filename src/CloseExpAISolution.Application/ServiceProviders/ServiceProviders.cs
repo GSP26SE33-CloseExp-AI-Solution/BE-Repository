@@ -18,105 +18,97 @@ using Microsoft.Extensions.Options;
 
 namespace CloseExpAISolution.Application.ServiceProviders
 {
-        public class ServiceProviders : IServiceProviders
+    public class ServiceProviders : IServiceProviders
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _configuration;
+        private readonly IMapper _mapper;
+        private readonly IServiceProvider _serviceProvider;
+
+        private IProductService? _productService;
+        private ISupermarketStaffService? _marketStaffService;
+        private ISupermarketService? _supermarketService;
+        private ISupermarketRegistrationService? _supermarketRegistrationService;
+        private IProductImageService? _productImageService;
+        private IAIVerificationLogService? _aIVerificationLogService;
+        private IAuthService? _authService;
+        private IUserService? _userService;
+        private IR2StorageService? _r2StorageService;
+        private IFeedbackService? _feedbackService;
+        private INotificationService? _notificationService;
+        private IUserImageService? _userImageService;
+        private IBarcodeLookupService? _barcodeLookupService;
+        private IAIProductService? _aIProductService;
+        private IMarketPriceService? _marketPriceService;
+        private IProductWorkflowService? _productWorkflowService;
+        private IExcelImportService? _excelImportService;
+        private IDeliveryService? _deliveryService;
+        private IDeliveryAdminService? _deliveryAdminService;
+        private IAdminService? _adminService;
+        private IPackagingService? _packagingService;
+        private IEmailService? _emailService;
+        private IOrderService? _orderService;
+        private IOrderItemService? _orderItemService;
+        private IMapboxService? _mapboxService;
+        private ICategoryService? _categoryService;
+        private IRefundService? _refundService;
+        private ICollectionPointService? _collectionPointService;
+        private ICustomerAddressService? _customerAddressService;
+        private IPromotionService? _promotionService;
+        private IPromotionUsageService? _promotionUsageService;
+        private IPromotionAnalyticsService? _promotionAnalyticsService;
+        private ICartService? _cartService;
+
+        public ServiceProviders(
+            IUnitOfWork unitOfWork,
+            IHttpContextAccessor httpContextAccessor,
+            ApplicationDbContext context,
+            IConfiguration configuration,
+            IMapper mapper,
+            IServiceProvider serviceProvider)
         {
-                private readonly IUnitOfWork _unitOfWork;
-                private readonly IHttpContextAccessor _httpContextAccessor;
-                private readonly ApplicationDbContext _context;
-                private readonly IConfiguration _configuration;
-                private readonly IMapper _mapper;
-                private readonly IServiceProvider _serviceProvider;
-
-                private IProductService? _productService;
-                private ISupermarketStaffService? _marketStaffService;
-                private ISupermarketService? _supermarketService;
-                private ISupermarketRegistrationService? _supermarketRegistrationService;
-                private IProductImageService? _productImageService;
-                private IAIVerificationLogService? _aIVerificationLogService;
-                private IAuthService? _authService;
-                private IUserService? _userService;
-                private IR2StorageService? _r2StorageService;
-                private IFeedbackService? _feedbackService;
-                private INotificationService? _notificationService;
-                private IUserImageService? _userImageService;
-                private IBarcodeLookupService? _barcodeLookupService;
-                private IAIProductService? _aIProductService;
-                private IMarketPriceService? _marketPriceService;
-                private IProductWorkflowService? _productWorkflowService;
-                private IExcelImportService? _excelImportService;
-                private IDeliveryService? _deliveryService;
-                private IDeliveryAdminService? _deliveryAdminService;
-                private IAdminService? _adminService;
-                private IPackagingService? _packagingService;
-                private IEmailService? _emailService;
-                private IOrderService? _orderService;
-                private IOrderItemService? _orderItemService;
-                private IMapboxService? _mapboxService;
-                private ICategoryService? _categoryService;
-                private IRefundService? _refundService;
-                private ICollectionPointService? _collectionPointService;
-                private ICustomerAddressService? _customerAddressService;
-                private IPromotionService? _promotionService;
-                private IPromotionUsageService? _promotionUsageService;
-                private IPromotionAnalyticsService? _promotionAnalyticsService;
-                private ICartService? _cartService;
-
-                public ServiceProviders(
-                    IUnitOfWork unitOfWork,
-                    IHttpContextAccessor httpContextAccessor,
-                    ApplicationDbContext context,
-                    IConfiguration configuration,
-                    IMapper mapper,
-                    IServiceProvider serviceProvider)
-                {
-                        _unitOfWork = unitOfWork;
-                        _httpContextAccessor = httpContextAccessor;
-                        _configuration = configuration;
-                        _context = context;
-                        _mapper = mapper;
-                        _serviceProvider = serviceProvider;
-                }
-                public IProductService ProductService => _productService ??= new ProductService(_unitOfWork, _context, _mapper);
-                public ISupermarketStaffService MarketStaffService => _marketStaffService ??= new SupermarketStaffService(_unitOfWork, _mapper);
-                public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
-                public ISupermarketRegistrationService SupermarketRegistrationService => _supermarketRegistrationService ??= ActivatorUtilities.CreateInstance<SupermarketRegistrationService>(_serviceProvider);
-                public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
-                public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
-                public IAuthService AuthService => _authService ??= ActivatorUtilities.CreateInstance<AuthService>(_serviceProvider);
-                public IUserService UserService => _userService ??= ActivatorUtilities.CreateInstance<UserService>(_serviceProvider);
-                public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
-                public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
-                public INotificationService NotificationService => _notificationService ??= new NotificationService(_unitOfWork, _mapper);
-                public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);
-                public IBarcodeLookupService BarcodeLookupService => _barcodeLookupService ??= ActivatorUtilities.CreateInstance<BarcodeLookupService>(_serviceProvider);
-                public IAIProductService AIProductService => _aIProductService ??= ActivatorUtilities.CreateInstance<AIProductService>(_serviceProvider);
-                public IMarketPriceService MarketPriceService => _marketPriceService ??= ActivatorUtilities.CreateInstance<MarketPriceService>(_serviceProvider);
-                public IProductWorkflowService ProductWorkflowService => _productWorkflowService ??= ActivatorUtilities.CreateInstance<ProductWorkflowService>(_serviceProvider);
-                public IExcelImportService ExcelImportService => _excelImportService ??= ActivatorUtilities.CreateInstance<ExcelImportService>(_serviceProvider);
-                public IDeliveryService DeliveryService => _deliveryService ??= ActivatorUtilities.CreateInstance<DeliveryService>(_serviceProvider);
-                public IDeliveryAdminService DeliveryAdminService => _deliveryAdminService ??= ActivatorUtilities.CreateInstance<DeliveryAdminService>(_serviceProvider);
-                public IAdminService AdminService => _adminService ??= ActivatorUtilities.CreateInstance<AdminService>(_serviceProvider);
-                public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
-                public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
-                public IOrderService OrderService => _orderService ??= new OrderService(
-                    _unitOfWork,
-                    _mapper,
-                    PromotionService,
-                    PromotionUsageService,
-                    Options.Create(
-                        _configuration.GetSection(PickupSearchOptions.SectionName).Get<PickupSearchOptions>()
-                        ?? new PickupSearchOptions()),
-                    _serviceProvider.GetRequiredService<IOrderNotificationPublisher>());
-                public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
-                public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
-                public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
-                public IRefundService RefundService => _refundService ??= ActivatorUtilities.CreateInstance<RefundService>(_serviceProvider);
-                public ICollectionPointService CollectionPointService => _collectionPointService ??= new CollectionPointService(_unitOfWork);
-                public ICustomerAddressService CustomerAddressService => _customerAddressService ??= new CustomerAddressService(_unitOfWork, MapboxService, _serviceProvider.GetRequiredService<ILogger<CustomerAddressService>>());
-                public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);
-                public IPromotionUsageService PromotionUsageService => _promotionUsageService ??= new PromotionUsageService(_unitOfWork);
-                public IPromotionAnalyticsService PromotionAnalyticsService => _promotionAnalyticsService ??= new PromotionAnalyticsService(_unitOfWork);
-                public ICartService CartService => _cartService ??= ActivatorUtilities.CreateInstance<CartService>(_serviceProvider, _unitOfWork);
+            _unitOfWork = unitOfWork;
+            _httpContextAccessor = httpContextAccessor;
+            _configuration = configuration;
+            _context = context;
+            _mapper = mapper;
+            _serviceProvider = serviceProvider;
         }
+        public IProductService ProductService => _productService ??= ActivatorUtilities.CreateInstance<ProductService>(_serviceProvider);
+        public ISupermarketStaffService MarketStaffService => _marketStaffService ??= new SupermarketStaffService(_unitOfWork, _mapper);
+        public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
+        public ISupermarketRegistrationService SupermarketRegistrationService => _supermarketRegistrationService ??= ActivatorUtilities.CreateInstance<SupermarketRegistrationService>(_serviceProvider);
+        public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
+        public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
+        public IAuthService AuthService => _authService ??= ActivatorUtilities.CreateInstance<AuthService>(_serviceProvider);
+        public IUserService UserService => _userService ??= ActivatorUtilities.CreateInstance<UserService>(_serviceProvider);
+        public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
+        public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
+        public INotificationService NotificationService => _notificationService ??= new NotificationService(_unitOfWork, _mapper);
+        public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);
+        public IBarcodeLookupService BarcodeLookupService => _barcodeLookupService ??= ActivatorUtilities.CreateInstance<BarcodeLookupService>(_serviceProvider);
+        public IAIProductService AIProductService => _aIProductService ??= ActivatorUtilities.CreateInstance<AIProductService>(_serviceProvider);
+        public IMarketPriceService MarketPriceService => _marketPriceService ??= ActivatorUtilities.CreateInstance<MarketPriceService>(_serviceProvider);
+        public IProductWorkflowService ProductWorkflowService => _productWorkflowService ??= ActivatorUtilities.CreateInstance<ProductWorkflowService>(_serviceProvider);
+        public IExcelImportService ExcelImportService => _excelImportService ??= ActivatorUtilities.CreateInstance<ExcelImportService>(_serviceProvider);
+        public IDeliveryService DeliveryService => _deliveryService ??= ActivatorUtilities.CreateInstance<DeliveryService>(_serviceProvider);
+        public IDeliveryAdminService DeliveryAdminService => _deliveryAdminService ??= ActivatorUtilities.CreateInstance<DeliveryAdminService>(_serviceProvider);
+        public IAdminService AdminService => _adminService ??= ActivatorUtilities.CreateInstance<AdminService>(_serviceProvider);
+        public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
+        public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
+        public IOrderService OrderService => _orderService ??= ActivatorUtilities.CreateInstance<OrderService>(_serviceProvider);
+        public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
+        public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
+        public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);
+        public IRefundService RefundService => _refundService ??= ActivatorUtilities.CreateInstance<RefundService>(_serviceProvider);
+        public ICollectionPointService CollectionPointService => _collectionPointService ??= new CollectionPointService(_unitOfWork);
+        public ICustomerAddressService CustomerAddressService => _customerAddressService ??= new CustomerAddressService(_unitOfWork, MapboxService, _serviceProvider.GetRequiredService<ILogger<CustomerAddressService>>());
+        public IPromotionService PromotionService => _promotionService ??= new PromotionService(_unitOfWork);
+        public IPromotionUsageService PromotionUsageService => _promotionUsageService ??= new PromotionUsageService(_unitOfWork);
+        public IPromotionAnalyticsService PromotionAnalyticsService => _promotionAnalyticsService ??= new PromotionAnalyticsService(_unitOfWork);
+        public ICartService CartService => _cartService ??= ActivatorUtilities.CreateInstance<CartService>(_serviceProvider, _unitOfWork);
+    }
 }
 

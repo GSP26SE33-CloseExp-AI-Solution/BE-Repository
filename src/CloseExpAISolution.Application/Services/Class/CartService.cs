@@ -48,11 +48,16 @@ public class CartService : ICartService
         var item = cart.Items.FirstOrDefault(x => x.LotId == request.LotId);
         if (item == null)
         {
+            if (request.Quantity > lot.Quantity)
+                throw new InvalidOperationException($"Số lượng vượt tồn kho của lô. Tối đa {lot.Quantity}.");
             cart.Items.Add(new RedisCartItem { LotId = request.LotId, Quantity = request.Quantity });
         }
         else
         {
-            item.Quantity += request.Quantity;
+            var nextQuantity = item.Quantity + request.Quantity;
+            if (nextQuantity > lot.Quantity)
+                throw new InvalidOperationException($"Số lượng vượt tồn kho của lô. Tối đa {lot.Quantity}.");
+            item.Quantity = nextQuantity;
         }
 
         cart.UpdatedAt = DateTime.UtcNow;
@@ -68,6 +73,21 @@ public class CartService : ICartService
         var cart = await LoadCartAsync(userId);
         var item = cart.Items.FirstOrDefault(x => x.CartItemId == cartItemId)
             ?? throw new KeyNotFoundException("Không tìm thấy cart item.");
+
+        var lot = await _unitOfWork.Repository<StockLot>().FirstOrDefaultAsync(x => x.LotId == item.LotId);
+
+        if (lot != null)
+        {
+            var now = DateTime.UtcNow;
+            if (lot.Status != ProductState.Published || lot.Quantity <= 0 || lot.ExpiryDate <= now)
+                throw new InvalidOperationException("Lô hàng không còn khả dụng để đặt.");
+
+            if (DailyExpiryOrderingPolicy.IsLotBlockedForOrdering(lot.ExpiryDate, now))
+                throw new InvalidOperationException("Sau 21:00, không thể đặt lô hàng có hạn sử dụng trong ngày.");
+
+            if (request.Quantity > lot.Quantity)
+                throw new InvalidOperationException($"Số lượng vượt tồn kho của lô. Tối đa {lot.Quantity}.");
+        }
 
         item.Quantity = request.Quantity;
         cart.UpdatedAt = DateTime.UtcNow;

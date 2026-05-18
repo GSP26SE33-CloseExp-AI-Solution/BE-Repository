@@ -5,6 +5,7 @@ using System.Text.Json;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.Base;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Moq;
@@ -60,6 +61,9 @@ public sealed class CartServiceUpdateItemAsyncTests : IDisposable
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<StockLot, bool>>>()))
             .Returns((Expression<Func<StockLot, bool>> pred) =>
                 Task.FromResult<IEnumerable<StockLot>>(lots.Where(pred.Compile()).ToList()));
+        lotRepo
+            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<StockLot, bool>>>()))
+            .ReturnsAsync((Expression<Func<StockLot, bool>> pred) => lots.FirstOrDefault(pred.Compile()));
         uow.Setup(x => x.Repository<StockLot>()).Returns(lotRepo.Object);
 
         var prodRepo = new Mock<IGenericRepository<Product>>();
@@ -119,6 +123,8 @@ public sealed class CartServiceUpdateItemAsyncTests : IDisposable
         {
             LotId = lotId,
             ProductId = productId,
+            Quantity = 100m,
+            Status = ProductState.Published,
             ExpiryDate = DateTime.UtcNow.AddDays(1),
             FinalUnitPrice = 10m,
             SuggestedUnitPrice = 9m
@@ -153,11 +159,23 @@ public sealed class CartServiceUpdateItemAsyncTests : IDisposable
         {
             new StockLot
             {
-                LotId = lotA, ProductId = pidA, ExpiryDate = DateTime.UtcNow, FinalUnitPrice = 10m, SuggestedUnitPrice = 10m
+                LotId = lotA,
+                ProductId = pidA,
+                Quantity = 100m,
+                Status = ProductState.Published,
+                ExpiryDate = DateTime.UtcNow.AddDays(1),
+                FinalUnitPrice = 10m,
+                SuggestedUnitPrice = 10m
             },
             new StockLot
             {
-                LotId = lotB, ProductId = pidB, ExpiryDate = DateTime.UtcNow, FinalUnitPrice = 4m, SuggestedUnitPrice = 4m
+                LotId = lotB,
+                ProductId = pidB,
+                Quantity = 100m,
+                Status = ProductState.Published,
+                ExpiryDate = DateTime.UtcNow.AddDays(1),
+                FinalUnitPrice = 4m,
+                SuggestedUnitPrice = 4m
             }
         };
         var products = new[]
@@ -190,6 +208,8 @@ public sealed class CartServiceUpdateItemAsyncTests : IDisposable
         {
             LotId = lotId,
             ProductId = productId,
+            Quantity = 100m,
+            Status = ProductState.Published,
             ExpiryDate = DateTime.UtcNow.AddDays(1),
             FinalUnitPrice = 100m,
             SuggestedUnitPrice = 100m
@@ -239,6 +259,8 @@ public sealed class CartServiceUpdateItemAsyncTests : IDisposable
         var lotRepo = new Mock<IGenericRepository<StockLot>>();
         lotRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<StockLot, bool>>>()))
             .ReturnsAsync(Array.Empty<StockLot>());
+        lotRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<StockLot, bool>>>()))
+            .ReturnsAsync((StockLot?)null);
         var prodRepo = new Mock<IGenericRepository<Product>>();
         prodRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Product, bool>>>()))
             .ReturnsAsync(Array.Empty<Product>());
@@ -270,6 +292,8 @@ public sealed class CartServiceUpdateItemAsyncTests : IDisposable
         {
             LotId = lotId,
             ProductId = productId,
+            Quantity = 100m,
+            Status = ProductState.Published,
             ExpiryDate = DateTime.UtcNow.AddDays(1),
             FinalUnitPrice = 2m,
             SuggestedUnitPrice = 2m

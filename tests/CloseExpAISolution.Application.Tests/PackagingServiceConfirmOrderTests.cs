@@ -1,4 +1,5 @@
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -53,6 +54,8 @@ public sealed class PackagingServiceConfirmOrderTests : IDisposable
         SeedBaseline();
 
         var unitOfWork = new UnitOfWork(_context);
+        var unitConversion = new UnitConversionRateService(unitOfWork);
+        var stockQtyHelper = new OrderStockQuantityHelper(unitOfWork, unitConversion);
         var logger = new Mock<ILogger<PackagingService>>();
 
         var schedulerFactory = new Mock<ISchedulerFactory>();
@@ -64,7 +67,7 @@ public sealed class PackagingServiceConfirmOrderTests : IDisposable
         var refund = new Mock<IRefundService>();
         var notifications = new Mock<IOrderNotificationPublisher>();
 
-        _sut = new PackagingService(unitOfWork, logger.Object, schedulerFactory.Object, refund.Object, notifications.Object);
+        _sut = new PackagingService(unitOfWork, logger.Object, schedulerFactory.Object, refund.Object, notifications.Object, stockQtyHelper);
     }
 
     public void Dispose()

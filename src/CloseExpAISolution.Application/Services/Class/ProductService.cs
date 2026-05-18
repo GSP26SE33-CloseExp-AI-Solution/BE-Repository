@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
 using System.Text.Json;
 using AutoMapper;
+using CloseExpAISolution.Application.AIService.Interfaces;
+using CloseExpAISolution.Application.AIService.Models;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Policies;
@@ -10,6 +12,7 @@ using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.Context;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CloseExpAISolution.Application.Services.Class;
 
@@ -18,12 +21,21 @@ public class ProductService : IProductService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
+    private readonly IAIServiceClient _aiServiceClient;
+    private readonly ILogger<ProductService> _logger;
 
-    public ProductService(IUnitOfWork unitOfWork, ApplicationDbContext context, IMapper mapper)
+    public ProductService(
+        IUnitOfWork unitOfWork,
+        ApplicationDbContext context,
+        IMapper mapper,
+        IAIServiceClient aiServiceClient,
+        ILogger<ProductService> logger)
     {
         _unitOfWork = unitOfWork;
         _context = context;
         _mapper = mapper;
+        _aiServiceClient = aiServiceClient;
+        _logger = logger;
     }
 
     public Task<IEnumerable<Product>> GetAllAsync() => _unitOfWork.ProductRepository.GetAllAsync();
@@ -396,6 +408,158 @@ public class ProductService : IProductService
         return (pagedLots, totalCount);
     }
 
+    public async Task<(IEnumerable<AvailableStocklotDto> Items, int TotalCount)> SearchAvailableStockLotsWithAiAsync(
+        string description,
+        int pageNumber = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var now = DateTime.UtcNow;
+        var (todayStartUtc, todayEndUtc) = DailyExpiryOrderingPolicy.GetVietnamDateRangeUtc(now);
+        var isCutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
+
+        // Step 1: Get ALL available StockLots (no filtering yet)
+        var baseQuery = _context.StockLots
+            .AsNoTracking()
+            .Where(l =>
+                l.Product != null
+                && l.Product.Status != ProductState.Hidden
+                && l.Product.Status != ProductState.Deleted
+                && l.Status == ProductState.Published &&
+                l.Quantity > 0 &&
+                l.ExpiryDate > now);
+
+        if (isCutoffReached)
+        {
+            baseQuery = baseQuery.Where(l =>
+                l.ExpiryDate < todayStartUtc || l.ExpiryDate >= todayEndUtc);
+        }
+
+        // Fetch all stocklots with full details for AI ranking
+#pragma warning disable CS8602
+        var allStockLots = await baseQuery
+            .Include(l => l.Product)
+            .ThenInclude(p => p.CategoryRef)
+            .Include(l => l.Product)
+            .ThenInclude(p => p.ProductDetail)
+            .Include(l => l.Unit)
+            .ToListAsync(cancellationToken);
+#pragma warning restore CS8602
+
+        _logger.LogInformation("Retrieved {StockLotCount} available stocklots for AI ranking", allStockLots.Count);
+
+        // If no stocklots available, return empty
+        if (allStockLots.Count == 0)
+        {
+            return (Enumerable.Empty<AvailableStocklotDto>(), 0);
+        }
+
+        // Step 2: Convert to AI input DTOs
+        var stockLotsForAi = allStockLots
+            .Select(sl => new StockLotInputDto
+            {
+                LotId = sl.LotId.ToString(),
+                ProductId = sl.ProductId.ToString(),
+                ProductName = sl.Product?.Name ?? string.Empty,
+                Barcode = sl.Product?.Barcode,
+                CategoryName = sl.Product?.CategoryRef?.Name,
+                Brand = sl.Product?.ProductDetail?.Brand,
+                Quantity = sl.Quantity,
+                UnitName = sl.Unit?.Name ?? string.Empty,
+                Price = sl.FinalUnitPrice ?? sl.SuggestedUnitPrice,
+                ExpiryDate = sl.ExpiryDate,
+                ManufactureDate = sl.ManufactureDate
+            })
+            .ToList();
+
+        // Step 3: Send to AI for ranking
+        var rankingResponse = await _aiServiceClient.RankStockLotsByQueryAsync(
+            description,
+            stockLotsForAi,
+            cancellationToken);
+
+        if (rankingResponse?.RankedStockLots == null || rankingResponse.RankedStockLots.Count == 0)
+        {
+            _logger.LogWarning("AI ranking returned no results for query: {Description}", description);
+            return (Enumerable.Empty<AvailableStocklotDto>(), 0);
+        }
+
+        _logger.LogInformation("AI ranking returned {RankedCount} results", rankingResponse.RankedStockLots.Count);
+
+        // Step 4: Create a lookup of ranked lots by ID with their scores
+        var rankedLotIds = rankingResponse.RankedStockLots
+            .ToDictionary(r => Guid.Parse(r.LotId ?? string.Empty), r => r);
+
+        // Step 5: Filter and sort stocklots based on AI ranking, then paginate
+        var rankedStockLots = allStockLots
+            .Where(sl => rankedLotIds.ContainsKey(sl.LotId))
+            .OrderByDescending(sl => rankedLotIds[sl.LotId].RelevanceScore)
+            .ToList();
+
+        var totalCount = rankedStockLots.Count;
+
+        // Step 6: Apply pagination
+        var paginatedStockLots = rankedStockLots
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        // Step 7: Map to DTOs
+        var items = paginatedStockLots
+            .Select(l => new AvailableStocklotDto
+            {
+                LotId = l.LotId,
+                ProductId = l.ProductId,
+                ProductName = l.Product != null ? l.Product.Name : string.Empty,
+                ProductImageUrl = l.Product != null
+                    ? l.Product.ProductImages
+                        .OrderByDescending(pi => pi.IsPrimary)
+                        .ThenBy(pi => pi.CreatedAt)
+                        .Select(pi => pi.ImageUrl)
+                        .FirstOrDefault()
+                    : null,
+                Barcode = l.Product != null ? l.Product.Barcode : string.Empty,
+                Brand = l.Product != null && l.Product.ProductDetail != null
+                    ? (l.Product.ProductDetail.Brand ?? string.Empty)
+                    : string.Empty,
+                SupermarketId = l.Product != null ? l.Product.SupermarketId : Guid.Empty,
+                SupermarketName = l.Product != null && l.Product.Supermarket != null
+                    ? l.Product.Supermarket.Name
+                    : string.Empty,
+                UnitId = l.UnitId,
+                UnitName = l.Unit != null ? l.Unit.Name : string.Empty,
+                Quantity = l.Quantity,
+                Weight = l.Weight,
+                Status = l.Status.ToString(),
+                ManufactureDate = l.ManufactureDate,
+                ExpiryDate = l.ExpiryDate,
+                CreatedAt = l.CreatedAt,
+                PublishedBy = l.PublishedBy,
+                PublishedAt = l.PublishedAt,
+                OriginalUnitPrice = l.OriginalUnitPrice,
+                SuggestedUnitPrice = l.SuggestedUnitPrice,
+                FinalUnitPrice = l.FinalUnitPrice,
+                SellingUnitPrice = l.FinalUnitPrice ?? l.SuggestedUnitPrice,
+                RelevanceScore = rankedLotIds.ContainsKey(l.LotId)
+                    ? (float)rankedLotIds[l.LotId].RelevanceScore
+                    : 0f
+            })
+            .ToList();
+
+        // Add days remaining
+        foreach (var item in items)
+        {
+            var remainingDays = (item.ExpiryDate.Date - now.Date).Days;
+            item.DaysRemaining = remainingDays < 0 ? 0 : remainingDays;
+        }
+
+        return (items, totalCount);
+    }
+
     public async Task<(IEnumerable<AvailableStocklotDto> Items, int TotalCount)> GetAvailableStockLotsForCustomerAsync(
         int pageNumber = 1,
         int pageSize = 20,
@@ -670,5 +834,4 @@ public class ProductService : IProductService
                 g => g.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).First());
     }
 }
-
 

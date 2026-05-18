@@ -8,6 +8,21 @@ public class ExtractProductRequest
     public bool LookupBarcode { get; set; } = true;
 }
 
+public class ImageItemRequestDto
+{
+    public string? ImageUrl { get; set; }
+    public string? ImageBase64 { get; set; }
+    /// <summary>Optional label, e.g. "front", "back", "barcode".</summary>
+    public string? Label { get; set; }
+}
+
+public class ExtractMultipleRequest
+{
+    public List<ImageItemRequestDto> Images { get; set; } = new();
+    public bool ExtractDates { get; set; } = true;
+    public bool ExtractBarcode { get; set; } = true;
+}
+
 public class PricingRequest
 {
     public string Category { get; set; } = string.Empty;

@@ -645,12 +645,12 @@ public class DeliveryService : IDeliveryService
                 _unitOfWork.Repository<DeliveryLog>().Update(log);
             }
 
-            await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
-                order.OrderId,
-                order.UserId,
-                order.OrderCode,
-                DeliveryState.Completed,
-                cancellationToken: cancellationToken);
+                await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
+                    order.OrderId,
+                    order.UserId,
+                    order.OrderCode,
+                    DeliveryState.Completed,
+                    cancellationToken: cancellationToken);
 
             var staffIds = orderItems
                 .Where(i => i.DeliveryGroupId.HasValue)
@@ -1013,7 +1013,7 @@ public class DeliveryService : IDeliveryService
 
         orders = orders.OrderBy(o => o.OrderCode).ToList();
 
-        var skipped = new List<Guid>(); 
+        var skipped = new List<Guid>();
         var stops = new List<(Guid OrderId, double Lat, double Lng)>();
         foreach (var order in orders)
         {
@@ -1023,7 +1023,7 @@ public class DeliveryService : IDeliveryService
                 var hasRoutableItems = HasRoutableItemsForRoute(scopedItems);
 
                 if (!hasRoutableItems)
-                    continue;
+                continue;
             }
             else if (IsTerminalRouteOrderState(order.Status))
             {

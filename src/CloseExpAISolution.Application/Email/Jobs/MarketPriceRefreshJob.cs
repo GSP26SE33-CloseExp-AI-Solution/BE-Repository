@@ -21,10 +21,7 @@ public class MarketPriceRefreshJob : IJob
         var startedAt = DateTime.UtcNow;
         try
         {
-            var staleBeforeUtc = DateTime.UtcNow.AddHours(-6);
-            var refreshed = await _marketPriceService.RefreshStaleBarcodesAsync(
-                staleBeforeUtc,
-                take: 200,
+            var refreshed = await _marketPriceService.RefreshPublishedProductsAsync(
                 concurrency: 4,
                 context.CancellationToken);
             _logger.LogInformation(

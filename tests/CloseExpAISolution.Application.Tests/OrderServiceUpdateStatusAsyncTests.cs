@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using AutoMapper;
 using CloseExpAISolution.Application.Configuration;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Class;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain;
@@ -22,14 +23,21 @@ namespace CloseExpAISolution.Application.Tests;
 /// </summary>
 public sealed class OrderServiceUpdateStatusAsyncTests
 {
-    private static OrderService CreateSut(IUnitOfWork uow)
-        => new(
+    private static OrderService CreateSut(IUnitOfWork uow, IOrderNotificationPublisher notifier)
+    {
+        var unitConv = UnitConversionTestDoubles.PassiveIdentity();
+        return new OrderService(
             uow,
             Mock.Of<IMapper>(),
             Mock.Of<IPromotionService>(),
             Mock.Of<IPromotionUsageService>(),
             Options.Create(new PickupSearchOptions()),
-            Mock.Of<IOrderNotificationPublisher>());
+            notifier,
+            new OrderItemUnitConverter(uow, unitConv),
+            new OrderStockQuantityHelper(uow, unitConv));
+    }
+
+    private static OrderService CreateSut(IUnitOfWork uow) => CreateSut(uow, Mock.Of<IOrderNotificationPublisher>());
 
     private static Order MinimalOrder(
         Guid orderId,
@@ -119,6 +127,16 @@ public sealed class OrderServiceUpdateStatusAsyncTests
         uow.Setup(x => x.Repository<StockLot>()).Returns(lotRepo.Object);
     }
 
+    private static void SetupProducts(Mock<IUnitOfWork> uow, IReadOnlyList<Product> products)
+    {
+        var list = products.ToList();
+        var productRepo = new Mock<IGenericRepository<Product>>();
+        productRepo
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Product, bool>>>()))
+            .ReturnsAsync((Expression<Func<Product, bool>> pred) => list.Where(pred.Compile()).ToList());
+        uow.Setup(x => x.Repository<Product>()).Returns(productRepo.Object);
+    }
+
     private static void SetupDeliveryGroups(Mock<IUnitOfWork> uow, IReadOnlyList<DeliveryGroup> groups)
     {
         var list = groups.ToList();
@@ -174,13 +192,7 @@ public sealed class OrderServiceUpdateStatusAsyncTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new OrderService(
-            uow.Object,
-            Mock.Of<IMapper>(),
-            Mock.Of<IPromotionService>(),
-            Mock.Of<IPromotionUsageService>(),
-            Options.Create(new PickupSearchOptions()),
-            notifier.Object);
+        var sut = CreateSut(uow.Object, notifier.Object);
 
         await sut.UpdateStatusAsync(orderId, OrderState.Pending, statusNote: null, CancellationToken.None);
 
@@ -248,13 +260,7 @@ public sealed class OrderServiceUpdateStatusAsyncTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new OrderService(
-            uow.Object,
-            Mock.Of<IMapper>(),
-            Mock.Of<IPromotionService>(),
-            Mock.Of<IPromotionUsageService>(),
-            Options.Create(new PickupSearchOptions()),
-            notifier.Object);
+        var sut = CreateSut(uow.Object, notifier.Object);
 
         await sut.UpdateStatusAsync(orderId, OrderState.Paid, CancellationToken.None);
 
@@ -369,13 +375,7 @@ public sealed class OrderServiceUpdateStatusAsyncTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new OrderService(
-            uow.Object,
-            Mock.Of<IMapper>(),
-            Mock.Of<IPromotionService>(),
-            Mock.Of<IPromotionUsageService>(),
-            Options.Create(new PickupSearchOptions()),
-            notifier.Object);
+        var sut = CreateSut(uow.Object, notifier.Object);
 
         await sut.UpdateStatusAsync(orderId, OrderState.Canceled, "changed mind", CancellationToken.None);
 
@@ -442,6 +442,20 @@ public sealed class OrderServiceUpdateStatusAsyncTests
 
         var lotCopy = CloneLot(lotBefore);
         SetupStockLots(uow, new[] { lotCopy });
+        SetupProducts(uow,
+        [
+            new Product
+            {
+                ProductId = lotBefore.ProductId,
+                UnitId = lotBefore.UnitId,
+                SupermarketId = Guid.NewGuid(),
+                Name = "t",
+                Barcode = "",
+                Sku = "",
+                CreatedAt = now,
+                UpdatedAt = now
+            }
+        ]);
 
         var notifier = new Mock<IOrderNotificationPublisher>();
         notifier
@@ -453,13 +467,7 @@ public sealed class OrderServiceUpdateStatusAsyncTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new OrderService(
-            uow.Object,
-            Mock.Of<IMapper>(),
-            Mock.Of<IPromotionService>(),
-            Mock.Of<IPromotionUsageService>(),
-            Options.Create(new PickupSearchOptions()),
-            notifier.Object);
+        var sut = CreateSut(uow.Object, notifier.Object);
 
         await sut.UpdateStatusAsync(orderId, OrderState.Canceled, "refund workflow", CancellationToken.None);
 
@@ -533,6 +541,20 @@ public sealed class OrderServiceUpdateStatusAsyncTests
         SetupStatusLog(uow);
         SetupOrderItems(uow, items);
         SetupStockLots(uow, lots);
+        SetupProducts(uow,
+        [
+            new Product
+            {
+                ProductId = lots[0].ProductId,
+                UnitId = lots[0].UnitId,
+                SupermarketId = Guid.NewGuid(),
+                Name = "t",
+                Barcode = "",
+                Sku = "",
+                CreatedAt = now,
+                UpdatedAt = now
+            }
+        ]);
         SetupDeliveryGroups(uow, new[] { dg });
 
         var notifier = new Mock<IOrderNotificationPublisher>();
@@ -545,13 +567,7 @@ public sealed class OrderServiceUpdateStatusAsyncTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new OrderService(
-            uow.Object,
-            Mock.Of<IMapper>(),
-            Mock.Of<IPromotionService>(),
-            Mock.Of<IPromotionUsageService>(),
-            Options.Create(new PickupSearchOptions()),
-            notifier.Object);
+        var sut = CreateSut(uow.Object, notifier.Object);
 
         await sut.UpdateStatusAsync(orderId, OrderState.Refunded, "quality issue after pack", CancellationToken.None);
 
