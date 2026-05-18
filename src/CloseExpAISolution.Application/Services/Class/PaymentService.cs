@@ -3,6 +3,7 @@ using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Payment;
 using CloseExpAISolution.Application.Policies;
 using CloseExpAISolution.Application.ServiceProviders;
+using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -32,6 +33,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
     private readonly PayOSClient _client;
     private readonly StackExchange.Redis.IConnectionMultiplexer? _redis;
     private readonly IServiceProviders? _services;
+    private readonly OrderStockQuantityHelper _orderStockQuantityHelper;
 
     public PaymentService(
         IUnitOfWork unitOfWork,
@@ -44,6 +46,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         _logger = logger;
         _redis = serviceProvider.GetService<StackExchange.Redis.IConnectionMultiplexer>();
         _services = serviceProvider.GetService<IServiceProviders>();
+        _orderStockQuantityHelper = serviceProvider.GetRequiredService<OrderStockQuantityHelper>();
         _client = new PayOSClient(new PayOSOptions
         {
             ClientId = _settings.ClientId,
@@ -398,16 +401,11 @@ public sealed class PaymentService : IPaymentService, IDisposable
         if (order.OrderItems == null || order.OrderItems.Count == 0)
             return true;
 
-        var requiredByLot = order.OrderItems
-            .GroupBy(oi => oi.LotId)
-            .Select(g => new
-            {
-                LotId = g.Key,
-                RequiredQuantity = (decimal)g.Sum(x => x.Quantity)
-            })
-            .ToList();
+        var requiredByLot = await _orderStockQuantityHelper.ComputeRequiredStockQuantityByLotAsync(
+            order.OrderItems,
+            cancellationToken);
 
-        var lotIds = requiredByLot.Select(x => x.LotId).ToList();
+        var lotIds = requiredByLot.Keys.ToList();
 
         var lots = await _unitOfWork.Repository<StockLot>()
             .FindAsync(l => lotIds.Contains(l.LotId));
@@ -416,9 +414,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         var now = DateTime.UtcNow;
         var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
 
-        foreach (var req in requiredByLot)
+        foreach (var (lotId, requiredQuantity) in requiredByLot)
         {
-            if (!lotById.TryGetValue(req.LotId, out var lot))
+            if (!lotById.TryGetValue(lotId, out var lot))
                 return false;
 
             if (lot.Status != ProductState.Published)
@@ -430,14 +428,14 @@ public sealed class PaymentService : IPaymentService, IDisposable
             if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
                 return false;
 
-            if (lot.Quantity < req.RequiredQuantity)
+            if (lot.Quantity < requiredQuantity)
                 return false;
         }
 
-        foreach (var req in requiredByLot)
+        foreach (var (lotId, requiredQuantity) in requiredByLot)
         {
-            var lot = lotById[req.LotId];
-            lot.Quantity -= req.RequiredQuantity;
+            var lot = lotById[lotId];
+            lot.Quantity -= requiredQuantity;
             lot.UpdatedAt = now;
             _unitOfWork.Repository<StockLot>().Update(lot);
         }
@@ -452,27 +450,28 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         var now = DateTime.UtcNow;
         var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
-        var requiredByLot = order.OrderItems
-            .GroupBy(oi => oi.LotId)
-            .ToDictionary(g => g.Key, g => (decimal)g.Sum(x => x.Quantity));
+        var requiredByLot = _orderStockQuantityHelper
+            .ComputeRequiredStockQuantityByLotAsync(order.OrderItems)
+            .GetAwaiter()
+            .GetResult();
 
-        foreach (var req in requiredByLot)
+        foreach (var (lotId, requiredQuantity) in requiredByLot)
         {
             var lot = order.OrderItems
                 .Select(oi => oi.StockLot)
-                .FirstOrDefault(l => l != null && l.LotId == req.Key);
+                .FirstOrDefault(l => l != null && l.LotId == lotId);
 
             if (lot == null)
-                throw new InvalidOperationException($"StockLot {req.Key} không tồn tại hoặc đã bị xóa.");
+                throw new InvalidOperationException($"StockLot {lotId} không tồn tại hoặc đã bị xóa.");
 
             if (lot.Status != ProductState.Published || lot.Quantity <= 0 || lot.ExpiryDate <= now)
-                throw new InvalidOperationException($"StockLot {req.Key} không còn khả dụng để thanh toán.");
+                throw new InvalidOperationException($"StockLot {lotId} không còn khả dụng để thanh toán.");
 
             if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
                 throw new InvalidOperationException("Sau 21:00, không thể thanh toán đơn có lô hàng hết hạn trong ngày.");
 
-            if (lot.Quantity < req.Value)
-                throw new InvalidOperationException($"StockLot {req.Key} không đủ số lượng để thanh toán.");
+            if (lot.Quantity < requiredQuantity)
+                throw new InvalidOperationException($"StockLot {lotId} không đủ số lượng để thanh toán.");
         }
     }
 

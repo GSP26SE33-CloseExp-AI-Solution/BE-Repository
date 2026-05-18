@@ -433,7 +433,8 @@ public class ProductWorkflowService : IProductWorkflowService
                 UnitId = u.UnitId,
                 Name = u.Name,
                 Type = u.Type,
-                Symbol = u.Symbol
+                Symbol = u.Symbol,
+                ConversionRate = u.ConversionRate
             })
             .ToList();
     }

@@ -608,69 +608,110 @@ public static class DataSeeder
         if (await context.UnitOfMeasures.AnyAsync(x => x.UnitId == UnitKgId))
             return;
 
+        var now = DateTime.UtcNow;
         var units = new List<UnitOfMeasure>
         {
             new()
             {
                 UnitId = UnitKgId,
                 Name = "Kg",
-                Type = "Weight"
+                Type = "Weight",
+                Symbol = "kg",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitGramId,
                 Name = "Gram",
-                Type = "Weight"
+                Type = "Weight",
+                Symbol = "g",
+                ConversionRate = 0.001m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
 
             new()
             {
                 UnitId = UnitLiterId,
                 Name = "Lít",
-                Type = "Volume"
+                Type = "Volume",
+                Symbol = "L",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitMlId,
                 Name = "ml",
-                Type = "Volume"
+                Type = "Volume",
+                Symbol = "ml",
+                ConversionRate = 0.001m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
 
             new()
             {
                 UnitId = UnitBoxId,
                 Name = "Hộp",
-                Type = "Count"
+                Type = "Count",
+                Symbol = "hộp",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitBottleId,
                 Name = "Chai",
-                Type = "Count"
+                Type = "Count",
+                Symbol = "chai",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitPackId,
                 Name = "Gói",
-                Type = "Count"
+                Type = "Count",
+                Symbol = "gói",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitPieceId,
                 Name = "Cái",
-                Type = "Count"
+                Type = "Count",
+                Symbol = "cái",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitCanId,
                 Name = "Lon",
-                Type = "Count"
+                Type = "Count",
+                Symbol = "lon",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitBagId,
                 Name = "Túi",
-                Type = "Count"
+                Type = "Count",
+                Symbol = "túi",
+                ConversionRate = 1m,
+                CreatedAt = now,
+                UpdatedAt = now
             }
         };
 

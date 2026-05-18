@@ -50,6 +50,9 @@ public class UpsertUnitRequestDto
     [Required]
     [MaxLength(20)]
     public string Symbol { get; set; } = string.Empty;
+
+    [Range(typeof(decimal), "0.0000001", "100000")]
+    public decimal? ConversionRate { get; set; }
 }
 
 public class CreatePromotionRequestDto

@@ -98,15 +98,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public IAdminService AdminService => _adminService ??= ActivatorUtilities.CreateInstance<AdminService>(_serviceProvider);
         public IPackagingService PackagingService => _packagingService ??= ActivatorUtilities.CreateInstance<PackagingService>(_serviceProvider);
         public IEmailService EmailService => _emailService ??= ActivatorUtilities.CreateInstance<EmailService>(_serviceProvider);
-        public IOrderService OrderService => _orderService ??= new OrderService(
-            _unitOfWork,
-            _mapper,
-            PromotionService,
-            PromotionUsageService,
-            Options.Create(
-                _configuration.GetSection(PickupSearchOptions.SectionName).Get<PickupSearchOptions>()
-                ?? new PickupSearchOptions()),
-            _serviceProvider.GetRequiredService<IOrderNotificationPublisher>());
+        public IOrderService OrderService => _orderService ??= ActivatorUtilities.CreateInstance<OrderService>(_serviceProvider);
         public IOrderItemService OrderItemService => _orderItemService ??= new OrderItemService(_unitOfWork, _mapper);
         public IMapboxService MapboxService => _mapboxService ??= _serviceProvider.GetRequiredService<IMapboxService>();
         public ICategoryService CategoryService => _categoryService ??= new CategoryService(_unitOfWork, _mapper);

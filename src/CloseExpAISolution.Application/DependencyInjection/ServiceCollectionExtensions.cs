@@ -40,6 +40,10 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IServiceProviders, CloseExpAISolution.Application.ServiceProviders.ServiceProviders>();
 
+        services.AddScoped<IUnitConversionRateService, UnitConversionRateService>();
+        services.AddScoped<OrderStockQuantityHelper>();
+        services.AddScoped<OrderItemUnitConverter>();
+
         services.AddScoped<IOrderNotificationPublisher, OrderNotificationPublisher>();
 
         var redisConn = configuration.GetConnectionString("Redis");
