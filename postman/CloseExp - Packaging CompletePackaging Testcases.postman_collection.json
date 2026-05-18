@@ -1,0 +1,757 @@
+{
+   "info": {
+      "_postman_id": "8d9f2b7e-4e2a-4cb0-8c83-2c3f6d2f9e5a",
+      "name": "CloseExp - Packaging CompletePackaging Testcases",
+      "description": "CompletePackagingAsync testcases for PackagingStaff.\n\nHow to use:\n1) Set collection variables: baseUrl, packagingEmail, packagingPassword.\n2) Run folder 00 then folder 01 in order.",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      "_exporter_id": "38344843"
+   },
+   "item": [
+      {
+         "name": "00 - Setup & Auth",
+         "item": [
+            {
+               "name": "00.1 PackagingStaff Login",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 200', () => pm.response.code === 200);",
+                           "pm.test('Envelope success=true', () => pm.expect(j.success).to.eql(true));",
+                           "if (j?.data?.accessToken) pm.collectionVariables.set('packagingToken', j.data.accessToken);",
+                           "if (j?.data?.user?.userId) pm.collectionVariables.set('packagingUserId', j.data.user.userId);"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"email\": \"{{packagingEmail}}\",\n  \"password\": \"{{packagingPassword}}\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/auth/login",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "auth",
+                        "login"
+                     ]
+                  }
+               },
+               "response": []
+            }
+         ]
+      },
+      {
+         "name": "01 - CompletePackagingAsync",
+         "item": [
+            {
+               "name": "TC01 - Complete packaging normal",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 200', () => pm.response.code === 200);",
+                           "pm.test('Envelope success=true', () => pm.expect(j.success).to.eql(true));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{okItemId1}}\", \"{{okItemId2}}\"],\n  \"notes\": \"complete ok\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{okOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{okOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC02 - Complete partial (not all lines)",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 200', () => pm.response.code === 200);",
+                           "pm.test('Envelope success=true', () => pm.expect(j.success).to.eql(true));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{partialItemId1}}\", \"{{partialItemId2}}\"],\n  \"notes\": \"complete partial\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{partialOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{partialOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC03 - ReadyToShip idempotent",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 200', () => pm.response.code === 200);",
+                           "pm.test('Envelope success=true', () => pm.expect(j.success).to.eql(true));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{readyItemId1}}\", \"{{readyItemId2}}\"],\n  \"notes\": \"ready idempotent\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{readyOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{readyOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC04 - Order not Paid",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 400', () => pm.response.code === 400);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{notPaidItemId}}\"],\n  \"notes\": \"not paid\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{notPaidOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{notPaidOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC05 - Item status Failed",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 400', () => pm.response.code === 400);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{failedItemId}}\"],\n  \"notes\": \"failed status\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{failedOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{failedOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC06 - Record owned by other staff",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 401', () => pm.response.code === 401);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{foreignItemId}}\"],\n  \"notes\": \"foreign record\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{foreignOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{foreignOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC07 - Duplicate orderItemIds",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 400', () => pm.response.code === 400);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{okItemId1}}\", \"{{okItemId1}}\"],\n  \"notes\": \"duplicate ids\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{okOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{okOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC08 - OrderItemIds not in order",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 400', () => pm.response.code === 400);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{okItemId1}}\", \"{{invalidOrderItemId}}\"],\n  \"notes\": \"not in order\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{okOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{okOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC09 - Order has no items",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 400', () => pm.response.code === 400);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": []\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{noItemOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{noItemOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC10 - Empty orderItemIds (all items)",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 200', () => pm.response.code === 200);",
+                           "pm.test('Envelope success=true', () => pm.expect(j.success).to.eql(true));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [],\n  \"notes\": \"empty list\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{emptyOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{emptyOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            },
+            {
+               "name": "TC11 - ReadyToShip but not all completed",
+               "event": [
+                  {
+                     "listen": "test",
+                     "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                           "const j = pm.response.json();",
+                           "pm.test('Status 400', () => pm.response.code === 400);",
+                           "pm.test('Envelope success=false', () => pm.expect(j.success).to.eql(false));"
+                        ]
+                     }
+                  }
+               ],
+               "request": {
+                  "auth": {
+                     "type": "bearer",
+                     "bearer": [
+                        {
+                           "key": "token",
+                           "value": "{{packagingToken}}",
+                           "type": "string"
+                        }
+                     ]
+                  },
+                  "method": "POST",
+                  "header": [
+                     {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                     }
+                  ],
+                  "body": {
+                     "mode": "raw",
+                     "raw": "{\n  \"orderItemIds\": [\"{{readyPartialItemId1}}\"],\n  \"notes\": \"ready partial\"\n}"
+                  },
+                  "url": {
+                     "raw": "{{baseUrl}}/packaging/orders/{{readyPartialOrderId}}/package",
+                     "host": [
+                        "{{baseUrl}}"
+                     ],
+                     "path": [
+                        "packaging",
+                        "orders",
+                        "{{readyPartialOrderId}}",
+                        "package"
+                     ]
+                  }
+               },
+               "response": []
+            }
+         ]
+      }
+   ],
+   "variable": [
+      {
+         "key": "baseUrl",
+         "value": "https://localhost:7001/api"
+      },
+      {
+         "key": "packagingEmail",
+         "value": "staff.1@gmail.com"
+      },
+      {
+         "key": "packagingPassword",
+         "value": "123456"
+      },
+      {
+         "key": "packagingToken",
+         "value": ""
+      },
+      {
+         "key": "packagingUserId",
+         "value": ""
+      },
+      {
+         "key": "okOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000001"
+      },
+      {
+         "key": "okItemId1",
+         "value": "ffff1100-0000-0000-0000-000000000001"
+      },
+      {
+         "key": "okItemId2",
+         "value": "ffff1100-0000-0000-0000-000000000002"
+      },
+      {
+         "key": "emptyOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000002"
+      },
+      {
+         "key": "emptyItemId1",
+         "value": "ffff1100-0000-0000-0000-000000000003"
+      },
+      {
+         "key": "emptyItemId2",
+         "value": "ffff1100-0000-0000-0000-000000000004"
+      },
+      {
+         "key": "partialOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000003"
+      },
+      {
+         "key": "partialItemId1",
+         "value": "ffff1100-0000-0000-0000-000000000005"
+      },
+      {
+         "key": "partialItemId2",
+         "value": "ffff1100-0000-0000-0000-000000000006"
+      },
+      {
+         "key": "partialOtherItemId",
+         "value": "ffff1100-0000-0000-0000-000000000007"
+      },
+      {
+         "key": "foreignOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000004"
+      },
+      {
+         "key": "foreignItemId",
+         "value": "ffff1100-0000-0000-0000-000000000008"
+      },
+      {
+         "key": "failedOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000005"
+      },
+      {
+         "key": "failedItemId",
+         "value": "ffff1100-0000-0000-0000-000000000009"
+      },
+      {
+         "key": "notPaidOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000006"
+      },
+      {
+         "key": "notPaidItemId",
+         "value": "ffff1100-0000-0000-0000-00000000000a"
+      },
+      {
+         "key": "noItemOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000007"
+      },
+      {
+         "key": "readyOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000008"
+      },
+      {
+         "key": "readyItemId1",
+         "value": "ffff1100-0000-0000-0000-00000000000b"
+      },
+      {
+         "key": "readyItemId2",
+         "value": "ffff1100-0000-0000-0000-00000000000c"
+      },
+      {
+         "key": "readyPartialOrderId",
+         "value": "ffff0100-0000-0000-0000-000000000009"
+      },
+      {
+         "key": "readyPartialItemId1",
+         "value": "ffff1100-0000-0000-0000-00000000000d"
+      },
+      {
+         "key": "readyPartialItemId2",
+         "value": "ffff1100-0000-0000-0000-00000000000e"
+      },
+      {
+         "key": "invalidOrderId",
+         "value": "11111111-1111-1111-1111-111111111111"
+      },
+      {
+         "key": "invalidOrderItemId",
+         "value": "22222222-2222-2222-2222-222222222222"
+      }
+   ]
+}

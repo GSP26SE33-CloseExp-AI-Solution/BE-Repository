@@ -32,18 +32,26 @@ public sealed class PaymentService : IPaymentService, IDisposable
     private readonly PayOSClient _client;
     private readonly StackExchange.Redis.IConnectionMultiplexer? _redis;
     private readonly IServiceProviders? _services;
+    private readonly TimeProvider _timeProvider;
+    private readonly IPayOsPaymentLinkClient _payOsPaymentLinks;
+
+    private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
 
     public PaymentService(
         IUnitOfWork unitOfWork,
         IOptions<PayOsSettings> options,
         ILogger<PaymentService> logger,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        TimeProvider timeProvider,
+        IPayOsPaymentLinkClient payOsPaymentLinks)
     {
         _unitOfWork = unitOfWork;
         _settings = options.Value;
         _logger = logger;
         _redis = serviceProvider.GetService<StackExchange.Redis.IConnectionMultiplexer>();
         _services = serviceProvider.GetService<IServiceProviders>();
+        _timeProvider = timeProvider;
+        _payOsPaymentLinks = payOsPaymentLinks;
         _client = new PayOSClient(new PayOSOptions
         {
             ClientId = _settings.ClientId,
@@ -95,7 +103,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             Amount = order.FinalAmount,
             PaymentMethod = PayOSMethod,
             PaymentStatus = PaymentState.Pending,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = UtcNow,
             PayOSOrderCode = payOsOrderCode
         };
 
@@ -113,10 +121,10 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         try
         {
-            var link = await _client.PaymentRequests.CreateAsync(createRequest);
+            var link = await _payOsPaymentLinks.CreateAsync(createRequest);
             tx.PayOSPaymentLinkId = link.PaymentLinkId;
             tx.CheckoutUrl = link.CheckoutUrl;
-            tx.UpdatedAt = DateTime.UtcNow;
+            tx.UpdatedAt = UtcNow;
             _unitOfWork.Repository<Transaction>().Update(tx);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return new CreatePaymentLinkResponseDto
@@ -135,7 +143,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         {
             _logger.LogError(ex, "PayOS CreateAsync failed for order {OrderId}", order.OrderId);
             tx.PaymentStatus = PaymentState.Failed;
-            tx.UpdatedAt = DateTime.UtcNow;
+            tx.UpdatedAt = UtcNow;
             _unitOfWork.Repository<Transaction>().Update(tx);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             throw;
@@ -172,7 +180,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         PaymentLink link;
         try
         {
-            link = await _client.PaymentRequests.GetAsync(payOsOrderCode);
+            link = await _payOsPaymentLinks.GetAsync(payOsOrderCode);
         }
         catch (Exception ex)
         {
@@ -209,7 +217,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             return PaymentConfirmResult.Ok();
 
         transaction.PaymentStatus = PaymentState.Paid;
-        transaction.UpdatedAt = DateTime.UtcNow;
+        transaction.UpdatedAt = UtcNow;
 
         var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(transaction.OrderId, cancellationToken);
         if (order != null)
@@ -265,7 +273,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             return;
 
         transaction.PaymentStatus = success ? PaymentState.Paid : PaymentState.Failed;
-        transaction.UpdatedAt = DateTime.UtcNow;
+        transaction.UpdatedAt = UtcNow;
 
         Order? order = null;
         if (success)
@@ -289,7 +297,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             if (orderForFailedPayment != null && orderForFailedPayment.Status == OrderState.Pending)
             {
                 orderForFailedPayment.Status = OrderState.Canceled;
-                orderForFailedPayment.UpdatedAt = DateTime.UtcNow;
+                orderForFailedPayment.UpdatedAt = UtcNow;
                 _unitOfWork.OrderRepository.Update(orderForFailedPayment);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
@@ -335,14 +343,14 @@ public sealed class PaymentService : IPaymentService, IDisposable
             return;
 
         transaction.PaymentStatus = PaymentState.Failed;
-        transaction.UpdatedAt = DateTime.UtcNow;
+        transaction.UpdatedAt = UtcNow;
         _unitOfWork.Repository<Transaction>().Update(transaction);
 
         var order = await _unitOfWork.OrderRepository.GetByOrderIdAsync(transaction.OrderId, cancellationToken);
         if (order != null && order.Status == OrderState.Pending)
         {
             order.Status = OrderState.Canceled;
-            order.UpdatedAt = DateTime.UtcNow;
+            order.UpdatedAt = UtcNow;
             _unitOfWork.OrderRepository.Update(order);
         }
 
@@ -360,7 +368,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             return;
         }
 
-        var now = DateTime.UtcNow;
+        var now = UtcNow;
         var changed = false;
 
         if (order.Status == OrderState.Pending)
@@ -413,7 +421,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
             .FindAsync(l => lotIds.Contains(l.LotId));
 
         var lotById = lots.ToDictionary(l => l.LotId);
-        var now = DateTime.UtcNow;
+        var now = UtcNow;
         var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
 
         foreach (var req in requiredByLot)
@@ -424,10 +432,11 @@ public sealed class PaymentService : IPaymentService, IDisposable
             if (lot.Status != ProductState.Published)
                 return false;
 
-            if (lot.ExpiryDate <= now)
+            var expiryUtc = NormalizeStockLotExpiryUtc(lot.ExpiryDate);
+            if (expiryUtc <= now)
                 return false;
 
-            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
+            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(expiryUtc, now))
                 return false;
 
             if (lot.Quantity < req.RequiredQuantity)
@@ -450,7 +459,7 @@ public sealed class PaymentService : IPaymentService, IDisposable
         if (order.OrderItems == null || order.OrderItems.Count == 0)
             throw new InvalidOperationException("Order has no items to pay.");
 
-        var now = DateTime.UtcNow;
+        var now = UtcNow;
         var cutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
         var requiredByLot = order.OrderItems
             .GroupBy(oi => oi.LotId)
@@ -465,10 +474,11 @@ public sealed class PaymentService : IPaymentService, IDisposable
             if (lot == null)
                 throw new InvalidOperationException($"StockLot {req.Key} không tồn tại hoặc đã bị xóa.");
 
-            if (lot.Status != ProductState.Published || lot.Quantity <= 0 || lot.ExpiryDate <= now)
+            var expiryUtc = NormalizeStockLotExpiryUtc(lot.ExpiryDate);
+            if (lot.Status != ProductState.Published || lot.Quantity <= 0 || expiryUtc <= now)
                 throw new InvalidOperationException($"StockLot {req.Key} không còn khả dụng để thanh toán.");
 
-            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(lot.ExpiryDate, now))
+            if (cutoffReached && DailyExpiryOrderingPolicy.IsExpiringInVietnamToday(expiryUtc, now))
                 throw new InvalidOperationException("Sau 21:00, không thể thanh toán đơn có lô hàng hết hạn trong ngày.");
 
             if (lot.Quantity < req.Value)
@@ -526,6 +536,18 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         return minutes;
     }
+
+    /// <summary>
+    /// SQLite/EF commonly loads <see cref="StockLot.ExpiryDate"/> as <see cref="DateTimeKind.Unspecified"/>.
+    /// Values are persisted as UTC; normalize before comparing to <c>now</c> or passing to cutoff policy.
+    /// </summary>
+    private static DateTime NormalizeStockLotExpiryUtc(DateTime expiryDate) =>
+        expiryDate.Kind switch
+        {
+            DateTimeKind.Utc => expiryDate,
+            DateTimeKind.Local => expiryDate.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(expiryDate, DateTimeKind.Utc)
+        };
 
     /// <summary>
     /// Dùng mã đơn nội bộ làm mô tả PayOS; cắt chuỗi nếu vượt giới hạn 25 ký tự của API.

@@ -135,6 +135,11 @@ public static class DataSeeder
     private static readonly Guid PackagingOrderPickupId = Guid.Parse("ffff0001-0001-0001-0001-000000000001");
     private static readonly Guid PackagingOrderHomeId = Guid.Parse("ffff0002-0002-0002-0002-000000000002");
     private static readonly Guid PackagingOrderReadyId = Guid.Parse("ffff0003-0003-0003-0003-000000000003");
+    private static readonly Guid PackagingOrderConfirmId = Guid.Parse("ffff0006-0006-0006-0006-000000000006");
+    private static readonly Guid PackagingOrderTerminalId = Guid.Parse("ffff0007-0007-0007-0007-000000000007");
+    private static readonly Guid PackagingOrderConfirmItem1Id = Guid.Parse("ffff1001-0001-0001-0001-000000000001");
+    private static readonly Guid PackagingOrderConfirmItem2Id = Guid.Parse("ffff1002-0002-0002-0002-000000000002");
+    private static readonly Guid PackagingOrderTerminalItemId = Guid.Parse("ffff1003-0003-0003-0003-000000000003");
     private static readonly Guid VendorUser3SampleOrderId = Guid.Parse("ffff0004-0004-0004-0004-000000000004");
 
     private static readonly Guid SeedTxnPickupId = Guid.Parse("fffa1111-1111-1111-1111-111111111111");
@@ -172,6 +177,7 @@ public static class DataSeeder
         await SeedCollectionPointsAsync(context);
         await SeedCustomerAddressesAsync(context);
         await SeedPackagingOrdersAsync(context);
+        await SeedPackagingConfirmOrdersAsync(context);
         await SeedVendorUser3SampleOrderAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
         await SeedHybridRouteDemoDataAsync(context);
@@ -605,76 +611,115 @@ public static class DataSeeder
 
     private static async Task SeedUnitsAsync(ApplicationDbContext context)
     {
-        if (await context.UnitOfMeasures.AnyAsync())
-            return;
-
+        var now = DateTime.UtcNow;
         var units = new List<UnitOfMeasure>
         {
             new()
             {
                 UnitId = UnitKgId,
                 Name = "Kg",
-                Type = "Weight"
+                Symbol = "kg",
+                Type = "Weight",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitGramId,
                 Name = "Gram",
-                Type = "Weight"
+                Symbol = "g",
+                Type = "Weight",
+                CreatedAt = now,
+                UpdatedAt = now
             },
-
             new()
             {
                 UnitId = UnitLiterId,
                 Name = "Lít",
-                Type = "Volume"
+                Symbol = "L",
+                Type = "Volume",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitMlId,
                 Name = "ml",
-                Type = "Volume"
+                Symbol = "ml",
+                Type = "Volume",
+                CreatedAt = now,
+                UpdatedAt = now
             },
-
             new()
             {
                 UnitId = UnitBoxId,
                 Name = "Hộp",
-                Type = "Count"
+                Symbol = "hộp",
+                Type = "Count",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitBottleId,
                 Name = "Chai",
-                Type = "Count"
+                Symbol = "chai",
+                Type = "Count",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitPackId,
                 Name = "Gói",
-                Type = "Count"
+                Symbol = "gói",
+                Type = "Count",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitPieceId,
                 Name = "Cái",
-                Type = "Count"
+                Symbol = "cái",
+                Type = "Count",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitCanId,
                 Name = "Lon",
-                Type = "Count"
+                Symbol = "lon",
+                Type = "Count",
+                CreatedAt = now,
+                UpdatedAt = now
             },
             new()
             {
                 UnitId = UnitBagId,
                 Name = "Túi",
-                Type = "Count"
+                Symbol = "túi",
+                Type = "Count",
+                CreatedAt = now,
+                UpdatedAt = now
             }
         };
 
-        await context.UnitOfMeasures.AddRangeAsync(units);
+        var requiredUnitIds = units.Select(x => x.UnitId).ToArray();
+        var existingIds = await context.UnitOfMeasures
+            .Where(u => requiredUnitIds.Contains(u.UnitId))
+            .Select(u => u.UnitId)
+            .ToListAsync();
+
+        foreach (var unit in units)
+        {
+            if (existingIds.Contains(unit.UnitId))
+                continue;
+
+            await context.UnitOfMeasures.AddAsync(unit);
+        }
+
         await context.SaveChangesAsync();
     }
 
@@ -691,6 +736,7 @@ public static class DataSeeder
                 ProductId = Product1Id,
                 CategoryId = CategoryDairyId,
                 SupermarketId = SupermarketCoopMartId,
+                UnitId = UnitLiterId,
                 Name = "Sữa tươi Vinamilk 1L",
                 Barcode = "8934673111119",
                 Sku = "8934673111119",
@@ -706,6 +752,7 @@ public static class DataSeeder
                 ProductId = Product2Id,
                 CategoryId = CategoryDairyId,
                 SupermarketId = SupermarketCoopMartId,
+                UnitId = UnitBoxId,
                 Name = "Sữa chua Vinamilk có đường",
                 Barcode = "8934673222226",
                 Sku = "8934673222226",
@@ -721,6 +768,7 @@ public static class DataSeeder
                 ProductId = Product3Id,
                 CategoryId = CategoryMeatSeafoodId,
                 SupermarketId = SupermarketCoopMartId,
+                UnitId = UnitKgId,
                 Name = "Thịt heo ba chỉ",
                 Barcode = "8934673333333",
                 Sku = "8934673333333",
@@ -736,6 +784,7 @@ public static class DataSeeder
                 ProductId = Product4Id,
                 CategoryId = CategoryVegetableId,
                 SupermarketId = SupermarketBigCId,
+                UnitId = UnitKgId,
                 Name = "Rau cải xanh hữu cơ",
                 Barcode = "8934673444440",
                 Sku = "8934673444440",
@@ -751,6 +800,7 @@ public static class DataSeeder
                 ProductId = Product5Id,
                 CategoryId = CategoryVegetableId,
                 SupermarketId = SupermarketBigCId,
+                UnitId = UnitKgId,
                 Name = "Cà chua Đà Lạt",
                 Barcode = "8934673555557",
                 Sku = "8934673555557",
@@ -766,6 +816,7 @@ public static class DataSeeder
                 ProductId = Product6Id,
                 CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketBigCId,
+                UnitId = UnitPackId,
                 Name = "Bánh mì sandwich Kinh Đô",
                 Barcode = "8934673666664",
                 Sku = "8934673666664",
@@ -781,6 +832,7 @@ public static class DataSeeder
                 ProductId = Product7Id,
                 CategoryId = CategoryDairyId,
                 SupermarketId = SupermarketVinMartId,
+                UnitId = UnitLiterId,
                 Name = "Nước cam ép Tropicana 1L",
                 Barcode = "8934673777771",
                 Sku = "8934673777771",
@@ -796,6 +848,7 @@ public static class DataSeeder
                 ProductId = Product8Id,
                 CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketVinMartId,
+                UnitId = UnitPackId,
                 Name = "Bánh quy Oreo 264g",
                 Barcode = "8934673888888",
                 Sku = "8934673888888",
@@ -811,6 +864,7 @@ public static class DataSeeder
                 ProductId = Product9Id,
                 CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketVinMartId,
+                UnitId = UnitPackId,
                 Name = "Mì Hảo Hảo tôm chua cay",
                 Barcode = "8934673999995",
                 Sku = "8934673999995",
@@ -826,6 +880,7 @@ public static class DataSeeder
                 ProductId = Product10Id,
                 CategoryId = CategoryMeatSeafoodId,
                 SupermarketId = SupermarketCoopMartId,
+                UnitId = UnitKgId,
                 Name = "Cá hồi phi lê đông lạnh",
                 Barcode = "8934673101010",
                 Sku = "8934673101010",
@@ -841,6 +896,7 @@ public static class DataSeeder
                 ProductId = Product11Id,
                 CategoryId = CategoryMeatSeafoodId,
                 SupermarketId = SupermarketCoopMartId,
+                UnitId = UnitCanId,
                 Name = "Cá ngừ đóng hộp Vissan 170g",
                 Barcode = "8934673121212",
                 Sku = "8934673121212",
@@ -856,6 +912,7 @@ public static class DataSeeder
                 ProductId = Product12Id,
                 CategoryId = CategoryDryFoodId,
                 SupermarketId = SupermarketBigCId,
+                UnitId = UnitCanId,
                 Name = "Đậu đỏ hầm đường lon 380g",
                 Barcode = "8934673131313",
                 Sku = "8934673131313",
@@ -1869,6 +1926,117 @@ public static class DataSeeder
         await context.OrderItems.AddRangeAsync(generatedItems);
         await context.PackagingRecords.AddAsync(packagingRecord);
         await context.PackagingRecords.AddRangeAsync(generatedPackagingRecords);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedPackagingConfirmOrdersAsync(ApplicationDbContext context)
+    {
+        var confirmExists = await context.Orders.AnyAsync(o => o.OrderId == PackagingOrderConfirmId);
+        var terminalExists = await context.Orders.AnyAsync(o => o.OrderId == PackagingOrderTerminalId);
+        if (confirmExists && terminalExists)
+            return;
+
+        var activeLots = await context.StockLots
+            .Where(x => x.Status == ProductState.Published)
+            .OrderBy(x => x.ExpiryDate)
+            .Take(2)
+            .ToListAsync();
+
+        if (activeLots.Count < 2)
+            return;
+
+        var now = DateTime.UtcNow;
+        var ordersToAdd = new List<Order>();
+        var itemsToAdd = new List<OrderItem>();
+
+        if (!confirmExists)
+        {
+            var order = new Order
+            {
+                OrderId = PackagingOrderConfirmId,
+                OrderCode = "PKG-CONFIRM-001",
+                UserId = VendorUserId1,
+                TimeSlotId = TimeSlotMorningId,
+                CollectionId = CollectionPointDistrict1Id,
+                AddressId = null,
+                DeliveryType = DeliveryMethod.Pickup,
+                TotalAmount = 120000,
+                DiscountAmount = 0,
+                FinalAmount = 120000,
+                DeliveryFee = 0,
+                SystemUsageFeeAmount = 0,
+                Status = OrderState.Paid,
+                OrderDate = now.AddHours(-1),
+                DeliveryNote = "Seed for confirm-order test (pending items)",
+                CreatedAt = now.AddHours(-1),
+                UpdatedAt = now.AddHours(-1)
+            };
+
+            ordersToAdd.Add(order);
+            itemsToAdd.Add(new OrderItem
+            {
+                OrderItemId = PackagingOrderConfirmItem1Id,
+                OrderId = order.OrderId,
+                LotId = activeLots[0].LotId,
+                Quantity = 1,
+                UnitPrice = 50000,
+                TotalPrice = 50000,
+                PackagingStatus = PackagingState.Pending
+            });
+            itemsToAdd.Add(new OrderItem
+            {
+                OrderItemId = PackagingOrderConfirmItem2Id,
+                OrderId = order.OrderId,
+                LotId = activeLots[1].LotId,
+                Quantity = 1,
+                UnitPrice = 70000,
+                TotalPrice = 70000,
+                PackagingStatus = PackagingState.Pending
+            });
+        }
+
+        if (!terminalExists)
+        {
+            var order = new Order
+            {
+                OrderId = PackagingOrderTerminalId,
+                OrderCode = "PKG-CONFIRM-TERM-001",
+                UserId = VendorUserId1,
+                TimeSlotId = TimeSlotMorningId,
+                CollectionId = CollectionPointDistrict1Id,
+                AddressId = null,
+                DeliveryType = DeliveryMethod.Pickup,
+                TotalAmount = 90000,
+                DiscountAmount = 0,
+                FinalAmount = 90000,
+                DeliveryFee = 0,
+                SystemUsageFeeAmount = 0,
+                Status = OrderState.Paid,
+                OrderDate = now.AddHours(-2),
+                DeliveryNote = "Seed for confirm-order test (terminal item)",
+                CreatedAt = now.AddHours(-2),
+                UpdatedAt = now.AddHours(-2)
+            };
+
+            ordersToAdd.Add(order);
+            itemsToAdd.Add(new OrderItem
+            {
+                OrderItemId = PackagingOrderTerminalItemId,
+                OrderId = order.OrderId,
+                LotId = activeLots[0].LotId,
+                Quantity = 1,
+                UnitPrice = 90000,
+                TotalPrice = 90000,
+                PackagingStatus = PackagingState.Completed,
+                PackagedAt = now.AddHours(-1)
+            });
+        }
+
+        if (ordersToAdd.Count == 0)
+            return;
+
+        await context.Orders.AddRangeAsync(ordersToAdd);
+        await context.OrderItems.AddRangeAsync(itemsToAdd);
         await context.SaveChangesAsync();
     }
 

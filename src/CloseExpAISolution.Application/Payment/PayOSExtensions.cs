@@ -10,6 +10,8 @@ public static class PayOSExtensions
     public static IServiceCollection AddPayOS(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<PayOsSettings>(configuration.GetSection(PayOsSettings.SectionName));
+        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<IPayOsPaymentLinkClient, PayOsSdkPaymentLinkClient>();
         services.AddScoped<IPaymentService, PaymentService>();
         return services;
     }
