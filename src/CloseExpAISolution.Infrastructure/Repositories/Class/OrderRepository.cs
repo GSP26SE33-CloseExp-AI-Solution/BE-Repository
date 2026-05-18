@@ -27,6 +27,7 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.DeliveryTimeSlot)
             .Include(o => o.CollectionPoint)
             .Include(o => o.Promotion)
+            .Include(o => o.Transactions)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.StockLot)
                     .ThenInclude(pl => pl!.Product)

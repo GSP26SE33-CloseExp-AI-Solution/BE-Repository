@@ -24,6 +24,31 @@ public class OrderMappingProfile : Profile
                 src.DeliveryTimeSlot != null ? $"{src.DeliveryTimeSlot.StartTime:hh\\:mm} - {src.DeliveryTimeSlot.EndTime:hh\\:mm}" : null))
             .ForMember(dest => dest.CollectionId, opt => opt.MapFrom(src => src.CollectionId))
             .ForMember(dest => dest.CollectionPointName, opt => opt.MapFrom(src => src.CollectionPoint != null ? src.CollectionPoint.Name : null))
-            .ForMember(dest => dest.OrderItems, opt => opt.MapFrom(src => src.OrderItems));
+            .ForMember(dest => dest.OrderItems, opt => opt.MapFrom(src => src.OrderItems))
+            .ForMember(dest => dest.LatestTransactionId, opt => opt.MapFrom(src =>
+                src.Transactions
+                    .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+                    .Select(t => (Guid?)t.TransactionId)
+                    .FirstOrDefault()))
+            .ForMember(dest => dest.PaymentStatus, opt => opt.MapFrom(src =>
+                src.Transactions
+                    .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+                    .Select(t => t.PaymentStatus.ToString())
+                    .FirstOrDefault()))
+            .ForMember(dest => dest.PaymentMethod, opt => opt.MapFrom(src =>
+                src.Transactions
+                    .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+                    .Select(t => t.PaymentMethod)
+                    .FirstOrDefault()))
+            .ForMember(dest => dest.PayOsOrderCode, opt => opt.MapFrom(src =>
+                src.Transactions
+                    .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+                    .Select(t => t.PayOSOrderCode)
+                    .FirstOrDefault()))
+            .ForMember(dest => dest.CheckoutUrl, opt => opt.MapFrom(src =>
+                src.Transactions
+                    .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+                    .Select(t => t.CheckoutUrl)
+                    .FirstOrDefault()));
     }
 }
