@@ -35,6 +35,10 @@ services:
         sync: false
       - key: PayOsSettings__ChecksumKey
         sync: false
+      - key: AIService__BaseUrl
+        value: https://ai-repository-mj8h.onrender.com
+      - key: AIService__ApiKey
+        sync: false
       - key: EmailSettings__SmtpServer
         sync: false
       - key: EmailSettings__SmtpPort
