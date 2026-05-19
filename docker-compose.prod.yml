@@ -15,6 +15,9 @@ services:
       - Jwt__Issuer=${JWT__ISSUER}
       - Jwt__Audience=${JWT__AUDIENCE}
       - Jwt__ExpiryInMinutes=${JWT__EXPIRYINMINUTES:-60}
+      - AIService__BaseUrl=${AISERVICE__BASEURL:-https://ai-repository-mj8h.onrender.com}
+      - AIService__ApiKey=${AISERVICE__APIKEY}
+      - AIService__TimeoutSeconds=${AISERVICE__TIMEOUTSECONDS:-180}
       - GoogleAuth__ClientId=${GOOGLEAUTH__CLIENTID}
       - GoogleAuth__ClientSecret=${GOOGLEAUTH__CLIENTSECRET}
       - Mapbox__AccessToken=${MAPBOX__ACCESSTOKEN}
