@@ -102,6 +102,7 @@ public class ProductMappingProfile : Profile
         CreateMap<CreateProductRequestDto, Product>()
             .ForMember(dest => dest.ProductId, opt => opt.MapFrom(_ => Guid.NewGuid()))
             .ForMember(dest => dest.Status, opt => opt.MapFrom(_ => ProductState.Hidden))
+            .ForMember(dest => dest.IsFeatured, opt => opt.MapFrom(src => src.isFeatured))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
@@ -113,6 +114,7 @@ public class ProductMappingProfile : Profile
 
         CreateMap<UpdateProductRequestDto, Product>()
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))
+            .ForMember(dest => dest.IsFeatured, opt => opt.MapFrom(src => src.isFeatured))
             .ForMember(dest => dest.ProductId, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())

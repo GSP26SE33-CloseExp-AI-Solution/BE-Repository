@@ -165,6 +165,8 @@ public class ProductService : IProductService
         var product = _mapper.Map<Product>(request);
 
         var defaultUnit = await _context.UnitOfMeasures.FirstOrDefaultAsync(cancellationToken);
+        if (defaultUnit != null)
+            product.UnitId = defaultUnit.UnitId;
 
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
         {
@@ -745,9 +747,11 @@ public class ProductService : IProductService
             detail.SuggestedPrice = pricing.SuggestedPrice;
         }
 
-        detail.Quantity = await _context.StockLots
+        detail.Quantity = (await _context.StockLots
             .Where(pl => pl.ProductId == productId)
-            .SumAsync(pl => pl.Quantity);
+            .Select(pl => pl.Quantity)
+            .ToListAsync(CancellationToken.None))
+            .Sum();
 
         var nearestLot = await _context.StockLots
             .Where(pl => pl.ProductId == productId && pl.ExpiryDate >= DateTime.UtcNow)
