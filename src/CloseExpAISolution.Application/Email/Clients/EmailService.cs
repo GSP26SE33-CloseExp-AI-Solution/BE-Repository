@@ -20,25 +20,13 @@ namespace CloseExpAISolution.Application.Email.Clients
 
         public async Task SendEmailAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
         {
-            if (!_emailSettings.IsConfigured)
-            {
-                _logger.LogError(
-                    "SMTP is not configured (server={Server}, from={FromEmail}). Cannot send to {ToEmail}",
-                    _emailSettings.SmtpServer,
-                    _emailSettings.FromEmail,
-                    toEmail);
-                throw new InvalidOperationException(
-                    "Dịch vụ email chưa được cấu hình trên máy chủ. Vui lòng liên hệ quản trị viên.");
-            }
-
             try
             {
                 using var client = new SmtpClient(_emailSettings.SmtpServer, _emailSettings.SmtpPort)
                 {
                     Credentials = new NetworkCredential(_emailSettings.SmtpUsername, _emailSettings.SmtpPassword),
                     EnableSsl = true,
-                    DeliveryMethod = SmtpDeliveryMethod.Network,
-                    Timeout = 20_000,
+                    DeliveryMethod = SmtpDeliveryMethod.Network
                 };
 
                 var mailMessage = new MailMessage
@@ -73,8 +61,7 @@ namespace CloseExpAISolution.Application.Email.Clients
                 {
                     Credentials = new NetworkCredential(_emailSettings.SmtpUsername, _emailSettings.SmtpPassword),
                     EnableSsl = true,
-                    DeliveryMethod = SmtpDeliveryMethod.Network,
-                    Timeout = 20_000,
+                    DeliveryMethod = SmtpDeliveryMethod.Network
                 };
 
                 using var mailMessage = new MailMessage

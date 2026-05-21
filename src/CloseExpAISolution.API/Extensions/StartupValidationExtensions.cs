@@ -22,10 +22,8 @@ public static class StartupValidationExtensions
             ValidateProductionValue("GoogleAuth:ClientId", config["GoogleAuth:ClientId"]);
             ValidateProductionValue("GoogleAuth:ClientSecret", config["GoogleAuth:ClientSecret"]);
             ValidateProductionValue("Mapbox:AccessToken", config["Mapbox:AccessToken"]);
-            ValidateProductionValue("EmailSettings:SmtpServer", config["EmailSettings:SmtpServer"]);
             ValidateProductionValue("EmailSettings:SmtpUsername", config["EmailSettings:SmtpUsername"]);
             ValidateProductionValue("EmailSettings:SmtpPassword", config["EmailSettings:SmtpPassword"]);
-            ValidateProductionValue("EmailSettings:FromEmail", config["EmailSettings:FromEmail"]);
             ValidateProductionValue("R2Storage:AccessKeyId", config["R2Storage:AccessKeyId"]);
             ValidateProductionValue("R2Storage:SecretAccessKey", config["R2Storage:SecretAccessKey"]);
         }

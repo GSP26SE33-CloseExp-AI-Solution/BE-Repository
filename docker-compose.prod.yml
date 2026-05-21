@@ -21,6 +21,7 @@ services:
       - GoogleAuth__ClientId=${GOOGLEAUTH__CLIENTID}
       - GoogleAuth__ClientSecret=${GOOGLEAUTH__CLIENTSECRET}
       - Mapbox__AccessToken=${MAPBOX__ACCESSTOKEN}
+      - EmailSettings__ResendApiKey=${EMAILSETTINGS__RESENDAPIKEY:-}
       - EmailSettings__SmtpServer=${EMAILSETTINGS__SMTPSERVER}
       - EmailSettings__SmtpPort=${EMAILSETTINGS__SMTPPORT:-587}
       - EmailSettings__SmtpUsername=${EMAILSETTINGS__SMTPUSERNAME}
