@@ -55,6 +55,7 @@ public class AvailableStocklotDto
     public Guid ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string? ProductImageUrl { get; set; }
+    public string? ProductImagePreSignedUrl { get; set; }
     public string Barcode { get; set; } = string.Empty;
     public string Brand { get; set; } = string.Empty;
     public Guid SupermarketId { get; set; }

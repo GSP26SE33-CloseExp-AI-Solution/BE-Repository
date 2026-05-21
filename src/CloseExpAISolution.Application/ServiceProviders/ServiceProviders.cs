@@ -80,7 +80,7 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public ISupermarketStaffService MarketStaffService => _marketStaffService ??= new SupermarketStaffService(_unitOfWork, _mapper);
         public ISupermarketService SupermarketService => _supermarketService ??= new SupermarketService(_unitOfWork, _mapper);
         public ISupermarketRegistrationService SupermarketRegistrationService => _supermarketRegistrationService ??= ActivatorUtilities.CreateInstance<SupermarketRegistrationService>(_serviceProvider);
-        public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork);
+        public IProductImageService ProductImageService => _productImageService ??= new ProductImageService(_unitOfWork, R2StorageService);
         public IAIVerificationLogService AIVerificationLogService => _aIVerificationLogService ??= new AIVerificationLogService(_unitOfWork);
         public IAuthService AuthService => _authService ??= ActivatorUtilities.CreateInstance<AuthService>(_serviceProvider);
         public IUserService UserService => _userService ??= ActivatorUtilities.CreateInstance<UserService>(_serviceProvider);

@@ -1,10 +1,14 @@
 using System.Linq.Expressions;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Domain.Entities;
 
 namespace CloseExpAISolution.Application.Services.Interface;
 
 public interface IProductImageService
 {
+    Task<CustomerProductImageResponseDto?> GetPrimaryImageForCustomerAsync(Guid productId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CustomerProductImageResponseDto>> GetImagesForCustomerAsync(Guid productId, CancellationToken cancellationToken = default);
+
     Task<ProductImage?> GetByIdAsync(int id);
     Task<IEnumerable<ProductImage>> GetAllAsync();
     Task<IEnumerable<ProductImage>> FindAsync(Expression<Func<ProductImage, bool>> predicate);

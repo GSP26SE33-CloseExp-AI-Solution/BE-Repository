@@ -120,4 +120,45 @@ public class CustomersController : ControllerBase
             result,
             $"Tìm thấy {totalCount} lô hàng khả dụng dựa trên mô tả AI"));
     }
+
+    [HttpGet("products/{productId:guid}/images")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CustomerProductImageResponseDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CustomerProductImageResponseDto>>>> GetProductImages(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var images = await _services.ProductImageService.GetImagesForCustomerAsync(productId, cancellationToken);
+            return Ok(ApiResponse<IEnumerable<CustomerProductImageResponseDto>>.SuccessResponse(
+                images,
+                images.Any() ? $"Tìm thấy {images.Count()} ảnh sản phẩm" : "Sản phẩm chưa có ảnh"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [HttpGet("products/{productId:guid}/images/primary")]
+    [ProducesResponseType(typeof(ApiResponse<CustomerProductImageResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<CustomerProductImageResponseDto>>> GetProductPrimaryImage(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var image = await _services.ProductImageService.GetPrimaryImageForCustomerAsync(productId, cancellationToken);
+            if (image == null)
+                return NotFound(ApiResponse<object>.ErrorResponse("Không tìm thấy ảnh sản phẩm"));
+
+            return Ok(ApiResponse<CustomerProductImageResponseDto>.SuccessResponse(image, "Lấy ảnh chính thành công"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
 }

@@ -81,6 +81,7 @@ public static class ServiceCollectionExtensions
 
         // Register Product workflow services
         services.AddScoped<IR2StorageService, R2StorageService>();
+        services.AddScoped<IProductImageService, ProductImageService>();
         services.AddScoped<IMarketPriceService, MarketPriceService>();
         services.AddScoped<IBarcodeLookupService, BarcodeLookupService>();
         services.AddScoped<IAIProductService, AIProductService>();

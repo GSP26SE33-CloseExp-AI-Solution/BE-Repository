@@ -26,6 +26,9 @@ public class ProductService : IProductService
     private readonly ILogger<ProductService> _logger;
     private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
     private readonly IUnitConversionRateService _unitConversion;
+    private readonly IR2StorageService _r2Storage;
+
+    private static readonly TimeSpan ProductImagePresignExpiry = TimeSpan.FromHours(1);
 
     public ProductService(
         IUnitOfWork unitOfWork,
@@ -34,7 +37,8 @@ public class ProductService : IProductService
         IAIServiceClient aiServiceClient,
         ILogger<ProductService> logger,
         PurchaseUnitOrderHelper purchaseUnitHelper,
-        IUnitConversionRateService unitConversion)
+        IUnitConversionRateService unitConversion,
+        IR2StorageService r2Storage)
     {
         _unitOfWork = unitOfWork;
         _context = context;
@@ -43,6 +47,7 @@ public class ProductService : IProductService
         _logger = logger;
         _purchaseUnitHelper = purchaseUnitHelper;
         _unitConversion = unitConversion;
+        _r2Storage = r2Storage;
     }
 
     public Task<IEnumerable<Product>> GetAllAsync() => _unitOfWork.ProductRepository.GetAllAsync();
@@ -451,9 +456,11 @@ public class ProductService : IProductService
 #pragma warning disable CS8602
         var allStockLots = await baseQuery
             .Include(l => l.Product)
-            .ThenInclude(p => p.CategoryRef)
+            .ThenInclude(p => p!.ProductImages)
             .Include(l => l.Product)
-            .ThenInclude(p => p.ProductDetail)
+            .ThenInclude(p => p!.CategoryRef)
+            .Include(l => l.Product)
+            .ThenInclude(p => p!.ProductDetail)
             .Include(l => l.Unit)
             .ToListAsync(cancellationToken);
 #pragma warning restore CS8602
@@ -566,6 +573,8 @@ public class ProductService : IProductService
             })
             .ToList();
 
+        ApplyPresignedProductImageUrls(items);
+
         // Add days remaining
         foreach (var item in items)
         {
@@ -655,6 +664,8 @@ public class ProductService : IProductService
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        ApplyPresignedProductImageUrls(items);
 
         foreach (var item in items)
         {
@@ -1050,6 +1061,19 @@ public class ProductService : IProductService
             .FirstAsync(l => l.LotId == lotId, cancellationToken);
 
         return _mapper.Map<StockLotDetailDto>(refreshed);
+    }
+
+    private void ApplyPresignedProductImageUrls(IEnumerable<AvailableStocklotDto> items)
+    {
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.ProductImageUrl))
+                continue;
+
+            item.ProductImagePreSignedUrl = _r2Storage.GetPreSignedUrlForImage(
+                item.ProductImageUrl,
+                ProductImagePresignExpiry);
+        }
     }
 }
 
