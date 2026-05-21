@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using CloseExpAISolution.Application.Email.Clients;
 using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Email.Jobs;
@@ -17,6 +18,23 @@ namespace CloseExpAISolution.Application.Email.Extensions
 
             services.AddSingleton(emailSettings);
             services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+
+            services.AddHttpClient(EmailHttpClients.Resend, (sp, client) =>
+            {
+                var settings = sp.GetRequiredService<EmailSettings>();
+                client.BaseAddress = new Uri("https://api.resend.com/");
+                client.Timeout = TimeSpan.FromSeconds(30);
+                if (!string.IsNullOrWhiteSpace(settings.ResendApiKey))
+                {
+                    client.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", settings.ResendApiKey.Trim());
+                }
+            });
+
+            services.AddSingleton<EmailOutboxQueue>();
+            services.AddSingleton<IEmailOutboxQueue>(sp => sp.GetRequiredService<EmailOutboxQueue>());
+            services.AddHostedService<EmailOutboxBackgroundService>();
+
             services.AddTransient<IEmailService, EmailService>();
 
             services.AddQuartz(q =>

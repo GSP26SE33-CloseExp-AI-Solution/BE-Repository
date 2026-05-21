@@ -7,6 +7,7 @@ using CloseExpAISolution.Application.Auth;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Email;
 using CloseExpAISolution.Application.Email.Interfaces;
 using CloseExpAISolution.Application.Mapbox.Interfaces;
 using CloseExpAISolution.Application.Services.Interface;
@@ -26,6 +27,7 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
+    private readonly IEmailOutboxQueue _emailOutboxQueue;
     private readonly ILogger<AuthService> _logger;
     private readonly IMapper _mapper;
     private readonly IMapboxService _mapboxService;
@@ -38,11 +40,19 @@ public class AuthService : IAuthService
     private const int MaxOtpFailedAttempts = 5;
     private const string InternalDefaultPasswordConfigKey = SystemConfigKeys.InternalStaffDefaultPassword;
 
-    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, IEmailService emailService, ILogger<AuthService> logger, IMapper mapper, IMapboxService mapboxService)
+    public AuthService(
+        IUnitOfWork unitOfWork,
+        IConfiguration configuration,
+        IEmailService emailService,
+        IEmailOutboxQueue emailOutboxQueue,
+        ILogger<AuthService> logger,
+        IMapper mapper,
+        IMapboxService mapboxService)
     {
         _unitOfWork = unitOfWork;
         _configuration = configuration;
         _emailService = emailService;
+        _emailOutboxQueue = emailOutboxQueue;
         _logger = logger;
         _mapper = mapper;
         _mapboxService = mapboxService;
@@ -130,7 +140,7 @@ public class AuthService : IAuthService
                 return Error("Đăng ký thất bại. Vui lòng thử lại sau");
             }
 
-            await SendOtpEmailAsync(existing.Email, otpRetry, existing.FullName);
+            EnqueueOtpEmail(existing.Email, otpRetry, existing.FullName);
 
             return ApiResponse<AuthResponse>.SuccessWithMessage(
                 "Đã cập nhật thông tin đăng ký. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
@@ -156,7 +166,7 @@ public class AuthService : IAuthService
             return Error("Đăng ký thất bại. Vui lòng thử lại sau");
         }
 
-        await SendOtpEmailAsync(user.Email, otp, user.FullName);
+        EnqueueOtpEmail(user.Email, otp, user.FullName);
 
         return ApiResponse<AuthResponse>.SuccessWithMessage(
             "Đăng ký thành công. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
@@ -205,7 +215,7 @@ public class AuthService : IAuthService
             }
 
             await SendInternalAccountOnboardingEmailAsync(existing.Email, existing.FullName, resolvedPassword, roleLabel);
-            await SendOtpEmailAsync(existing.Email, otpRetry, existing.FullName);
+            EnqueueOtpEmail(existing.Email, otpRetry, existing.FullName);
             return ApiResponse<AuthResponse>.SuccessWithMessage(
                 "Đã cập nhật tài khoản nội bộ chưa xác minh. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
         }
@@ -235,7 +245,7 @@ public class AuthService : IAuthService
         }
 
         await SendInternalAccountOnboardingEmailAsync(user.Email, user.FullName, resolvedPassword, roleLabel);
-        await SendOtpEmailAsync(user.Email, otp, user.FullName);
+        EnqueueOtpEmail(user.Email, otp, user.FullName);
         return ApiResponse<AuthResponse>.SuccessWithMessage(
             "Tạo tài khoản nhân viên nội bộ thành công. Vui lòng kiểm tra email để nhập mã OTP xác nhận");
     }
@@ -488,7 +498,7 @@ public class AuthService : IAuthService
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
-        await SendOtpEmailAsync(user.Email, otp, user.FullName);
+        EnqueueOtpEmail(user.Email, otp, user.FullName);
 
         return ApiResponse<bool>.SuccessResponse(true, "Đã gửi lại mã OTP. Vui lòng kiểm tra email");
     }
@@ -521,7 +531,7 @@ public class AuthService : IAuthService
         userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 
-        await SendPasswordResetOtpEmailAsync(user.Email, otp, user.FullName);
+        EnqueueOtpEmail(user.Email, otp, user.FullName, isPasswordReset: true);
 
         return ApiResponse<bool>.SuccessResponse(true, "Nếu email tồn tại, mã OTP đã được gửi");
     }
@@ -1067,54 +1077,48 @@ public class AuthService : IAuthService
 
     #region Email Templates
 
-    private async Task SendOtpEmailAsync(string email, string otp, string fullName)
+    private void EnqueueOtpEmail(string email, string otp, string fullName, bool isPasswordReset = false)
     {
-        var subject = "CloseExp AI - Xác minh email của bạn";
+        var subject = isPasswordReset
+            ? "CloseExp AI - Đặt lại mật khẩu"
+            : "CloseExp AI - Xác minh email của bạn";
+
+        var intro = isPasswordReset
+            ? "Bạn đã yêu cầu đặt lại mật khẩu. Sử dụng mã OTP bên dưới:"
+            : "Cảm ơn bạn đã đăng ký tài khoản. Vui lòng sử dụng mã OTP bên dưới để xác minh email:";
+
+        var accent = isPasswordReset ? "#FF5722" : "#4CAF50";
+        var headerGradient = isPasswordReset
+            ? "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+            : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+
+        var footerNote = isPasswordReset
+            ? "Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này."
+            : "Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.";
+
         var body = $@"
             <html>
             <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
-                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+                <div style='background: {headerGradient}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
                     <h1 style='color: white; margin: 0;'>CloseExp AI</h1>
                 </div>
                 <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
                     <h2>Xin chào {fullName}!</h2>
-                    <p>Cảm ơn bạn đã đăng ký tài khoản. Vui lòng sử dụng mã OTP bên dưới để xác minh email:</p>
+                    <p>{intro}</p>
                     <div style='text-align: center; margin: 30px 0;'>
-                        <span style='font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #4CAF50; color: white; padding: 15px 30px; border-radius: 8px;'>{otp}</span>
+                        <span style='font-size: 32px; font-weight: bold; letter-spacing: 8px; background: {accent}; color: white; padding: 15px 30px; border-radius: 8px;'>{otp}</span>
                     </div>
                     <p style='color: #666;'>Mã OTP có hiệu lực trong <strong>{OtpExpiryMinutes} phút</strong>.</p>
-                    <p style='color: #999; font-size: 12px;'>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+                    <p style='color: #999; font-size: 12px;'>{footerNote}</p>
                 </div>
             </body>
             </html>";
 
-        try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
-        catch (Exception ex) { _logger.LogError(ex, "Failed to send OTP email to {Email}", email); }
-    }
-
-    private async Task SendPasswordResetOtpEmailAsync(string email, string otp, string fullName)
-    {
-        var subject = "CloseExp AI - Đặt lại mật khẩu";
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
-                <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
-                    <h1 style='color: white; margin: 0;'>CloseExp AI</h1>
-                </div>
-                <div style='padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;'>
-                    <h2>Xin chào {fullName}!</h2>
-                    <p>Bạn đã yêu cầu đặt lại mật khẩu. Sử dụng mã OTP bên dưới:</p>
-                    <div style='text-align: center; margin: 30px 0;'>
-                        <span style='font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #FF5722; color: white; padding: 15px 30px; border-radius: 8px;'>{otp}</span>
-                    </div>
-                    <p style='color: #666;'>Mã OTP có hiệu lực trong <strong>{OtpExpiryMinutes} phút</strong>.</p>
-                    <p style='color: #999; font-size: 12px;'>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
-                </div>
-            </body>
-            </html>";
-
-        try { await _emailService.SendEmailAsync(email, subject, body, CancellationToken.None); }
-        catch (Exception ex) { _logger.LogError(ex, "Failed to send password reset email to {Email}", email); }
+        _ = _emailOutboxQueue.EnqueueAsync(new EmailOutboxMessage(email, subject, body));
+        _logger.LogInformation(
+            "OTP email queued for {Email} (passwordReset={IsPasswordReset})",
+            email,
+            isPasswordReset);
     }
 
     private async Task SendInternalAccountOnboardingEmailAsync(
