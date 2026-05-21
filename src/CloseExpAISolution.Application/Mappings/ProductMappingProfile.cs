@@ -11,7 +11,11 @@ public class ProductMappingProfile : Profile
 {
     public ProductMappingProfile()
     {
-        CreateMap<ProductImage, ProductImageDto>();
+        CreateMap<ProductImage, ProductImageDto>()
+            .ForMember(dest => dest.PreSignedUrl, opt => opt.MapFrom<ProductImagePreSignedUrlResolver>());
+
+        CreateMap<ProductImage, CustomerProductImageResponseDto>()
+            .ForMember(dest => dest.PreSignedUrl, opt => opt.MapFrom<ProductImagePreSignedUrlResolver>());
 
         CreateMap<StockLot, StockLotDetailDto>()
             .ForMember(dest => dest.UnitId, opt => opt.MapFrom(src => src.Unit != null ? src.Unit.UnitId : Guid.Empty))

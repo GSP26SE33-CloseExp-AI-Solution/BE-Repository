@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
@@ -9,15 +10,13 @@ namespace CloseExpAISolution.Application.Services.Class;
 
 public class ProductImageService : IProductImageService
 {
-    private static readonly TimeSpan PresignExpiry = TimeSpan.FromHours(1);
-
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IR2StorageService _r2Storage;
+    private readonly IMapper _mapper;
 
-    public ProductImageService(IUnitOfWork unitOfWork, IR2StorageService r2Storage)
+    public ProductImageService(IUnitOfWork unitOfWork, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
-        _r2Storage = r2Storage;
+        _mapper = mapper;
     }
 
     public async Task<CustomerProductImageResponseDto?> GetPrimaryImageForCustomerAsync(
@@ -32,7 +31,7 @@ public class ProductImageService : IProductImageService
             .ToList();
 
         var primary = images.FirstOrDefault();
-        return primary == null ? null : MapToCustomerResponse(primary);
+        return primary == null ? null : _mapper.Map<CustomerProductImageResponseDto>(primary);
     }
 
     public async Task<IEnumerable<CustomerProductImageResponseDto>> GetImagesForCustomerAsync(
@@ -46,7 +45,7 @@ public class ProductImageService : IProductImageService
             .ThenBy(pi => pi.CreatedAt)
             .ToList();
 
-        return images.Select(MapToCustomerResponse);
+        return _mapper.Map<IEnumerable<CustomerProductImageResponseDto>>(images);
     }
 
     private async Task EnsureProductVisibleToCustomerAsync(Guid productId, CancellationToken cancellationToken)
@@ -58,17 +57,6 @@ public class ProductImageService : IProductImageService
         if (product.Status == ProductState.Hidden || product.Status == ProductState.Deleted)
             throw new KeyNotFoundException("Không tìm thấy sản phẩm");
     }
-
-    private CustomerProductImageResponseDto MapToCustomerResponse(ProductImage image) =>
-        new()
-        {
-            ProductImageId = image.ProductImageId,
-            ProductId = image.ProductId,
-            ImageUrl = image.ImageUrl,
-            PreSignedUrl = _r2Storage.GetPreSignedUrlForImage(image.ImageUrl, PresignExpiry),
-            IsPrimary = image.IsPrimary,
-            CreatedAt = image.CreatedAt
-        };
 
     public Task<ProductImage?> GetByIdAsync(int id) => _unitOfWork.ProductImageRepository.GetByIdAsync(id);
     public Task<IEnumerable<ProductImage>> GetAllAsync() => _unitOfWork.ProductImageRepository.GetAllAsync();
