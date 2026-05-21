@@ -23,6 +23,12 @@ services:
         value: CloseExpAI_Audience
       - key: Jwt__ExpiryInMinutes
         value: "60"
+      - key: AIService__BaseUrl
+        value: https://ai-repository-mj8h.onrender.com
+      - key: AIService__ApiKey
+        sync: false
+      - key: AIService__TimeoutSeconds
+        value: "180"
       - key: GoogleAuth__ClientId
         sync: false
       - key: GoogleAuth__ClientSecret
@@ -38,6 +44,8 @@ services:
       - key: AIService__BaseUrl
         value: https://ai-repository-mj8h.onrender.com
       - key: AIService__ApiKey
+        sync: false
+      - key: EmailSettings__ResendApiKey
         sync: false
       - key: EmailSettings__SmtpServer
         sync: false
