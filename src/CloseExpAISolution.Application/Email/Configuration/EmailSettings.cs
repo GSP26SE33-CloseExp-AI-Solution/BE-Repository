@@ -9,11 +9,18 @@ namespace CloseExpAISolution.Application.Email.Configuration
         public string FromEmail { get; set; } = string.Empty;
         public string FromName { get; set; } = string.Empty;
 
-        public bool IsConfigured =>
+        public string? ResendApiKey { get; set; }
+
+        public bool UseResend => !string.IsNullOrWhiteSpace(ResendApiKey);
+
+        public bool IsSmtpConfigured =>
             !string.IsNullOrWhiteSpace(SmtpServer) &&
             !string.IsNullOrWhiteSpace(SmtpUsername) &&
             !string.IsNullOrWhiteSpace(SmtpPassword) &&
-            !string.IsNullOrWhiteSpace(FromEmail) &&
             !SmtpServer.Contains("example.com", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsConfigured =>
+            (UseResend && !string.IsNullOrWhiteSpace(FromEmail)) ||
+            (IsSmtpConfigured && !string.IsNullOrWhiteSpace(FromEmail));
     }
 }
