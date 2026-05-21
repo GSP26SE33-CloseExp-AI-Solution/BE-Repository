@@ -29,5 +29,8 @@ public class AIServiceSettings
 
         if (MaxImageSizeMB <= 0)
             throw new ArgumentException("AIService:MaxImageSizeMB must be positive");
+
+        if (string.IsNullOrWhiteSpace(ApiKey))
+            throw new ArgumentException("AIService:ApiKey is required for authenticated AI service calls");
     }
 }

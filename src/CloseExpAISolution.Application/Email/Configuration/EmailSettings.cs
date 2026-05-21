@@ -8,5 +8,12 @@ namespace CloseExpAISolution.Application.Email.Configuration
         public string SmtpPassword { get; set; } = string.Empty;
         public string FromEmail { get; set; } = string.Empty;
         public string FromName { get; set; } = string.Empty;
+
+        public bool IsConfigured =>
+            !string.IsNullOrWhiteSpace(SmtpServer) &&
+            !string.IsNullOrWhiteSpace(SmtpUsername) &&
+            !string.IsNullOrWhiteSpace(SmtpPassword) &&
+            !string.IsNullOrWhiteSpace(FromEmail) &&
+            !SmtpServer.Contains("example.com", StringComparison.OrdinalIgnoreCase);
     }
 }

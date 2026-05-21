@@ -36,8 +36,6 @@ public static class DataSeeder
 
     private static readonly Guid UnitKgId = Guid.Parse("aaaa0001-0001-0001-0001-000000000001");
     private static readonly Guid UnitGramId = Guid.Parse("aaaa0002-0002-0002-0002-000000000002");
-    private static readonly Guid UnitLiterId = Guid.Parse("aaaa0003-0003-0003-0003-000000000003");
-    private static readonly Guid UnitMlId = Guid.Parse("aaaa0004-0004-0004-0004-000000000004");
     private static readonly Guid UnitBoxId = Guid.Parse("aaaa0005-0005-0005-0005-000000000005");
     private static readonly Guid UnitBottleId = Guid.Parse("aaaa0006-0006-0006-0006-000000000006");
     private static readonly Guid UnitPackId = Guid.Parse("aaaa0007-0007-0007-0007-000000000007");
@@ -785,119 +783,160 @@ public static class DataSeeder
 
     private static async Task SeedUnitsAsync(ApplicationDbContext context)
     {
-        if (await context.UnitOfMeasures.AnyAsync(x => x.UnitId == UnitKgId))
+        await EnsureUnitCatalogAsync(context);
+    }
+
+    private static async Task EnsureUnitCatalogAsync(ApplicationDbContext context)
+    {
+        var needsCatalogReset =
+            !await context.UnitOfMeasures.AnyAsync() ||
+            await context.UnitOfMeasures.AnyAsync(x =>
+                x.Type == "Volume" ||
+                x.Type == "Weight" ||
+                x.Type == "Count" ||
+                x.Name == "Kg" ||
+                x.Name == "Gram");
+
+        if (!needsCatalogReset)
             return;
 
+        await ResetUnitMeasureRelatedDataAsync(context);
+
         var now = DateTime.UtcNow;
-        var units = new List<UnitOfMeasure>
+        foreach (var unit in BuildUnitCatalog(now))
         {
-            new()
+            var existing = await context.UnitOfMeasures.FindAsync(unit.UnitId);
+            if (existing is null)
             {
-                UnitId = UnitKgId,
-                Name = "Kg",
-                Type = "Weight",
-                Symbol = "kg",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitGramId,
-                Name = "Gram",
-                Type = "Weight",
-                Symbol = "g",
-                ConversionRate = 0.001m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-
-            new()
-            {
-                UnitId = UnitLiterId,
-                Name = "Lít",
-                Type = "Volume",
-                Symbol = "L",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitMlId,
-                Name = "ml",
-                Type = "Volume",
-                Symbol = "ml",
-                ConversionRate = 0.001m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-
-            new()
-            {
-                UnitId = UnitBoxId,
-                Name = "Hộp",
-                Type = "Count",
-                Symbol = "hộp",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitBottleId,
-                Name = "Chai",
-                Type = "Count",
-                Symbol = "chai",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitPackId,
-                Name = "Gói",
-                Type = "Count",
-                Symbol = "gói",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitPieceId,
-                Name = "Cái",
-                Type = "Count",
-                Symbol = "cái",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitCanId,
-                Name = "Lon",
-                Type = "Count",
-                Symbol = "lon",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new()
-            {
-                UnitId = UnitBagId,
-                Name = "Túi",
-                Type = "Count",
-                Symbol = "túi",
-                ConversionRate = 1m,
-                CreatedAt = now,
-                UpdatedAt = now
+                await context.UnitOfMeasures.AddAsync(unit);
+                continue;
             }
+
+            existing.Name = unit.Name;
+            existing.Type = unit.Type;
+            existing.Symbol = unit.Symbol;
+            existing.ConversionRate = unit.ConversionRate;
+            existing.UpdatedAt = now;
+        }
+
+        await context.SaveChangesAsync();
+
+        var products = await context.Products.ToListAsync();
+        foreach (var product in products)
+            product.UnitId = ResolveUnitIdByProduct(product.ProductId);
+
+        if (products.Count > 0)
+            await context.SaveChangesAsync();
+    }
+
+    private static async Task ResetUnitMeasureRelatedDataAsync(ApplicationDbContext context)
+    {
+        await context.OrderItems
+            .Where(x => x.PurchaseUnitId != null)
+            .ExecuteUpdateAsync(setter =>
+                setter.SetProperty(x => x.PurchaseUnitId, (Guid?)null));
+
+        await context.StockLots.ExecuteDeleteAsync();
+
+        var legacyVolumeUnitIds = new[]
+        {
+            Guid.Parse("aaaa0003-0003-0003-0003-000000000003"),
+            Guid.Parse("aaaa0004-0004-0004-0004-000000000004"),
         };
 
-        await context.UnitOfMeasures.AddRangeAsync(units);
-        await context.SaveChangesAsync();
+        await context.Products
+            .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
+            .ExecuteUpdateAsync(setter =>
+                setter.SetProperty(x => x.UnitId, UnitBottleId));
+
+        await context.UnitOfMeasures
+            .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
+            .ExecuteDeleteAsync();
     }
+
+    private static List<UnitOfMeasure> BuildUnitCatalog(DateTime now) =>
+    [
+        new()
+        {
+            UnitId = UnitKgId,
+            Name = "Kilôgam",
+            Type = "Khối lượng",
+            Symbol = "kg",
+            ConversionRate = 1m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitGramId,
+            Name = "Gam",
+            Type = "Khối lượng",
+            Symbol = "g",
+            ConversionRate = 0.001m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitBoxId,
+            Name = "Hộp",
+            Type = "Đếm",
+            Symbol = "hộp",
+            ConversionRate = 12m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitBottleId,
+            Name = "Chai",
+            Type = "Đếm",
+            Symbol = "chai",
+            ConversionRate = 1m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitPackId,
+            Name = "Gói",
+            Type = "Đếm",
+            Symbol = "gói",
+            ConversionRate = 6m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitPieceId,
+            Name = "Cái",
+            Type = "Đếm",
+            Symbol = "cái",
+            ConversionRate = 1m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitCanId,
+            Name = "Lon",
+            Type = "Đếm",
+            Symbol = "lon",
+            ConversionRate = 1m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitBagId,
+            Name = "Túi",
+            Type = "Đếm",
+            Symbol = "túi",
+            ConversionRate = 2m,
+            CreatedAt = now,
+            UpdatedAt = now
+        }
+    ];
 
     private static async Task SeedProductsAsync(ApplicationDbContext context)
     {
@@ -1089,6 +1128,9 @@ public static class DataSeeder
             }
         };
 
+        foreach (var product in products)
+            product.UnitId = ResolveUnitIdByProduct(product.ProductId);
+
         await context.Products.AddRangeAsync(products);
         await context.SaveChangesAsync();
 
@@ -1260,7 +1302,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product1Id,
-                UnitId = UnitLiterId,
+                UnitId = UnitBottleId,
                 ExpiryDate = now.AddHours(8),
                 ManufactureDate = now.AddDays(-7),
                 Quantity = 50,
@@ -1273,7 +1315,7 @@ public static class DataSeeder
             {
                 LotId = Guid.NewGuid(),
                 ProductId = Product1Id,
-                UnitId = UnitLiterId,
+                UnitId = UnitBottleId,
                 ExpiryDate = now.AddDays(2),
                 ManufactureDate = now.AddDays(-5),
                 Quantity = 100,
@@ -1701,7 +1743,7 @@ public static class DataSeeder
 
     private static Guid ResolveUnitIdByProduct(Guid productId)
     {
-        if (productId == Product1Id) return UnitLiterId;
+        if (productId == Product1Id) return UnitBottleId;
         if (productId == Product2Id) return UnitBoxId;
         if (productId == Product3Id) return UnitKgId;
         if (productId == Product4Id) return UnitKgId;
