@@ -93,6 +93,7 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.SetNull);
         modelBuilder.Entity<OrderPackaging>(entity =>
         {
+            entity.Ignore(op => op.SupermarketId);
             entity.HasIndex(op => new { op.OrderId, op.OrderItemId })
                 .IsUnique()
                 .HasFilter("\"OrderItemId\" IS NOT NULL");

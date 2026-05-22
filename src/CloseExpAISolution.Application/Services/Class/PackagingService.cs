@@ -1,5 +1,7 @@
+using CloseExpAISolution.Application.Auth;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Application.Email.Jobs;
 using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Fulfillment;
@@ -52,15 +54,29 @@ public class PackagingService : IPackagingService
         CancellationToken cancellationToken = default)
     {
         await EnsurePackagingStaffAsync(packagingStaffId);
+        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            _unitOfWork,
+            packagingStaffId,
+            cancellationToken);
 
-        var openItems = await _unitOfWork.Repository<OrderItem>()
-            .FindAsync(oi =>
-                oi.PackagingStatus != PackagingState.Completed && oi.PackagingStatus != PackagingState.Failed);
+        var openItems = (await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(oi =>
+                    oi.PackagingStatus != PackagingState.Completed &&
+                    oi.PackagingStatus != PackagingState.Failed))
+            .ToList();
 
-        var orderIdsNeedingPackaging = openItems.Select(oi => oi.OrderId).Distinct().ToHashSet();
+        if (openItems.Count == 0)
+            return (Array.Empty<PackagingOrderSummaryDto>(), 0);
+
+        var itemSupermarketMap = await BuildOrderItemSupermarketMapAsync(openItems, cancellationToken);
+        var relevantOrderIds = openItems
+            .Where(oi =>
+                itemSupermarketMap.TryGetValue(oi.OrderItemId, out var sm) && sm == supermarketId)
+            .Select(oi => oi.OrderId)
+            .ToHashSet();
 
         var paidOrders = (await _unitOfWork.Repository<Order>()
-                .FindAsync(o => o.Status == OrderState.Paid && orderIdsNeedingPackaging.Contains(o.OrderId)))
+                .FindAsync(o => o.Status == OrderState.Paid && relevantOrderIds.Contains(o.OrderId)))
             .OrderBy(o => o.OrderDate)
             .ToList();
 
@@ -70,7 +86,7 @@ public class PackagingService : IPackagingService
         var result = new List<PackagingOrderSummaryDto>();
         foreach (var order in paged)
         {
-            result.Add(await MapToSummaryAsync(order, cancellationToken));
+            result.Add(await MapToSummaryAsync(order, supermarketId, cancellationToken));
         }
 
         return (result, totalCount);
@@ -78,6 +94,7 @@ public class PackagingService : IPackagingService
 
     public async Task<PackagingOrderDetailDto?> GetOrderDetailAsync(
         Guid orderId,
+        Guid? packagingStaffId = null,
         CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.Repository<Order>()
@@ -86,7 +103,71 @@ public class PackagingService : IPackagingService
         if (order == null)
             return null;
 
-        return await MapToDetailAsync(order, cancellationToken);
+        Guid? supermarketFilter = null;
+        if (packagingStaffId.HasValue)
+        {
+            await EnsurePackagingStaffAsync(packagingStaffId.Value);
+            supermarketFilter = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+                _unitOfWork,
+                packagingStaffId.Value,
+                cancellationToken);
+        }
+
+        return await MapToDetailAsync(order, supermarketFilter, cancellationToken);
+    }
+
+    private Task<PackagingOrderDetailDto> MapToDetailAsync(Order order, CancellationToken cancellationToken) =>
+        MapToDetailAsync(order, null, cancellationToken);
+
+    public async Task InitializePackagingTasksForPaidOrderAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await _unitOfWork.Repository<Order>()
+            .FirstOrDefaultAsync(o => o.OrderId == orderId);
+
+        if (order == null || order.Status != OrderState.Paid)
+            return;
+
+        var items = await GetOrderItemsAsync(orderId, cancellationToken);
+        if (items.Count == 0)
+            return;
+
+        await RemoveLegacyOrderPackagingRowsAsync(orderId, cancellationToken);
+
+        var existing = (await _unitOfWork.Repository<OrderPackaging>()
+                .FindAsync(r => r.OrderId == orderId && r.OrderItemId != null))
+            .ToList();
+        var existingItemIds = existing.Select(r => r.OrderItemId!.Value).ToHashSet();
+
+        var placeholderUserId = await ResolveUnassignedPackagingActorUserIdAsync(cancellationToken);
+        var created = 0;
+
+        foreach (var item in items)
+        {
+            if (existingItemIds.Contains(item.OrderItemId))
+                continue;
+
+            await _unitOfWork.Repository<OrderPackaging>().AddAsync(new OrderPackaging
+            {
+                PackagingId = Guid.NewGuid(),
+                OrderId = orderId,
+                OrderItemId = item.OrderItemId,
+                UserId = placeholderUserId,
+                Status = PackagingState.Pending,
+                PackagedAt = null,
+            });
+            created++;
+        }
+
+        if (created > 0)
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation(
+                "Initialized {Count} packaging task(s) for paid order {OrderId}",
+                created,
+                orderId);
+        }
     }
 
     public async Task<(IEnumerable<PackagingHistoryRecordDto> Items, int TotalCount)> GetPackagingHistoryAsync(
@@ -100,6 +181,10 @@ public class PackagingService : IPackagingService
         CancellationToken cancellationToken = default)
     {
         await EnsurePackagingStaffAsync(packagingStaffId);
+        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            _unitOfWork,
+            packagingStaffId,
+            cancellationToken);
 
         var records = (await _unitOfWork.Repository<OrderPackaging>()
                 .FindAsync(r =>
@@ -135,6 +220,26 @@ public class PackagingService : IPackagingService
                 .Select(o => o.OrderId)
                 .ToHashSet();
             orderedRecords = orderedRecords.Where(r => matchingOrderIds.Contains(r.OrderId)).ToList();
+        }
+
+        if (orderedRecords.Count > 0)
+        {
+            var historyItemIds = orderedRecords
+                .Where(r => r.OrderItemId.HasValue)
+                .Select(r => r.OrderItemId!.Value)
+                .Distinct()
+                .ToList();
+            var historyItems = historyItemIds.Count == 0
+                ? new List<OrderItem>()
+                : (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => historyItemIds.Contains(oi.OrderItemId)))
+                    .ToList();
+            var historySupermarketMap = await BuildOrderItemSupermarketMapAsync(historyItems, cancellationToken);
+            orderedRecords = orderedRecords
+                .Where(r =>
+                    r.OrderItemId.HasValue &&
+                    historySupermarketMap.TryGetValue(r.OrderItemId.Value, out var sm) &&
+                    sm == supermarketId)
+                .ToList();
         }
 
         var totalCount = orderedRecords.Count;
@@ -195,7 +300,7 @@ public class PackagingService : IPackagingService
                 OrderCode = order?.OrderCode ?? "N/A",
                 ProductName = productName,
                 Quantity = quantity,
-                UserId = record.UserId,
+                UserId = record.UserId ?? packagingStaffId,
                 PackagingStaffName = staff?.FullName ?? "N/A",
                 Status = record.Status.ToString(),
                 FailureReason = orderItem?.PackagingFailedReason,
@@ -218,7 +323,15 @@ public class PackagingService : IPackagingService
         if (order.Status != OrderState.Paid)
             throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói (Paid).");
 
-        var targets = await ResolveTargetOrderItemsAsync(orderId, request.OrderItemIds, cancellationToken);
+        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            _unitOfWork,
+            packagingStaffId,
+            cancellationToken);
+        var targets = await ResolveTargetOrderItemsAsync(
+            orderId,
+            request.OrderItemIds,
+            supermarketId,
+            cancellationToken);
         foreach (var item in targets)
             EnsureItemPackagingNotTerminal(item, "xác nhận");
 
@@ -230,7 +343,7 @@ public class PackagingService : IPackagingService
             foreach (var item in targets)
             {
                 var record = await GetOrCreateItemPackagingRecordAsync(orderId, item.OrderItemId, packagingStaffId, cancellationToken);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+                await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
                 if (record.Status == PackagingState.Completed || record.Status == PackagingState.Failed)
                     throw new InvalidOperationException($"Dòng hàng {item.OrderItemId} đã kết thúc đóng gói.");
 
@@ -253,7 +366,7 @@ public class PackagingService : IPackagingService
 
         _logger.LogInformation("Packaging staff {StaffId} confirmed {Count} line(s) for order {OrderId}", packagingStaffId, targets.Count, orderId);
 
-        return await MapToDetailAsync(order, cancellationToken);
+        return await MapToDetailAsync(order, supermarketId, cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> MarkCollectedAsync(
@@ -268,7 +381,15 @@ public class PackagingService : IPackagingService
         if (order.Status != OrderState.Paid)
             throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói (Paid).");
 
-        var targets = await ResolveTargetOrderItemsAsync(orderId, request.OrderItemIds, cancellationToken);
+        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            _unitOfWork,
+            packagingStaffId,
+            cancellationToken);
+        var targets = await ResolveTargetOrderItemsAsync(
+            orderId,
+            request.OrderItemIds,
+            supermarketId,
+            cancellationToken);
         foreach (var item in targets)
         {
             if (item.PackagingStatus == PackagingState.Packaging)
@@ -279,7 +400,7 @@ public class PackagingService : IPackagingService
                     $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận (Pending) trước khi thu gom.");
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+            await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
 
             if (record.Status == PackagingState.Packaging)
                 continue;
@@ -298,7 +419,7 @@ public class PackagingService : IPackagingService
 
         _logger.LogInformation("Packaging staff {StaffId} collected {Count} line(s) for order {OrderId}. Notes: {Notes}", packagingStaffId, targets.Count, orderId, request.Notes);
 
-        return await MapToDetailAsync(order, cancellationToken);
+        return await MapToDetailAsync(order, supermarketId, cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> CompletePackagingAsync(
@@ -311,7 +432,15 @@ public class PackagingService : IPackagingService
 
         var order = await GetOrderForPackagingAsync(orderId);
 
-        var targets = await ResolveTargetOrderItemsAsync(orderId, request.OrderItemIds, cancellationToken);
+        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            _unitOfWork,
+            packagingStaffId,
+            cancellationToken);
+        var targets = await ResolveTargetOrderItemsAsync(
+            orderId,
+            request.OrderItemIds,
+            supermarketId,
+            cancellationToken);
         if (order.Status == OrderState.ReadyToShip)
         {
             var allAlreadyCompleted = targets.All(i => i.PackagingStatus == PackagingState.Completed);
@@ -320,7 +449,7 @@ public class PackagingService : IPackagingService
                 _logger.LogInformation(
                     "CompletePackaging idempotent no-op for order {OrderId}. All target lines already completed.",
                     orderId);
-                return await MapToDetailAsync(order, cancellationToken);
+                return await MapToDetailAsync(order, supermarketId, cancellationToken);
             }
         }
 
@@ -337,7 +466,7 @@ public class PackagingService : IPackagingService
                     $"Dòng hàng {item.OrderItemId} phải ở trạng thái đã xác nhận hoặc đang thu gom.");
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-        EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+            await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
         }
 
         var now = DateTime.UtcNow;
@@ -352,7 +481,8 @@ public class PackagingService : IPackagingService
                     continue;
 
                 var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-            record.Status = PackagingState.Completed;
+                await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
+                record.Status = PackagingState.Completed;
                 record.PackagedAt = now;
             _unitOfWork.Repository<OrderPackaging>().Update(record);
 
@@ -405,7 +535,7 @@ public class PackagingService : IPackagingService
 
         _logger.LogInformation("Packaging staff {StaffId} completed {Count} line(s) for order {OrderId}. Notes: {Notes}", packagingStaffId, targets.Count, orderId, request.Notes);
 
-        return await MapToDetailAsync(await ReloadOrderAsync(orderId, cancellationToken), cancellationToken);
+        return await MapToDetailAsync(await ReloadOrderAsync(orderId, cancellationToken), supermarketId, cancellationToken);
     }
 
     public async Task<PackagingOrderDetailDto> FailPackagingAsync(
@@ -419,7 +549,15 @@ public class PackagingService : IPackagingService
         var order = await GetOrderForPackagingAsync(orderId);
 
         var failureReason = request.FailureReason.Trim();
-        var targets = await ResolveTargetOrderItemsForFailAsync(orderId, request.OrderItemIds, cancellationToken);
+        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            _unitOfWork,
+            packagingStaffId,
+            cancellationToken);
+        var targets = await ResolveTargetOrderItemsForFailAsync(
+            orderId,
+            request.OrderItemIds,
+            supermarketId,
+            cancellationToken);
         if (order.Status == OrderState.Failed)
         {
             var allAlreadyFailed = targets.All(i => i.PackagingStatus == PackagingState.Failed);
@@ -428,7 +566,7 @@ public class PackagingService : IPackagingService
                 _logger.LogInformation(
                     "FailPackaging idempotent no-op for order {OrderId}. All target lines already failed.",
                     orderId);
-                return await MapToDetailAsync(order, cancellationToken);
+                return await MapToDetailAsync(order, supermarketId, cancellationToken);
             }
         }
 
@@ -444,7 +582,7 @@ public class PackagingService : IPackagingService
                 continue;
 
             var record = await RequireItemPackagingRecordAsync(orderId, item.OrderItemId, cancellationToken);
-            EnsureRecordOwnedByCurrentStaff(record, packagingStaffId);
+            await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
         }
 
         var now = DateTime.UtcNow;
@@ -465,7 +603,10 @@ public class PackagingService : IPackagingService
                     "FailPackaging idempotent no-op for order {OrderId}. Already failed lines: {Count}",
                     orderId,
                     retryFailedTargets.Count);
-                return await MapToDetailAsync(await ReloadOrderAsync(orderId, cancellationToken), cancellationToken);
+                return await MapToDetailAsync(
+                    await ReloadOrderAsync(orderId, cancellationToken),
+                    supermarketId,
+                    cancellationToken);
             }
 
             await RestoreStockForOrderItemsAsync(actionableTargets, now, cancellationToken);
@@ -528,7 +669,10 @@ public class PackagingService : IPackagingService
             orderId,
             failureReason);
 
-        return await MapToDetailAsync(await ReloadOrderAsync(orderId, cancellationToken), cancellationToken);
+        return await MapToDetailAsync(
+            await ReloadOrderAsync(orderId, cancellationToken),
+            supermarketId,
+            cancellationToken);
     }
 
     private static string BuildFailureNote(string failureReason, string? notes)
@@ -542,11 +686,16 @@ public class PackagingService : IPackagingService
     private async Task<List<OrderItem>> ResolveTargetOrderItemsAsync(
         Guid orderId,
         IReadOnlyList<Guid>? orderItemIds,
+        Guid supermarketId,
         CancellationToken cancellationToken)
     {
-        var all = await GetOrderItemsAsync(orderId, cancellationToken);
+        var all = await FilterOrderItemsForSupermarketAsync(
+            await GetOrderItemsAsync(orderId, cancellationToken),
+            supermarketId,
+            cancellationToken);
+
         if (all.Count == 0)
-            throw new InvalidOperationException("Đơn hàng không có dòng hàng.");
+            throw new InvalidOperationException("Đơn hàng không có dòng hàng thuộc siêu thị của bạn.");
 
         if (orderItemIds == null || orderItemIds.Count == 0)
             return all;
@@ -557,7 +706,7 @@ public class PackagingService : IPackagingService
         var set = orderItemIds.ToHashSet();
         var picked = all.Where(i => set.Contains(i.OrderItemId)).ToList();
         if (picked.Count != set.Count)
-            throw new InvalidOperationException("Có mã OrderItem không thuộc đơn hàng.");
+            throw new InvalidOperationException("Có mã OrderItem không thuộc đơn hàng hoặc không thuộc siêu thị của bạn.");
 
         return picked;
     }
@@ -565,16 +714,19 @@ public class PackagingService : IPackagingService
     private async Task<List<OrderItem>> ResolveTargetOrderItemsForFailAsync(
         Guid orderId,
         IReadOnlyList<Guid>? orderItemIds,
+        Guid supermarketId,
         CancellationToken cancellationToken)
     {
-        var all = await GetOrderItemsAsync(orderId, cancellationToken);
+        var all = await FilterOrderItemsForSupermarketAsync(
+            await GetOrderItemsAsync(orderId, cancellationToken),
+            supermarketId,
+            cancellationToken);
+
         if (all.Count == 0)
-            throw new InvalidOperationException("Đơn hàng không có dòng hàng.");
+            throw new InvalidOperationException("Đơn hàng không có dòng hàng thuộc siêu thị của bạn.");
 
         if (orderItemIds == null || orderItemIds.Count == 0)
-        {
             return all.Where(i => i.PackagingStatus != PackagingState.Completed).ToList();
-        }
 
         if (orderItemIds.Count != orderItemIds.Distinct().Count())
             throw new InvalidOperationException("Có mã OrderItem bị trùng.");
@@ -582,9 +734,23 @@ public class PackagingService : IPackagingService
         var set = orderItemIds.ToHashSet();
         var picked = all.Where(i => set.Contains(i.OrderItemId)).ToList();
         if (picked.Count != set.Count)
-            throw new InvalidOperationException("Có mã OrderItem không thuộc đơn hàng.");
+            throw new InvalidOperationException("Có mã OrderItem không thuộc đơn hàng hoặc không thuộc siêu thị của bạn.");
 
         return picked;
+    }
+
+    private async Task<List<OrderItem>> FilterOrderItemsForSupermarketAsync(
+        IReadOnlyList<OrderItem> items,
+        Guid supermarketId,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+            return new List<OrderItem>();
+
+        var map = await BuildOrderItemSupermarketMapAsync(items, cancellationToken);
+        return items
+            .Where(i => map.TryGetValue(i.OrderItemId, out var sm) && sm == supermarketId)
+            .ToList();
     }
 
     private async Task<List<OrderItem>> GetOrderItemsAsync(Guid orderId, CancellationToken cancellationToken)
@@ -622,7 +788,12 @@ public class PackagingService : IPackagingService
             .FirstOrDefaultAsync(r => r.OrderId == orderId && r.OrderItemId == orderItemId);
 
         if (existing != null)
+        {
+            var placeholderUserId = await ResolveUnassignedPackagingActorUserIdAsync(cancellationToken);
+            if (existing.UserId == placeholderUserId)
+                existing.UserId = packagingStaffId;
             return existing;
+        }
 
         var created = new OrderPackaging
         {
@@ -665,10 +836,22 @@ public class PackagingService : IPackagingService
         return record;
     }
 
-    private static void EnsureRecordOwnedByCurrentStaff(OrderPackaging record, Guid packagingStaffId)
+    private async Task EnsureRecordOwnedByCurrentStaffAsync(
+        OrderPackaging record,
+        Guid packagingStaffId,
+        CancellationToken cancellationToken)
     {
-        if (record.UserId != packagingStaffId)
-            throw new UnauthorizedAccessException("Dòng hàng này đang được xử lý bởi nhân viên đóng gói khác.");
+        if (record.UserId == packagingStaffId)
+            return;
+
+        var placeholderUserId = await ResolveUnassignedPackagingActorUserIdAsync(cancellationToken);
+        if (record.UserId == placeholderUserId)
+        {
+            record.UserId = packagingStaffId;
+            return;
+        }
+
+        throw new UnauthorizedAccessException("Dòng hàng này đang được xử lý bởi nhân viên đóng gói khác.");
     }
 
     private async Task NotifyCustomerPartialPackagingAsync(
@@ -986,7 +1169,10 @@ public class PackagingService : IPackagingService
         return order;
     }
 
-    private async Task<PackagingOrderSummaryDto> MapToSummaryAsync(Order order, CancellationToken cancellationToken)
+    private async Task<PackagingOrderSummaryDto> MapToSummaryAsync(
+        Order order,
+        Guid? supermarketId,
+        CancellationToken cancellationToken)
     {
         var customer = await _unitOfWork.Repository<User>()
             .FirstOrDefaultAsync(u => u.UserId == order.UserId);
@@ -995,6 +1181,13 @@ public class PackagingService : IPackagingService
             .FirstOrDefaultAsync(ts => ts.DeliveryTimeSlotId == order.TimeSlotId);
 
         var orderItems = await GetOrderItemsAsync(order.OrderId, cancellationToken);
+        if (supermarketId.HasValue)
+        {
+            orderItems = await FilterOrderItemsForSupermarketAsync(
+                orderItems,
+                supermarketId.Value,
+                cancellationToken);
+        }
 
         return new PackagingOrderSummaryDto
         {
@@ -1030,14 +1223,31 @@ public class PackagingService : IPackagingService
             : $"{done} thành công, {failed} thất bại";
     }
 
-    private async Task<PackagingOrderDetailDto> MapToDetailAsync(Order order, CancellationToken cancellationToken)
+    private async Task<PackagingOrderDetailDto> MapToDetailAsync(
+        Order order,
+        Guid? supermarketId,
+        CancellationToken cancellationToken)
     {
-        var summary = await MapToSummaryAsync(order, cancellationToken);
+        var summary = await MapToSummaryAsync(order, supermarketId, cancellationToken);
 
         var orderItems = await GetOrderItemsAsync(order.OrderId, cancellationToken);
+        if (supermarketId.HasValue)
+        {
+            orderItems = await FilterOrderItemsForSupermarketAsync(
+                orderItems,
+                supermarketId.Value,
+                cancellationToken);
+        }
 
         var packagingRows = (await _unitOfWork.Repository<OrderPackaging>()
             .FindAsync(r => r.OrderId == order.OrderId && r.OrderItemId != null)).ToList();
+        if (supermarketId.HasValue)
+        {
+            var scopedItemIds = orderItems.Select(i => i.OrderItemId).ToHashSet();
+            packagingRows = packagingRows
+                .Where(r => r.OrderItemId.HasValue && scopedItemIds.Contains(r.OrderItemId.Value))
+                .ToList();
+        }
 
         Guid? staffId = null;
         string? staffName = null;
@@ -1160,6 +1370,61 @@ public class PackagingService : IPackagingService
             LastPackagedAt = lastAt,
             Items = itemDtos
         };
+    }
+
+    private async Task<Dictionary<Guid, Guid>> BuildOrderItemSupermarketMapAsync(
+        IReadOnlyList<OrderItem> orderItems,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        var result = new Dictionary<Guid, Guid>();
+        if (orderItems.Count == 0)
+            return result;
+
+        var lotIds = orderItems.Select(i => i.LotId).Distinct().ToList();
+        var lots = lotIds.Count == 0
+            ? new List<StockLot>()
+            : (await _unitOfWork.Repository<StockLot>().FindAsync(l => lotIds.Contains(l.LotId))).ToList();
+        var lotById = lots.ToDictionary(l => l.LotId);
+
+        var productIds = lots.Select(l => l.ProductId).Distinct().ToList();
+        var products = productIds.Count == 0
+            ? new List<Product>()
+            : (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.ProductId))).ToList();
+        var productById = products.ToDictionary(p => p.ProductId);
+
+        foreach (var item in orderItems)
+        {
+            if (!lotById.TryGetValue(item.LotId, out var lot))
+                continue;
+            if (!productById.TryGetValue(lot.ProductId, out var product))
+                continue;
+
+            result[item.OrderItemId] = product.SupermarketId;
+        }
+
+        return result;
+    }
+
+    private async Task<Guid> ResolveUnassignedPackagingActorUserIdAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        var cfg = await _unitOfWork.Repository<SystemConfig>()
+            .FirstOrDefaultAsync(c => c.ConfigKey == SystemConfigKeys.PackagingUnassignedActorUserId);
+
+        if (cfg != null && Guid.TryParse(cfg.ConfigValue, out var configured) && configured != Guid.Empty)
+            return configured;
+
+        var admin = (await _unitOfWork.Repository<User>()
+                .FindAsync(u => u.RoleId == (int)RoleUser.Admin && u.Status == UserState.Active))
+            .OrderBy(u => u.CreatedAt)
+            .FirstOrDefault();
+
+        if (admin != null)
+            return admin.UserId;
+
+        throw new InvalidOperationException(
+            "Chưa cấu hình PACKAGING_UNASSIGNED_ACTOR_USER_ID và không tìm thấy tài khoản Admin để gán tác vụ đóng gói chờ xử lý.");
     }
 }
 

@@ -4,5 +4,6 @@ namespace CloseExpAISolution.Application.Auth;
 public static class JwtStaffClaims
 {
     public const string SupermarketStaffId = "supermarket_staff_id";
+    public const string PackagingStaffId = "packaging_staff_id";
     public const string SupermarketId = "supermarket_id";
 }

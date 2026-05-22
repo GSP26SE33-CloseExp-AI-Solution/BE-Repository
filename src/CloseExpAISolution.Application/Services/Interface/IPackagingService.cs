@@ -13,6 +13,11 @@ public interface IPackagingService
 
     Task<PackagingOrderDetailDto?> GetOrderDetailAsync(
         Guid orderId,
+        Guid? packagingStaffId = null,
+        CancellationToken cancellationToken = default);
+
+    Task InitializePackagingTasksForPaidOrderAsync(
+        Guid orderId,
         CancellationToken cancellationToken = default);
 
     Task<(IEnumerable<PackagingHistoryRecordDto> Items, int TotalCount)> GetPackagingHistoryAsync(

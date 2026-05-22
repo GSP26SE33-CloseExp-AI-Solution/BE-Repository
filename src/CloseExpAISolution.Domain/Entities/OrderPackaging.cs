@@ -7,7 +7,8 @@ public class OrderPackaging
     public Guid PackagingId { get; set; }
     public Guid OrderId { get; set; }
     public Guid? OrderItemId { get; set; }
-    public Guid UserId { get; set; }
+    public Guid SupermarketId { get; set; }
+    public Guid? UserId { get; set; }
     public PackagingState Status { get; set; } = PackagingState.Pending;
     public DateTime? PackagedAt { get; set; }
 
