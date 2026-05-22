@@ -18,17 +18,21 @@ public class CartService : ICartService
     private readonly IConnectionMultiplexer? _redis;
     private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
     private readonly IUnitConversionRateService _unitConversion;
+    private readonly IR2StorageService _r2Storage;
+    private static readonly TimeSpan ProductImagePresignExpiry = TimeSpan.FromHours(1);
     private static readonly ConcurrentDictionary<string, string> InMemoryCartStore = new();
 
     public CartService(
         IUnitOfWork unitOfWork,
         PurchaseUnitOrderHelper purchaseUnitHelper,
         IUnitConversionRateService unitConversion,
+        IR2StorageService r2Storage,
         IConnectionMultiplexer? redis = null)
     {
         _unitOfWork = unitOfWork;
         _purchaseUnitHelper = purchaseUnitHelper;
         _unitConversion = unitConversion;
+        _r2Storage = r2Storage;
         _redis = redis;
     }
 
@@ -333,6 +337,14 @@ public class CartService : ICartService
                     .Select(pi => pi.ImageUrl)
                     .FirstOrDefault();
 
+            string? imagePreSignedUrl = null;
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+            {
+                imagePreSignedUrl = _r2Storage.GetPreSignedUrlForImage(
+                    imageUrl,
+                    ProductImagePresignExpiry);
+            }
+
             return new CartItemResponseDto
             {
                 CartItemId = i.CartItemId,
@@ -343,6 +355,7 @@ public class CartService : ICartService
                 ProductId = lot?.ProductId ?? Guid.Empty,
                 ProductName = product?.Name ?? "N/A",
                 ProductImageUrl = imageUrl,
+                ProductImagePreSignedUrl = imagePreSignedUrl,
                 SupermarketId = product?.SupermarketId ?? Guid.Empty,
                 SupermarketName = supermarketEntity?.Name,
                 UnitId = lot?.UnitId ?? Guid.Empty,

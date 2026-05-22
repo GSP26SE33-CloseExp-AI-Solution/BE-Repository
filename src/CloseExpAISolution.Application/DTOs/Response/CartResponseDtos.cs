@@ -20,6 +20,7 @@ public class CartItemResponseDto
     public Guid ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string? ProductImageUrl { get; set; }
+    public string? ProductImagePreSignedUrl { get; set; }
     public Guid SupermarketId { get; set; }
     public string? SupermarketName { get; set; }
     public Guid UnitId { get; set; }
