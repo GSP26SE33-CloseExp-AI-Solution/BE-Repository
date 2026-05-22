@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
@@ -29,13 +29,11 @@ public class PackagingController : ControllerBase
 
     private Guid GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? User.FindFirst("UserId")?.Value;
-
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (!userId.HasValue)
             throw new UnauthorizedAccessException("Không thể xác định người dùng hiện tại.");
 
-        return userId;
+        return userId.Value;
     }
 
     [HttpGet("orders/pending")]
@@ -71,6 +69,10 @@ public class PackagingController : ControllerBase
         {
             return Unauthorized(ApiResponse<PaginatedResult<PackagingOrderSummaryDto>>.ErrorResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<PaginatedResult<PackagingOrderSummaryDto>>.ErrorResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get pending packaging orders");
@@ -85,11 +87,20 @@ public class PackagingController : ControllerBase
     {
         try
         {
-            var order = await _packagingService.GetOrderDetailAsync(orderId, cancellationToken);
+            var staffId = GetCurrentUserId();
+            var order = await _packagingService.GetOrderDetailAsync(orderId, staffId, cancellationToken);
             if (order == null)
                 return NotFound(ApiResponse<PackagingOrderDetailDto>.ErrorResponse("Không tìm thấy đơn hàng."));
 
             return Ok(ApiResponse<PackagingOrderDetailDto>.SuccessResponse(order));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ApiResponse<PackagingOrderDetailDto>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<PackagingOrderDetailDto>.ErrorResponse(ex.Message));
         }
         catch (Exception ex)
         {
@@ -240,6 +251,10 @@ public class PackagingController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             return Unauthorized(ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<PaginatedResult<PackagingHistoryRecordDto>>.ErrorResponse(ex.Message));
         }
         catch (Exception ex)
         {

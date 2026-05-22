@@ -223,6 +223,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
         _unitOfWork.Repository<Transaction>().Update(transaction);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (order != null)
+            await TryInitializePackagingTasksAfterPaidAsync(order, cancellationToken);
+
         if (order != null
             && order.Status is OrderState.Paid
             or OrderState.ReadyToShip
@@ -285,6 +288,9 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         _unitOfWork.Repository<Transaction>().Update(transaction);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (success && order != null)
+            await TryInitializePackagingTasksAfterPaidAsync(order, cancellationToken);
 
         if (!success)
         {
@@ -538,6 +544,29 @@ public sealed class PaymentService : IPaymentService, IDisposable
         return trimmed.Length <= PayOsMaxDescriptionLength
             ? trimmed
             : trimmed[..PayOsMaxDescriptionLength];
+    }
+
+    private async Task TryInitializePackagingTasksAfterPaidAsync(Order order, CancellationToken cancellationToken)
+    {
+        if (order.Status != OrderState.Paid)
+            return;
+
+        if (_services == null)
+            return;
+
+        try
+        {
+            await _services.PackagingService.InitializePackagingTasksForPaidOrderAsync(
+                order.OrderId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to initialize packaging tasks for paid order {OrderId}",
+                order.OrderId);
+        }
     }
 
     private async Task TryClearCartAsync(Guid userId, CancellationToken cancellationToken)

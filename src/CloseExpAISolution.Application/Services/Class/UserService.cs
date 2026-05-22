@@ -1,4 +1,5 @@
 using AutoMapper;
+using CloseExpAISolution.Application.Auth;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Interfaces;
@@ -362,6 +363,9 @@ public class UserService : IUserService
             dto.MarketStaffInfo = PickPrimaryMarketStaffInfo(memberships);
         }
 
+        if (user.RoleId == (int)RoleUser.PackagingStaff)
+            dto.PackagingStaffInfo = await GetPackagingStaffInfoAsync(user.UserId);
+
         return dto;
     }
 
@@ -385,7 +389,38 @@ public class UserService : IUserService
             dto.MarketStaffInfo = PickPrimaryMarketStaffInfo(memberships);
         }
 
+        if (user.RoleId == (int)RoleUser.PackagingStaff)
+            dto.PackagingStaffInfo = await GetPackagingStaffInfoAsync(user.UserId);
+
         return dto;
+    }
+
+    private async Task<PackagingStaffInfoDto?> GetPackagingStaffInfoAsync(Guid userId)
+    {
+        var supermarketId = await PackagingStaffSupermarketBinding.TryGetSupermarketIdAsync(
+            _unitOfWork,
+            userId);
+        if (!supermarketId.HasValue)
+            return null;
+
+        var user = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == userId);
+        var supermarket = await _unitOfWork.Repository<Supermarket>()
+            .FirstOrDefaultAsync(s => s.SupermarketId == supermarketId.Value);
+
+        return new PackagingStaffInfoDto
+        {
+            PackagingStaffId = userId,
+            JoinedAt = user?.CreatedAt ?? DateTime.UtcNow,
+            Supermarket = supermarket == null
+                ? null
+                : new SupermarketBasicInfoDto
+                {
+                    SupermarketId = supermarket.SupermarketId,
+                    Name = supermarket.Name,
+                    Address = supermarket.Address,
+                    ContactPhone = supermarket.ContactPhone
+                }
+        };
     }
 
     private async Task<List<MarketStaffInfoDto>> GetMarketStaffMembershipsAsync(Guid userId)

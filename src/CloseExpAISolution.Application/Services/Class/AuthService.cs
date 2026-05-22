@@ -185,6 +185,12 @@ public class AuthService : IAuthService
         if (roleValidation != null)
             return roleValidation;
 
+        var packagingSupermarketValidation = await ValidatePackagingStaffSupermarketAsync(
+            request.RoleId,
+            request.SupermarketId);
+        if (packagingSupermarketValidation != null)
+            return packagingSupermarketValidation;
+
         var existing = await userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
         if (existing != null)
         {
@@ -205,6 +211,11 @@ public class AuthService : IAuthService
             try
             {
                 userRepository.Update(existing);
+                await BindPackagingStaffSupermarketIfNeededAsync(
+                    existing.UserId,
+                    request.RoleId,
+                    request.SupermarketId);
+                await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
             }
             catch (Exception ex)
@@ -235,6 +246,11 @@ public class AuthService : IAuthService
         try
         {
             await userRepository.AddAsync(user);
+            await BindPackagingStaffSupermarketIfNeededAsync(
+                user.UserId,
+                request.RoleId,
+                request.SupermarketId);
+            await _unitOfWork.SaveChangesAsync();
             await _unitOfWork.CommitTransactionAsync();
         }
         catch (Exception ex)
@@ -824,6 +840,39 @@ public class AuthService : IAuthService
         return null;
     }
 
+    private async Task<ApiResponse<AuthResponse>?> ValidatePackagingStaffSupermarketAsync(int roleId, Guid? supermarketId)
+    {
+        if (roleId != (int)RoleUser.PackagingStaff)
+            return null;
+
+        if (!supermarketId.HasValue || supermarketId.Value == Guid.Empty)
+            return Error("Vui lòng chọn siêu thị cho nhân viên đóng gói.");
+
+        try
+        {
+            await PackagingStaffSupermarketBinding.ValidateSupermarketExistsAsync(
+                _unitOfWork,
+                supermarketId.Value);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Error(ex.Message);
+        }
+
+        return null;
+    }
+
+    private async Task BindPackagingStaffSupermarketIfNeededAsync(
+        Guid userId,
+        int roleId,
+        Guid? supermarketId)
+    {
+        if (roleId != (int)RoleUser.PackagingStaff || !supermarketId.HasValue)
+            return;
+
+        await PackagingStaffSupermarketBinding.UpsertAsync(_unitOfWork, userId, supermarketId.Value);
+    }
+
     private static User CreateNewUser(RegisterRequest request, int roleId) =>
         CreateNewUser(request.FullName, request.Email, request.Phone, request.Password, roleId);
 
@@ -886,6 +935,17 @@ public class AuthService : IAuthService
 
     private async Task<(Guid? StaffId, Guid? SupermarketId, bool RequiresStaffContext)> ComputeStaffTokenContextAsync(User user)
     {
+        if (user.RoleId == (int)RoleUser.PackagingStaff)
+        {
+            var supermarketId = await PackagingStaffSupermarketBinding.TryGetSupermarketIdAsync(
+                _unitOfWork,
+                user.UserId);
+            if (!supermarketId.HasValue)
+                return (null, null, false);
+
+            return (user.UserId, supermarketId.Value, false);
+        }
+
         if (user.RoleId != (int)RoleUser.SupermarketStaff)
             return (null, null, false);
 
@@ -950,7 +1010,11 @@ public class AuthService : IAuthService
 
         if (supermarketStaffId.HasValue && supermarketId.HasValue)
         {
-            claimList.Add(new Claim(JwtStaffClaims.SupermarketStaffId, supermarketStaffId.Value.ToString()));
+            if (user.RoleId == (int)RoleUser.PackagingStaff)
+                claimList.Add(new Claim(JwtStaffClaims.PackagingStaffId, supermarketStaffId.Value.ToString()));
+            else
+                claimList.Add(new Claim(JwtStaffClaims.SupermarketStaffId, supermarketStaffId.Value.ToString()));
+
             claimList.Add(new Claim(JwtStaffClaims.SupermarketId, supermarketId.Value.ToString()));
         }
 

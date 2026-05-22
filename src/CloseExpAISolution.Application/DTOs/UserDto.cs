@@ -85,6 +85,15 @@ public class UserResponseDto
 
     /// <summary>All active staff personas for this user (shared login / multiple employee codes).</summary>
     public List<MarketStaffInfoDto>? MarketStaffMemberships { get; set; }
+
+    public PackagingStaffInfoDto? PackagingStaffInfo { get; set; }
+}
+
+public class PackagingStaffInfoDto
+{
+    public Guid PackagingStaffId { get; set; }
+    public DateTime JoinedAt { get; set; }
+    public SupermarketBasicInfoDto? Supermarket { get; set; }
 }
 
 public class MarketStaffInfoDto

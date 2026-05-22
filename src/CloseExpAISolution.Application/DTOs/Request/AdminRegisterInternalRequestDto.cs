@@ -23,4 +23,5 @@ public class AdminRegisterInternalRequestDto
 
     [Required(ErrorMessage = "Role is required")]
     public int RoleId { get; set; }
+    public Guid? SupermarketId { get; set; }
 }
