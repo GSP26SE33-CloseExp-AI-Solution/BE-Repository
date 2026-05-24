@@ -54,7 +54,7 @@ public class PackagingService : IPackagingService
         CancellationToken cancellationToken = default)
     {
         await EnsurePackagingStaffAsync(packagingStaffId);
-        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+        var supermarketId = await PackagingStaffMembership.RequireSupermarketIdAsync(
             _unitOfWork,
             packagingStaffId,
             cancellationToken);
@@ -107,7 +107,7 @@ public class PackagingService : IPackagingService
         if (packagingStaffId.HasValue)
         {
             await EnsurePackagingStaffAsync(packagingStaffId.Value);
-            supermarketFilter = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+            supermarketFilter = await PackagingStaffMembership.RequireSupermarketIdAsync(
                 _unitOfWork,
                 packagingStaffId.Value,
                 cancellationToken);
@@ -181,7 +181,7 @@ public class PackagingService : IPackagingService
         CancellationToken cancellationToken = default)
     {
         await EnsurePackagingStaffAsync(packagingStaffId);
-        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+        var supermarketId = await PackagingStaffMembership.RequireSupermarketIdAsync(
             _unitOfWork,
             packagingStaffId,
             cancellationToken);
@@ -323,7 +323,7 @@ public class PackagingService : IPackagingService
         if (order.Status != OrderState.Paid)
             throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói (Paid).");
 
-        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+        var supermarketId = await PackagingStaffMembership.RequireSupermarketIdAsync(
             _unitOfWork,
             packagingStaffId,
             cancellationToken);
@@ -381,7 +381,7 @@ public class PackagingService : IPackagingService
         if (order.Status != OrderState.Paid)
             throw new InvalidOperationException("Đơn hàng không ở trạng thái chờ đóng gói (Paid).");
 
-        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+        var supermarketId = await PackagingStaffMembership.RequireSupermarketIdAsync(
             _unitOfWork,
             packagingStaffId,
             cancellationToken);
@@ -432,7 +432,7 @@ public class PackagingService : IPackagingService
 
         var order = await GetOrderForPackagingAsync(orderId);
 
-        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+        var supermarketId = await PackagingStaffMembership.RequireSupermarketIdAsync(
             _unitOfWork,
             packagingStaffId,
             cancellationToken);
@@ -549,7 +549,7 @@ public class PackagingService : IPackagingService
         var order = await GetOrderForPackagingAsync(orderId);
 
         var failureReason = request.FailureReason.Trim();
-        var supermarketId = await PackagingStaffSupermarketBinding.RequireSupermarketIdAsync(
+        var supermarketId = await PackagingStaffMembership.RequireSupermarketIdAsync(
             _unitOfWork,
             packagingStaffId,
             cancellationToken);

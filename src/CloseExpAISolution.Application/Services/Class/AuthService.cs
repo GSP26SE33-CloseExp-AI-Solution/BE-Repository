@@ -850,7 +850,7 @@ public class AuthService : IAuthService
 
         try
         {
-            await PackagingStaffSupermarketBinding.ValidateSupermarketExistsAsync(
+            await PackagingStaffMembership.ValidateSupermarketExistsAsync(
                 _unitOfWork,
                 supermarketId.Value);
         }
@@ -870,7 +870,7 @@ public class AuthService : IAuthService
         if (roleId != (int)RoleUser.PackagingStaff || !supermarketId.HasValue)
             return;
 
-        await PackagingStaffSupermarketBinding.UpsertAsync(_unitOfWork, userId, supermarketId.Value);
+        await PackagingStaffMembership.UpsertAsync(_unitOfWork, userId, supermarketId.Value);
     }
 
     private static User CreateNewUser(RegisterRequest request, int roleId) =>
@@ -937,13 +937,13 @@ public class AuthService : IAuthService
     {
         if (user.RoleId == (int)RoleUser.PackagingStaff)
         {
-            var supermarketId = await PackagingStaffSupermarketBinding.TryGetSupermarketIdAsync(
-                _unitOfWork,
-                user.UserId);
-            if (!supermarketId.HasValue)
+            var row = await _unitOfWork.Repository<PackagingStaff>()
+                .FirstOrDefaultAsync(ps =>
+                    ps.UserId == user.UserId && ps.Status == PackagingStaffState.Active);
+            if (row == null)
                 return (null, null, false);
 
-            return (user.UserId, supermarketId.Value, false);
+            return (row.PackagingStaffId, row.SupermarketId, false);
         }
 
         if (user.RoleId != (int)RoleUser.SupermarketStaff)
