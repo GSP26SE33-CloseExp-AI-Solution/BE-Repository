@@ -162,6 +162,7 @@ public static class DataSeeder
         await SeedUsersAsync(context);
         await SeedSystemConfigsAsync(context);
         await SeedSupermarketsAsync(context);
+        await SeedPackagingStaffAsync(context);
         await SeedMarketStaffAsync(context);
         await SeedUnitsAsync(context);
         await SeedCategoriesAsync(context);
@@ -738,6 +739,44 @@ public static class DataSeeder
         };
 
         await context.Supermarkets.AddRangeAsync(supermarkets);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedPackagingStaffAsync(ApplicationDbContext context)
+    {
+        if (await context.PackagingStaffs.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+        var rows = new List<PackagingStaff>
+        {
+            new()
+            {
+                PackagingStaffId = Guid.NewGuid(),
+                UserId = StaffUserId1,
+                SupermarketId = SupermarketCoopMartId,
+                Status = PackagingStaffState.Active,
+                CreatedAt = now,
+            },
+            new()
+            {
+                PackagingStaffId = Guid.NewGuid(),
+                UserId = StaffUserId2,
+                SupermarketId = SupermarketBigCId,
+                Status = PackagingStaffState.Active,
+                CreatedAt = now,
+            },
+            new()
+            {
+                PackagingStaffId = Guid.NewGuid(),
+                UserId = StaffUserId3,
+                SupermarketId = SupermarketVinMartId,
+                Status = PackagingStaffState.Active,
+                CreatedAt = now,
+            },
+        };
+
+        await context.PackagingStaffs.AddRangeAsync(rows);
         await context.SaveChangesAsync();
     }
 

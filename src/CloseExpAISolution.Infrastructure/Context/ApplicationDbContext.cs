@@ -19,6 +19,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<DeliveryLog> DeliveryLogs => Set<DeliveryLog>();
     public DbSet<Supermarket> Supermarkets => Set<Supermarket>();
     public DbSet<SupermarketStaff> SupermarketStaffs => Set<SupermarketStaff>();
+    public DbSet<PackagingStaff> PackagingStaffs => Set<PackagingStaff>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductDetail> ProductDetails => Set<ProductDetail>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
@@ -81,6 +82,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<OrderStatusLog>().HasKey(o => o.LogId);
         modelBuilder.Entity<PromotionUsage>().HasKey(pu => pu.UsageId);
         modelBuilder.Entity<DeliveryFeeConfig>().HasKey(d => d.ConfigId);
+        modelBuilder.Entity<PackagingStaff>().HasKey(ps => ps.PackagingStaffId);
 
         modelBuilder.Entity<InventoryDisposal>().ToTable("InventoryDisposals");
         modelBuilder.Entity<CollectionPoint>().ToTable("CollectionPoints");
@@ -348,6 +350,20 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
             entity.Property(ss => ss.EmployeeCodeHash).HasMaxLength(200);
             entity.Property(ss => ss.EmployeeCodeHint).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<PackagingStaff>(entity =>
+        {
+            entity.HasIndex(ps => ps.UserId).IsUnique();
+            entity.HasIndex(ps => new { ps.SupermarketId, ps.Status });
+            entity.HasOne(ps => ps.User)
+                .WithMany()
+                .HasForeignKey(ps => ps.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ps => ps.Supermarket)
+                .WithMany()
+                .HasForeignKey(ps => ps.SupermarketId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Transaction>(entity =>

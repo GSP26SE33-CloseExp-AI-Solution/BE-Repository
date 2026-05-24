@@ -1,37 +1,47 @@
-using CloseExpAISolution.Domain;
 using CloseExpAISolution.Domain.Entities;
+using CloseExpAISolution.Domain.Enums;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 
 namespace CloseExpAISolution.Application.Auth;
 
-public static class PackagingStaffSupermarketBinding
+public static class PackagingStaffMembership
 {
-    public static string ConfigKeyForUser(Guid userId) => $"{SystemConfigKeys.PackagingStaffSupermarketPrefix}{userId:D}";
-
     public static async Task UpsertAsync(
         IUnitOfWork unitOfWork,
         Guid userId,
         Guid supermarketId,
         CancellationToken cancellationToken = default)
     {
-        var repo = unitOfWork.Repository<SystemConfig>();
-        var key = ConfigKeyForUser(userId);
-        var existing = await repo.FirstOrDefaultAsync(c => c.ConfigKey == key);
+        _ = cancellationToken;
+        var repo = unitOfWork.Repository<PackagingStaff>();
+        var existing = await repo.FirstOrDefaultAsync(ps => ps.UserId == userId);
 
         if (existing == null)
         {
-            await repo.AddAsync(new SystemConfig
+            await repo.AddAsync(new PackagingStaff
             {
-                ConfigKey = key,
-                ConfigValue = supermarketId.ToString(),
-                UpdatedAt = DateTime.UtcNow,
+                PackagingStaffId = Guid.NewGuid(),
+                UserId = userId,
+                SupermarketId = supermarketId,
+                Status = PackagingStaffState.Active,
+                CreatedAt = DateTime.UtcNow,
             });
             return;
         }
 
-        existing.ConfigValue = supermarketId.ToString();
-        existing.UpdatedAt = DateTime.UtcNow;
+        existing.SupermarketId = supermarketId;
+        existing.Status = PackagingStaffState.Active;
         repo.Update(existing);
+    }
+
+    public static async Task<PackagingStaff?> TryGetActiveMembershipAsync(
+        IUnitOfWork unitOfWork,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        return await unitOfWork.Repository<PackagingStaff>()
+            .FirstOrDefaultAsync(ps => ps.UserId == userId && ps.Status == PackagingStaffState.Active);
     }
 
     public static async Task<Guid?> TryGetSupermarketIdAsync(
@@ -39,13 +49,8 @@ public static class PackagingStaffSupermarketBinding
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var cfg = await unitOfWork.Repository<SystemConfig>()
-            .FirstOrDefaultAsync(c => c.ConfigKey == ConfigKeyForUser(userId));
-
-        if (cfg == null || !Guid.TryParse(cfg.ConfigValue, out var supermarketId))
-            return null;
-
-        return supermarketId;
+        var row = await TryGetActiveMembershipAsync(unitOfWork, userId, cancellationToken);
+        return row?.SupermarketId;
     }
 
     public static async Task<Guid> RequireSupermarketIdAsync(
@@ -66,6 +71,7 @@ public static class PackagingStaffSupermarketBinding
         Guid supermarketId,
         CancellationToken cancellationToken = default)
     {
+        _ = cancellationToken;
         var supermarket = await unitOfWork.Repository<Supermarket>()
             .FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
 

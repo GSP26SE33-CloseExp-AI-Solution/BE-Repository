@@ -1,5 +1,4 @@
 using AutoMapper;
-using CloseExpAISolution.Application.Auth;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Interfaces;
@@ -397,20 +396,19 @@ public class UserService : IUserService
 
     private async Task<PackagingStaffInfoDto?> GetPackagingStaffInfoAsync(Guid userId)
     {
-        var supermarketId = await PackagingStaffSupermarketBinding.TryGetSupermarketIdAsync(
-            _unitOfWork,
-            userId);
-        if (!supermarketId.HasValue)
+        var row = await _unitOfWork.Repository<PackagingStaff>()
+            .FirstOrDefaultAsync(ps =>
+                ps.UserId == userId && ps.Status == PackagingStaffState.Active);
+        if (row == null)
             return null;
 
-        var user = await _unitOfWork.Repository<User>().FirstOrDefaultAsync(u => u.UserId == userId);
         var supermarket = await _unitOfWork.Repository<Supermarket>()
-            .FirstOrDefaultAsync(s => s.SupermarketId == supermarketId.Value);
+            .FirstOrDefaultAsync(s => s.SupermarketId == row.SupermarketId);
 
         return new PackagingStaffInfoDto
         {
-            PackagingStaffId = userId,
-            JoinedAt = user?.CreatedAt ?? DateTime.UtcNow,
+            PackagingStaffId = row.PackagingStaffId,
+            JoinedAt = row.CreatedAt,
             Supermarket = supermarket == null
                 ? null
                 : new SupermarketBasicInfoDto
