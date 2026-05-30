@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using CloseExpAISolution.API.Helpers;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.ServiceProviders;
@@ -154,11 +154,5 @@ public class NotificationsController : ControllerBase
         return Ok(result);
     }
 
-    private Guid? GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-            return null;
-        return userId;
-    }
+    private Guid? GetCurrentUserId() => StaffClaimsParser.ReadUserId(User);
 }

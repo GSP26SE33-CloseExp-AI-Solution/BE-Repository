@@ -173,6 +173,7 @@ public static class DataSeeder
         await SeedCollectionPointsAsync(context);
         await SeedCustomerAddressesAsync(context);
         await SeedPackagingOrdersAsync(context);
+        await SeedFeedbacksAsync(context);
         await SeedVendorUser3SampleOrderAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
         await SeedHybridRouteDemoDataAsync(context);
@@ -777,6 +778,56 @@ public static class DataSeeder
         };
 
         await context.PackagingStaffs.AddRangeAsync(rows);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedFeedbacksAsync(ApplicationDbContext context)
+    {
+        if (await context.Feedbacks.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+        var feedbacks = new List<CustomerFeedback>
+        {
+            new()
+            {
+                CustomerFeedbackId = Guid.Parse("feed0001-0001-0001-0001-000000000001"),
+                UserId = VendorUserId1,
+                OrderId = PackagingOrderPickupId,
+                Rating = 5,
+                Comment = "Đóng gói gọn gàng, sản phẩm còn tươi. Sẽ quay lại mua thêm.",
+                CreatedAt = now.AddDays(-3),
+            },
+            new()
+            {
+                CustomerFeedbackId = Guid.Parse("feed0002-0002-0002-0002-000000000002"),
+                UserId = VendorUserId1,
+                OrderId = PackagingOrderReadyId,
+                Rating = 4,
+                Comment = "Nhận hàng nhanh, một vài món hơi sát hạn nhưng vẫn dùng được.",
+                CreatedAt = now.AddDays(-2),
+            },
+            new()
+            {
+                CustomerFeedbackId = Guid.Parse("feed0003-0003-0003-0003-000000000003"),
+                UserId = VendorUserId2,
+                OrderId = PackagingOrderHomeId,
+                Rating = 2,
+                Comment = "Thiếu một sản phẩm trong đơn, cần kiểm tra kỹ hơn trước khi giao.",
+                CreatedAt = now.AddDays(-1),
+            },
+            new()
+            {
+                CustomerFeedbackId = Guid.Parse("feed0004-0004-0004-0004-000000000004"),
+                UserId = VendorUserId3,
+                OrderId = VendorUser3SampleOrderId,
+                Rating = 1,
+                Comment = "Đơn bị trễ so với khung giờ đã chọn.",
+                CreatedAt = now.AddHours(-6),
+            },
+        };
+
+        await context.Feedbacks.AddRangeAsync(feedbacks);
         await context.SaveChangesAsync();
     }
 

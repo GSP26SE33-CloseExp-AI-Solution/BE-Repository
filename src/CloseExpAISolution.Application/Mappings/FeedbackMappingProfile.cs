@@ -9,6 +9,7 @@ public class FeedbackMappingProfile : Profile
     public FeedbackMappingProfile()
     {
         CreateMap<CustomerFeedback, FeedbackResponseDto>()
+            .ForMember(dest => dest.FeedbackId, opt => opt.MapFrom(src => src.CustomerFeedbackId))
             .ForMember(dest => dest.UserName, opt => opt.Ignore());
 
         CreateMap<CreateFeedbackRequestDto, CustomerFeedback>()

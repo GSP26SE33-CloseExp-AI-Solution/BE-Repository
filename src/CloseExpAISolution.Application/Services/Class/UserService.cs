@@ -1,4 +1,5 @@
 using AutoMapper;
+using CloseExpAISolution.Application.Auth;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Email.Interfaces;
@@ -118,6 +119,28 @@ public class UserService : IUserService
                 return statusValidation;
 
             user.Status = request.Status.Value;
+        }
+
+        if (request.SupermarketId.HasValue)
+        {
+            if (user.RoleId != (int)RoleUser.PackagingStaff)
+                return Error("Chỉ có thể gán siêu thị cho nhân viên đóng gói");
+
+            try
+            {
+                await PackagingStaffMembership.ValidateSupermarketExistsAsync(
+                    _unitOfWork,
+                    request.SupermarketId.Value);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Error(ex.Message);
+            }
+
+            await PackagingStaffMembership.UpsertAsync(
+                _unitOfWork,
+                user.UserId,
+                request.SupermarketId.Value);
         }
 
         await SaveUserChanges(user);

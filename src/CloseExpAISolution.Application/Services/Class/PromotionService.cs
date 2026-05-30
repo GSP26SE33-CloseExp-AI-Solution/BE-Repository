@@ -37,7 +37,12 @@ public class PromotionService : IPromotionService
             throw new InvalidOperationException("Mã khuyến mãi đã tồn tại");
 
         if (!TryParsePromotionStatus(request.Status, out var parsedStatus))
-            throw new InvalidOperationException("Status không hợp lệ. Giá trị cho phép: Draft, Active, Inactive, Expired.");
+            throw new InvalidOperationException("Status không hợp lệ. Giá trị cho phép: Draft, Active.");
+
+        if (parsedStatus is not (PromotionState.Draft or PromotionState.Active))
+            throw new InvalidOperationException("Khi tạo mới chỉ được chọn Draft hoặc Active.");
+
+        await EnsureCategoryExistsAsync(request.CategoryId);
 
         var entity = new Promotion
         {
@@ -45,15 +50,15 @@ public class PromotionService : IPromotionService
             Code = request.Code.Trim(),
             CategoryId = request.CategoryId,
             Name = request.Name.Trim(),
-            DiscountType = request.DiscountType.Trim(),
+            DiscountType = NormalizeDiscountType(request.DiscountType),
             DiscountValue = request.DiscountValue,
             MinOrderAmount = request.MinOrderAmount,
             MaxDiscountAmount = request.MaxDiscountAmount,
             MaxUsage = request.MaxUsage,
             PerUserLimit = request.PerUserLimit,
             UsedCount = 0,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
+            StartDate = ToUtcDateTime(request.StartDate),
+            EndDate = ToUtcDateTime(request.EndDate),
             Status = parsedStatus
         };
 
@@ -80,25 +85,14 @@ public class PromotionService : IPromotionService
             entity.Code = normalizedCode;
         }
 
-        if (request.CategoryId.HasValue) entity.CategoryId = request.CategoryId.Value;
-        if (!string.IsNullOrWhiteSpace(request.Name)) entity.Name = request.Name.Trim();
-        if (!string.IsNullOrWhiteSpace(request.DiscountType)) entity.DiscountType = request.DiscountType.Trim();
-        if (request.DiscountValue.HasValue) entity.DiscountValue = request.DiscountValue.Value;
-        if (request.MinOrderAmount.HasValue) entity.MinOrderAmount = request.MinOrderAmount.Value;
-        if (request.MaxDiscountAmount.HasValue) entity.MaxDiscountAmount = request.MaxDiscountAmount.Value;
-        if (request.MaxUsage.HasValue) entity.MaxUsage = request.MaxUsage.Value;
-        if (request.PerUserLimit.HasValue) entity.PerUserLimit = request.PerUserLimit.Value;
-        if (request.StartDate.HasValue) entity.StartDate = request.StartDate.Value;
-        if (request.EndDate.HasValue) entity.EndDate = request.EndDate.Value;
-        if (entity.EndDate < entity.StartDate)
-            throw new InvalidOperationException("EndDate phải lớn hơn hoặc bằng StartDate");
-        if (!string.IsNullOrWhiteSpace(request.Status))
+        if (request.CategoryId.HasValue)
         {
-            if (!TryParsePromotionStatus(request.Status, out var parsedStatus))
-                throw new InvalidOperationException("Status không hợp lệ. Giá trị cho phép: Draft, Active, Inactive, Expired.");
-
-            entity.Status = parsedStatus;
+            await EnsureCategoryExistsAsync(request.CategoryId.Value);
+            entity.CategoryId = request.CategoryId.Value;
         }
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+            entity.Name = request.Name.Trim();
 
         _unitOfWork.Repository<Promotion>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -122,6 +116,59 @@ public class PromotionService : IPromotionService
         _unitOfWork.Repository<Promotion>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapPromotion(entity);
+    }
+
+    public async Task<bool> DeletePromotionAsync(Guid promotionId, CancellationToken cancellationToken = default)
+    {
+        var entity = await _unitOfWork.Repository<Promotion>().FirstOrDefaultAsync(x => x.PromotionId == promotionId);
+        if (entity == null)
+            return false;
+
+        if (entity.UsedCount > 0)
+            throw new InvalidOperationException("Không thể xóa khuyến mãi đã có lượt sử dụng.");
+
+        var hasUsages = await _unitOfWork.Repository<PromotionUsage>()
+            .ExistsAsync(x => x.PromotionId == promotionId);
+        if (hasUsages)
+            throw new InvalidOperationException("Không thể xóa khuyến mãi đã có lượt sử dụng.");
+
+        var hasOrders = await _unitOfWork.Repository<Order>()
+            .ExistsAsync(x => x.PromotionId == promotionId);
+        if (hasOrders)
+            throw new InvalidOperationException("Không thể xóa khuyến mãi đã được gắn vào đơn hàng.");
+
+        _unitOfWork.Repository<Promotion>().Delete(entity);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task EnsureCategoryExistsAsync(Guid categoryId)
+    {
+        var exists = await _unitOfWork.Repository<Category>()
+            .ExistsAsync(c => c.CategoryId == categoryId);
+        if (!exists)
+            throw new InvalidOperationException("Danh mục áp dụng không tồn tại.");
+    }
+
+    private static DateTime ToUtcDateTime(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        };
+    }
+
+    private static string NormalizeDiscountType(string discountType)
+    {
+        if (string.IsNullOrWhiteSpace(discountType))
+            return "Percent";
+
+        if (discountType.Equals("Percentage", StringComparison.OrdinalIgnoreCase))
+            return "Percent";
+
+        return discountType.Trim();
     }
 
     private static bool TryParsePromotionStatus(string status, out PromotionState parsedStatus)
@@ -177,6 +224,7 @@ public class PromotionService : IPromotionService
     private static decimal CalculateDiscount(Promotion promotion, decimal totalAmount)
     {
         decimal discount = promotion.DiscountType.Equals("Percent", StringComparison.OrdinalIgnoreCase)
+            || promotion.DiscountType.Equals("Percentage", StringComparison.OrdinalIgnoreCase)
             ? Math.Round(totalAmount * (promotion.DiscountValue / 100m), 2)
             : Math.Min(totalAmount, promotion.DiscountValue);
 

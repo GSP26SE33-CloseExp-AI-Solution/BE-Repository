@@ -279,6 +279,26 @@ public class AdminController : ControllerBase
         }
     }
 
+    [HttpDelete("catalog/promotions/{promotionId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeletePromotion(Guid promotionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var ok = await _services.PromotionService.DeletePromotionAsync(promotionId, cancellationToken);
+            if (!ok)
+                return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy khuyến mãi"));
+
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa khuyến mãi thành công"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
+    }
+
     [HttpGet("monitoring/ai-pricing-history")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AdminAiPriceHistoryDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAiPricingHistory([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)

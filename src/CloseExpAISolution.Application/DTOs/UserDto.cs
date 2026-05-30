@@ -52,6 +52,7 @@ public class UpdateUserRequestDto
 
     public UserState? Status { get; set; }
     public int? RoleId { get; set; }
+    public Guid? SupermarketId { get; set; }
 }
 
 public class UpdateProfileRequestDto

@@ -147,4 +147,37 @@ public class MarketingPromotionsController : ControllerBase
         var data = await _services.PromotionUsageService.GetUsagesAsync(request, cancellationToken);
         return Ok(ApiResponse<PaginatedResult<PromotionUsageDto>>.SuccessResponse(data));
     }
+
+    [HttpPost("validate")]
+    [ProducesResponseType(typeof(ApiResponse<PromotionValidationResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PromotionValidationResultDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ValidatePromotion([FromBody] ValidatePromotionRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(ApiResponse<PromotionValidationResultDto>.ErrorResponse("Không thể xác định người dùng"));
+
+        var data = await _services.PromotionService.ValidatePromotionAsync(userId, request, cancellationToken);
+        return Ok(ApiResponse<PromotionValidationResultDto>.SuccessResponse(data));
+    }
+
+    [HttpDelete("{promotionId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeletePromotion(Guid promotionId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var ok = await _services.PromotionService.DeletePromotionAsync(promotionId, cancellationToken);
+            if (!ok)
+                return NotFound(ApiResponse<bool>.ErrorResponse("Không tìm thấy khuyến mãi"));
+
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Xóa khuyến mãi thành công"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
+    }
 }
