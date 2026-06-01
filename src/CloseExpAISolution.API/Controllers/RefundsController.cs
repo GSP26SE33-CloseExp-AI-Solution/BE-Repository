@@ -23,7 +23,7 @@ public class RefundsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,MarketingStaff")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<RefundResponseDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<RefundResponseDto>>>> GetAll(
         [FromQuery] int pageNumber = 1,
@@ -79,7 +79,7 @@ public class RefundsController : ControllerBase
     public async Task<ActionResult<ApiResponse<RefundResponseDto>>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
         RefundResponseDto? refund;
-        if (User.IsInRole("Admin") || User.IsInRole("MarketingStaff"))
+        if (User.IsInRole("Admin"))
         {
             refund = await _services.RefundService.GetByIdAsync(id, cancellationToken);
         }
@@ -96,7 +96,7 @@ public class RefundsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,MarketingStaff")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<RefundResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<RefundResponseDto>>> Create(
@@ -121,7 +121,7 @@ public class RefundsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/pending")]
-    [Authorize(Roles = "Admin,MarketingStaff")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -129,7 +129,7 @@ public class RefundsController : ControllerBase
         UpdateRefundStatus(id, RefundState.Pending, cancellationToken);
 
     [HttpPut("{id:guid}/approved")]
-    [Authorize(Roles = "Admin,MarketingStaff")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -137,7 +137,7 @@ public class RefundsController : ControllerBase
         UpdateRefundStatus(id, RefundState.Approved, cancellationToken);
 
     [HttpPut("{id:guid}/rejected")]
-    [Authorize(Roles = "Admin,MarketingStaff")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -145,7 +145,7 @@ public class RefundsController : ControllerBase
         UpdateRefundStatus(id, RefundState.Rejected, cancellationToken);
 
     [HttpPut("{id:guid}/completed")]
-    [Authorize(Roles = "Admin,MarketingStaff")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]

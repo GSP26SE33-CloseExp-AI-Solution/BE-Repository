@@ -49,6 +49,52 @@ public class CategoriesController : ControllerBase
         }
     }
 
+    [HttpGet("{id:guid}/product-impact")]
+    [Authorize(Roles = "Admin,MarketingStaff")]
+    [ProducesResponseType(typeof(ApiResponse<CategoryProductImpactDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProductImpact(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var impact = await _services.CategoryService.GetProductImpactAsync(id, cancellationToken);
+            return Ok(ApiResponse<CategoryProductImpactDto>.SuccessResponse(impact));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<CategoryProductImpactDto>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/products")]
+    [Authorize(Roles = "Admin,MarketingStaff")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<CategoryProductListItemDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProductsByCategory(
+        Guid id,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] bool publishedOnly = false,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _services.CategoryService.GetProductsByCategoryAsync(
+                id,
+                pageNumber,
+                pageSize,
+                search,
+                publishedOnly,
+                cancellationToken);
+            return Ok(ApiResponse<PaginatedResult<CategoryProductListItemDto>>.SuccessResponse(result));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<PaginatedResult<CategoryProductListItemDto>>.ErrorResponse(ex.Message));
+        }
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<CategoryResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

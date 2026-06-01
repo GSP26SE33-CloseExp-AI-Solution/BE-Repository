@@ -13,4 +13,12 @@ public interface ICategoryService
     Task<IEnumerable<CategoryResponseDto>> GetAllWithParentNamesAsync(string parentName, CancellationToken cancellationToken = default);
     Task<IEnumerable<CategoryResponseDto>> GetParentCategoriesAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
     Task<IEnumerable<CategoryResponseDto>> GetChildrenByParentIdAsync(Guid parentId, bool includeInactive = false, CancellationToken cancellationToken = default);
+    Task<CategoryProductImpactDto> GetProductImpactAsync(Guid categoryId, CancellationToken cancellationToken = default);
+    Task<PaginatedResult<CategoryProductListItemDto>> GetProductsByCategoryAsync(
+        Guid categoryId,
+        int pageNumber = 1,
+        int pageSize = 20,
+        string? search = null,
+        bool publishedOnly = false,
+        CancellationToken cancellationToken = default);
 }
