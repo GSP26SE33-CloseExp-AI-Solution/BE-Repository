@@ -17,13 +17,20 @@ public class UserService : IUserService
     private readonly IMapper _mapper;
     private readonly IEmailService _emailService;
     private readonly ILogger<UserService> _logger;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
 
-    public UserService(IUnitOfWork unitOfWork, IMapper mapper, IEmailService emailService, ILogger<UserService> logger)
+    public UserService(
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        IEmailService emailService,
+        ILogger<UserService> logger,
+        IRealtimeNotificationPublisher realtimePublisher)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _emailService = emailService;
         _logger = logger;
+        _realtimePublisher = realtimePublisher;
     }
 
     #region Public Methods
@@ -574,6 +581,7 @@ public class UserService : IUserService
         var orderRepo = _unitOfWork.Repository<Order>();
         var ordersToCancel = orders.Where(o => !terminal.Contains(o.Status)).ToList();
         var now = DateTime.UtcNow;
+        var createdNotifications = new List<Notification>();
 
         var orderIdsToRestore = ordersToCancel
             .Where(o => o.Status != OrderState.Pending)
@@ -644,7 +652,10 @@ public class UserService : IUserService
                 CreatedAt = now
             };
             await _unitOfWork.Repository<Notification>().AddAsync(notification);
+            createdNotifications.Add(notification);
         }
+
+        await _realtimePublisher.PublishManyAsync(createdNotifications);
 
         _logger.LogInformation(
             "Canceled open orders tied to supermarkets {SupermarketIds} after staff ban",

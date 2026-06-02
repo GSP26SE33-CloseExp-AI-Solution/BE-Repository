@@ -23,6 +23,7 @@ public class PackagingService : IPackagingService
     private readonly ISchedulerFactory _schedulerFactory;
     private readonly IRefundService _refundService;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
     private readonly OrderStockQuantityHelper _orderStockQuantityHelper;
     private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
     private readonly IUnitConversionRateService _unitConversion;
@@ -33,6 +34,7 @@ public class PackagingService : IPackagingService
         ISchedulerFactory schedulerFactory,
         IRefundService refundService,
         IOrderNotificationPublisher orderNotificationPublisher,
+        IRealtimeNotificationPublisher realtimePublisher,
         OrderStockQuantityHelper orderStockQuantityHelper,
         PurchaseUnitOrderHelper purchaseUnitHelper,
         IUnitConversionRateService unitConversion)
@@ -42,6 +44,7 @@ public class PackagingService : IPackagingService
         _schedulerFactory = schedulerFactory;
         _refundService = refundService;
         _orderNotificationPublisher = orderNotificationPublisher;
+        _realtimePublisher = realtimePublisher;
         _orderStockQuantityHelper = orderStockQuantityHelper;
         _purchaseUnitHelper = purchaseUnitHelper;
         _unitConversion = unitConversion;
@@ -999,6 +1002,7 @@ public class PackagingService : IPackagingService
             await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _realtimePublisher.PublishManyAsync(notifications, cancellationToken);
     }
 
     private async Task TryAddOrderFailedStatusLogAsync(

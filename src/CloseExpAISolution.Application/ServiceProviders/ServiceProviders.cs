@@ -86,7 +86,10 @@ namespace CloseExpAISolution.Application.ServiceProviders
         public IUserService UserService => _userService ??= ActivatorUtilities.CreateInstance<UserService>(_serviceProvider);
         public IR2StorageService R2StorageService => _r2StorageService ??= new R2StorageService(_unitOfWork, _configuration);
         public IFeedbackService FeedbackService => _feedbackService ??= new FeedbackService(_unitOfWork, _mapper);
-        public INotificationService NotificationService => _notificationService ??= new NotificationService(_unitOfWork, _mapper);
+        public INotificationService NotificationService => _notificationService ??= new NotificationService(
+            _unitOfWork,
+            _mapper,
+            _serviceProvider.GetRequiredService<IRealtimeNotificationPublisher>());
         public IUserImageService UserImageService => _userImageService ??= new UserImageService(_unitOfWork, R2StorageService);
         public IBarcodeLookupService BarcodeLookupService => _barcodeLookupService ??= ActivatorUtilities.CreateInstance<BarcodeLookupService>(_serviceProvider);
         public IAIProductService AIProductService => _aIProductService ??= ActivatorUtilities.CreateInstance<AIProductService>(_serviceProvider);

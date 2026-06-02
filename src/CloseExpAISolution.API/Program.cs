@@ -1,5 +1,8 @@
 using CloseExpAISolution.API.Extensions;
+using CloseExpAISolution.API.Hubs;
+using CloseExpAISolution.API.Services;
 using CloseExpAISolution.Application.DependencyInjection;
+using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Infrastructure.Context;
 using CloseExpAISolution.Infrastructure.Data;
 using CloseExpAISolution.Infrastructure.DependencyInjection;
@@ -9,6 +12,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.ValidateCriticalConfiguration();
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, JwtSubUserIdProvider>();
+builder.Services.AddScoped<IRealtimeNotificationPublisher, SignalRRealtimeNotificationPublisher>();
 builder.Services
     .AddSwaggerServices()
     .AddCorsServices(builder.Configuration)

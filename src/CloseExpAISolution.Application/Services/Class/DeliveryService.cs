@@ -22,6 +22,7 @@ public class DeliveryService : IDeliveryService
     private readonly IMapboxService _mapboxService;
     private readonly ILogger<DeliveryService> _logger;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
     private readonly HybridRoutingStrategy _routingStrategy;
     private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
     private readonly IUnitConversionRateService _unitConversion;
@@ -32,6 +33,7 @@ public class DeliveryService : IDeliveryService
         IMapboxService mapboxService,
         ILogger<DeliveryService> logger,
         IOrderNotificationPublisher orderNotificationPublisher,
+        IRealtimeNotificationPublisher realtimePublisher,
         HybridRoutingStrategy routingStrategy,
         PurchaseUnitOrderHelper purchaseUnitHelper,
         IUnitConversionRateService unitConversion)
@@ -41,6 +43,7 @@ public class DeliveryService : IDeliveryService
         _mapboxService = mapboxService;
         _logger = logger;
         _orderNotificationPublisher = orderNotificationPublisher;
+        _realtimePublisher = realtimePublisher;
         _routingStrategy = routingStrategy;
         _purchaseUnitHelper = purchaseUnitHelper;
         _unitConversion = unitConversion;
@@ -664,6 +667,7 @@ public class DeliveryService : IDeliveryService
                 .Select(i => i.DeliveryGroupId!.Value)
                 .Distinct()
                 .ToList();
+            var createdNotifications = new List<Notification>();
             foreach (var gid in staffIds)
             {
                 var deliveryGroup = await _unitOfWork.Repository<DeliveryGroup>()
@@ -683,9 +687,11 @@ public class DeliveryService : IDeliveryService
                 };
 
                 await _unitOfWork.Repository<Notification>().AddAsync(staffNotification);
+                createdNotifications.Add(staffNotification);
             }
 
             await _unitOfWork.CommitTransactionAsync();
+            await _realtimePublisher.PublishManyAsync(createdNotifications, cancellationToken);
         }
         catch
         {
@@ -776,9 +782,10 @@ public class DeliveryService : IDeliveryService
                         staffIds.Add(staffId);
                 }
 
+                var createdNotifications = new List<Notification>();
                 foreach (var staffId in staffIds)
                 {
-                    await _unitOfWork.Repository<Notification>().AddAsync(new Notification
+                    var notification = new Notification
                     {
                         NotificationId = Guid.NewGuid(),
                         UserId = staffId,
@@ -787,10 +794,13 @@ public class DeliveryService : IDeliveryService
                         Type = NotificationType.OrderUpdate,
                         IsRead = false,
                         CreatedAt = now
-                    });
+                    };
+                    await _unitOfWork.Repository<Notification>().AddAsync(notification);
+                    createdNotifications.Add(notification);
                 }
 
                 await _unitOfWork.CommitTransactionAsync();
+                await _realtimePublisher.PublishManyAsync(createdNotifications, cancellationToken);
                 affectedOrders++;
             }
             catch
