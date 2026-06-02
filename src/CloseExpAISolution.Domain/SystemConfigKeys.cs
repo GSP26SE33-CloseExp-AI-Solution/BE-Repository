@@ -7,5 +7,6 @@ public static class SystemConfigKeys
     public const string OrderAutoConfirmDaysAfterDelivered = "ORDER_AUTO_CONFIRM_DAYS_AFTER_DELIVERED";
     public const string OrderSystemUsageFeeVnd = "ORDER_SYSTEM_USAGE_FEE_VND";
     public const string OrderReadyToShipMaxWaitMinutes = "ORDER_READY_TO_SHIP_MAX_WAIT_MINUTES";
+    public const string OrderPaidUnclaimedPackagingLeadMinutes = "ORDER_PAID_UNCLAIMED_PACKAGING_LEAD_MINUTES";
     public const string PackagingUnassignedActorUserId = "PACKAGING_UNASSIGNED_ACTOR_USER_ID";
 }

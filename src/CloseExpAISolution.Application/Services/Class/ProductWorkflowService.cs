@@ -173,6 +173,7 @@ public class ProductWorkflowService : IProductWorkflowService
                         {
                             marketPriceResult = await _marketPriceService.SearchMarketPriceAsync(
                                 product.Name,
+                                product.Barcode,
                                 cancellationToken);
                         }
                     }
@@ -192,7 +193,8 @@ public class ProductWorkflowService : IProductWorkflowService
                     {
                         StoreName = p.StoreName ?? p.Source,
                         Price = p.Price,
-                        Source = p.Source
+                        Source = p.Source,
+                        SourceUrl = p.SourceUrl,
                     }).ToList();
 
                     _logger.LogInformation("Using {Count} market prices for comparison", marketPriceResult.Details.Count);
@@ -354,7 +356,10 @@ public class ProductWorkflowService : IProductWorkflowService
 
         if ((lookup == null || !lookup.Details.Any()) && !string.IsNullOrWhiteSpace(normalizedName))
         {
-            lookup = await _marketPriceService.SearchMarketPriceAsync(normalizedName, cancellationToken);
+            lookup = await _marketPriceService.SearchMarketPriceAsync(
+                normalizedName,
+                normalizedBarcode,
+                cancellationToken);
         }
 
         if ((lookup == null || !lookup.Details.Any()) && autoCrawl && !string.IsNullOrWhiteSpace(normalizedBarcode))
@@ -374,7 +379,10 @@ public class ProductWorkflowService : IProductWorkflowService
                     lookup = await _marketPriceService.GetMarketPriceAsync(normalizedBarcode, cancellationToken);
                     if ((lookup == null || !lookup.Details.Any()) && !string.IsNullOrWhiteSpace(normalizedName))
                     {
-                        lookup = await _marketPriceService.SearchMarketPriceAsync(normalizedName, cancellationToken);
+                        lookup = await _marketPriceService.SearchMarketPriceAsync(
+                            normalizedName,
+                            normalizedBarcode,
+                            cancellationToken);
                     }
                 }
             }
@@ -406,7 +414,8 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             StoreName = string.IsNullOrWhiteSpace(d.StoreName) ? d.Source : d.StoreName,
             Price = d.Price,
-            Source = d.Source
+            Source = d.Source,
+            SourceUrl = d.SourceUrl,
         }).ToList();
         response.Message = $"Tìm thấy {response.SourceCount} nguồn giá tham khảo.";
 

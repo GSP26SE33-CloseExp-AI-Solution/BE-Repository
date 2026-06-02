@@ -46,26 +46,8 @@ public class MarketPriceService : IMarketPriceService
         {
             var detailsFrom = selectedStats == stats24h ? now.AddHours(-24) : now.AddDays(-7);
             var prices = await _marketPriceRepository.GetLatestDetailsAsync(barcode, detailsFrom, cancellationToken);
-
-            var result = new MarketPriceResult
-            {
-                MinPrice = selectedStats.MinPrice,
-                MaxPrice = selectedStats.MaxPrice,
-                AvgPrice = selectedStats.AvgPrice,
-                SourceCount = selectedStats.SourceCount,
-                Sources = selectedStats.Sources,
-                LastUpdated = selectedStats.LastUpdated,
-                Details = prices.Select(p => new MarketPriceDetail
-                {
-                    Source = p.Source,
-                    StoreName = p.StoreName ?? p.Source,
-                    Price = p.Price,
-                    OriginalPrice = p.OriginalPrice,
-                    SourceUrl = p.SourceUrl,
-                    IsInStock = p.IsInStock,
-                    CollectedAt = p.CollectedAt
-                }).ToList()
-            };
+            var aggregated = MarketPriceAggregation.ToAggregatedDetails(prices);
+            var result = MarketPriceAggregation.BuildResult(aggregated);
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(20));
             return result;
         }
@@ -74,11 +56,21 @@ public class MarketPriceService : IMarketPriceService
         return null;
     }
 
-    public async Task<MarketPriceResult?> SearchMarketPriceAsync(string productName, CancellationToken cancellationToken = default)
+    public async Task<MarketPriceResult?> SearchMarketPriceAsync(
+        string productName,
+        string? barcode = null,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Searching market price for product: {ProductName}", productName);
 
         var prices = await _marketPriceRepository.SearchByProductNameAsync(productName, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(barcode))
+        {
+            var normalizedBarcode = barcode.Trim();
+            prices = prices
+                .Where(p => string.Equals(p.Barcode, normalizedBarcode, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
 
         if (!prices.Any())
         {
@@ -86,25 +78,8 @@ public class MarketPriceService : IMarketPriceService
             return null;
         }
 
-        return new MarketPriceResult
-        {
-            MinPrice = prices.Min(p => p.Price),
-            MaxPrice = prices.Max(p => p.Price),
-            AvgPrice = prices.Average(p => p.Price),
-            SourceCount = prices.Select(p => p.Source).Distinct().Count(),
-            Sources = prices.Select(p => p.Source).Distinct().ToList(),
-            LastUpdated = prices.Max(p => p.LastUpdated ?? p.CollectedAt),
-            Details = prices.Select(p => new MarketPriceDetail
-            {
-                Source = p.Source,
-                StoreName = p.StoreName ?? p.Source,
-                Price = p.Price,
-                OriginalPrice = p.OriginalPrice,
-                SourceUrl = p.SourceUrl,
-                IsInStock = p.IsInStock,
-                CollectedAt = p.CollectedAt
-            }).ToList()
-        };
+        var aggregated = MarketPriceAggregation.ToAggregatedDetails(prices, productName);
+        return MarketPriceAggregation.BuildResult(aggregated);
     }
 
     public async Task<CrawlResult> TriggerCrawlAsync(string barcode, string? productName = null, CancellationToken cancellationToken = default)
@@ -144,6 +119,7 @@ public class MarketPriceService : IMarketPriceService
 
             var crawlAt = DateTime.UtcNow;
             await _marketPriceRepository.BulkInsertObservationsAsync(marketPrices, crawlAt, cancellationToken);
+            _cache.Remove($"market-feature:{barcode.Trim()}");
             _logger.LogInformation("Market crawl inserted {Count} observations for barcode {Barcode}", marketPrices.Count, barcode);
 
             return new CrawlResult

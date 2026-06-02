@@ -61,10 +61,9 @@ public class MarketPriceRepository : IMarketPriceRepository
             .GroupBy(p => new
             {
                 Barcode = p.Barcode.Trim(),
-                Source = p.Source.Trim(),
-                Store = (p.StoreName ?? string.Empty).Trim().ToLowerInvariant()
+                StoreKey = ResolveStoreKey(p.Source, p.StoreName),
             })
-            .Select(g => g.First())
+            .Select(g => g.OrderByDescending(x => x.Confidence).First())
             .ToList();
 
         foreach (var price in uniquePrices)
@@ -129,10 +128,26 @@ public class MarketPriceRepository : IMarketPriceRepository
             .ToListAsync(cancellationToken);
 
         return prices
-            .GroupBy(mp => new { mp.Source, StoreName = mp.StoreName ?? string.Empty })
-            .Select(g => g.First())
+            .GroupBy(mp => ResolveStoreKey(mp.Source, mp.StoreName))
+            .Select(g => g.OrderByDescending(x => x.CollectedAt).ThenByDescending(x => x.Confidence).First())
             .OrderBy(mp => mp.Price)
             .ToList();
+    }
+
+    private static string ResolveStoreKey(string? source, string? storeName)
+    {
+        var token = (source ?? storeName ?? "unknown").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(token) || token == "unknown")
+            return "unknown";
+
+        if (token.Contains("://", StringComparison.Ordinal))
+        {
+            if (Uri.TryCreate(token, UriKind.Absolute, out var uri))
+                token = uri.Host.ToLowerInvariant();
+        }
+
+        token = token.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        return token.Split(':', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? token;
     }
 
     public async Task<DateTime?> GetLatestCollectedAtAsync(string barcode, CancellationToken cancellationToken = default)

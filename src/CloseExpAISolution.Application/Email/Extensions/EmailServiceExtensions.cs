@@ -89,6 +89,15 @@ namespace CloseExpAISolution.Application.Email.Extensions
                         .WithIntervalInMinutes(5)
                         .RepeatForever()));
 
+                var autoFailStalePaidUnclaimedPackagingJobKey = new JobKey("AutoFailStaleUnclaimedPaidOrdersJob");
+                q.AddJob<AutoFailStaleUnclaimedPaidOrdersJob>(opts => opts.WithIdentity(autoFailStalePaidUnclaimedPackagingJobKey));
+                q.AddTrigger(opts => opts
+                    .ForJob(autoFailStalePaidUnclaimedPackagingJobKey)
+                    .WithIdentity("AutoFailStaleUnclaimedPaidOrdersJob-trigger")
+                    .WithSimpleSchedule(x => x
+                        .WithIntervalInMinutes(5)
+                        .RepeatForever()));
+
                 var cancelPendingOrdersByTodayExpiryJobKey = new JobKey("CancelPendingOrdersByTodayExpiryJob");
                 q.AddJob<CancelPendingOrdersByTodayExpiryJob>(opts => opts.WithIdentity(cancelPendingOrdersByTodayExpiryJobKey));
                 q.AddTrigger(opts => opts

@@ -163,6 +163,7 @@ public class PackagingService : IPackagingService
         if (created > 0)
         {
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await NotifyRelevantPackagingStaffForPaidOrderAsync(order, items, cancellationToken);
             _logger.LogInformation(
                 "Initialized {Count} packaging task(s) for paid order {OrderId}",
                 created,
@@ -1404,6 +1405,53 @@ public class PackagingService : IPackagingService
         }
 
         return result;
+    }
+
+    private async Task NotifyRelevantPackagingStaffForPaidOrderAsync(
+        Order order,
+        IReadOnlyList<OrderItem> items,
+        CancellationToken cancellationToken)
+    {
+        var supermarketIds = await ResolveSupermarketIdsForOrderItemsAsync(items, cancellationToken);
+        if (supermarketIds.Count == 0)
+            return;
+
+        var activeMembers = (await _unitOfWork.Repository<PackagingStaff>()
+                .FindAsync(ps =>
+                    ps.Status == PackagingStaffState.Active &&
+                    supermarketIds.Contains(ps.SupermarketId)))
+            .ToList();
+
+        var staffIds = activeMembers
+            .Select(ps => ps.UserId)
+            .Distinct()
+            .ToList();
+        if (staffIds.Count == 0)
+            return;
+
+        var now = DateTime.UtcNow;
+        var notifications = staffIds.Select(staffId => new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = staffId,
+            OrderId = order.OrderId,
+            Title = "Có đơn cần nhận đóng gói",
+            Content = $"Đơn {order.OrderCode} đã thanh toán và đang chờ bạn nhận đóng gói.",
+            Type = NotificationType.OrderUpdate,
+            IsRead = false,
+            CreatedAt = now
+        }).ToList();
+
+        await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<HashSet<Guid>> ResolveSupermarketIdsForOrderItemsAsync(
+        IReadOnlyList<OrderItem> items,
+        CancellationToken cancellationToken)
+    {
+        var map = await BuildOrderItemSupermarketMapAsync(items, cancellationToken);
+        return map.Values.ToHashSet();
     }
 
     private async Task<Guid> ResolveUnassignedPackagingActorUserIdAsync(CancellationToken cancellationToken)
