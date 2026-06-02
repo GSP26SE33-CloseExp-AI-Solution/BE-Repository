@@ -101,6 +101,7 @@ public class MarketPriceSourceDto
     public string StoreName { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public string Source { get; set; } = string.Empty;
+    public string? SourceUrl { get; set; }
 }
 
 public class ScanBarcodeResponseDto

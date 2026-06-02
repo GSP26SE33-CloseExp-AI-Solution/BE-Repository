@@ -12,6 +12,7 @@ public static class DataSeeder
     private const string OrderAutoConfirmDaysAfterDeliveredValue = "3";
     private const string OrderSystemUsageFeeVndValue = "5000";
     private const string OrderReadyToShipMaxWaitMinutesValue = "90";
+    private const string OrderPaidUnclaimedPackagingLeadMinutesValue = "120";
 
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -383,6 +384,12 @@ public static class DataSeeder
             context,
             SystemConfigKeys.OrderReadyToShipMaxWaitMinutes,
             OrderReadyToShipMaxWaitMinutesValue,
+            now);
+
+        await EnsurePositiveIntSystemConfigAsync(
+            context,
+            SystemConfigKeys.OrderPaidUnclaimedPackagingLeadMinutes,
+            OrderPaidUnclaimedPackagingLeadMinutesValue,
             now);
     }
 

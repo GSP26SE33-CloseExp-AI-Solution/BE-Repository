@@ -78,6 +78,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPromotionAnalyticsService, PromotionAnalyticsService>();
         services.AddScoped<IPackagingService, PackagingService>();
         services.AddScoped<IStaleReadyToShipRefundProcessor, StaleReadyToShipRefundProcessor>();
+        services.AddScoped<IStalePaidUnclaimedPackagingProcessor, StalePaidUnclaimedPackagingProcessor>();
         services.AddScoped<ITodayExpiryPendingOrderCancellationProcessor, TodayExpiryPendingOrderCancellationProcessor>();
 
         // Register Product workflow services

@@ -699,18 +699,6 @@ public class ProductService : IProductService
                 && l.ExpiryDate > now)
             .ToListAsync(cancellationToken);
 
-        // Align with customer listing: still expose units when product is sellable via lots.
-        if (publishedLots.Count == 0)
-        {
-            publishedLots = await _context.StockLots
-                .AsNoTracking()
-                .Where(l =>
-                    l.ProductId == productId
-                    && l.Status == ProductState.Published
-                    && l.Quantity > 0)
-                .ToListAsync(cancellationToken);
-        }
-
         var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
             product,
             publishedLots,

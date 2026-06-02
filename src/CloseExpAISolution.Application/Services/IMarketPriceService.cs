@@ -7,7 +7,10 @@ namespace CloseExpAISolution.Application.Services;
 public interface IMarketPriceService
 {
     Task<MarketPriceResult?> GetMarketPriceAsync(string barcode, CancellationToken cancellationToken = default);
-    Task<MarketPriceResult?> SearchMarketPriceAsync(string productName, CancellationToken cancellationToken = default);
+    Task<MarketPriceResult?> SearchMarketPriceAsync(
+        string productName,
+        string? barcode = null,
+        CancellationToken cancellationToken = default);
     Task<CrawlResult> TriggerCrawlAsync(string barcode, string? productName = null, CancellationToken cancellationToken = default);
     Task<int> RefreshPublishedProductsAsync(int concurrency = 3, CancellationToken cancellationToken = default);
     Task<MarketPrice> SaveCrowdsourcePriceAsync(CrowdsourcePriceRequest request, CancellationToken cancellationToken = default);

@@ -52,7 +52,10 @@ public class MarketPricesController : ControllerBase
             return BadRequest(new { message = "Product name is required" });
         }
 
-        var result = await _marketPriceService.SearchMarketPriceAsync(productName, cancellationToken);
+        var result = await _marketPriceService.SearchMarketPriceAsync(
+            productName,
+            barcode: null,
+            cancellationToken);
 
         if (result == null)
         {
