@@ -591,7 +591,10 @@ public class PackagingService : IPackagingService
 
         var now = DateTime.UtcNow;
         var oldOrderStatus = order.Status;
-        var note = BuildFailureNote(failureReason, request.Notes);
+        var note = FulfillmentFailureRefundHelper.BuildFailureNote(
+            "Đóng gói thất bại",
+            failureReason,
+            request.Notes);
 
         await _unitOfWork.BeginTransactionAsync();
         Guid? pendingRefundId = null;
@@ -630,9 +633,15 @@ public class PackagingService : IPackagingService
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            var failedAmount = actionableTargets.Sum(i => i.TotalPrice);
-            var refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
-            pendingRefundId = await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, refundedItemIds, cancellationToken);
+            pendingRefundId = await FulfillmentFailureRefundHelper.TryCreateRefundForFailedOrderItemsAsync(
+                _unitOfWork,
+                _refundService,
+                _logger,
+                orderId,
+                actionableTargets,
+                note,
+                cancellationToken,
+                throwIfNoPaidTransaction: true);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
@@ -679,13 +688,6 @@ public class PackagingService : IPackagingService
             cancellationToken);
     }
 
-    private static string BuildFailureNote(string failureReason, string? notes)
-    {
-        var n = $"Đóng gói thất bại: {failureReason}";
-        if (!string.IsNullOrWhiteSpace(notes))
-            n += $" | Ghi chú: {notes.Trim()}";
-        return n;
-    }
 
     private async Task<List<OrderItem>> ResolveTargetOrderItemsAsync(
         Guid orderId,
@@ -1028,53 +1030,6 @@ public class PackagingService : IPackagingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<Guid?> TryRefundForPackagingFailureAsync(
-        Guid orderId,
-        decimal refundAmount,
-        string reason,
-        IReadOnlyList<Guid> refundedOrderItemIds,
-        CancellationToken cancellationToken)
-    {
-        if (refundAmount <= 0)
-            return null;
-
-        var transactions = (await _unitOfWork.Repository<Transaction>()
-                .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
-            .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
-            .ToList();
-
-        var paidTx = transactions.FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                "Không tìm thấy giao dịch thanh toán thành công, không thể tạo yêu cầu hoàn tiền.");
-
-        var existingRefundTotal = (await _unitOfWork.Repository<Refund>().FindAsync(r =>
-                r.TransactionId == paidTx.TransactionId && r.Status != RefundState.Rejected))
-            .Sum(r => r.Amount);
-
-        var refundable = paidTx.Amount - existingRefundTotal;
-        if (refundable <= 0)
-        {
-            _logger.LogWarning("Order {OrderId}: no refundable balance left on transaction {TxId}.", orderId, paidTx.TransactionId);
-            return null;
-        }
-
-        var amount = Math.Min(refundAmount, refundable);
-        if (amount <= 0)
-            return null;
-
-        var refundReason = reason.Length > 2000 ? reason[..2000] : reason;
-        var created = await _refundService.CreateAsync(
-            new CreateRefundRequestDto
-            {
-                OrderId = orderId,
-                TransactionId = paidTx.TransactionId,
-                Amount = amount,
-                Reason = refundReason,
-                OrderItemIds = refundedOrderItemIds
-            },
-            cancellationToken);
-        return created.RefundId;
-    }
 
     private async Task RestoreStockForOrderItemsAsync(
         IReadOnlyList<OrderItem> items,

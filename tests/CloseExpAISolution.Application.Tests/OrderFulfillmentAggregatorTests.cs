@@ -44,6 +44,32 @@ public class OrderFulfillmentAggregatorTests
     }
 
     [Fact]
+    public void ApplyAggregatedOrderStatus_AllPackaged_AllDeliveryFailed_FailsOrder()
+    {
+        var order = new Order { Status = OrderState.ReadyToShip };
+        var items = new[]
+        {
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.Failed },
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.Failed }
+        };
+        OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, items);
+        Assert.Equal(OrderState.Failed, order.Status);
+    }
+
+    [Fact]
+    public void ApplyAggregatedOrderStatus_MixedCompletedAndFailedDelivery_CompletesOrder()
+    {
+        var order = new Order { Status = OrderState.ReadyToShip };
+        var items = new[]
+        {
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.Completed },
+            new OrderItem { PackagingStatus = PackagingState.Completed, DeliveryStatus = DeliveryState.Failed }
+        };
+        OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, items);
+        Assert.Equal(OrderState.Completed, order.Status);
+    }
+
+    [Fact]
     public void ApplyAggregatedOrderStatus_MixedTerminalAndInTransit_KeepsReadyToShip()
     {
         var order = new Order { Status = OrderState.ReadyToShip };
