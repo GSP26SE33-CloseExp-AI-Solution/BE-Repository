@@ -120,6 +120,7 @@ public class DeliveryGroupSummaryDto
     public int TotalOrders { get; set; }
     public int CompletedOrders { get; set; }
     public DateTime DeliveryDate { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public Guid? DeliveryStaffId { get; set; }
     public string? DeliveryStaffName { get; set; }
 

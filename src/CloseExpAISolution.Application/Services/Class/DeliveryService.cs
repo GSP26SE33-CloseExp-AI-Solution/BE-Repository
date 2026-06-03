@@ -574,7 +574,7 @@ public class DeliveryService : IDeliveryService
                     UserId = deliveryStaffId,
                     Status = DeliveryState.Failed,
                     FailedReason = request.FailureReason,
-                    DeliveredAt = null
+                    DeliveredAt = now
                 };
                 await _unitOfWork.Repository<DeliveryLog>().AddAsync(deliveryRecord);
             }
@@ -592,7 +592,9 @@ public class DeliveryService : IDeliveryService
             OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
             OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
             order.UpdatedAt = now;
+            staffGroup.UpdatedAt = now;
             _unitOfWork.Repository<Order>().Update(order);
+            _unitOfWork.Repository<DeliveryGroup>().Update(staffGroup);
 
             await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
                 orderId,
@@ -870,10 +872,16 @@ public class DeliveryService : IDeliveryService
         var filtered = records.AsEnumerable();
 
         if (fromDate.HasValue)
-            filtered = filtered.Where(r => r.DeliveredAt >= fromDate.Value);
+        {
+            var fromStart = fromDate.Value.Date;
+            filtered = filtered.Where(r => GetDeliveryRecordEventTime(r) >= fromStart);
+        }
 
         if (toDate.HasValue)
-            filtered = filtered.Where(r => r.DeliveredAt <= toDate.Value);
+        {
+            var toEnd = toDate.Value.Date.AddDays(1).AddTicks(-1);
+            filtered = filtered.Where(r => GetDeliveryRecordEventTime(r) <= toEnd);
+        }
 
         if (!string.IsNullOrEmpty(status))
             filtered = filtered.Where(r =>
@@ -881,7 +889,9 @@ public class DeliveryService : IDeliveryService
                     .ToString()
                     .Equals(status, StringComparison.OrdinalIgnoreCase));
 
-        var orderedRecords = filtered.OrderByDescending(r => r.DeliveredAt).ToList();
+        var orderedRecords = filtered
+            .OrderByDescending(r => GetDeliveryRecordEventTime(r))
+            .ToList();
         var totalCount = orderedRecords.Count;
         var pagedRecords = orderedRecords.Skip((pageNumber - 1) * pageSize).Take(pageSize);
 
@@ -911,6 +921,9 @@ public class DeliveryService : IDeliveryService
 
         return (result, totalCount);
     }
+
+    private static DateTime GetDeliveryRecordEventTime(DeliveryLog record)
+        => record.DeliveredAt ?? DateTime.MinValue;
 
     public async Task<DeliveryStatsResponseDto> GetDeliveryStatsAsync(
         Guid deliveryStaffId,
@@ -1282,7 +1295,18 @@ public class DeliveryService : IDeliveryService
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            filtered = filtered.Where(g => g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+            var normalizedStatus = status.Trim();
+            if (normalizedStatus.Equals("Done", StringComparison.OrdinalIgnoreCase)
+                || normalizedStatus.Equals("Terminal", StringComparison.OrdinalIgnoreCase))
+            {
+                filtered = filtered.Where(g =>
+                    g.Status is DeliveryGroupState.Completed or DeliveryGroupState.Failed);
+            }
+            else
+            {
+                filtered = filtered.Where(g =>
+                    g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+            }
         }
         else if (actionableOnly)
         {
@@ -1334,6 +1358,7 @@ public class DeliveryService : IDeliveryService
                 TotalOrders = totalOrders,
                 CompletedOrders = completedCount,
                 DeliveryDate = group.DeliveryDate,
+                UpdatedAt = group.UpdatedAt,
                 SlotStartAtUtc = slotStartAtUtc,
                 SlotEndAtUtc = slotEndAtUtc,
                 DistanceFromCurrentKm = distanceKm,
@@ -1361,6 +1386,9 @@ public class DeliveryService : IDeliveryService
                 .ThenBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
                 .ThenByDescending(s => s.PriorityScore ?? 0)
                 .ThenBy(s => s.GroupCode),
+            "recentFirst" => summaries
+                .OrderByDescending(s => s.UpdatedAt)
+                .ThenByDescending(s => s.GroupCode),
             _ => summaries
                 .OrderByDescending(s => s.PriorityScore ?? 0)
                 .ThenBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
@@ -1378,6 +1406,7 @@ public class DeliveryService : IDeliveryService
         {
             "timefirst" or "time_first" or "time-first" => "timeFirst",
             "distancefirst" or "distance_first" or "distance-first" => "distanceFirst",
+            "recentfirst" or "recent_first" or "recent-first" => "recentFirst",
             _ => "balanced"
         };
     }
