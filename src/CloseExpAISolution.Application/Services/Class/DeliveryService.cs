@@ -26,6 +26,7 @@ public class DeliveryService : IDeliveryService
     private readonly HybridRoutingStrategy _routingStrategy;
     private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
     private readonly IUnitConversionRateService _unitConversion;
+    private readonly IRefundService _refundService;
 
     public DeliveryService(
         IUnitOfWork unitOfWork,
@@ -36,7 +37,8 @@ public class DeliveryService : IDeliveryService
         IRealtimeNotificationPublisher realtimePublisher,
         HybridRoutingStrategy routingStrategy,
         PurchaseUnitOrderHelper purchaseUnitHelper,
-        IUnitConversionRateService unitConversion)
+        IUnitConversionRateService unitConversion,
+        IRefundService refundService)
     {
         _unitOfWork = unitOfWork;
         _r2Storage = r2Storage;
@@ -47,6 +49,7 @@ public class DeliveryService : IDeliveryService
         _routingStrategy = routingStrategy;
         _purchaseUnitHelper = purchaseUnitHelper;
         _unitConversion = unitConversion;
+        _refundService = refundService;
     }
 
     public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
@@ -547,14 +550,20 @@ public class DeliveryService : IDeliveryService
         }
 
         var now = DateTime.UtcNow;
+        var note = FulfillmentFailureRefundHelper.BuildFailureNote(
+            "Giao hàng thất bại",
+            request.FailureReason,
+            request.Notes);
+        var noteForItem = note.Length > 2000 ? note[..2000] : note;
 
         await _unitOfWork.BeginTransactionAsync();
+        Guid? pendingRefundId = null;
         try
         {
             foreach (var item in itemsToFail)
             {
                 item.DeliveryStatus = DeliveryState.Failed;
-                item.DeliveryFailedReason = request.FailureReason;
+                item.DeliveryFailedReason = noteForItem;
                 _unitOfWork.Repository<OrderItem>().Update(item);
 
                 var deliveryRecord = new DeliveryLog
@@ -570,6 +579,16 @@ public class DeliveryService : IDeliveryService
                 await _unitOfWork.Repository<DeliveryLog>().AddAsync(deliveryRecord);
             }
 
+            pendingRefundId = await FulfillmentFailureRefundHelper.TryCreateRefundForFailedOrderItemsAsync(
+                _unitOfWork,
+                _refundService,
+                _logger,
+                orderId,
+                itemsToFail,
+                note,
+                cancellationToken,
+                throwIfNoPaidTransaction: true);
+
             OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
             OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
             order.UpdatedAt = now;
@@ -583,14 +602,37 @@ public class DeliveryService : IDeliveryService
                 request.FailureReason,
                 cancellationToken);
 
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
 
-            _logger.LogInformation("Order {OrderId} delivery failed - Reason: {Reason}", orderId, request.FailureReason);
+            _logger.LogInformation(
+                "Order {OrderId} delivery failed - Reason: {Reason}, refundId={RefundId}",
+                orderId,
+                request.FailureReason,
+                pendingRefundId);
         }
         catch
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+
+        if (pendingRefundId.HasValue)
+        {
+            try
+            {
+                await _refundService.EnqueueRefundCustomerNotificationAsync(
+                    pendingRefundId.Value,
+                    RefundNotificationKind.Pending,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send pending refund email after delivery failure. refundId={RefundId}",
+                    pendingRefundId.Value);
+            }
         }
 
         return await MapToDeliveryOrderResponseAsync(order, staffGroup.DeliveryGroupId);
@@ -961,7 +1003,16 @@ public class DeliveryService : IDeliveryService
             }
         }
 
-        group.Status = DeliveryGroupState.Completed;
+        var packagedInGroup = groupItems
+            .Where(i => i.PackagingStatus == PackagingState.Completed)
+            .ToList();
+        var groupFailedCount = packagedInGroup.Count(i => i.DeliveryStatus == DeliveryState.Failed);
+        var groupSuccessCount = packagedInGroup.Count(i =>
+            i.DeliveryStatus is DeliveryState.Completed or DeliveryState.DeliveredWaitConfirm);
+
+        group.Status = groupFailedCount > 0 && groupSuccessCount == 0
+            ? DeliveryGroupState.Failed
+            : DeliveryGroupState.Completed;
         group.UpdatedAt = DateTime.UtcNow;
 
         var now = DateTime.UtcNow;
