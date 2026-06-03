@@ -1229,16 +1229,16 @@ public class ProductWorkflowService : IProductWorkflowService
 
                 response.ExtractedInfo = new OcrExtractedInfoDto
                 {
-                    Name = ocrResult.ProductInfo?.Name ?? ocrResult.Name,
-                    Brand = ocrResult.ProductInfo?.Brand ?? ocrResult.Brand,
-                    Barcode = ocrResult.ProductInfo?.Barcode ?? ocrResult.Barcode,
+                    Name = NormalizeDisplayText(ocrResult.ProductInfo?.Name ?? ocrResult.Name, true),
+                    Brand = NormalizeDisplayText(ocrResult.ProductInfo?.Brand ?? ocrResult.Brand, true),
+                    Barcode = NormalizeBarcodeText(ocrResult.ProductInfo?.Barcode ?? ocrResult.Barcode),
                     Category = ocrResult.ProductInfo?.DetectedCategory?.Name,
                     ExpiryDate = ocrResult.ExpiryDate?.Value,
                     ManufactureDate = ocrResult.ManufacturedDate?.Value,
-                    Weight = ocrResult.ProductInfo?.Weight ?? ocrResult.ProductInfo?.WeightInfo?.Raw,
-                    Ingredients = ParseIngredients(ingredientsStr),
-                    Manufacturer = manufacturerStr,
-                    Origin = ocrResult.ProductInfo?.Origin,
+                    Weight = NormalizeWeightText(ocrResult.ProductInfo?.Weight ?? ocrResult.ProductInfo?.WeightInfo?.Raw),
+                    Ingredients = ParseIngredients(ingredientsStr).Select(x => NormalizeDisplayText(x, false) ?? x).ToList(),
+                    Manufacturer = NormalizeDisplayText(manufacturerStr, true),
+                    Origin = NormalizeDisplayText(ocrResult.ProductInfo?.Origin, true),
                     NutritionFacts = nutritionFacts
                 };
 
@@ -1274,12 +1274,17 @@ public class ProductWorkflowService : IProductWorkflowService
                         _logger.LogWarning(ex, "Error looking up barcode {Barcode}", response.ExtractedInfo.Barcode);
                     }
                 }
+
+                response.PrefillFields = BuildPrefillFields(response.ExtractedInfo, response.BarcodeLookupInfo);
+                response.MissingRequiredFields = GetMissingRequiredFields(response.PrefillFields);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calling AI OCR");
             response.ExtractedInfo.Name = "OCR Error - Manual Entry Required";
+            response.PrefillFields = BuildPrefillFields(response.ExtractedInfo, response.BarcodeLookupInfo);
+            response.MissingRequiredFields = GetMissingRequiredFields(response.PrefillFields);
         }
 
         return response;
@@ -1762,6 +1767,140 @@ public class ProductWorkflowService : IProductWorkflowService
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string? NormalizeDisplayText(string? text, bool titleCase)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        var cleaned = string.Join(" ", text.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+        if (!titleCase)
+            return cleaned;
+        return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(cleaned.ToLowerInvariant());
+    }
+
+    private static string? NormalizeBarcodeText(string? barcode)
+    {
+        if (string.IsNullOrWhiteSpace(barcode))
+            return null;
+        return new string(barcode.Where(char.IsDigit).ToArray());
+    }
+
+    private static string? NormalizeWeightText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var cleaned = value.Trim().Replace("  ", " ");
+        cleaned = cleaned.Replace("gram", "g", StringComparison.OrdinalIgnoreCase);
+        cleaned = cleaned.Replace("kilogram", "kg", StringComparison.OrdinalIgnoreCase);
+        cleaned = cleaned.Replace("kilôgam", "kg", StringComparison.OrdinalIgnoreCase);
+        return cleaned;
+    }
+
+    private static OcrPrefillFieldDto BuildPrefillField(
+        string? ocrValue,
+        string? barcodeValue,
+        float ocrConfidence,
+        float barcodeConfidence,
+        bool ocrPriority = true)
+    {
+        var ov = NormalizeDisplayText(ocrValue, false);
+        var bv = NormalizeDisplayText(barcodeValue, false);
+        if (!string.IsNullOrWhiteSpace(ov) && (ocrPriority || string.IsNullOrWhiteSpace(bv)))
+        {
+            return new OcrPrefillFieldDto
+            {
+                Value = ov,
+                Source = "ocr_llm",
+                Confidence = ocrConfidence,
+                Status = ocrConfidence >= 0.75f ? "ok" : "needs_review",
+                Editable = true
+            };
+        }
+        if (!string.IsNullOrWhiteSpace(bv))
+        {
+            return new OcrPrefillFieldDto
+            {
+                Value = bv,
+                Source = "barcode_lookup",
+                Confidence = barcodeConfidence,
+                Status = barcodeConfidence >= 0.7f ? "ok" : "needs_review",
+                Editable = true
+            };
+        }
+        return new OcrPrefillFieldDto
+        {
+            Value = null,
+            Source = "missing",
+            Confidence = 0,
+            Status = "missing",
+            Editable = true
+        };
+    }
+
+    private static OcrPrefillFieldsDto BuildPrefillFields(
+        OcrExtractedInfoDto extracted,
+        BarcodeLookupInfoDto? barcodeInfo)
+    {
+        var barcodeConf = barcodeInfo?.Confidence ?? 0f;
+
+        var name = BuildPrefillField(extracted.Name, barcodeInfo?.ProductName, 0.80f, barcodeConf, true);
+        var brand = BuildPrefillField(extracted.Brand, barcodeInfo?.Brand, 0.78f, barcodeConf, false);
+        var category = BuildPrefillField(extracted.Category, barcodeInfo?.Category, 0.72f, barcodeConf, false);
+        var manufacturer = BuildPrefillField(extracted.Manufacturer, barcodeInfo?.Manufacturer, 0.72f, barcodeConf, false);
+        var ingredients = BuildPrefillField(
+            extracted.Ingredients != null && extracted.Ingredients.Count > 0 ? string.Join(", ", extracted.Ingredients) : null,
+            barcodeInfo?.Ingredients != null && barcodeInfo.Ingredients.Count > 0 ? string.Join(", ", barcodeInfo.Ingredients) : null,
+            0.70f,
+            barcodeConf,
+            false);
+
+        var barcode = new OcrPrefillFieldDto
+        {
+            Value = NormalizeBarcodeText(extracted.Barcode ?? barcodeInfo?.Barcode),
+            Source = !string.IsNullOrWhiteSpace(extracted.Barcode) ? "ocr_llm" : (!string.IsNullOrWhiteSpace(barcodeInfo?.Barcode) ? "barcode_lookup" : "missing"),
+            Confidence = !string.IsNullOrWhiteSpace(extracted.Barcode) ? 0.9f : (barcodeConf > 0 ? barcodeConf : 0),
+            Status = !string.IsNullOrWhiteSpace(extracted.Barcode) || !string.IsNullOrWhiteSpace(barcodeInfo?.Barcode) ? "ok" : "missing",
+            Editable = true
+        };
+
+        return new OcrPrefillFieldsDto
+        {
+            Name = name,
+            Brand = brand,
+            Barcode = barcode,
+            Category = category,
+            Weight = BuildPrefillField(extracted.Weight, barcodeInfo?.Weight, 0.70f, barcodeConf, true),
+            Ingredients = ingredients,
+            Manufacturer = manufacturer,
+            Origin = BuildPrefillField(extracted.Origin, barcodeInfo?.Country, 0.68f, barcodeConf, true),
+            ExpiryDate = new OcrPrefillFieldDto
+            {
+                Value = extracted.ExpiryDate?.ToString("yyyy-MM-dd"),
+                Source = extracted.ExpiryDate.HasValue ? "ocr_llm" : "missing",
+                Confidence = extracted.ExpiryDate.HasValue ? 0.8f : 0,
+                Status = extracted.ExpiryDate.HasValue ? "ok" : "missing",
+                Editable = true
+            },
+            ManufactureDate = new OcrPrefillFieldDto
+            {
+                Value = extracted.ManufactureDate?.ToString("yyyy-MM-dd"),
+                Source = extracted.ManufactureDate.HasValue ? "ocr_llm" : "missing",
+                Confidence = extracted.ManufactureDate.HasValue ? 0.75f : 0,
+                Status = extracted.ManufactureDate.HasValue ? "ok" : "missing",
+                Editable = true
+            }
+        };
+    }
+
+    private static List<string> GetMissingRequiredFields(OcrPrefillFieldsDto prefill)
+    {
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(prefill.Name.Value)) missing.Add("name");
+        if (string.IsNullOrWhiteSpace(prefill.Barcode.Value)) missing.Add("barcode");
+        if (string.IsNullOrWhiteSpace(prefill.Brand.Value)) missing.Add("brand");
+        if (string.IsNullOrWhiteSpace(prefill.Category.Value)) missing.Add("category");
+        return missing;
     }
 
     private static string SerializeIngredientsForStorage(List<string> ingredients)
