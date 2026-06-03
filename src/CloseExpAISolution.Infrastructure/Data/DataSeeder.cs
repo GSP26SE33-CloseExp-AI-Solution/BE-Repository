@@ -168,6 +168,8 @@ public static class DataSeeder
         await SeedUnitsAsync(context);
         await SeedCategoriesAsync(context);
         await SeedProductsAsync(context);
+        await SeedRealWorldCatalogAsync(context);
+        await SeedRealWorldCatalogStockLotsAsync(context);
         await SeedStockLotsAsync(context);
         await SeedExpiryStatusCoverageStockLotsAsync(context);
         await SeedDeliveryTimeSlotsAsync(context);
@@ -178,9 +180,11 @@ public static class DataSeeder
         await SeedVendorUser3SampleOrderAsync(context);
         await SeedSampleTransactionsAndRefundsAsync(context);
         await SeedHybridRouteDemoDataAsync(context);
+        await SeedRealWorldDeliveryDemoAsync(context);
         await SeedClusterDraftDemoDataAsync(context);
         await SeedMultiUnitPurchaseDemoAsync(context);
         await BackfillOrderItemPurchaseUnitsAsync(context);
+        await RefreshProductCatalogTimestampsAsync(context);
     }
 
     private static async Task SeedMultiUnitPurchaseDemoAsync(ApplicationDbContext context)
@@ -223,22 +227,12 @@ public static class DataSeeder
 
         await UpsertMultiUnitProductDemoByProductNameAsync(
             context,
-            "Oreo",
+            "Oreo Original",
             MultiUnitOreoDemoLotId,
             UnitPackId,
             MarketStaffUserId3,
             quantity: 48,
             expiryDays: 30,
-            now);
-
-        await UpsertMultiUnitProductDemoByProductNameAsync(
-            context,
-            "Bánh mì sandwich",
-            MultiUnitDemoLotId,
-            UnitPackId,
-            MarketStaffUserId1,
-            quantity: 24,
-            expiryDays: 4,
             now);
 
         await context.SaveChangesAsync();
@@ -290,9 +284,9 @@ public static class DataSeeder
 
         var originalPrice = ResolveOriginalPriceByProduct(productId);
         var expiry = now.AddDays(expiryDays);
-        var lot = await context.StockLots.FirstOrDefaultAsync(l => l.LotId == demoLotId);
+        var lot = await context.StockLots.FindAsync(demoLotId);
 
-        if (lot == null)
+        if (lot is null)
         {
             lot = new StockLot
             {
@@ -897,7 +891,10 @@ public static class DataSeeder
         if (!needsCatalogReset)
             return;
 
-        await ResetUnitMeasureRelatedDataAsync(context);
+        if (await context.OrderItems.AnyAsync())
+            await MigrateLegacyUnitsWithoutDeletingStockLotsAsync(context);
+        else
+            await ResetUnitMeasureRelatedDataAsync(context);
 
         var now = DateTime.UtcNow;
         foreach (var unit in BuildUnitCatalog(now))
@@ -926,20 +923,19 @@ public static class DataSeeder
             await context.SaveChangesAsync();
     }
 
-    private static async Task ResetUnitMeasureRelatedDataAsync(ApplicationDbContext context)
+    private static async Task MigrateLegacyUnitsWithoutDeletingStockLotsAsync(ApplicationDbContext context)
     {
         await context.OrderItems
             .Where(x => x.PurchaseUnitId != null)
             .ExecuteUpdateAsync(setter =>
                 setter.SetProperty(x => x.PurchaseUnitId, (Guid?)null));
 
-        await context.StockLots.ExecuteDeleteAsync();
+        var legacyVolumeUnitIds = GetLegacyVolumeUnitIds();
 
-        var legacyVolumeUnitIds = new[]
-        {
-            Guid.Parse("aaaa0003-0003-0003-0003-000000000003"),
-            Guid.Parse("aaaa0004-0004-0004-0004-000000000004"),
-        };
+        await context.StockLots
+            .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
+            .ExecuteUpdateAsync(setter =>
+                setter.SetProperty(x => x.UnitId, UnitBottleId));
 
         await context.Products
             .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
@@ -950,6 +946,44 @@ public static class DataSeeder
             .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
             .ExecuteDeleteAsync();
     }
+
+    private static async Task ResetUnitMeasureRelatedDataAsync(ApplicationDbContext context)
+    {
+        await context.OrderItems
+            .Where(x => x.PurchaseUnitId != null)
+            .ExecuteUpdateAsync(setter =>
+                setter.SetProperty(x => x.PurchaseUnitId, (Guid?)null));
+
+        var referencedLotIds = await context.OrderItems
+            .Select(oi => oi.LotId)
+            .Distinct()
+            .ToListAsync();
+
+        if (referencedLotIds.Count > 0)
+        {
+            await MigrateLegacyUnitsWithoutDeletingStockLotsAsync(context);
+            return;
+        }
+
+        await context.StockLots.ExecuteDeleteAsync();
+
+        var legacyVolumeUnitIds = GetLegacyVolumeUnitIds();
+
+        await context.Products
+            .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
+            .ExecuteUpdateAsync(setter =>
+                setter.SetProperty(x => x.UnitId, UnitBottleId));
+
+        await context.UnitOfMeasures
+            .Where(x => legacyVolumeUnitIds.Contains(x.UnitId))
+            .ExecuteDeleteAsync();
+    }
+
+    private static Guid[] GetLegacyVolumeUnitIds() =>
+    [
+        Guid.Parse("aaaa0003-0003-0003-0003-000000000003"),
+        Guid.Parse("aaaa0004-0004-0004-0004-000000000004"),
+    ];
 
     private static List<UnitOfMeasure> BuildUnitCatalog(DateTime now) =>
     [
@@ -1651,6 +1685,129 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
+    private static async Task RefreshProductCatalogTimestampsAsync(ApplicationDbContext context)
+    {
+        if (!await context.Products.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+
+        foreach (var product in await context.Products.ToListAsync())
+            product.UpdatedAt = now;
+
+        var validUnitIds = await context.UnitOfMeasures.Select(u => u.UnitId).ToListAsync();
+        var defaultUnitId = validUnitIds.FirstOrDefault();
+        var catalogLotUnits = RealWorldCatalogSeedData.StockLots.ToDictionary(l => l.LotId, l => l.UnitId);
+        var catalogLotPrices = RealWorldCatalogSeedData.StockLots
+            .Where(l => l.OriginalUnitPriceVnd.HasValue)
+            .ToDictionary(l => l.LotId, l => l.OriginalUnitPriceVnd!.Value);
+
+        foreach (var lot in await context.StockLots.ToListAsync())
+        {
+            if (validUnitIds.Count > 0)
+            {
+                if (catalogLotUnits.TryGetValue(lot.LotId, out var catalogUnitId) && validUnitIds.Contains(catalogUnitId))
+                    lot.UnitId = catalogUnitId;
+                else
+                {
+                    var targetUnitId = ResolveUnitIdByProduct(lot.ProductId);
+                    lot.UnitId = validUnitIds.Contains(targetUnitId) ? targetUnitId : defaultUnitId;
+                }
+            }
+
+            if (catalogLotPrices.TryGetValue(lot.LotId, out var catalogPrice))
+                lot.OriginalUnitPrice = catalogPrice;
+
+            ApplyRefreshedStockLotTimestamps(lot, now);
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    private static void ApplyRefreshedStockLotTimestamps(StockLot lot, DateTime now)
+    {
+        lot.UpdatedAt = now;
+
+        if (lot.Status == ProductState.Expired)
+        {
+            if (TryGetSeededLotExpiryOffset(lot.LotId, out var expiredOffset))
+                lot.ExpiryDate = now + expiredOffset;
+            else
+                lot.ExpiryDate = now.AddDays(-1);
+
+            lot.ManufactureDate = lot.ExpiryDate.AddDays(-10);
+            return;
+        }
+
+        if (lot.Status != ProductState.Published)
+            return;
+
+        lot.ExpiryDate = TryGetSeededLotExpiryOffset(lot.LotId, out var offset)
+            ? now + offset
+            : lot.ExpiryDate > now
+                ? lot.ExpiryDate
+                : now.AddDays(7);
+
+        var manufactureLeadDays = Math.Min(30, Math.Max(2, (lot.ExpiryDate - now).TotalDays));
+        lot.ManufactureDate = lot.ExpiryDate.AddDays(-manufactureLeadDays);
+        lot.PublishedAt = now.AddMinutes(-15);
+
+        var originalPrice = lot.OriginalUnitPrice > 0
+            ? lot.OriginalUnitPrice
+            : ResolveOriginalPriceByProduct(lot.ProductId);
+
+        lot.OriginalUnitPrice = originalPrice;
+        lot.SuggestedUnitPrice = CalculateSuggestedPrice(originalPrice, lot.ExpiryDate, now);
+        if (lot.FinalUnitPrice is null or <= 0)
+            lot.FinalUnitPrice = lot.SuggestedUnitPrice;
+    }
+
+    private static bool TryGetSeededLotExpiryOffset(Guid lotId, out TimeSpan offset)
+    {
+        switch (lotId)
+        {
+            case var id when id == CoverageExpiredLot1Id:
+                offset = TimeSpan.FromDays(-1);
+                return true;
+            case var id when id == CoverageExpiredLot2Id:
+                offset = TimeSpan.FromDays(-2);
+                return true;
+            case var id when id == CoverageTodayLot1Id:
+                offset = TimeSpan.FromHours(4);
+                return true;
+            case var id when id == CoverageTodayLot2Id:
+                offset = TimeSpan.FromHours(10);
+                return true;
+            case var id when id == CoverageExpiringSoonLot1Id:
+                offset = TimeSpan.FromDays(1);
+                return true;
+            case var id when id == CoverageExpiringSoonLot2Id:
+                offset = TimeSpan.FromDays(2);
+                return true;
+            case var id when id == CoverageShortTermLot1Id:
+                offset = TimeSpan.FromDays(4);
+                return true;
+            case var id when id == CoverageShortTermLot2Id:
+                offset = TimeSpan.FromDays(6);
+                return true;
+            case var id when id == CoverageLongTermLot1Id:
+                offset = TimeSpan.FromDays(15);
+                return true;
+            case var id when id == CoverageLongTermLot2Id:
+                offset = TimeSpan.FromDays(45);
+                return true;
+            case var id when id == MultiUnitDemoLotId:
+                offset = TimeSpan.FromDays(4);
+                return true;
+            case var id when id == MultiUnitOreoDemoLotId:
+                offset = TimeSpan.FromDays(30);
+                return true;
+            default:
+                offset = default;
+                return false;
+        }
+    }
+
     private static async Task SeedExpiryStatusCoverageStockLotsAsync(ApplicationDbContext context)
     {
         var now = DateTime.UtcNow;
@@ -1669,10 +1826,14 @@ public static class DataSeeder
             CoverageLongTermLot2Id
         };
 
-        var existingIds = await context.StockLots
+        var existingLots = await context.StockLots
             .Where(x => coverageLotIds.Contains(x.LotId))
-            .Select(x => x.LotId)
             .ToListAsync();
+
+        var existingIds = existingLots.Select(x => x.LotId).ToHashSet();
+
+        foreach (var lot in existingLots)
+            ApplyRefreshedStockLotTimestamps(lot, now);
 
         var coverageLots = new List<StockLot>
         {
@@ -1812,9 +1973,6 @@ public static class DataSeeder
             .Where(x => !existingIds.Contains(x.LotId))
             .ToList();
 
-        if (!missingLots.Any())
-            return;
-
         var validUnitIds = await context.UnitOfMeasures.Select(u => u.UnitId).ToListAsync();
         var defaultUnitId = validUnitIds.FirstOrDefault();
 
@@ -1822,24 +1980,204 @@ public static class DataSeeder
         {
             var targetUnitId = ResolveUnitIdByProduct(lot.ProductId);
             lot.UnitId = validUnitIds.Contains(targetUnitId) ? targetUnitId : defaultUnitId;
-
-            var originalPrice = ResolveOriginalPriceByProduct(lot.ProductId);
-            var suggestedPrice = CalculateSuggestedPrice(originalPrice, lot.ExpiryDate, now);
-            lot.OriginalUnitPrice = originalPrice;
-            lot.SuggestedUnitPrice = suggestedPrice;
-
-            if (lot.Status == ProductState.Published && lot.ExpiryDate > now)
-            {
-                lot.Status = ProductState.Published;
-            }
+            ApplyRefreshedStockLotTimestamps(lot, now);
         }
 
-        await context.StockLots.AddRangeAsync(missingLots);
+        if (existingLots.Count > 0 || missingLots.Count > 0)
+            await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedRealWorldCatalogAsync(ApplicationDbContext context)
+    {
+        if (!await context.Categories.AnyAsync())
+            return;
+
+        var now = DateTime.UtcNow;
+        var adminId = AdminUserId.ToString();
+        var publishedBy = MarketStaffUserId1.ToString();
+
+        var supermarketIds = RealWorldCatalogSeedData.Supermarkets.Select(s => s.SupermarketId).ToList();
+        var existingSupermarketIds = await context.Supermarkets
+            .Where(s => supermarketIds.Contains(s.SupermarketId))
+            .Select(s => s.SupermarketId)
+            .ToListAsync();
+
+        var supermarketsToAdd = RealWorldCatalogSeedData.Supermarkets
+            .Where(s => !existingSupermarketIds.Contains(s.SupermarketId))
+            .Select(s => new Supermarket
+            {
+                SupermarketId = s.SupermarketId,
+                Name = s.Name,
+                Address = s.Address,
+                Latitude = s.Latitude,
+                Longitude = s.Longitude,
+                ContactPhone = s.ContactPhone,
+                Status = SupermarketState.Active,
+                CreatedAt = now
+            })
+            .ToList();
+
+        if (supermarketsToAdd.Count > 0)
+            await context.Supermarkets.AddRangeAsync(supermarketsToAdd);
+
+        var productIds = RealWorldCatalogSeedData.Products.Select(p => p.ProductId).ToList();
+        var existingProductIds = await context.Products
+            .Where(p => productIds.Contains(p.ProductId))
+            .Select(p => p.ProductId)
+            .ToListAsync();
+
+        var supermarketScope = RealWorldCatalogSeedData.Products
+            .Select(p => p.SupermarketId)
+            .Distinct()
+            .ToList();
+
+        var existingBarcodesBySupermarket = await context.Products
+            .Where(p => supermarketScope.Contains(p.SupermarketId))
+            .Select(p => new { p.SupermarketId, p.Barcode })
+            .ToListAsync();
+
+        var barcodeSet = existingBarcodesBySupermarket
+            .Select(x => (x.SupermarketId, x.Barcode))
+            .ToHashSet();
+
+        var productsToAdd = new List<Product>();
+        var detailsToAdd = new List<ProductDetail>();
+        var lotsToAdd = new List<StockLot>();
+
+        foreach (var entry in RealWorldCatalogSeedData.Products)
+        {
+            if (existingProductIds.Contains(entry.ProductId))
+                continue;
+
+            if (barcodeSet.Contains((entry.SupermarketId, entry.Barcode)))
+                continue;
+
+            productsToAdd.Add(new Product
+            {
+                ProductId = entry.ProductId,
+                CategoryId = entry.CategoryId,
+                SupermarketId = entry.SupermarketId,
+                UnitId = entry.UnitId,
+                Name = entry.Name,
+                Barcode = entry.Barcode,
+                Sku = entry.Barcode,
+                Status = ProductState.Published,
+                CreatedBy = adminId,
+                CreatedAt = now,
+                UpdatedBy = adminId,
+                UpdatedAt = now,
+                PublishedBy = publishedBy,
+                PublishedAt = now,
+                IsFeatured = false
+            });
+
+            detailsToAdd.Add(new ProductDetail
+            {
+                ProductDetailId = Guid.NewGuid(),
+                ProductId = entry.ProductId,
+                Brand = entry.Brand,
+                Description = entry.Description,
+                Origin = "Việt Nam",
+                Manufacturer = entry.Brand
+            });
+
+            foreach (var lotEntry in RealWorldCatalogSeedData.GetStockLotsForProduct(entry.ProductId))
+                lotsToAdd.Add(CreateCatalogStockLot(lotEntry, entry.OriginalPriceVnd, now, publishedBy));
+
+            barcodeSet.Add((entry.SupermarketId, entry.Barcode));
+        }
+
+        if (productsToAdd.Count == 0 && supermarketsToAdd.Count == 0)
+            return;
+
+        if (productsToAdd.Count > 0)
+        {
+            await context.Products.AddRangeAsync(productsToAdd);
+            await context.ProductDetails.AddRangeAsync(detailsToAdd);
+            await context.StockLots.AddRangeAsync(lotsToAdd);
+        }
+
         await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedRealWorldCatalogStockLotsAsync(ApplicationDbContext context)
+    {
+        var catalogProductIds = RealWorldCatalogSeedData.Products.Select(p => p.ProductId).ToHashSet();
+        var existingProductIds = await context.Products
+            .Where(p => catalogProductIds.Contains(p.ProductId))
+            .Select(p => p.ProductId)
+            .ToListAsync();
+
+        if (existingProductIds.Count == 0)
+            return;
+
+        var catalogLotIds = RealWorldCatalogSeedData.StockLots.Select(l => l.LotId).ToList();
+        var existingLotIds = (await context.StockLots
+            .Where(l => catalogLotIds.Contains(l.LotId))
+            .Select(l => l.LotId)
+            .ToListAsync()).ToHashSet();
+
+        var priceByProduct = RealWorldCatalogSeedData.Products.ToDictionary(p => p.ProductId, p => p.OriginalPriceVnd);
+        var now = DateTime.UtcNow;
+        var publishedBy = MarketStaffUserId1.ToString();
+        var lotsToAdd = new List<StockLot>();
+
+        foreach (var lotEntry in RealWorldCatalogSeedData.StockLots)
+        {
+            if (!existingProductIds.Contains(lotEntry.ProductId))
+                continue;
+
+            if (existingLotIds.Contains(lotEntry.LotId))
+                continue;
+
+            if (!priceByProduct.TryGetValue(lotEntry.ProductId, out var originalPrice))
+                continue;
+
+            var lotPrice = lotEntry.OriginalUnitPriceVnd ?? originalPrice;
+            lotsToAdd.Add(CreateCatalogStockLot(lotEntry, lotPrice, now, publishedBy));
+        }
+
+        if (lotsToAdd.Count == 0)
+            return;
+
+        await context.StockLots.AddRangeAsync(lotsToAdd);
+        await context.SaveChangesAsync();
+    }
+
+    private static StockLot CreateCatalogStockLot(
+        RealWorldCatalogSeedData.StockLotEntry entry,
+        decimal originalPrice,
+        DateTime now,
+        string publishedBy)
+    {
+        var expiry = now.AddDays(entry.ExpiryDays);
+        var suggested = CalculateSuggestedPrice(originalPrice, expiry, now);
+        var manufactureLead = Math.Min(30, Math.Max(2, entry.ExpiryDays / 3));
+
+        return new StockLot
+        {
+            LotId = entry.LotId,
+            ProductId = entry.ProductId,
+            UnitId = entry.UnitId,
+            ExpiryDate = expiry,
+            ManufactureDate = expiry.AddDays(-manufactureLead),
+            Quantity = entry.Quantity,
+            Status = entry.Status,
+            CreatedAt = now,
+            UpdatedAt = now,
+            PublishedBy = publishedBy,
+            PublishedAt = now.AddMinutes(-10),
+            OriginalUnitPrice = originalPrice,
+            SuggestedUnitPrice = suggested,
+            FinalUnitPrice = suggested
+        };
     }
 
     private static Guid ResolveUnitIdByProduct(Guid productId)
     {
+        if (RealWorldCatalogSeedData.TryGetOriginalPrice(productId, out _))
+            return RealWorldCatalogSeedData.ResolveUnitId(productId);
+
         if (productId == Product1Id) return UnitBottleId;
         if (productId == Product2Id) return UnitBoxId;
         if (productId == Product3Id) return UnitKgId;
@@ -1858,6 +2196,9 @@ public static class DataSeeder
 
     private static decimal ResolveOriginalPriceByProduct(Guid productId)
     {
+        if (RealWorldCatalogSeedData.TryGetOriginalPrice(productId, out var catalogPrice))
+            return catalogPrice;
+
         if (productId == Product1Id) return 36000m;
         if (productId == Product2Id) return 32000m;
         if (productId == Product3Id) return 165000m;
@@ -2410,6 +2751,9 @@ public static class DataSeeder
     /// Nhóm được seed trực tiếp (không qua generate-draft) vì GenerateDraftGroupsAsync
     /// gom theo AddressId nên không cho phép nhiều địa chỉ khác nhau cùng 1 nhóm.
     /// </summary>
+    private static async Task SeedRealWorldDeliveryDemoAsync(ApplicationDbContext context) =>
+        await RealWorldDeliveryDemoSeedData.SeedAsync(context);
+
     private static async Task SeedHybridRouteDemoDataAsync(ApplicationDbContext context)
     {
         if (await context.DeliveryGroups.AnyAsync(g => g.DeliveryGroupId == RouteDemoSmallGroupId))
