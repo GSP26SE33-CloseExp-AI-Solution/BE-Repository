@@ -17,6 +17,7 @@ public class OrderResponseDto
     public decimal DeliveryFee { get; set; }
     public decimal SystemUsageFeeAmount { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? PackagingStatus { get; set; }
     public DateTime OrderDate { get; set; }
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }

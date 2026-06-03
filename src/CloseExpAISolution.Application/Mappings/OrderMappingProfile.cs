@@ -1,5 +1,6 @@
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Domain.Entities;
 
 namespace CloseExpAISolution.Application.Mappings;
@@ -53,6 +54,11 @@ public class OrderMappingProfile : Profile
                 src.Transactions
                     .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
                     .Select(t => t.CheckoutUrl)
-                    .FirstOrDefault()));
+                    .FirstOrDefault()))
+            .AfterMap((src, dest) =>
+            {
+                if (src.OrderItems is { Count: > 0 })
+                    dest.PackagingStatus = PackagingProgressSummaryBuilder.Build(src.OrderItems.ToList());
+            });
     }
 }

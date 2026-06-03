@@ -20,6 +20,15 @@ public class PackagingOrderDetailDto : PackagingOrderSummaryDto
     public string? PackagingStaffName { get; set; }
     public DateTime? LastPackagedAt { get; set; }
     public IEnumerable<PackagingOrderItemDto> Items { get; set; } = new List<PackagingOrderItemDto>();
+    public IEnumerable<PackagingActivityLogDto> ActivityLogs { get; set; } = new List<PackagingActivityLogDto>();
+}
+
+public class PackagingActivityLogDto
+{
+    public DateTime ChangedAt { get; set; }
+    public string ActionLabel { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public string? ChangedByUserId { get; set; }
 }
 
 public class PackagingHistoryRecordDto
