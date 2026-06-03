@@ -72,19 +72,32 @@ public static class DataSeeder
     private static readonly Guid Product10Id = Guid.Parse("bbbb000a-000a-000a-000a-00000000000a");
     private static readonly Guid Product11Id = Guid.Parse("bbbb000b-000b-000b-000b-00000000000b");
     private static readonly Guid Product12Id = Guid.Parse("bbbb000c-000c-000c-000c-00000000000c");
-    private static readonly Guid TimeSlotMorningId = Guid.Parse("cccc0001-0001-0001-0001-000000000001");
-    private static readonly Guid TimeSlotAfternoonId = Guid.Parse("cccc0002-0002-0002-0002-000000000002");
+    private static readonly Guid TimeSlot9To11Id = Guid.Parse("cccc0001-0001-0001-0001-000000000001");
+    private static readonly Guid TimeSlot13To15Id = Guid.Parse("cccc0002-0002-0002-0002-000000000002");
+    private static readonly Guid TimeSlot1530To1730Id = Guid.Parse("cccc0003-0003-0003-0003-000000000003");
+    private static readonly Guid TimeSlot18To20Id = Guid.Parse("cccc0004-0004-0004-0004-000000000004");
+
+    private static readonly (Guid Id, TimeSpan Start, TimeSpan End)[] CanonicalDeliveryTimeSlots =
+    [
+        (TimeSlot9To11Id, new TimeSpan(9, 0, 0), new TimeSpan(11, 0, 0)),
+        (TimeSlot13To15Id, new TimeSpan(13, 0, 0), new TimeSpan(15, 0, 0)),
+        (TimeSlot1530To1730Id, new TimeSpan(15, 30, 0), new TimeSpan(17, 30, 0)),
+        (TimeSlot18To20Id, new TimeSpan(18, 0, 0), new TimeSpan(20, 0, 0)),
+    ];
+
+    private static readonly Dictionary<Guid, Guid> LegacyDeliverySlotRemap = new()
+    {
+        [Guid.Parse("eeee1001-0001-0001-0001-000000000001")] = TimeSlot9To11Id,
+        [Guid.Parse("eeee1002-0002-0002-0002-000000000002")] = TimeSlot13To15Id,
+        [Guid.Parse("eeee1003-0003-0003-0003-000000000003")] = TimeSlot1530To1730Id,
+        [Guid.Parse("eeee1004-0004-0004-0004-000000000004")] = TimeSlot18To20Id,
+    };
     private static readonly Guid CollectionPointDistrict1Id = Guid.Parse("dddd0001-0001-0001-0001-000000000001");
     private static readonly Guid CollectionPointDistrict3Id = Guid.Parse("dddd0002-0002-0002-0002-000000000002");
     private static readonly Guid CustomerAddressVendor1Id = Guid.Parse("eeee0001-0001-0001-0001-000000000001");
     private static readonly Guid CustomerAddressVendor2Id = Guid.Parse("eeee0002-0002-0002-0002-000000000002");
 
     // --- Hybrid route demo constants -----------------------------------------------------------
-    private static readonly Guid RouteDemoSlotSmallId = Guid.Parse("eeee1001-0001-0001-0001-000000000001");
-    private static readonly Guid RouteDemoSlotMediumId = Guid.Parse("eeee1002-0002-0002-0002-000000000002");
-    private static readonly Guid RouteDemoSlotLargeId = Guid.Parse("eeee1003-0003-0003-0003-000000000003");
-    private static readonly Guid RouteDemoSlotOverId = Guid.Parse("eeee1004-0004-0004-0004-000000000004");
-
     private static readonly Guid RouteDemoSmallGroupId = Guid.Parse("eeee2001-0001-0001-0001-000000000001");
     private static readonly Guid RouteDemoMediumGroupId = Guid.Parse("eeee2002-0002-0002-0002-000000000002");
     private static readonly Guid RouteDemoLargeGroupId = Guid.Parse("eeee2003-0003-0003-0003-000000000003");
@@ -2233,27 +2246,101 @@ public static class DataSeeder
 
     private static async Task SeedDeliveryTimeSlotsAsync(ApplicationDbContext context)
     {
-        if (await context.DeliveryTimeSlots.AnyAsync())
-            return;
+        var canonicalIds = CanonicalDeliveryTimeSlots.Select(s => s.Id).ToHashSet();
+        var eightToElevenStart = new TimeSpan(8, 0, 0);
+        var elevenEnd = new TimeSpan(11, 0, 0);
+        var fourteenStart = new TimeSpan(14, 0, 0);
+        var seventeenEnd = new TimeSpan(17, 0, 0);
 
-        var slots = new List<DeliveryTimeSlot>
+        foreach (var (id, start, end) in CanonicalDeliveryTimeSlots)
         {
-            new()
+            var slot = await context.DeliveryTimeSlots.FindAsync(id);
+            if (slot is null)
             {
-                DeliveryTimeSlotId = TimeSlotMorningId,
-                StartTime = new TimeSpan(8, 0, 0),
-                EndTime = new TimeSpan(11, 0, 0)
-            },
-            new()
-            {
-                DeliveryTimeSlotId = TimeSlotAfternoonId,
-                StartTime = new TimeSpan(14, 0, 0),
-                EndTime = new TimeSpan(17, 0, 0)
+                await context.DeliveryTimeSlots.AddAsync(new DeliveryTimeSlot
+                {
+                    DeliveryTimeSlotId = id,
+                    StartTime = start,
+                    EndTime = end
+                });
             }
-        };
+            else
+            {
+                slot.StartTime = start;
+                slot.EndTime = end;
+            }
+        }
 
-        await context.DeliveryTimeSlots.AddRangeAsync(slots);
         await context.SaveChangesAsync();
+
+        foreach (var (legacyId, targetId) in LegacyDeliverySlotRemap)
+        {
+            await context.Orders
+                .Where(o => o.TimeSlotId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.TimeSlotId, targetId));
+
+            await context.DeliveryGroups
+                .Where(g => g.TimeSlotId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.TimeSlotId, targetId));
+        }
+
+        var legacyMorningSlotIds = await context.DeliveryTimeSlots
+            .Where(s =>
+                s.StartTime == eightToElevenStart &&
+                s.EndTime == elevenEnd &&
+                !canonicalIds.Contains(s.DeliveryTimeSlotId))
+            .Select(s => s.DeliveryTimeSlotId)
+            .ToListAsync();
+
+        foreach (var legacyId in legacyMorningSlotIds)
+        {
+            await context.Orders
+                .Where(o => o.TimeSlotId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.TimeSlotId, TimeSlot9To11Id));
+
+            await context.DeliveryGroups
+                .Where(g => g.TimeSlotId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.TimeSlotId, TimeSlot9To11Id));
+        }
+
+        var legacyAfternoonSlotIds = await context.DeliveryTimeSlots
+            .Where(s =>
+                s.StartTime == fourteenStart &&
+                s.EndTime == seventeenEnd &&
+                s.DeliveryTimeSlotId != TimeSlot13To15Id)
+            .Select(s => s.DeliveryTimeSlotId)
+            .ToListAsync();
+
+        foreach (var legacyId in legacyAfternoonSlotIds)
+        {
+            await context.Orders
+                .Where(o => o.TimeSlotId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.TimeSlotId, TimeSlot13To15Id));
+
+            await context.DeliveryGroups
+                .Where(g => g.TimeSlotId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.TimeSlotId, TimeSlot13To15Id));
+        }
+
+        var obsoleteSlotIds = await context.DeliveryTimeSlots
+            .Where(s => !canonicalIds.Contains(s.DeliveryTimeSlotId))
+            .Select(s => s.DeliveryTimeSlotId)
+            .ToListAsync();
+
+        foreach (var obsoleteId in obsoleteSlotIds)
+        {
+            await context.Orders
+                .Where(o => o.TimeSlotId == obsoleteId)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.TimeSlotId, TimeSlot9To11Id));
+
+            await context.DeliveryGroups
+                .Where(g => g.TimeSlotId == obsoleteId)
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.TimeSlotId, TimeSlot9To11Id));
+        }
+
+        await context.DeliveryTimeSlots
+            .Where(s => !canonicalIds.Contains(s.DeliveryTimeSlotId))
+            .ExecuteDeleteAsync();
     }
 
     private static async Task SeedCollectionPointsAsync(ApplicationDbContext context)
@@ -2341,7 +2428,7 @@ public static class DataSeeder
             OrderId = PackagingOrderPickupId,
             OrderCode = "PKG-PICKUP-001",
             UserId = VendorUserId1,
-            TimeSlotId = TimeSlotMorningId,
+            TimeSlotId = TimeSlot9To11Id,
             CollectionId = CollectionPointDistrict1Id,
             AddressId = null,
             DeliveryType = DeliveryMethod.Pickup,
@@ -2362,7 +2449,7 @@ public static class DataSeeder
             OrderId = PackagingOrderHomeId,
             OrderCode = "PKG-HOME-001",
             UserId = VendorUserId2,
-            TimeSlotId = TimeSlotAfternoonId,
+            TimeSlotId = TimeSlot13To15Id,
             CollectionId = null,
             AddressId = CustomerAddressVendor2Id,
             DeliveryType = DeliveryMethod.Delivery,
@@ -2383,7 +2470,7 @@ public static class DataSeeder
             OrderId = PackagingOrderReadyId,
             OrderCode = "PKG-READY-001",
             UserId = VendorUserId1,
-            TimeSlotId = TimeSlotMorningId,
+            TimeSlotId = TimeSlot9To11Id,
             CollectionId = CollectionPointDistrict3Id,
             AddressId = null,
             DeliveryType = DeliveryMethod.Pickup,
@@ -2535,7 +2622,7 @@ public static class DataSeeder
                 OrderId = orderId,
                 OrderCode = $"PKG-GRP-{(i + 1).ToString("D3")}",
                 UserId = isPickup ? VendorUserId1 : VendorUserId2,
-                TimeSlotId = useAfternoonSlotPlan[i] ? TimeSlotAfternoonId : TimeSlotMorningId,
+                TimeSlotId = useAfternoonSlotPlan[i] ? TimeSlot13To15Id : TimeSlot9To11Id,
                 CollectionId = isPickup ? CollectionPointDistrict1Id : null,
                 AddressId = isPickup ? null : CustomerAddressVendor2Id,
                 DeliveryType = isPickup ? DeliveryMethod.Pickup : DeliveryMethod.Delivery,
@@ -2600,7 +2687,7 @@ public static class DataSeeder
             OrderId = VendorUser3SampleOrderId,
             OrderCode = "VENDOR3-SEED-001",
             UserId = VendorUserId3,
-            TimeSlotId = TimeSlotMorningId,
+            TimeSlotId = TimeSlot9To11Id,
             CollectionId = CollectionPointDistrict1Id,
             AddressId = null,
             DeliveryType = DeliveryMethod.Pickup,
@@ -2759,7 +2846,6 @@ public static class DataSeeder
         if (await context.DeliveryGroups.AnyAsync(g => g.DeliveryGroupId == RouteDemoSmallGroupId))
             return;
 
-        await SeedHybridRouteDemoSlotsAsync(context);
         await SeedHybridRouteDemoAddressesAsync(context);
 
         var activeLots = await context.StockLots
@@ -2780,7 +2866,7 @@ public static class DataSeeder
             {
                 GroupId = RouteDemoSmallGroupId,
                 GroupCode = "DEMO-SMALL-0001",
-                SlotId = RouteDemoSlotSmallId,
+                SlotId = TimeSlot9To11Id,
                 StopCount = 3,
                 CodePrefix = "DEMO-S"
             },
@@ -2788,7 +2874,7 @@ public static class DataSeeder
             {
                 GroupId = RouteDemoMediumGroupId,
                 GroupCode = "DEMO-MEDIUM-0001",
-                SlotId = RouteDemoSlotMediumId,
+                SlotId = TimeSlot13To15Id,
                 StopCount = 7,
                 CodePrefix = "DEMO-M"
             },
@@ -2796,7 +2882,7 @@ public static class DataSeeder
             {
                 GroupId = RouteDemoLargeGroupId,
                 GroupCode = "DEMO-LARGE-0001",
-                SlotId = RouteDemoSlotLargeId,
+                SlotId = TimeSlot1530To1730Id,
                 StopCount = 11,
                 CodePrefix = "DEMO-L"
             },
@@ -2804,7 +2890,7 @@ public static class DataSeeder
             {
                 GroupId = RouteDemoOverLimitGroupId,
                 GroupCode = "DEMO-OVER-0001",
-                SlotId = RouteDemoSlotOverId,
+                SlotId = TimeSlot18To20Id,
                 StopCount = 13,
                 CodePrefix = "DEMO-O"
             }
@@ -2900,33 +2986,6 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    private static async Task SeedHybridRouteDemoSlotsAsync(ApplicationDbContext context)
-    {
-        var existingIds = await context.DeliveryTimeSlots
-            .Where(s =>
-                s.DeliveryTimeSlotId == RouteDemoSlotSmallId ||
-                s.DeliveryTimeSlotId == RouteDemoSlotMediumId ||
-                s.DeliveryTimeSlotId == RouteDemoSlotLargeId ||
-                s.DeliveryTimeSlotId == RouteDemoSlotOverId)
-            .Select(s => s.DeliveryTimeSlotId)
-            .ToListAsync();
-
-        var desired = new List<DeliveryTimeSlot>
-        {
-            new() { DeliveryTimeSlotId = RouteDemoSlotSmallId, StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(10, 30, 0) },
-            new() { DeliveryTimeSlotId = RouteDemoSlotMediumId, StartTime = new TimeSpan(10, 30, 0), EndTime = new TimeSpan(12, 0, 0) },
-            new() { DeliveryTimeSlotId = RouteDemoSlotLargeId, StartTime = new TimeSpan(13, 0, 0), EndTime = new TimeSpan(15, 0, 0) },
-            new() { DeliveryTimeSlotId = RouteDemoSlotOverId, StartTime = new TimeSpan(15, 30, 0), EndTime = new TimeSpan(17, 30, 0) }
-        };
-
-        var toAdd = desired.Where(s => !existingIds.Contains(s.DeliveryTimeSlotId)).ToList();
-        if (toAdd.Count > 0)
-        {
-            await context.DeliveryTimeSlots.AddRangeAsync(toAdd);
-            await context.SaveChangesAsync();
-        }
-    }
-
     private static async Task SeedHybridRouteDemoAddressesAsync(ApplicationDbContext context)
     {
         var desiredIds = RouteDemoAddresses.Select(a => a.AddressId).ToList();
@@ -2994,7 +3053,7 @@ public static class DataSeeder
                 OrderId = orderId,
                 OrderCode = $"DEMO-CLUSTER-DENSE-{(i + 1):D3}",
                 UserId = VendorUserId1,
-                TimeSlotId = TimeSlotMorningId,
+                TimeSlotId = TimeSlot9To11Id,
                 CollectionId = null,
                 AddressId = addr.AddressId,
                 DeliveryType = DeliveryMethod.Delivery,
@@ -3047,7 +3106,7 @@ public static class DataSeeder
                 OrderId = orderId,
                 OrderCode = $"DEMO-CLUSTER-SLA-{(i + 1):D3}",
                 UserId = VendorUserId1,
-                TimeSlotId = TimeSlotAfternoonId,
+                TimeSlotId = TimeSlot13To15Id,
                 CollectionId = null,
                 AddressId = addr.AddressId,
                 DeliveryType = DeliveryMethod.Delivery,

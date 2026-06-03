@@ -43,7 +43,23 @@ public static class DailyExpiryOrderingPolicy
         return IsExpiringInVietnamToday(expiryUtc, utcNow);
     }
 
-    private static DateTime EnsureUtc(DateTime value)
+    public static DateTime ToUtcFromVietnamLocal(DateTime vietnamLocalClock)
+    {
+        var local = DateTime.SpecifyKind(
+            new DateTime(
+                vietnamLocalClock.Year,
+                vietnamLocalClock.Month,
+                vietnamLocalClock.Day,
+                vietnamLocalClock.Hour,
+                vietnamLocalClock.Minute,
+                vietnamLocalClock.Second,
+                vietnamLocalClock.Millisecond),
+            DateTimeKind.Unspecified);
+
+        return TimeZoneInfo.ConvertTimeToUtc(local, VietnamTimeZone);
+    }
+
+    public static DateTime EnsureUtc(DateTime value)
     {
         return value.Kind switch
         {

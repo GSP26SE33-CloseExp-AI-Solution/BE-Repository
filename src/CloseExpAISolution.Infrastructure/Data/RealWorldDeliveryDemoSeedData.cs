@@ -15,7 +15,7 @@ internal static class RealWorldDeliveryDemoSeedData
     private static readonly Guid DeliveryStaffUserId1 = Guid.Parse("99999999-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid CustomerAddressVendor1Id = Guid.Parse("eeee0001-0001-0001-0001-000000000001");
     private static readonly Guid CustomerAddressVendor2Id = Guid.Parse("eeee0002-0002-0002-0002-000000000002");
-    private static readonly Guid TimeSlotAfternoonId = Guid.Parse("cccc0002-0002-0002-0002-000000000002");
+    private static readonly Guid TimeSlot1530To1730Id = Guid.Parse("cccc0003-0003-0003-0003-000000000003");
 
     private static readonly Guid OrderReadyId = Guid.Parse("eeee2001-0001-0001-0001-000000000001");
     private static readonly Guid OrderPickedUpId = Guid.Parse("eeee2002-0002-0002-0002-000000000002");
@@ -87,7 +87,7 @@ internal static class RealWorldDeliveryDemoSeedData
             DeliveryGroupId = DeliveryDemoGroupId,
             GroupCode = "DEL-DEMO-GROUP-01",
             DeliveryStaffId = DeliveryStaffUserId1,
-            TimeSlotId = TimeSlotAfternoonId,
+            TimeSlotId = TimeSlot1530To1730Id,
             DeliveryType = DeliveryMethod.Delivery,
             DeliveryArea = "DELIVERY",
             CenterLatitude = 10.7769m,
@@ -207,7 +207,7 @@ internal static class RealWorldDeliveryDemoSeedData
                 OrderId = scenario.OrderId,
                 OrderCode = scenario.OrderCode,
                 UserId = scenario.UserId,
-                TimeSlotId = TimeSlotAfternoonId,
+                TimeSlotId = TimeSlot1530To1730Id,
                 AddressId = scenario.AddressId,
                 DeliveryType = DeliveryMethod.Delivery,
                 TotalAmount = scenario.TotalAmount,

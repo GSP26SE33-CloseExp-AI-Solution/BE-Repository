@@ -509,26 +509,35 @@ public class OrderService : IOrderService
 
     private static DateTime ResolveRequestedDeliveryDate(DateTime? deliveryDate, DateTime orderPlacedAtUtc)
     {
+        var placedUtc = DailyExpiryOrderingPolicy.EnsureUtc(orderPlacedAtUtc);
+        var placedVn = DailyExpiryOrderingPolicy.GetVietnamNow(placedUtc);
+
         if (!deliveryDate.HasValue)
-            return orderPlacedAtUtc;
+            return placedUtc;
 
-        var requested = deliveryDate.Value;
-        if (requested.Kind == DateTimeKind.Unspecified)
-            requested = DateTime.SpecifyKind(requested, DateTimeKind.Utc);
-        else if (requested.Kind == DateTimeKind.Local)
-            requested = requested.ToUniversalTime();
+        var requestedVn = DailyExpiryOrderingPolicy.GetVietnamNow(
+            DailyExpiryOrderingPolicy.EnsureUtc(deliveryDate.Value));
 
-        var requestedDate = requested.Date;
-        var todayUtc = orderPlacedAtUtc.Date;
         const int maxDaysAhead = 6;
+        var todayVn = placedVn.Date;
+        var requestedDateVn = requestedVn.Date;
 
-        if (requestedDate < todayUtc)
+        if (requestedDateVn < todayVn)
             throw new InvalidOperationException("Ngày giao / nhận không được ở quá khứ.");
 
-        if (requestedDate > todayUtc.AddDays(maxDaysAhead))
+        if (requestedDateVn > todayVn.AddDays(maxDaysAhead))
             throw new InvalidOperationException("Chỉ có thể đặt giao / nhận trong vòng 1 tuần (7 ngày).");
 
-        return DateTime.SpecifyKind(requestedDate, DateTimeKind.Utc);
+        var deliveryVn = new DateTime(
+            requestedDateVn.Year,
+            requestedDateVn.Month,
+            requestedDateVn.Day,
+            placedVn.Hour,
+            placedVn.Minute,
+            placedVn.Second,
+            placedVn.Millisecond);
+
+        return DailyExpiryOrderingPolicy.ToUtcFromVietnamLocal(deliveryVn);
     }
 
     public async Task<(IEnumerable<OrderResponseDto> Items, int TotalCount)> GetByUserIdAsync(Guid userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
