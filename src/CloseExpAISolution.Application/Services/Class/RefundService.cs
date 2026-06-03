@@ -2,6 +2,7 @@ using System.Text.Json;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -44,7 +45,7 @@ public class RefundService : IRefundService
             .Take(safeSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = page.Select(r => _mapper.Map<RefundResponseDto>(r)).ToList();
+        var dtos = await MapRefundsAsync(page, cancellationToken);
         return (dtos, total);
     }
 
@@ -68,15 +69,16 @@ public class RefundService : IRefundService
         var page = all
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => _mapper.Map<RefundResponseDto>(r))
             .ToList();
-        return (page, total);
+
+        var dtos = await MapRefundsAsync(page, cancellationToken);
+        return (dtos, total);
     }
 
     public async Task<RefundResponseDto?> GetByIdAsync(Guid refundId, CancellationToken cancellationToken = default)
     {
         var entity = await _unitOfWork.Repository<Refund>().FirstOrDefaultAsync(r => r.RefundId == refundId);
-        return entity == null ? null : _mapper.Map<RefundResponseDto>(entity);
+        return entity == null ? null : await MapRefundAsync(entity, cancellationToken);
     }
 
     public async Task<RefundResponseDto?> GetByIdForUserAsync(Guid refundId, Guid userId, CancellationToken cancellationToken = default)
@@ -89,7 +91,7 @@ public class RefundService : IRefundService
         if (order == null || order.UserId != userId)
             return null;
 
-        return _mapper.Map<RefundResponseDto>(refund);
+        return await MapRefundAsync(refund, cancellationToken);
     }
 
     public async Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default)
@@ -157,7 +159,9 @@ public class RefundService : IRefundService
             }
         }
 
-        return _mapper.Map<RefundResponseDto>(refund);
+        var dto = _mapper.Map<RefundResponseDto>(refund);
+        RefundDtoEnricher.EnrichRefundResponse(dto, refund, order);
+        return dto;
     }
 
     public async Task EnqueueRefundCustomerNotificationAsync(
@@ -228,6 +232,43 @@ public class RefundService : IRefundService
                     refundId, notifyKind);
             }
         }
+    }
+
+    private async Task<RefundResponseDto> MapRefundAsync(Refund refund, CancellationToken cancellationToken)
+    {
+        var dto = _mapper.Map<RefundResponseDto>(refund);
+        var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(refund.OrderId, cancellationToken);
+        if (order != null)
+            RefundDtoEnricher.EnrichRefundResponse(dto, refund, order);
+        return dto;
+    }
+
+    private async Task<List<RefundResponseDto>> MapRefundsAsync(
+        IReadOnlyList<Refund> refunds,
+        CancellationToken cancellationToken)
+    {
+        if (refunds.Count == 0)
+            return new List<RefundResponseDto>();
+
+        var orderIds = refunds.Select(r => r.OrderId).Distinct().ToList();
+        var orders = new Dictionary<Guid, Order>();
+        foreach (var orderId in orderIds)
+        {
+            var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
+            if (order != null)
+                orders[orderId] = order;
+        }
+
+        var dtos = new List<RefundResponseDto>(refunds.Count);
+        foreach (var refund in refunds)
+        {
+            var dto = _mapper.Map<RefundResponseDto>(refund);
+            if (orders.TryGetValue(refund.OrderId, out var order))
+                RefundDtoEnricher.EnrichRefundResponse(dto, refund, order);
+            dtos.Add(dto);
+        }
+
+        return dtos;
     }
 
     private static bool CanTransition(RefundState from, RefundState to) => (from, to) switch

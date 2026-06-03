@@ -186,7 +186,15 @@ public class OrderService : IOrderService
     public async Task<OrderResponseDto?> GetByIdWithDetailsAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
-        return order == null ? null : _mapper.Map<OrderResponseDto>(order);
+        if (order == null)
+            return null;
+
+        var dto = _mapper.Map<OrderResponseDto>(order);
+        var refunds = (await _unitOfWork.Repository<Refund>().FindAsync(r => r.OrderId == orderId))
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+        RefundDtoEnricher.ApplyOrderRefundDetails(dto, order, refunds);
+        return dto;
     }
 
     public async Task<OrderResponseDto> CreateAsync(CreateOrderRequestDto request, CancellationToken cancellationToken = default)
@@ -277,7 +285,12 @@ public class OrderService : IOrderService
         await TryRecordPromotionUsageAsync(order, cancellationToken);
 
         var created = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
-        return _mapper.Map<OrderResponseDto>(created!);
+        var createdDto = _mapper.Map<OrderResponseDto>(created!);
+        var refunds = (await _unitOfWork.Repository<Refund>().FindAsync(r => r.OrderId == orderId))
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+        RefundDtoEnricher.ApplyOrderRefundDetails(createdDto, created!, refunds);
+        return createdDto;
     }
 
     public async Task UpdateAsync(Guid orderId, UpdateOrderRequestDto request, CancellationToken cancellationToken = default)

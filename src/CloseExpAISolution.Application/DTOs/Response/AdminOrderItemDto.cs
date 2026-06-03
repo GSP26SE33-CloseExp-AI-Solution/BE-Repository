@@ -13,4 +13,5 @@ public class AdminOrderItemDto
     public decimal TotalPrice { get; set; }
     public string? ProductName { get; set; }
     public DateTime? ExpiryDate { get; set; }
+    public OrderItemRefundProgressDto? RefundProgress { get; set; }
 }
