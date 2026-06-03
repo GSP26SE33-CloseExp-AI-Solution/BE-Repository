@@ -1,6 +1,7 @@
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -605,6 +606,14 @@ public class AdminService : IAdminService
                 };
             }).ToList()
         }).ToList();
+
+        var pageOrderIds = items.Select(i => i.OrderId).ToList();
+        if (pageOrderIds.Count > 0)
+        {
+            var pageRefunds = (await _unitOfWork.Repository<Refund>()
+                .FindAsync(r => pageOrderIds.Contains(r.OrderId))).ToList();
+            RefundDtoEnricher.ApplyAdminOrderRefundDetails(items, orders, pageRefunds);
+        }
 
         return new PaginatedResult<AdminOrderListItemDto>
         {

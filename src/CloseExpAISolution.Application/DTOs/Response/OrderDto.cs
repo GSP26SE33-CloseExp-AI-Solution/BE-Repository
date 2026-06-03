@@ -32,6 +32,7 @@ public class OrderResponseDto
     public long? PayOsOrderCode { get; set; }
     public string? CheckoutUrl { get; set; }
 
+    public List<RefundResponseDto> Refunds { get; set; } = new();
     public List<OrderItemResponseDto> OrderItems { get; set; } = new();
 }
 
@@ -57,4 +58,5 @@ public class OrderItemResponseDto
     public DateTime? DeliveredAt { get; set; }
     public string? DeliveryFailedReason { get; set; }
     public Guid? DeliveryGroupId { get; set; }
+    public OrderItemRefundProgressDto? RefundProgress { get; set; }
 }

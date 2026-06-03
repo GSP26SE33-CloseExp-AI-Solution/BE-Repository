@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CloseExpAISolution.Application.DTOs.Request;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
@@ -121,24 +120,11 @@ public static class FulfillmentFailureRefundHelper
         var ids = new HashSet<Guid>();
         foreach (var refund in activeRefunds)
         {
-            foreach (var id in ParseRefundItemIds(refund.RefundedOrderItemIdsJson) ?? Array.Empty<Guid>())
+            foreach (var id in RefundDtoEnricher.ParseRefundItemIds(refund.RefundedOrderItemIdsJson) ?? Array.Empty<Guid>())
                 ids.Add(id);
         }
 
         return ids;
     }
 
-    private static IReadOnlyList<Guid>? ParseRefundItemIds(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            return null;
-        try
-        {
-            return JsonSerializer.Deserialize<List<Guid>>(json);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
 }
