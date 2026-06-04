@@ -18,6 +18,24 @@ public class PromotionsController : ControllerBase
         _services = services;
     }
 
+    [HttpGet("available")]
+    [Authorize(Roles = "Vendor")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CustomerPromotionOptionDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAvailablePromotions(
+        [FromQuery] decimal cartSubtotal = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Không thể xác định người dùng"));
+
+        var data = await _services.PromotionService.GetAvailableForCustomerAsync(
+            userId,
+            cartSubtotal,
+            cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<CustomerPromotionOptionDto>>.SuccessResponse(data));
+    }
+
     [Authorize(Roles = "Vendor")]
     [HttpPost("validate")]
     [ProducesResponseType(typeof(ApiResponse<PromotionValidationResultDto>), StatusCodes.Status200OK)]

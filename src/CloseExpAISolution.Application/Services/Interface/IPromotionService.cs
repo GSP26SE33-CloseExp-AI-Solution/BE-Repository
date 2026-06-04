@@ -12,4 +12,8 @@ public interface IPromotionService
     Task<AdminPromotionDto?> UpdatePromotionStatusAsync(Guid promotionId, string status, CancellationToken cancellationToken = default);
     Task<bool> DeletePromotionAsync(Guid promotionId, CancellationToken cancellationToken = default);
     Task<PromotionValidationResultDto> ValidatePromotionAsync(Guid userId, ValidatePromotionRequestDto request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CustomerPromotionOptionDto>> GetAvailableForCustomerAsync(
+        Guid userId,
+        decimal cartSubtotal,
+        CancellationToken cancellationToken = default);
 }
