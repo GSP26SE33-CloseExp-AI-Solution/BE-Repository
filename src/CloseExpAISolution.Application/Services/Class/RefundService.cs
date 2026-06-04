@@ -44,7 +44,8 @@ public class RefundService : IRefundService
             .Take(safeSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = page.Select(r => _mapper.Map<RefundResponseDto>(r)).ToList();
+        var dtos = await MapRefundsAsync(page, cancellationToken);
+        await EnrichWithCustomerContactAsync(dtos, cancellationToken);
         return (dtos, total);
     }
 
@@ -70,13 +71,20 @@ public class RefundService : IRefundService
             .Take(pageSize)
             .Select(r => _mapper.Map<RefundResponseDto>(r))
             .ToList();
-        return (page, total);
+        var dtos = await MapRefundsAsync(page, cancellationToken);
+        await EnrichWithCustomerContactAsync(dtos, cancellationToken);
+        return (dtos, total);
     }
 
     public async Task<RefundResponseDto?> GetByIdAsync(Guid refundId, CancellationToken cancellationToken = default)
     {
         var entity = await _unitOfWork.Repository<Refund>().FirstOrDefaultAsync(r => r.RefundId == refundId);
-        return entity == null ? null : _mapper.Map<RefundResponseDto>(entity);
+        if (entity == null)
+            return null;
+
+        var dto = await MapRefundAsync(entity, cancellationToken);
+        await EnrichWithCustomerContactAsync(new List<RefundResponseDto> { dto }, cancellationToken);
+        return dto;
     }
 
     public async Task<RefundResponseDto?> GetByIdForUserAsync(Guid refundId, Guid userId, CancellationToken cancellationToken = default)
@@ -89,7 +97,9 @@ public class RefundService : IRefundService
         if (order == null || order.UserId != userId)
             return null;
 
-        return _mapper.Map<RefundResponseDto>(refund);
+        var dto = await MapRefundAsync(refund, cancellationToken);
+        await EnrichWithCustomerContactAsync(new List<RefundResponseDto> { dto }, cancellationToken);
+        return dto;
     }
 
     public async Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default)
@@ -237,4 +247,39 @@ public class RefundService : IRefundService
         (RefundState.Approved, RefundState.Completed) => true,
         _ => false
     };
+
+    private async Task EnrichWithCustomerContactAsync(
+        IList<RefundResponseDto> dtos,
+        CancellationToken cancellationToken)
+    {
+        if (dtos.Count == 0)
+            return;
+
+        var orderIds = dtos.Select(d => d.OrderId).Distinct().ToList();
+        var orders = await _unitOfWork.Repository<Order>()
+            .AsQueryable()
+            .AsNoTracking()
+            .Where(o => orderIds.Contains(o.OrderId))
+            .Select(o => new
+            {
+                o.OrderId,
+                o.OrderCode,
+                CustomerFullName = o.User != null ? o.User.FullName : null,
+                CustomerEmail = o.User != null ? o.User.Email : null,
+                CustomerPhone = o.User != null ? o.User.Phone : null
+            })
+            .ToListAsync(cancellationToken);
+
+        var byOrderId = orders.ToDictionary(o => o.OrderId);
+        foreach (var dto in dtos)
+        {
+            if (!byOrderId.TryGetValue(dto.OrderId, out var order))
+                continue;
+
+            dto.OrderCode = order.OrderCode;
+            dto.CustomerFullName = order.CustomerFullName;
+            dto.CustomerEmail = order.CustomerEmail;
+            dto.CustomerPhone = order.CustomerPhone;
+        }
+    }
 }

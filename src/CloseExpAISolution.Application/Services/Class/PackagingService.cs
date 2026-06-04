@@ -348,15 +348,15 @@ public class PackagingService : IPackagingService
                 if (record.Status == PackagingState.Completed || record.Status == PackagingState.Failed)
                     throw new InvalidOperationException($"Dòng hàng {item.OrderItemId} đã kết thúc đóng gói.");
 
-        record.Status = PackagingState.Pending;
+                record.Status = PackagingState.Pending;
                 record.PackagedAt = null;
-        _unitOfWork.Repository<OrderPackaging>().Update(record);
+                _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Pending;
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
         }
         catch
@@ -406,11 +406,11 @@ public class PackagingService : IPackagingService
             if (record.Status == PackagingState.Packaging)
                 continue;
 
-        if (record.Status != PackagingState.Pending)
+            if (record.Status != PackagingState.Pending)
                 throw new InvalidOperationException("Bản ghi đóng gói không ở trạng thái chờ thu gom.");
 
-        record.Status = PackagingState.Packaging;
-        _unitOfWork.Repository<OrderPackaging>().Update(record);
+            record.Status = PackagingState.Packaging;
+            _unitOfWork.Repository<OrderPackaging>().Update(record);
 
             item.PackagingStatus = PackagingState.Packaging;
             _unitOfWork.Repository<OrderItem>().Update(item);
@@ -485,7 +485,7 @@ public class PackagingService : IPackagingService
                 await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
                 record.Status = PackagingState.Completed;
                 record.PackagedAt = now;
-            _unitOfWork.Repository<OrderPackaging>().Update(record);
+                _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Completed;
                 item.PackagedAt = now;
@@ -627,9 +627,30 @@ public class PackagingService : IPackagingService
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            var failedAmount = actionableTargets.Sum(i => i.TotalPrice);
-            var refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
-            pendingRefundId = await TryRefundForPackagingFailureAsync(orderId, failedAmount, note, refundedItemIds, cancellationToken);
+            var allItemsAfterFail = await GetOrderItemsAsync(orderId, cancellationToken);
+            var allOrderItemsFailed = allItemsAfterFail.Count > 0
+                && allItemsAfterFail.All(i => i.PackagingStatus == PackagingState.Failed);
+
+            decimal failedAmount;
+            IReadOnlyList<Guid> refundedItemIds;
+            if (allOrderItemsFailed)
+            {
+                failedAmount = 0;
+                refundedItemIds = allItemsAfterFail.Select(i => i.OrderItemId).ToList();
+            }
+            else
+            {
+                failedAmount = actionableTargets.Sum(i => i.TotalPrice);
+                refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
+            }
+
+            pendingRefundId = await TryRefundForPackagingFailureAsync(
+                orderId,
+                failedAmount,
+                allOrderItemsFailed,
+                note,
+                refundedItemIds,
+                cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
@@ -982,21 +1003,21 @@ public class PackagingService : IPackagingService
 
     private async Task NotifyDeliveryStaffOrderReadyAsync(Order order, DateTime now, CancellationToken cancellationToken)
     {
-            var deliveryStaffs = await _unitOfWork.Repository<User>()
-                .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
+        var deliveryStaffs = await _unitOfWork.Repository<User>()
+            .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
 
-            var notifications = deliveryStaffs.Select(staff => new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = staff.UserId,
-                Title = "Có đơn cần giao",
-                Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
-                Type = NotificationType.DeliveryUpdate,
-                IsRead = false,
+        var notifications = deliveryStaffs.Select(staff => new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = staff.UserId,
+            Title = "Có đơn cần giao",
+            Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
+            Type = NotificationType.DeliveryUpdate,
+            IsRead = false,
             CreatedAt = now
-            }).ToList();
+        }).ToList();
 
-            if (notifications.Count > 0)
+        if (notifications.Count > 0)
             await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1026,14 +1047,12 @@ public class PackagingService : IPackagingService
 
     private async Task<Guid?> TryRefundForPackagingFailureAsync(
         Guid orderId,
-        decimal refundAmount,
+        decimal failedLineItemsAmount,
+        bool refundFullOrderRemainder,
         string reason,
         IReadOnlyList<Guid> refundedOrderItemIds,
         CancellationToken cancellationToken)
     {
-        if (refundAmount <= 0)
-            return null;
-
         var transactions = (await _unitOfWork.Repository<Transaction>()
                 .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
             .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
@@ -1054,7 +1073,10 @@ public class PackagingService : IPackagingService
             return null;
         }
 
-        var amount = Math.Min(refundAmount, refundable);
+        var amount = refundFullOrderRemainder
+            ? refundable
+            : Math.Min(failedLineItemsAmount, refundable);
+
         if (amount <= 0)
             return null;
 

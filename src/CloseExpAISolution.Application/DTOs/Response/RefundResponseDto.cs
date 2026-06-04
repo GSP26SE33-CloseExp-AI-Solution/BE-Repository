@@ -12,4 +12,11 @@ public class RefundResponseDto
     public DateTime? ProcessedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public IReadOnlyList<Guid>? RefundedOrderItemIds { get; set; }
+    public bool IsFullOrderRefund { get; set; }
+    public IReadOnlyList<RefundOrderItemDto> Items { get; set; } = Array.Empty<RefundOrderItemDto>();
+    public IReadOnlyList<RefundProgressStepDto> Steps { get; set; } = Array.Empty<RefundProgressStepDto>();
+    public string? OrderCode { get; set; }
+    public string? CustomerFullName { get; set; }
+    public string? CustomerEmail { get; set; }
+    public string? CustomerPhone { get; set; }
 }
