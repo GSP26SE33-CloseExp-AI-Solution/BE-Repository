@@ -8,10 +8,14 @@ namespace CloseExpAISolution.Application.Services.Class;
 public class OrderNotificationPublisher : IOrderNotificationPublisher
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
 
-    public OrderNotificationPublisher(IUnitOfWork unitOfWork)
+    public OrderNotificationPublisher(
+        IUnitOfWork unitOfWork,
+        IRealtimeNotificationPublisher realtimePublisher)
     {
         _unitOfWork = unitOfWork;
+        _realtimePublisher = realtimePublisher;
     }
 
     public async Task PublishOrderPlacedAsync(Guid orderId, Guid userId, string orderCode, CancellationToken cancellationToken = default)
@@ -33,6 +37,7 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
         };
 
         await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        await _realtimePublisher.PublishAsync(notification, cancellationToken);
     }
 
     public async Task PublishOrderStatusChangedAsync(
@@ -60,6 +65,7 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
         };
 
         await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        await _realtimePublisher.PublishAsync(notification, cancellationToken);
     }
 
     public async Task PublishOrderThreadChildAsync(
@@ -88,6 +94,7 @@ public class OrderNotificationPublisher : IOrderNotificationPublisher
         };
 
         await _unitOfWork.Repository<Notification>().AddAsync(notification);
+        await _realtimePublisher.PublishAsync(notification, cancellationToken);
     }
 
     public async Task PublishDeliveryStatusChildAsync(

@@ -17,6 +17,7 @@ public class OrderResponseDto
     public decimal DeliveryFee { get; set; }
     public decimal SystemUsageFeeAmount { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? PackagingStatus { get; set; }
     public DateTime OrderDate { get; set; }
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
@@ -32,6 +33,7 @@ public class OrderResponseDto
     public long? PayOsOrderCode { get; set; }
     public string? CheckoutUrl { get; set; }
 
+    public List<RefundResponseDto> Refunds { get; set; } = new();
     public List<OrderItemResponseDto> OrderItems { get; set; } = new();
 }
 
@@ -57,4 +59,5 @@ public class OrderItemResponseDto
     public DateTime? DeliveredAt { get; set; }
     public string? DeliveryFailedReason { get; set; }
     public Guid? DeliveryGroupId { get; set; }
+    public OrderItemRefundProgressDto? RefundProgress { get; set; }
 }

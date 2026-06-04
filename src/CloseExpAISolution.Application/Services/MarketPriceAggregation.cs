@@ -108,7 +108,7 @@ public static class MarketPriceAggregation
     private static HashSet<string> Tokenize(string text)
     {
         return text.ToLowerInvariant()
-            .Split([' ', ',', '.', '-', '/', '(', ')'], StringSplitOptions.RemoveEmptyEntries)
+            .Split(new[] { ' ', ',', '.', '-', '/', '(', ')' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(t => t.Length > 1)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }

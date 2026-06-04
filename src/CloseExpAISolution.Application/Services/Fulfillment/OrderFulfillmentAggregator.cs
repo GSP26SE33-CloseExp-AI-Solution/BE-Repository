@@ -49,7 +49,8 @@ public static class OrderFulfillmentAggregator
 
         if (shipped.All(IsDeliveryDone))
         {
-            order.Status = OrderState.Completed;
+            var allDeliveryFailed = shipped.All(i => i.DeliveryStatus == DeliveryState.Failed);
+            order.Status = allDeliveryFailed ? OrderState.Failed : OrderState.Completed;
             return;
         }
 

@@ -11,11 +11,16 @@ public class NotificationService : INotificationService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
 
-    public NotificationService(IUnitOfWork unitOfWork, IMapper mapper)
+    public NotificationService(
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        IRealtimeNotificationPublisher realtimePublisher)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _realtimePublisher = realtimePublisher;
     }
 
     public async Task<ApiResponse<IEnumerable<NotificationResponseDto>>> GetAllAsync()
@@ -105,6 +110,7 @@ public class NotificationService : INotificationService
 
         await _unitOfWork.Repository<Notification>().AddAsync(entity);
         await _unitOfWork.SaveChangesAsync();
+        await _realtimePublisher.PublishAsync(entity);
 
         var dto = await MapWithUserNameAsync(entity);
         return ApiResponse<NotificationResponseDto>.SuccessResponse(dto, "Tạo thông báo thành công");

@@ -22,17 +22,20 @@ public class DeliveryAdminService : IDeliveryAdminService
     private readonly IDeliveryService _deliveryService;
     private readonly IMapboxService _mapboxService;
     private readonly ILogger<DeliveryAdminService> _logger;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
 
     public DeliveryAdminService(
         IUnitOfWork unitOfWork,
         IDeliveryService deliveryService,
         IMapboxService mapboxService,
-        ILogger<DeliveryAdminService> logger)
+        ILogger<DeliveryAdminService> logger,
+        IRealtimeNotificationPublisher realtimePublisher)
     {
         _unitOfWork = unitOfWork;
         _deliveryService = deliveryService;
         _mapboxService = mapboxService;
         _logger = logger;
+        _realtimePublisher = realtimePublisher;
     }
 
     public async Task<DeliveryGroupResponseDto> AssignGroupToStaffAsync(
@@ -117,6 +120,7 @@ public class DeliveryAdminService : IDeliveryAdminService
 
             await _unitOfWork.Repository<Notification>().AddAsync(notification);
             await _unitOfWork.CommitTransactionAsync();
+            await _realtimePublisher.PublishAsync(notification, cancellationToken);
         }
         catch
         {

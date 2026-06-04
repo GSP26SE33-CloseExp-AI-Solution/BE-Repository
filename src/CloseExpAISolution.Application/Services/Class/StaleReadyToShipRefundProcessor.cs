@@ -151,13 +151,18 @@ public class StaleReadyToShipRefundProcessor : IStaleReadyToShipRefundProcessor
 
             var reason = StaleReadyToShipPolicy.BuildRefundReason(latestRtsLog.ChangedAt, maxWaitMinutes);
 
+            var orderItems = await _unitOfWork.Repository<OrderItem>()
+                .FindAsync(oi => oi.OrderId == orderId);
+            var allOrderItemIds = orderItems.Select(oi => oi.OrderItemId).ToList();
+
             var createdRefund = await _services.RefundService.CreateAsync(
                 new CreateRefundRequestDto
                 {
                     OrderId = orderId,
                     TransactionId = paidTx.TransactionId,
                     Amount = refundable,
-                    Reason = reason
+                    Reason = reason,
+                    OrderItemIds = allOrderItemIds
                 },
                 cancellationToken);
 

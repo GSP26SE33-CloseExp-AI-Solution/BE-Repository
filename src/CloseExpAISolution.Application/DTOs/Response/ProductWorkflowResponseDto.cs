@@ -176,9 +176,34 @@ public class OcrAnalysisResponseDto
     public string ImageUrl { get; set; } = string.Empty;
     public OcrExtractedInfoDto ExtractedInfo { get; set; } = new();
     public BarcodeLookupInfoDto? BarcodeLookupInfo { get; set; }
+    public OcrPrefillFieldsDto PrefillFields { get; set; } = new();
+    public List<string> MissingRequiredFields { get; set; } = new();
     public float Confidence { get; set; }
     public string? RawOcrData { get; set; }
     public bool AiSkipped { get; set; }
+}
+
+public class OcrPrefillFieldDto
+{
+    public string? Value { get; set; }
+    public string Source { get; set; } = "missing"; // ocr_llm | barcode_lookup | rule_based | missing
+    public float Confidence { get; set; }
+    public string Status { get; set; } = "missing"; // ok | needs_review | missing
+    public bool Editable { get; set; } = true;
+}
+
+public class OcrPrefillFieldsDto
+{
+    public OcrPrefillFieldDto Name { get; set; } = new();
+    public OcrPrefillFieldDto Brand { get; set; } = new();
+    public OcrPrefillFieldDto Barcode { get; set; } = new();
+    public OcrPrefillFieldDto Category { get; set; } = new();
+    public OcrPrefillFieldDto Weight { get; set; } = new();
+    public OcrPrefillFieldDto Ingredients { get; set; } = new();
+    public OcrPrefillFieldDto Manufacturer { get; set; } = new();
+    public OcrPrefillFieldDto Origin { get; set; } = new();
+    public OcrPrefillFieldDto ExpiryDate { get; set; } = new();
+    public OcrPrefillFieldDto ManufactureDate { get; set; } = new();
 }
 
 public class OcrExtractedInfoDto

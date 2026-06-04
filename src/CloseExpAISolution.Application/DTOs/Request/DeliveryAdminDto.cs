@@ -76,7 +76,7 @@ public class MyDeliveryGroupsQueryDto
     public int PageSize { get; set; } = 20;
 
     /// <summary>
-    /// supported: balanced, timeFirst, distanceFirst
+    /// supported: balanced, timeFirst, distanceFirst, recentFirst
     /// </summary>
     public string? SortBy { get; set; }
 
@@ -91,7 +91,7 @@ public class DeliveryWorkQueueQueryDto
     public int Limit { get; set; } = 10;
 
     /// <summary>
-    /// supported: balanced, timeFirst, distanceFirst
+    /// supported: balanced, timeFirst, distanceFirst, recentFirst
     /// </summary>
     public string? SortBy { get; set; }
 

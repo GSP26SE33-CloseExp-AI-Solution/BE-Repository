@@ -22,9 +22,11 @@ public class DeliveryService : IDeliveryService
     private readonly IMapboxService _mapboxService;
     private readonly ILogger<DeliveryService> _logger;
     private readonly IOrderNotificationPublisher _orderNotificationPublisher;
+    private readonly IRealtimeNotificationPublisher _realtimePublisher;
     private readonly HybridRoutingStrategy _routingStrategy;
     private readonly PurchaseUnitOrderHelper _purchaseUnitHelper;
     private readonly IUnitConversionRateService _unitConversion;
+    private readonly IRefundService _refundService;
 
     public DeliveryService(
         IUnitOfWork unitOfWork,
@@ -32,18 +34,22 @@ public class DeliveryService : IDeliveryService
         IMapboxService mapboxService,
         ILogger<DeliveryService> logger,
         IOrderNotificationPublisher orderNotificationPublisher,
+        IRealtimeNotificationPublisher realtimePublisher,
         HybridRoutingStrategy routingStrategy,
         PurchaseUnitOrderHelper purchaseUnitHelper,
-        IUnitConversionRateService unitConversion)
+        IUnitConversionRateService unitConversion,
+        IRefundService refundService)
     {
         _unitOfWork = unitOfWork;
         _r2Storage = r2Storage;
         _mapboxService = mapboxService;
         _logger = logger;
         _orderNotificationPublisher = orderNotificationPublisher;
+        _realtimePublisher = realtimePublisher;
         _routingStrategy = routingStrategy;
         _purchaseUnitHelper = purchaseUnitHelper;
         _unitConversion = unitConversion;
+        _refundService = refundService;
     }
 
     public async Task<IEnumerable<DeliveryGroupSummaryDto>> GetAvailableDeliveryGroupsAsync(
@@ -544,14 +550,20 @@ public class DeliveryService : IDeliveryService
         }
 
         var now = DateTime.UtcNow;
+        var note = FulfillmentFailureRefundHelper.BuildFailureNote(
+            "Giao hàng thất bại",
+            request.FailureReason,
+            request.Notes);
+        var noteForItem = note.Length > 2000 ? note[..2000] : note;
 
         await _unitOfWork.BeginTransactionAsync();
+        Guid? pendingRefundId = null;
         try
         {
             foreach (var item in itemsToFail)
             {
                 item.DeliveryStatus = DeliveryState.Failed;
-                item.DeliveryFailedReason = request.FailureReason;
+                item.DeliveryFailedReason = noteForItem;
                 _unitOfWork.Repository<OrderItem>().Update(item);
 
                 var deliveryRecord = new DeliveryLog
@@ -562,15 +574,27 @@ public class DeliveryService : IDeliveryService
                     UserId = deliveryStaffId,
                     Status = DeliveryState.Failed,
                     FailedReason = request.FailureReason,
-                    DeliveredAt = null
+                    DeliveredAt = now
                 };
                 await _unitOfWork.Repository<DeliveryLog>().AddAsync(deliveryRecord);
             }
 
+            pendingRefundId = await FulfillmentFailureRefundHelper.TryCreateRefundForFailedOrderItemsAsync(
+                _unitOfWork,
+                _refundService,
+                _logger,
+                orderId,
+                itemsToFail,
+                note,
+                cancellationToken,
+                throwIfNoPaidTransaction: true);
+
             OrderFulfillmentAggregator.ApplyAggregatedOrderStatus(order, orderItems);
             OrderFulfillmentAggregator.SyncOrderDeliveryGroupPointer(order, orderItems);
             order.UpdatedAt = now;
+            staffGroup.UpdatedAt = now;
             _unitOfWork.Repository<Order>().Update(order);
+            _unitOfWork.Repository<DeliveryGroup>().Update(staffGroup);
 
             await _orderNotificationPublisher.PublishDeliveryStatusChildAsync(
                 orderId,
@@ -580,14 +604,37 @@ public class DeliveryService : IDeliveryService
                 request.FailureReason,
                 cancellationToken);
 
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
 
-            _logger.LogInformation("Order {OrderId} delivery failed - Reason: {Reason}", orderId, request.FailureReason);
+            _logger.LogInformation(
+                "Order {OrderId} delivery failed - Reason: {Reason}, refundId={RefundId}",
+                orderId,
+                request.FailureReason,
+                pendingRefundId);
         }
         catch
         {
             await _unitOfWork.RollbackTransactionAsync();
             throw;
+        }
+
+        if (pendingRefundId.HasValue)
+        {
+            try
+            {
+                await _refundService.EnqueueRefundCustomerNotificationAsync(
+                    pendingRefundId.Value,
+                    RefundNotificationKind.Pending,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send pending refund email after delivery failure. refundId={RefundId}",
+                    pendingRefundId.Value);
+            }
         }
 
         return await MapToDeliveryOrderResponseAsync(order, staffGroup.DeliveryGroupId);
@@ -664,6 +711,7 @@ public class DeliveryService : IDeliveryService
                 .Select(i => i.DeliveryGroupId!.Value)
                 .Distinct()
                 .ToList();
+            var createdNotifications = new List<Notification>();
             foreach (var gid in staffIds)
             {
                 var deliveryGroup = await _unitOfWork.Repository<DeliveryGroup>()
@@ -683,9 +731,11 @@ public class DeliveryService : IDeliveryService
                 };
 
                 await _unitOfWork.Repository<Notification>().AddAsync(staffNotification);
+                createdNotifications.Add(staffNotification);
             }
 
             await _unitOfWork.CommitTransactionAsync();
+            await _realtimePublisher.PublishManyAsync(createdNotifications, cancellationToken);
         }
         catch
         {
@@ -776,9 +826,10 @@ public class DeliveryService : IDeliveryService
                         staffIds.Add(staffId);
                 }
 
+                var createdNotifications = new List<Notification>();
                 foreach (var staffId in staffIds)
                 {
-                    await _unitOfWork.Repository<Notification>().AddAsync(new Notification
+                    var notification = new Notification
                     {
                         NotificationId = Guid.NewGuid(),
                         UserId = staffId,
@@ -787,10 +838,13 @@ public class DeliveryService : IDeliveryService
                         Type = NotificationType.OrderUpdate,
                         IsRead = false,
                         CreatedAt = now
-                    });
+                    };
+                    await _unitOfWork.Repository<Notification>().AddAsync(notification);
+                    createdNotifications.Add(notification);
                 }
 
                 await _unitOfWork.CommitTransactionAsync();
+                await _realtimePublisher.PublishManyAsync(createdNotifications, cancellationToken);
                 affectedOrders++;
             }
             catch
@@ -818,10 +872,16 @@ public class DeliveryService : IDeliveryService
         var filtered = records.AsEnumerable();
 
         if (fromDate.HasValue)
-            filtered = filtered.Where(r => r.DeliveredAt >= fromDate.Value);
+        {
+            var fromStart = fromDate.Value.Date;
+            filtered = filtered.Where(r => GetDeliveryRecordEventTime(r) >= fromStart);
+        }
 
         if (toDate.HasValue)
-            filtered = filtered.Where(r => r.DeliveredAt <= toDate.Value);
+        {
+            var toEnd = toDate.Value.Date.AddDays(1).AddTicks(-1);
+            filtered = filtered.Where(r => GetDeliveryRecordEventTime(r) <= toEnd);
+        }
 
         if (!string.IsNullOrEmpty(status))
             filtered = filtered.Where(r =>
@@ -829,7 +889,9 @@ public class DeliveryService : IDeliveryService
                     .ToString()
                     .Equals(status, StringComparison.OrdinalIgnoreCase));
 
-        var orderedRecords = filtered.OrderByDescending(r => r.DeliveredAt).ToList();
+        var orderedRecords = filtered
+            .OrderByDescending(r => GetDeliveryRecordEventTime(r))
+            .ToList();
         var totalCount = orderedRecords.Count;
         var pagedRecords = orderedRecords.Skip((pageNumber - 1) * pageSize).Take(pageSize);
 
@@ -859,6 +921,9 @@ public class DeliveryService : IDeliveryService
 
         return (result, totalCount);
     }
+
+    private static DateTime GetDeliveryRecordEventTime(DeliveryLog record)
+        => record.DeliveredAt ?? DateTime.MinValue;
 
     public async Task<DeliveryStatsResponseDto> GetDeliveryStatsAsync(
         Guid deliveryStaffId,
@@ -951,7 +1016,16 @@ public class DeliveryService : IDeliveryService
             }
         }
 
-        group.Status = DeliveryGroupState.Completed;
+        var packagedInGroup = groupItems
+            .Where(i => i.PackagingStatus == PackagingState.Completed)
+            .ToList();
+        var groupFailedCount = packagedInGroup.Count(i => i.DeliveryStatus == DeliveryState.Failed);
+        var groupSuccessCount = packagedInGroup.Count(i =>
+            i.DeliveryStatus is DeliveryState.Completed or DeliveryState.DeliveredWaitConfirm);
+
+        group.Status = groupFailedCount > 0 && groupSuccessCount == 0
+            ? DeliveryGroupState.Failed
+            : DeliveryGroupState.Completed;
         group.UpdatedAt = DateTime.UtcNow;
 
         var now = DateTime.UtcNow;
@@ -1221,7 +1295,18 @@ public class DeliveryService : IDeliveryService
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            filtered = filtered.Where(g => g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+            var normalizedStatus = status.Trim();
+            if (normalizedStatus.Equals("Done", StringComparison.OrdinalIgnoreCase)
+                || normalizedStatus.Equals("Terminal", StringComparison.OrdinalIgnoreCase))
+            {
+                filtered = filtered.Where(g =>
+                    g.Status is DeliveryGroupState.Completed or DeliveryGroupState.Failed);
+            }
+            else
+            {
+                filtered = filtered.Where(g =>
+                    g.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+            }
         }
         else if (actionableOnly)
         {
@@ -1273,6 +1358,7 @@ public class DeliveryService : IDeliveryService
                 TotalOrders = totalOrders,
                 CompletedOrders = completedCount,
                 DeliveryDate = group.DeliveryDate,
+                UpdatedAt = group.UpdatedAt,
                 SlotStartAtUtc = slotStartAtUtc,
                 SlotEndAtUtc = slotEndAtUtc,
                 DistanceFromCurrentKm = distanceKm,
@@ -1300,6 +1386,9 @@ public class DeliveryService : IDeliveryService
                 .ThenBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
                 .ThenByDescending(s => s.PriorityScore ?? 0)
                 .ThenBy(s => s.GroupCode),
+            "recentFirst" => summaries
+                .OrderByDescending(s => s.UpdatedAt)
+                .ThenByDescending(s => s.GroupCode),
             _ => summaries
                 .OrderByDescending(s => s.PriorityScore ?? 0)
                 .ThenBy(s => s.SlotStartAtUtc ?? DateTime.MaxValue)
@@ -1317,6 +1406,7 @@ public class DeliveryService : IDeliveryService
         {
             "timefirst" or "time_first" or "time-first" => "timeFirst",
             "distancefirst" or "distance_first" or "distance-first" => "distanceFirst",
+            "recentfirst" or "recent_first" or "recent-first" => "recentFirst",
             _ => "balanced"
         };
     }

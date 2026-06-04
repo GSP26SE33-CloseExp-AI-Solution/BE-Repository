@@ -1,6 +1,6 @@
-using System.Text.Json;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs.Response;
+using CloseExpAISolution.Application.Services.Fulfillment;
 using CloseExpAISolution.Domain.Entities;
 
 namespace CloseExpAISolution.Application.Mappings;
@@ -11,20 +11,9 @@ public class RefundMappingProfile : Profile
     {
         CreateMap<Refund, RefundResponseDto>()
             .ForMember(d => d.Status, opt => opt.MapFrom(s => s.Status.ToString()))
-            .ForMember(d => d.RefundedOrderItemIds, opt => opt.MapFrom(s => ParseRefundItemIds(s.RefundedOrderItemIdsJson)));
-    }
-
-    private static IReadOnlyList<Guid>? ParseRefundItemIds(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            return null;
-        try
-        {
-            return JsonSerializer.Deserialize<List<Guid>>(json);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+            .ForMember(d => d.RefundedOrderItemIds, opt => opt.MapFrom(s => RefundDtoEnricher.ParseRefundItemIds(s.RefundedOrderItemIdsJson)))
+            .ForMember(d => d.IsFullOrderRefund, opt => opt.Ignore())
+            .ForMember(d => d.Items, opt => opt.Ignore())
+            .ForMember(d => d.Steps, opt => opt.Ignore());
     }
 }

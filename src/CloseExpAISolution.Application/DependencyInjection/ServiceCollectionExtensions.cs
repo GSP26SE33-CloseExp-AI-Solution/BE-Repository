@@ -47,6 +47,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStockLotUnitCompatibilityService, StockLotUnitCompatibilityService>();
 
         services.AddScoped<IOrderNotificationPublisher, OrderNotificationPublisher>();
+        services.AddScoped<IRealtimeNotificationPublisher, NoOpRealtimeNotificationPublisher>();
 
         var redisConn = configuration.GetConnectionString("Redis");
         if (!string.IsNullOrWhiteSpace(redisConn))

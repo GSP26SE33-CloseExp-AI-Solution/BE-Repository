@@ -1,4 +1,5 @@
 using CloseExpAISolution.API.Middleware;
+using CloseExpAISolution.API.Hubs;
 
 namespace CloseExpAISolution.API.Extensions;
 
@@ -32,7 +33,11 @@ public static class PipelineConfigurationExtensions
         app.UseMiddleware<UserAccountActiveMiddleware>();
         app.UseAuthorization();
 
-        app.UseEndpoints(endpoints => endpoints.MapControllers());
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapControllers();
+            endpoints.MapHub<NotificationHub>("/hubs/notifications");
+        });
 
         return app;
     }

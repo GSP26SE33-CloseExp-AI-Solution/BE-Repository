@@ -24,7 +24,7 @@ services:
       - key: Jwt__ExpiryInMinutes
         value: "60"
       - key: AIService__BaseUrl
-        value: https://ai-repository-mj8h.onrender.com
+        value: https://closeexp-ai.nicecliff-c0acbb42.southeastasia.azurecontainerapps.io
       - key: AIService__ApiKey
         sync: false
       - key: AIService__TimeoutSeconds
@@ -40,10 +40,6 @@ services:
       - key: PayOsSettings__ApiKey
         sync: false
       - key: PayOsSettings__ChecksumKey
-        sync: false
-      - key: AIService__BaseUrl
-        value: https://ai-repository-mj8h.onrender.com
-      - key: AIService__ApiKey
         sync: false
       - key: EmailSettings__ResendApiKey
         sync: false

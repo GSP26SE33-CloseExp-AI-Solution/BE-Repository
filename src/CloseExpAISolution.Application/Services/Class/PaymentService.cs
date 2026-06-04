@@ -495,13 +495,20 @@ public sealed class PaymentService : IPaymentService, IDisposable
 
         if (!hasActiveRefund)
         {
+            var orderItemIds = order.OrderItems.Count > 0
+                ? order.OrderItems.Select(oi => oi.OrderItemId).ToList()
+                : (await _unitOfWork.Repository<OrderItem>().FindAsync(oi => oi.OrderId == order.OrderId))
+                    .Select(oi => oi.OrderItemId)
+                    .ToList();
+
             await _services.RefundService.CreateAsync(
                 new CreateRefundRequestDto
                 {
                     OrderId = order.OrderId,
                     TransactionId = transaction.TransactionId,
                     Amount = transaction.Amount,
-                    Reason = "Auto refund: late payment received after cutoff cancellation."
+                    Reason = "Auto refund: late payment received after cutoff cancellation.",
+                    OrderItemIds = orderItemIds
                 },
                 cancellationToken);
         }
@@ -573,10 +580,16 @@ public sealed class PaymentService : IPaymentService, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (_services != null)
+        {
+            await _services.CartService.ClearAsync(userId, cancellationToken);
+            return;
+        }
+
         if (_redis == null)
             return;
 
-        // Must match CartService key format: "cart:{userId:D}"
+        // Fallback when ServiceProviders is unavailable; key must match CartService.
         var db = _redis.GetDatabase();
         await db.KeyDeleteAsync($"cart:{userId:D}");
     }
