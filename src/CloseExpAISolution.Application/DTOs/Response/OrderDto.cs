@@ -21,6 +21,8 @@ public class OrderResponseDto
     public DateTime OrderDate { get; set; }
     public Guid? AddressId { get; set; }
     public Guid? PromotionId { get; set; }
+    public string? PromotionCode { get; set; }
+    public string? PromotionName { get; set; }
     public Guid? DeliveryGroupId { get; set; }
     public string? DeliveryNote { get; set; }
     public DateTime? CancelDeadline { get; set; }

@@ -29,4 +29,5 @@ public interface IOrderService
     Task UpdateStatusAsync(Guid orderId, OrderState status, string? statusNote, CancellationToken cancellationToken = default);
     Task<OrderResponseDto> ApplyPromotionAsync(Guid orderId, Guid userId, ApplyPromotionToOrderRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task RecordPromotionUsageWhenPaidAsync(Guid orderId, CancellationToken cancellationToken = default);
 }

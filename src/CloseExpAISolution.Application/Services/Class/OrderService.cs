@@ -647,6 +647,15 @@ public class OrderService : IOrderService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task RecordPromotionUsageWhenPaidAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var order = await _unitOfWork.Repository<Order>().FirstOrDefaultAsync(o => o.OrderId == orderId);
+        if (order == null)
+            return;
+
+        await TryRecordPromotionUsageAsync(order, cancellationToken);
+    }
+
     private async Task TryRecordPromotionUsageAsync(Order order, CancellationToken cancellationToken)
     {
         if (!order.PromotionId.HasValue || order.DiscountAmount <= 0)

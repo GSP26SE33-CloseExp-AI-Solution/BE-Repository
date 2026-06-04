@@ -668,7 +668,9 @@ public class PackagingService : IPackagingService
             }
             else
             {
-                failedAmount = actionableTargets.Sum(i => i.TotalPrice);
+                var orderForRefund = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
+                    ?? order;
+                failedAmount = PromotionLineAllocation.SumRefundableLineAmounts(orderForRefund, actionableTargets);
                 refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
             }
 

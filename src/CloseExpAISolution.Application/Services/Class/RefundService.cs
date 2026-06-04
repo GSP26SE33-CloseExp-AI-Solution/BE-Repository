@@ -287,6 +287,138 @@ public class RefundService : IRefundService
         _ => false
     };
 
+    public async Task<(IEnumerable<AdminRefundOrderSummaryDto> Items, int TotalCount)> GetAdminOrdersWithRefundsAsync(
+        int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var safePage = Math.Max(1, pageNumber);
+        var safeSize = Math.Clamp(pageSize, 1, 100);
+
+        var grouped = await _unitOfWork.Repository<Refund>()
+            .AsQueryable()
+            .AsNoTracking()
+            .GroupBy(r => r.OrderId)
+            .Select(g => new
+            {
+                OrderId = g.Key,
+                LastRefundAt = g.Max(r => r.CreatedAt),
+                TotalRefundAmount = g.Where(r => r.Status != RefundState.Rejected).Sum(r => r.Amount),
+                PendingRefundAmount = g.Where(r => r.Status == RefundState.Pending).Sum(r => r.Amount),
+                RefundCount = g.Count()
+            })
+            .OrderByDescending(x => x.LastRefundAt)
+            .ToListAsync(cancellationToken);
+
+        var total = grouped.Count;
+        var page = grouped
+            .Skip((safePage - 1) * safeSize)
+            .Take(safeSize)
+            .ToList();
+
+        if (page.Count == 0)
+            return (Array.Empty<AdminRefundOrderSummaryDto>(), total);
+
+        var orderIds = page.Select(x => x.OrderId).ToList();
+        var orders = await _unitOfWork.Repository<Order>()
+            .AsQueryable()
+            .AsNoTracking()
+            .Where(o => orderIds.Contains(o.OrderId))
+            .Select(o => new
+            {
+                o.OrderId,
+                o.OrderCode,
+                o.FinalAmount,
+                CustomerFullName = o.User != null ? o.User.FullName : null,
+                CustomerEmail = o.User != null ? o.User.Email : null,
+                CustomerPhone = o.User != null ? o.User.Phone : null
+            })
+            .ToListAsync(cancellationToken);
+
+        var refundsByOrder = (await _unitOfWork.Repository<Refund>()
+                .FindAsync(r => orderIds.Contains(r.OrderId)))
+            .GroupBy(r => r.OrderId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var orderById = orders.ToDictionary(o => o.OrderId);
+        var items = page.Select(row =>
+        {
+            orderById.TryGetValue(row.OrderId, out var order);
+            refundsByOrder.TryGetValue(row.OrderId, out var orderRefunds);
+            orderRefunds ??= new List<Refund>();
+
+            return new AdminRefundOrderSummaryDto
+            {
+                OrderId = row.OrderId,
+                OrderCode = order?.OrderCode ?? string.Empty,
+                CustomerFullName = order?.CustomerFullName,
+                CustomerEmail = order?.CustomerEmail,
+                CustomerPhone = order?.CustomerPhone,
+                OrderFinalAmount = order?.FinalAmount ?? 0,
+                TotalRefundAmount = row.TotalRefundAmount,
+                PendingRefundAmount = row.PendingRefundAmount,
+                RefundCount = row.RefundCount,
+                PrimaryRefundStatus = RefundDtoEnricher.ResolvePrimaryRefundStatus(orderRefunds),
+                LastRefundAt = row.LastRefundAt
+            };
+        }).ToList();
+
+        return (items, total);
+    }
+
+    public async Task<AdminRefundOrderDetailDto?> GetAdminOrderRefundDetailAsync(
+        Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var order = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
+        if (order == null)
+            return null;
+
+        var refunds = (await _unitOfWork.Repository<Refund>()
+                .FindAsync(r => r.OrderId == orderId))
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+
+        if (refunds.Count == 0)
+            return null;
+
+        var activeRefunds = refunds.Where(r => r.Status != RefundState.Rejected).ToList();
+        var user = await _unitOfWork.Repository<User>()
+            .AsQueryable()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == order.UserId, cancellationToken);
+
+        var refundDtos = new List<RefundResponseDto>();
+        foreach (var refund in refunds)
+        {
+            var dto = _mapper.Map<RefundResponseDto>(refund);
+            RefundDtoEnricher.EnrichRefundResponse(dto, refund, order);
+            dto.OrderCode = order.OrderCode;
+            dto.CustomerFullName = user?.FullName;
+            dto.CustomerEmail = user?.Email;
+            dto.CustomerPhone = user?.Phone;
+            refundDtos.Add(dto);
+        }
+
+        return new AdminRefundOrderDetailDto
+        {
+            OrderId = order.OrderId,
+            OrderCode = order.OrderCode,
+            OrderStatus = order.Status.ToString(),
+            CustomerFullName = user?.FullName,
+            CustomerEmail = user?.Email,
+            CustomerPhone = user?.Phone,
+            TotalAmount = order.TotalAmount,
+            DiscountAmount = order.DiscountAmount,
+            DeliveryFee = order.DeliveryFee,
+            SystemUsageFeeAmount = order.SystemUsageFeeAmount,
+            OrderFinalAmount = order.FinalAmount,
+            TotalRefundAmount = activeRefunds.Sum(r => r.Amount),
+            PendingRefundAmount = activeRefunds
+                .Where(r => r.Status == RefundState.Pending)
+                .Sum(r => r.Amount),
+            Items = RefundDtoEnricher.BuildAdminOrderLineItems(order, refunds),
+            Refunds = refundDtos
+        };
+    }
+
     private async Task EnrichWithCustomerContactAsync(
         IList<RefundResponseDto> dtos,
         CancellationToken cancellationToken)

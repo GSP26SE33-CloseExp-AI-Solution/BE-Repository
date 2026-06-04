@@ -13,4 +13,8 @@ public interface IRefundService
     Task<RefundResponseDto> CreateAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default);
     Task EnqueueRefundCustomerNotificationAsync(Guid refundId, RefundNotificationKind kind, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(Guid refundId, RefundState status, string? processedBy, CancellationToken cancellationToken = default);
+    Task<(IEnumerable<AdminRefundOrderSummaryDto> Items, int TotalCount)> GetAdminOrdersWithRefundsAsync(
+        int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+    Task<AdminRefundOrderDetailDto?> GetAdminOrderRefundDetailAsync(
+        Guid orderId, CancellationToken cancellationToken = default);
 }
