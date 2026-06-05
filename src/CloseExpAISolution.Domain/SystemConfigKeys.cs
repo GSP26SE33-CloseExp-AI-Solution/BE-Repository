@@ -9,4 +9,6 @@ public static class SystemConfigKeys
     public const string OrderReadyToShipMaxWaitMinutes = "ORDER_READY_TO_SHIP_MAX_WAIT_MINUTES";
     public const string OrderPaidUnclaimedPackagingLeadMinutes = "ORDER_PAID_UNCLAIMED_PACKAGING_LEAD_MINUTES";
     public const string PackagingUnassignedActorUserId = "PACKAGING_UNASSIGNED_ACTOR_USER_ID";
+    public const string CategoryFreshFoodUnitType = "CATEGORY_FRESH_FOOD_UNIT_TYPE";
+    public const string CategoryNonFreshFoodUnitType = "CATEGORY_NON_FRESH_FOOD_UNIT_TYPE";
 }

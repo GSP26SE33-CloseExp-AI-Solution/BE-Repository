@@ -94,6 +94,7 @@ public interface IProductWorkflowService
 
     Task<IEnumerable<UnitOfMeasureDto>> GetUnitsAsync(
         string? type = null,
+        Guid? categoryId = null,
         CancellationToken cancellationToken = default);
 
 }

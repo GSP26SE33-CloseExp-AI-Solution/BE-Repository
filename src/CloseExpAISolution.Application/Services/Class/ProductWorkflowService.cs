@@ -8,6 +8,7 @@ using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,6 +106,31 @@ public class ProductWorkflowService : IProductWorkflowService
         {
             _unitOfWork.Repository<ProductDetail>().Update(detail);
         }
+
+        var unitForProduct = await GetUnitByIdOrDefaultAsync(product.UnitId, cancellationToken);
+        if (unitForProduct == null)
+        {
+            throw new InvalidOperationException("Không tìm thấy đơn vị chuẩn phù hợp cho sản phẩm.");
+        }
+
+        var categoryForProduct = await _unitOfWork.Repository<Category>().FirstOrDefaultAsync(c => c.CategoryId == product.CategoryId);
+
+        string? verifyAllowedUnitType = null;
+        if (categoryForProduct != null)
+        {
+            var configKey = categoryForProduct.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
+            var config = await _unitOfWork.Repository<SystemConfig>().FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+            verifyAllowedUnitType = config?.ConfigValue;
+        }
+
+        CategoryUnitTypePolicy.EnsureProductReadyForStockLot(
+            product.Name,
+            product.Barcode,
+            categoryForProduct?.Name ?? string.Empty,
+            categoryForProduct,
+            unitForProduct,
+            detail.Brand,
+            verifyAllowedUnitType);
 
         // Update StockLot dates if provided
         var lot = await GetLatestStockLotByProductIdAsync(product.ProductId);
@@ -426,11 +452,25 @@ public class ProductWorkflowService : IProductWorkflowService
 
     public async Task<IEnumerable<UnitOfMeasureDto>> GetUnitsAsync(
         string? type = null,
+        Guid? categoryId = null,
         CancellationToken cancellationToken = default)
     {
         var units = await _unitOfWork.Repository<UnitOfMeasure>().GetAllAsync();
 
         var query = units.AsEnumerable();
+
+        if (categoryId.HasValue && categoryId.Value != Guid.Empty)
+        {
+            var category = await _unitOfWork.Repository<Category>().FirstOrDefaultAsync(c => c.CategoryId == categoryId.Value);
+            if (category != null)
+            {
+                var configKey = category.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
+                var config = await _unitOfWork.Repository<SystemConfig>().FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+                var allowedType = config?.ConfigValue ?? CategoryUnitTypePolicy.ResolveAllowedUnitType(category.IsFreshFood);
+                query = query.Where(u => UnitMeasureTypeCompatibility.AreCompatible(u.Type, allowedType));
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(type))
         {
             var normalized = type.Trim();
@@ -889,12 +929,47 @@ public class ProductWorkflowService : IProductWorkflowService
             throw new ArgumentException("Product name is required.", nameof(request.Name));
         }
 
-        var existed = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
-            p => p.SupermarketId == supermarketId && p.Barcode == request.Barcode);
+        var normalizedBarcode = request.Barcode.Trim();
+        Product? existed = null;
+
+        if (request.ProductId.HasValue && request.ProductId.Value != Guid.Empty)
+        {
+            existed = await _unitOfWork.ProductRepository.GetByIdWithWorkflowDetailsAsync(request.ProductId.Value);
+            if (existed == null)
+            {
+                throw new KeyNotFoundException($"Product {request.ProductId.Value} not found.");
+            }
+
+            if (existed.SupermarketId != supermarketId)
+            {
+                throw new UnauthorizedAccessException("Bạn không có quyền thao tác sản phẩm của siêu thị khác.");
+            }
+        }
+        else
+        {
+            existed = await _unitOfWork.ProductRepository.FirstOrDefaultAsync(
+                p => p.SupermarketId == supermarketId && p.Barcode == normalizedBarcode);
+        }
+
         if (existed != null)
         {
+            if (existed.Status is ProductState.Deleted or ProductState.Hidden)
+            {
+                throw new InvalidOperationException(
+                    "Sản phẩm đã bị xóa hoặc ẩn. Không thể cập nhật qua workflow. Vui lòng liên hệ quản trị viên nếu cần khôi phục.");
+            }
+
+            if (existed.Status is ProductState.Draft or ProductState.Verified)
+            {
+                return await UpdateExistingProductFromStaffWorkflowAsync(
+                    existed,
+                    request,
+                    staffName,
+                    cancellationToken);
+            }
+
             throw new InvalidOperationException(
-                $"Product with barcode {request.Barcode} already exists in this supermarket (ProductId: {existed.ProductId}).");
+                $"Sản phẩm đang ở trạng thái \"{existed.Status}\". Không thể tạo lại qua workflow; hãy chỉnh sửa từ danh sách sản phẩm.");
         }
 
         if (request.IsManualFallback)
@@ -904,11 +979,39 @@ public class ProductWorkflowService : IProductWorkflowService
                 request.Barcode);
         }
 
+        if (string.IsNullOrWhiteSpace(request.CategoryName))
+        {
+            throw new ArgumentException("Danh mục sản phẩm là bắt buộc.");
+        }
+
+        if (!request.UnitId.HasValue || request.UnitId.Value == Guid.Empty)
+        {
+            throw new ArgumentException("Đơn vị chuẩn sản phẩm là bắt buộc.");
+        }
+
         var unitForProduct = await GetUnitByIdOrDefaultAsync(request.UnitId, cancellationToken);
         if (unitForProduct == null)
         {
-            throw new InvalidOperationException("No suitable UnitOfMeasure found to assign to the product.");
+            throw new InvalidOperationException("Không tìm thấy đơn vị chuẩn phù hợp cho sản phẩm.");
         }
+
+        var category = await ResolveCategoryByNameAsync(request.CategoryName, cancellationToken);
+        string? staffCreateAllowedUnitType = null;
+        if (category != null)
+        {
+            var configKey = category.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
+            var config = await _unitOfWork.Repository<SystemConfig>().FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+            staffCreateAllowedUnitType = config?.ConfigValue;
+        }
+
+        CategoryUnitTypePolicy.EnsureProductReadyForStockLot(
+            request.Name,
+            request.Barcode,
+            request.CategoryName,
+            category,
+            unitForProduct,
+            request.Detail?.Brand,
+            staffCreateAllowedUnitType);
 
         var product = new Product
         {
@@ -917,6 +1020,7 @@ public class ProductWorkflowService : IProductWorkflowService
             UnitId = unitForProduct.UnitId,
             Name = request.Name.Trim(),
             Barcode = request.Barcode.Trim(),
+            CategoryId = category!.CategoryId,
             CreatedBy = staffName,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
@@ -924,12 +1028,6 @@ public class ProductWorkflowService : IProductWorkflowService
             VerifiedAt = DateTime.UtcNow,
             Status = ProductState.Verified
         };
-
-        var category = await ResolveCategoryByNameAsync(request.CategoryName, cancellationToken);
-        if (category != null)
-        {
-            product.CategoryId = category.CategoryId;
-        }
 
         await _unitOfWork.ProductRepository.AddAsync(product);
 
@@ -999,6 +1097,154 @@ public class ProductWorkflowService : IProductWorkflowService
             IsManualFallback = request.IsManualFallback,
             NextAction = "CREATE_STOCKLOT",
             NextActionDescription = "Sản phẩm đã xác nhận. Tiếp tục tạo lô hàng và gợi ý giá.",
+            UnitId = unitForProduct.UnitId,
+            UnitName = unitForProduct.Name,
+            UnitType = unitForProduct.Type,
+            UnitSymbol = unitForProduct.Symbol
+        };
+    }
+
+    private async Task<CreateNewProductResponseDto> UpdateExistingProductFromStaffWorkflowAsync(
+        Product product,
+        StaffCreateProductFromWorkflowRequestDto request,
+        string staffName,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Updating existing product {ProductId} from staff workflow (status={Status}, barcode={Barcode})",
+            product.ProductId,
+            product.Status,
+            request.Barcode);
+
+        if (string.IsNullOrWhiteSpace(request.CategoryName))
+        {
+            throw new ArgumentException("Danh mục sản phẩm là bắt buộc.");
+        }
+
+        if (!request.UnitId.HasValue || request.UnitId.Value == Guid.Empty)
+        {
+            throw new ArgumentException("Đơn vị chuẩn sản phẩm là bắt buộc.");
+        }
+
+        var unitForProduct = await GetUnitByIdOrDefaultAsync(request.UnitId ?? product.UnitId, cancellationToken);
+        if (unitForProduct == null)
+        {
+            throw new InvalidOperationException("Không tìm thấy đơn vị chuẩn phù hợp cho sản phẩm.");
+        }
+
+        var category = await ResolveCategoryByNameAsync(request.CategoryName, cancellationToken);
+        string? staffUpdateAllowedUnitType = null;
+        if (category != null)
+        {
+            var configKey = category.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
+            var config = await _unitOfWork.Repository<SystemConfig>().FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+            staffUpdateAllowedUnitType = config?.ConfigValue;
+        }
+
+        CategoryUnitTypePolicy.EnsureProductReadyForStockLot(
+            request.Name,
+            request.Barcode,
+            request.CategoryName,
+            category,
+            unitForProduct,
+            request.Detail?.Brand,
+            staffUpdateAllowedUnitType);
+
+        product.Name = request.Name.Trim();
+        product.Barcode = request.Barcode.Trim();
+        product.UnitId = unitForProduct.UnitId;
+        product.CategoryId = category!.CategoryId;
+        product.UpdatedAt = DateTime.UtcNow;
+        product.VerifiedBy = staffName;
+        product.VerifiedAt = DateTime.UtcNow;
+        product.Status = ProductState.Verified;
+
+        var detail = product.ProductDetail ?? new ProductDetail
+        {
+            ProductDetailId = Guid.NewGuid(),
+            ProductId = product.ProductId
+        };
+
+        var requestDetail = request.Detail ?? new ProductDetailRequestDto();
+        detail.Brand = requestDetail.Brand;
+        detail.Ingredients = SerializeIngredientsForStorage(ParseIngredients(requestDetail.Ingredients));
+        detail.NutritionFacts = requestDetail.NutritionFactsJson;
+        detail.Manufacturer = requestDetail.Manufacturer;
+        detail.Origin = requestDetail.Origin;
+        detail.Description = requestDetail.Description;
+        detail.StorageInstructions = requestDetail.StorageInstructions;
+        detail.UsageInstructions = requestDetail.UsageInstructions;
+        detail.SafetyWarning = requestDetail.SafetyWarnings;
+
+        if (product.ProductDetail == null)
+        {
+            await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
+            product.ProductDetail = detail;
+        }
+        else
+        {
+            _unitOfWork.Repository<ProductDetail>().Update(detail);
+        }
+
+        _unitOfWork.ProductRepository.Update(product);
+
+        var verificationRawData = request.IsManualFallback
+            ? (string.IsNullOrWhiteSpace(request.OcrExtractedData)
+                ? """{"source":"manual_fallback"}"""
+                : request.OcrExtractedData)
+            : request.OcrExtractedData;
+
+        await _unitOfWork.Repository<AIVerificationLog>().AddAsync(new AIVerificationLog
+        {
+            VerificationId = Guid.NewGuid(),
+            ProductId = product.ProductId,
+            RawData = verificationRawData,
+            ConfidenceScore = (decimal)(request.OcrConfidence ?? 0),
+            ExtractedName = request.Name,
+            ExtractedBarcode = request.Barcode,
+            VerifiedAt = DateTime.UtcNow,
+            VerifiedBy = staffName
+        });
+
+        if (!string.IsNullOrWhiteSpace(request.OcrImageUrl))
+        {
+            var images = await _unitOfWork.Repository<ProductImage>()
+                .FindAsync(pi => pi.ProductId == product.ProductId);
+            foreach (var image in images)
+            {
+                image.IsPrimary = false;
+                _unitOfWork.Repository<ProductImage>().Update(image);
+            }
+
+            await _unitOfWork.Repository<ProductImage>().AddAsync(new ProductImage
+            {
+                ProductImageId = Guid.NewGuid(),
+                ProductId = product.ProductId,
+                ImageUrl = request.OcrImageUrl,
+                CreatedAt = DateTime.UtcNow,
+                IsPrimary = true
+            });
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new CreateNewProductResponseDto
+        {
+            ProductId = product.ProductId,
+            SupermarketId = product.SupermarketId,
+            Name = product.Name,
+            Brand = detail.Brand ?? string.Empty,
+            Category = category?.Name ?? request.CategoryName,
+            Barcode = product.Barcode,
+            Manufacturer = detail.Manufacturer,
+            Ingredients = ParseIngredients(detail.Ingredients),
+            MainImageUrl = request.OcrImageUrl,
+            Status = ProductState.Verified,
+            CreatedBy = product.CreatedBy,
+            CreatedAt = product.CreatedAt,
+            IsManualFallback = request.IsManualFallback,
+            NextAction = "CREATE_STOCKLOT",
+            NextActionDescription = "Sản phẩm đã được cập nhật và xác nhận. Tiếp tục tạo lô hàng và gợi ý giá.",
             UnitId = unitForProduct.UnitId,
             UnitName = unitForProduct.Name,
             UnitType = unitForProduct.Type,

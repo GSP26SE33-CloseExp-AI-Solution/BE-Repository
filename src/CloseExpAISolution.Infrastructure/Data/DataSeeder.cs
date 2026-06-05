@@ -13,6 +13,8 @@ public static class DataSeeder
     private const string OrderSystemUsageFeeVndValue = "5000";
     private const string OrderReadyToShipMaxWaitMinutesValue = "90";
     private const string OrderPaidUnclaimedPackagingLeadMinutesValue = "120";
+    private const string CategoryFreshFoodUnitTypeValue = "Khối lượng";
+    private const string CategoryNonFreshFoodUnitTypeValue = "Đếm";
 
     private static readonly Guid SupermarketCoopMartId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SupermarketBigCId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -479,6 +481,18 @@ public static class DataSeeder
             SystemConfigKeys.OrderPaidUnclaimedPackagingLeadMinutes,
             OrderPaidUnclaimedPackagingLeadMinutesValue,
             now);
+
+        await EnsureStringSystemConfigAsync(
+            context,
+            SystemConfigKeys.CategoryFreshFoodUnitType,
+            CategoryFreshFoodUnitTypeValue,
+            now);
+
+        await EnsureStringSystemConfigAsync(
+            context,
+            SystemConfigKeys.CategoryNonFreshFoodUnitType,
+            CategoryNonFreshFoodUnitTypeValue,
+            now);
     }
 
     private static async Task EnsurePositiveIntSystemConfigAsync(
@@ -542,6 +556,27 @@ public static class DataSeeder
             existing.ConfigValue = defaultValue;
             existing.UpdatedAt = now;
             context.SystemConfigs.Update(existing);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private static async Task EnsureStringSystemConfigAsync(
+        ApplicationDbContext context,
+        string configKey,
+        string defaultValue,
+        DateTime now)
+    {
+        var existing = await context.SystemConfigs
+            .FirstOrDefaultAsync(x => x.ConfigKey == configKey);
+
+        if (existing == null)
+        {
+            await context.SystemConfigs.AddAsync(new SystemConfig
+            {
+                ConfigKey = configKey,
+                ConfigValue = defaultValue,
+                UpdatedAt = now
+            });
             await context.SaveChangesAsync();
         }
     }

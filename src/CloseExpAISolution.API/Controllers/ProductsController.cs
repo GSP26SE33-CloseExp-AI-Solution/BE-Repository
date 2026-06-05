@@ -338,9 +338,10 @@ public class ProductsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<ApiResponse<IEnumerable<UnitOfMeasureDto>>>> GetUnits(
         [FromQuery] string? type = null,
+        [FromQuery] Guid? categoryId = null,
         CancellationToken cancellationToken = default)
     {
-        var units = await _workflowService.GetUnitsAsync(type, cancellationToken);
+        var units = await _workflowService.GetUnitsAsync(type, categoryId, cancellationToken);
         return Ok(ApiResponse<IEnumerable<UnitOfMeasureDto>>.SuccessResponse(
             units,
             "Danh sách đơn vị đo lường"));

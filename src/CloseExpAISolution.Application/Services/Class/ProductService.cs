@@ -10,6 +10,7 @@ using CloseExpAISolution.Application.Services;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
+using CloseExpAISolution.Domain;
 using CloseExpAISolution.Infrastructure.Context;
 using CloseExpAISolution.Infrastructure.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
@@ -177,18 +178,47 @@ public class ProductService : IProductService
     {
         var product = _mapper.Map<Product>(request);
 
-        var defaultUnit = await _context.UnitOfMeasures.FirstOrDefaultAsync(cancellationToken);
+        UnitOfMeasure? unitForProduct = null;
+        if (request.UnitId.HasValue && request.UnitId.Value != Guid.Empty)
+        {
+            unitForProduct = await _context.UnitOfMeasures
+                .FirstOrDefaultAsync(u => u.UnitId == request.UnitId.Value, cancellationToken);
+        }
 
+        if (unitForProduct == null)
+        {
+            throw new ArgumentException("Đơn vị chuẩn sản phẩm là bắt buộc và phải tồn tại.");
+        }
+
+        product.UnitId = unitForProduct.UnitId;
+
+        Category? category = null;
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
         {
-            var category = await _context.Categories.FirstOrDefaultAsync(
-                c => c.Name != null && c.Name.ToLower() == request.CategoryName.ToLower(),
+            category = await _context.Categories.AsNoTracking().FirstOrDefaultAsync(
+                c => c.Name != null && c.Name.ToLower() == request.CategoryName.Trim().ToLower(),
                 cancellationToken);
-            if (category != null)
-            {
-                product.CategoryId = category.CategoryId;
-            }
         }
+
+        if (category == null)
+        {
+            throw new ArgumentException("Danh mục sản phẩm là bắt buộc và phải tồn tại.");
+        }
+
+        product.CategoryId = category.CategoryId;
+
+        var createConfigKey = category.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
+        var createConfig = await _context.SystemConfigs.AsNoTracking().FirstOrDefaultAsync(x => x.ConfigKey == createConfigKey, cancellationToken);
+        var createAllowedUnitType = createConfig?.ConfigValue;
+
+        CategoryUnitTypePolicy.EnsureProductReadyForStockLot(
+            request.Name,
+            request.Barcode,
+            request.CategoryName,
+            category,
+            unitForProduct,
+            request.Detail?.Brand,
+            createAllowedUnitType);
 
         var added = await _unitOfWork.ProductRepository.AddAsync(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -243,16 +273,48 @@ public class ProductService : IProductService
 
         _mapper.Map(request, product);
 
+        UnitOfMeasure? unitForProduct = null;
+        var finalUnitId = request.UnitId ?? product.UnitId;
+        if (finalUnitId != Guid.Empty)
+        {
+            unitForProduct = await _context.UnitOfMeasures
+                .FirstOrDefaultAsync(u => u.UnitId == finalUnitId, cancellationToken);
+        }
+
+        if (unitForProduct == null)
+        {
+            throw new ArgumentException("Đơn vị chuẩn sản phẩm là bắt buộc và phải tồn tại.");
+        }
+
+        product.UnitId = unitForProduct.UnitId;
+
+        Category? category = null;
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
         {
-            var category = await _context.Categories.FirstOrDefaultAsync(
-                c => c.Name != null && c.Name.ToLower() == request.CategoryName.ToLower(),
+            category = await _context.Categories.AsNoTracking().FirstOrDefaultAsync(
+                c => c.Name != null && c.Name.ToLower() == request.CategoryName.Trim().ToLower(),
                 cancellationToken);
-            if (category != null)
-            {
-                product.CategoryId = category.CategoryId;
-            }
         }
+
+        if (category == null)
+        {
+            throw new ArgumentException("Danh mục sản phẩm là bắt buộc và phải tồn tại.");
+        }
+
+        product.CategoryId = category.CategoryId;
+
+        var updateConfigKey = category.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
+        var updateConfig = await _context.SystemConfigs.AsNoTracking().FirstOrDefaultAsync(x => x.ConfigKey == updateConfigKey, cancellationToken);
+        var updateAllowedUnitType = updateConfig?.ConfigValue;
+
+        CategoryUnitTypePolicy.EnsureProductReadyForStockLot(
+            request.Name,
+            request.Barcode,
+            request.CategoryName,
+            category,
+            unitForProduct,
+            request.Detail?.Brand,
+            updateAllowedUnitType);
 
         var detail = product.ProductDetail ?? new ProductDetail { ProductDetailId = Guid.NewGuid(), ProductId = product.ProductId };
         detail.Brand = request.Detail.Brand;

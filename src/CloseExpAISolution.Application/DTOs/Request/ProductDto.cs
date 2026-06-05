@@ -46,6 +46,7 @@ public class CreateProductRequestDto
     public string ResponsibleOrg { get; set; } = string.Empty;
     public bool isFeatured { get; set; } = false;
     public string[] Tags { get; set; } = Array.Empty<string>();
+    public Guid? UnitId { get; set; }
     public ProductDetailRequestDto Detail { get; set; } = new();
 }
 
@@ -61,6 +62,7 @@ public class UpdateProductRequestDto
     public string ResponsibleOrg { get; set; } = string.Empty;
     public bool isFeatured { get; set; }
     public string[] Tags { get; set; } = Array.Empty<string>();
+    public Guid? UnitId { get; set; }
     public ProductDetailRequestDto Detail { get; set; } = new();
 }
 
@@ -158,6 +160,7 @@ public class StaffCreateProductFromWorkflowRequestDto
     public bool IsManualFallback { get; set; }
 
     public Guid? UnitId { get; set; }
+    public Guid? ProductId { get; set; }
 }
 
 public class StaffCreateLotAndPublishRequestDto
