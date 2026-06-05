@@ -30,4 +30,6 @@ public interface IAdminService
     Task<PaginatedResult<AdminAiPriceHistoryDto>> GetAiPriceHistoriesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 
     Task<PaginatedResult<AdminOrderListItemDto>> GetOrdersAsync(AdminOrderQueryRequestDto request, CancellationToken cancellationToken = default);
+
+    Task<PaginatedResult<AdminSupermarketListItemDto>> GetSupermarketsForAdminAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 }

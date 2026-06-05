@@ -17,8 +17,18 @@ public static class StaffClaimsParser
 
     public static Guid? ReadUserId(ClaimsPrincipal user)
     {
-        var v = user.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        return Guid.TryParse(v, out var id) ? id : null;
+        foreach (var claimType in new[]
+                 {
+                     ClaimTypes.NameIdentifier,
+                     JwtRegisteredClaimNames.Sub,
+                     "sub",
+                 })
+        {
+            var value = user.FindFirstValue(claimType);
+            if (Guid.TryParse(value, out var id))
+                return id;
+        }
+
+        return null;
     }
 }

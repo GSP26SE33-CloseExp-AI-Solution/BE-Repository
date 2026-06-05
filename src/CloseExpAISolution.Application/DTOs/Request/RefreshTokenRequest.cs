@@ -13,3 +13,8 @@ public class LogoutRequest
     [Required(ErrorMessage = "Refresh token không được để trống")]
     public string RefreshToken { get; set; } = string.Empty;
 }
+
+public class LogoutAllRequest
+{
+    public string? RefreshToken { get; set; }
+}

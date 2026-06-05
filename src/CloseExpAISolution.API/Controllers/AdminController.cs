@@ -356,4 +356,15 @@ public class AdminController : ControllerBase
             return BadRequest(result);
         return Ok(result);
     }
+
+    [HttpGet("supermarkets")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AdminSupermarketListItemDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSupermarkets(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var data = await _services.AdminService.GetSupermarketsForAdminAsync(pageNumber, pageSize, cancellationToken);
+        return Ok(ApiResponse<PaginatedResult<AdminSupermarketListItemDto>>.SuccessResponse(data));
+    }
 }
