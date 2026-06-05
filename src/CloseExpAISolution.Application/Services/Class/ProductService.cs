@@ -1005,6 +1005,60 @@ public class ProductService : IProductService
             "Không thể đổi đơn vị lô hàng sau khi tạo. Giá và tồn kho được gắn với đơn vị lúc tạo lô; vui lòng cập nhật đơn vị gốc sản phẩm (khi chưa có lô) hoặc tạo lô mới."));
     }
 
+    public async Task DisableStockLotAsync(
+        Guid lotId,
+        Guid supermarketId,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _context.StockLots
+            .Include(l => l.Product)
+            .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Không tìm thấy lô hàng {lotId}.");
+
+        if (lot.Product?.SupermarketId != supermarketId)
+            throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
+
+        if (lot.Status is ProductState.Hidden or ProductState.Deleted)
+            throw new InvalidOperationException("Lô hàng đã bị ẩn hoặc xóa.");
+
+        lot.Status = ProductState.Hidden;
+        lot.Quantity = 0;
+        lot.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteStockLotAsync(
+        Guid lotId,
+        Guid supermarketId,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _context.StockLots
+            .Include(l => l.Product)
+            .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Không tìm thấy lô hàng {lotId}.");
+
+        if (lot.Product?.SupermarketId != supermarketId)
+            throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
+
+        if (lot.Status == ProductState.Deleted)
+            throw new InvalidOperationException("Lô hàng đã bị xóa.");
+
+        var hasOrderItems = await _context.OrderItems
+            .AnyAsync(oi => oi.LotId == lotId, cancellationToken);
+
+        if (hasOrderItems)
+        {
+            lot.Status = ProductState.Deleted;
+            lot.Quantity = 0;
+            lot.UpdatedAt = DateTime.UtcNow;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        _context.StockLots.Remove(lot);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     private void ApplyPresignedProductImageUrls(IEnumerable<AvailableStocklotDto> items)
     {
         foreach (var item in items)

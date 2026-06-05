@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Domain.Entities;
 
 namespace CloseExpAISolution.Application.Services.Interface;
@@ -27,5 +28,8 @@ public interface ISupermarketStaffService
     Task DeleteMarketStaffAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Guid?> GetSupermarketIdByUserIdAsync(Guid userId);
     Task<StaffContextResult> ResolveStaffContextAsync(Guid userId, Guid? jwtSupermarketStaffId, Guid? jwtSupermarketId);
+    Task<IReadOnlyList<AdminSupermarketStaffDto>> GetStaffBySupermarketIdAsync(
+        Guid supermarketId,
+        CancellationToken cancellationToken = default);
 }
 

@@ -64,6 +64,22 @@ public class SupermarketsController : ControllerBase
         return Ok(ApiResponse<SupermarketResponseDto>.SuccessResponse(item));
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpGet("{id:guid}/staff")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminSupermarketStaffDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminSupermarketStaffDto>>>> GetStaffBySupermarketId(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var supermarket = await _services.SupermarketService.GetByIdWithDtoAsync(id);
+        if (supermarket == null)
+            return NotFound(ApiResponse<IReadOnlyList<AdminSupermarketStaffDto>>.ErrorResponse("Không tìm thấy siêu thị"));
+
+        var staff = await _services.MarketStaffService.GetStaffBySupermarketIdAsync(id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminSupermarketStaffDto>>.SuccessResponse(staff));
+    }
+
     [HttpPost]
     public async Task<ActionResult<ApiResponse<SupermarketResponseDto>>> Create([FromBody] CreateSupermarketRequestDto request, CancellationToken cancellationToken)
     {
