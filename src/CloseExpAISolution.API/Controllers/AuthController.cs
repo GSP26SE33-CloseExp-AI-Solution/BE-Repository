@@ -120,14 +120,14 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> LogoutAll()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (!userId.HasValue)
         {
             return Unauthorized(ApiResponse<bool>.ErrorResponse("Không thể xác định người dùng"));
         }
 
-        var result = await _services.AuthService.RevokeAllUserTokensAsync(userId);
-        return Ok(result);
+        var result = await _services.AuthService.RevokeAllUserTokensAsync(userId.Value);
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
     [HttpPost("verify-otp")]
