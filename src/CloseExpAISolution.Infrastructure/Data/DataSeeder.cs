@@ -200,6 +200,7 @@ public static class DataSeeder
         await SeedClusterDraftDemoDataAsync(context);
         await SeedMultiUnitPurchaseDemoAsync(context);
         await BackfillOrderItemPurchaseUnitsAsync(context);
+        await BackfillSeededProductVerificationAsync(context);
         await RefreshProductCatalogTimestampsAsync(context);
     }
 
@@ -367,6 +368,83 @@ public static class DataSeeder
         }
 
         await context.SaveChangesAsync();
+    }
+
+    private static async Task BackfillSeededProductVerificationAsync(ApplicationDbContext context)
+    {
+        var seedProductIds = GetSeededProductIds();
+        var products = await context.Products
+            .Where(p => seedProductIds.Contains(p.ProductId) && p.VerifiedAt == null)
+            .ToListAsync();
+
+        if (products.Count == 0)
+            return;
+
+        var verifiedBy = MarketStaffUserId1.ToString();
+        var now = DateTime.UtcNow;
+        var productIds = products.Select(p => p.ProductId).ToList();
+        var existingLogProductIds = (await context.AIVerificationLogs
+            .Where(l => productIds.Contains(l.ProductId))
+            .Select(l => l.ProductId)
+            .ToListAsync()).ToHashSet();
+
+        var logsToAdd = new List<AIVerificationLog>();
+
+        foreach (var product in products)
+        {
+            var verifiedAt = product.CreatedAt == default ? now : product.CreatedAt;
+            product.VerifiedBy = verifiedBy;
+            product.VerifiedAt = verifiedAt;
+            product.UpdatedAt = now;
+
+            if (product.Status == ProductState.Draft)
+                product.Status = ProductState.Verified;
+
+            if (existingLogProductIds.Contains(product.ProductId))
+                continue;
+
+            logsToAdd.Add(new AIVerificationLog
+            {
+                VerificationId = Guid.NewGuid(),
+                ProductId = product.ProductId,
+                ExtractedName = product.Name,
+                ExtractedBarcode = product.Barcode,
+                ConfidenceScore = 1m,
+                RawData = """{"source":"seed"}""",
+                VerifiedAt = verifiedAt,
+                VerifiedBy = verifiedBy
+            });
+            existingLogProductIds.Add(product.ProductId);
+        }
+
+        if (logsToAdd.Count > 0)
+            await context.AIVerificationLogs.AddRangeAsync(logsToAdd);
+
+        await context.SaveChangesAsync();
+    }
+
+    private static HashSet<Guid> GetSeededProductIds()
+    {
+        var ids = new HashSet<Guid>
+        {
+            Product1Id,
+            Product2Id,
+            Product3Id,
+            Product4Id,
+            Product5Id,
+            Product6Id,
+            Product7Id,
+            Product8Id,
+            Product9Id,
+            Product10Id,
+            Product11Id,
+            Product12Id
+        };
+
+        foreach (var entry in RealWorldCatalogSeedData.Products)
+            ids.Add(entry.ProductId);
+
+        return ids;
     }
 
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
@@ -1321,8 +1399,13 @@ public static class DataSeeder
             }
         };
 
+        var verifiedBy = MarketStaffUserId1.ToString();
         foreach (var product in products)
+        {
             product.UnitId = ResolveUnitIdByProduct(product.ProductId);
+            product.VerifiedBy = verifiedBy;
+            product.VerifiedAt = now;
+        }
 
         await context.Products.AddRangeAsync(products);
         await context.SaveChangesAsync();
@@ -2130,6 +2213,8 @@ public static class DataSeeder
                 UpdatedAt = now,
                 PublishedBy = publishedBy,
                 PublishedAt = now,
+                VerifiedBy = publishedBy,
+                VerifiedAt = now,
                 IsFeatured = false
             });
 
