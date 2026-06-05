@@ -1238,5 +1238,135 @@ public class ProductService : IProductService
                 ProductImagePresignExpiry);
         }
     }
+
+    private static readonly OrderState[] ConfirmedSaleOrderStates =
+    [
+        OrderState.Paid,
+        OrderState.ReadyToShip,
+        OrderState.DeliveredWaitConfirm,
+        OrderState.Completed,
+    ];
+
+    public async Task<StockLotSaleHistoryResponseDto> GetStockLotSaleHistoryAsync(
+        Guid lotId,
+        Guid supermarketId,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 50) pageSize = 50;
+
+        var lot = await _context.StockLots
+            .AsNoTracking()
+            .Include(l => l.Product)
+            .Include(l => l.Unit)
+            .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
+            ?? throw new KeyNotFoundException("Không tìm thấy lô hàng.");
+
+        if (lot.Product == null || lot.Product.SupermarketId != supermarketId)
+            throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
+
+        var orderItems = await _context.OrderItems
+            .AsNoTracking()
+            .Where(oi => oi.LotId == lotId && oi.Order != null)
+            .Include(oi => oi.Order!)
+                .ThenInclude(o => o.User)
+            .Include(oi => oi.PurchaseUnit)
+            .OrderByDescending(oi => oi.Order!.OrderDate)
+            .ThenByDescending(oi => oi.Order!.CreatedAt)
+            .ThenByDescending(oi => oi.OrderItemId)
+            .ToListAsync(cancellationToken);
+
+        var product = lot.Product;
+        var unitIds = new HashSet<Guid> { lot.UnitId, product.UnitId };
+        foreach (var item in orderItems)
+        {
+            if (item.PurchaseUnitId.HasValue)
+                unitIds.Add(item.PurchaseUnitId.Value);
+        }
+
+        var units = await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
+
+        decimal totalQuantityInLotUnit = 0m;
+        decimal totalRevenue = 0m;
+        var confirmedOrderIds = new HashSet<Guid>();
+        var confirmedLineCount = 0;
+
+        var mappedItems = new List<StockLotSaleHistoryItemDto>(orderItems.Count);
+        foreach (var item in orderItems)
+        {
+            var order = item.Order!;
+            var purchaseUnitId = item.PurchaseUnitId ?? product.UnitId;
+            var quantityInLotUnit = UnitConversionRateConverter.ConvertQuantity(
+                purchaseUnitId,
+                lot.UnitId,
+                item.Quantity,
+                units);
+
+            var isConfirmedSale = ConfirmedSaleOrderStates.Contains(order.Status);
+            if (isConfirmedSale)
+            {
+                confirmedOrderIds.Add(order.OrderId);
+                confirmedLineCount++;
+                totalQuantityInLotUnit += quantityInLotUnit;
+                totalRevenue += item.TotalPrice != 0 ? item.TotalPrice : item.Quantity * item.UnitPrice;
+            }
+
+            mappedItems.Add(new StockLotSaleHistoryItemDto
+            {
+                OrderItemId = item.OrderItemId,
+                OrderId = order.OrderId,
+                OrderCode = order.OrderCode,
+                OrderStatus = order.Status.ToString(),
+                OrderStatusText = MapOrderStatusText(order.Status),
+                OrderDate = order.OrderDate,
+                CustomerName = order.User?.FullName ?? order.User?.Email,
+                Quantity = item.Quantity,
+                UnitPrice = item.UnitPrice,
+                TotalPrice = item.TotalPrice != 0 ? item.TotalPrice : item.Quantity * item.UnitPrice,
+                PurchaseUnitName = item.PurchaseUnit?.Name,
+                PurchaseUnitSymbol = item.PurchaseUnit?.Symbol,
+                QuantityInLotUnit = quantityInLotUnit,
+            });
+        }
+
+        var pagedItems = mappedItems
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return new StockLotSaleHistoryResponseDto
+        {
+            Summary = new StockLotSaleHistorySummaryDto
+            {
+                ConfirmedOrderCount = confirmedOrderIds.Count,
+                TotalSaleLines = confirmedLineCount,
+                TotalQuantityInLotUnit = totalQuantityInLotUnit,
+                TotalRevenue = totalRevenue,
+                LotUnitName = lot.Unit?.Name ?? string.Empty,
+                LotUnitSymbol = lot.Unit?.Symbol,
+            },
+            Items = pagedItems,
+            TotalResult = mappedItems.Count,
+            Page = pageNumber,
+            PageSize = pageSize,
+        };
+    }
+
+    private static string MapOrderStatusText(OrderState status) =>
+        status switch
+        {
+            OrderState.Pending => "Chờ thanh toán",
+            OrderState.Paid => "Đã thanh toán",
+            OrderState.ReadyToShip => "Sẵn sàng giao",
+            OrderState.DeliveredWaitConfirm => "Đã giao — chờ xác nhận",
+            OrderState.Completed => "Hoàn thành",
+            OrderState.Canceled => "Đã hủy",
+            OrderState.Refunded => "Đã hoàn tiền",
+            OrderState.Failed => "Giao hàng thất bại",
+            _ => status.ToString(),
+        };
 }
 

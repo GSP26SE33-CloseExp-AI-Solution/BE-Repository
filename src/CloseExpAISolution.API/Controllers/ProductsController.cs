@@ -606,6 +606,45 @@ public class ProductsController : ControllerBase
     }
 
     [Authorize(Roles = "SupermarketStaff")]
+    [HttpGet("lots/{lotId:guid}/sales-history")]
+    [ProducesResponseType(typeof(ApiResponse<StockLotSaleHistoryResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<StockLotSaleHistoryResponseDto>>> GetStockLotSaleHistory(
+        Guid lotId,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+            return supermarketIdResult.ErrorResult!;
+
+        try
+        {
+            var data = await _services.ProductService.GetStockLotSaleHistoryAsync(
+                lotId,
+                supermarketIdResult.SupermarketId!.Value,
+                pageNumber,
+                pageSize,
+                cancellationToken);
+
+            return Ok(ApiResponse<StockLotSaleHistoryResponseDto>.SuccessResponse(
+                data,
+                data.TotalResult == 0
+                    ? "Lô hàng chưa có lịch sử bán"
+                    : $"Tìm thấy {data.TotalResult} dòng bán"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
     [HttpPatch("lots/{lotId:guid}/disable")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
