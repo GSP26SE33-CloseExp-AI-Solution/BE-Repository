@@ -60,4 +60,10 @@ public interface IProductService
         Guid productId,
         Guid? includeStockLotId = null,
         CancellationToken cancellationToken = default);
+    Task<StockLotSaleHistoryResponseDto> GetStockLotSaleHistoryAsync(
+        Guid lotId,
+        Guid supermarketId,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
 }

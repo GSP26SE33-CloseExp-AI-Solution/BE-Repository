@@ -126,7 +126,7 @@ public class SendOrderDeliveryQrEmailJob : IJob
   <div style='font-size: 20px; font-weight: 700; margin: 10px 0;'>{orderCode}</div>
 
   <p>Quét QR bên dưới để xác nhận giao hàng:</p>
-  <img src='cid:{qrContentId}' alt='QR code' style='width: 180px; height: auto;' />
+  <img src=""cid:{qrContentId}"" alt=""QR code"" style=""width: 180px; height: auto;"" />
 
   <p style='color:#666; font-size:12px; margin-top:20px;'>
     Lưu ý: QR chỉ encode đúng mã đơn hàng (<b>{orderCode}</b>).

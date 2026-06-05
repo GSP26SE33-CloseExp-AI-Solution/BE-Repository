@@ -53,12 +53,19 @@ public class EmailService : IEmailService
         IReadOnlyCollection<EmailInlineImage> inlineImages,
         CancellationToken cancellationToken = default)
     {
+        if (!_emailSettings.IsConfigured)
+        {
+            _logger.LogError(
+                "Email not configured (resend={UseResend}, smtpServer={Server}, from={From})",
+                _emailSettings.UseResend,
+                _emailSettings.SmtpServer,
+                _emailSettings.FromEmail);
+            throw new InvalidOperationException("Dịch vụ email chưa được cấu hình trên máy chủ.");
+        }
+
         if (_emailSettings.UseResend)
         {
-            _logger.LogWarning(
-                "Resend does not support inline images; sending HTML-only to {ToEmail}",
-                toEmail);
-            await SendViaResendAsync(toEmail, subject, body, cancellationToken);
+            await SendViaResendWithInlineImagesAsync(toEmail, subject, body, inlineImages, cancellationToken);
             return;
         }
 
@@ -98,6 +105,49 @@ public class EmailService : IEmailService
             _logger.LogError(ex, "Failed to send inline-image email to {ToEmail}", toEmail);
             throw;
         }
+    }
+
+    private async Task SendViaResendWithInlineImagesAsync(
+        string toEmail,
+        string subject,
+        string body,
+        IReadOnlyCollection<EmailInlineImage> inlineImages,
+        CancellationToken cancellationToken)
+    {
+        var client = _httpClientFactory.CreateClient(EmailHttpClients.Resend);
+        var payload = new ResendEmailRequest
+        {
+            From = FormatFromAddress(),
+            To = [toEmail],
+            Subject = subject,
+            Html = body,
+            Attachments = inlineImages.Select(image => new ResendAttachment
+            {
+                Filename = $"{image.ContentId}.png",
+                Content = Convert.ToBase64String(image.ContentBytes),
+                ContentId = image.ContentId,
+                ContentType = image.MediaType,
+            }).ToList(),
+        };
+
+        using var response = await client.PostAsJsonAsync("emails", payload, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            _logger.LogInformation(
+                "Resend inline-image email sent to {ToEmail} with {AttachmentCount} attachment(s)",
+                toEmail,
+                inlineImages.Count);
+            return;
+        }
+
+        var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        _logger.LogError(
+            "Resend inline-image email failed for {ToEmail}: HTTP {Status} {Body}",
+            toEmail,
+            (int)response.StatusCode,
+            errorBody);
+        throw new InvalidOperationException(
+            "Không gửi được email có ảnh inline qua Resend. Kiểm tra ResendApiKey và domain người gửi (FromEmail).");
     }
 
     private async Task SendViaResendAsync(
@@ -193,6 +243,24 @@ public class EmailService : IEmailService
 
         [JsonPropertyName("html")]
         public string Html { get; init; } = string.Empty;
+
+        [JsonPropertyName("attachments")]
+        public List<ResendAttachment>? Attachments { get; init; }
+    }
+
+    private sealed class ResendAttachment
+    {
+        [JsonPropertyName("filename")]
+        public string Filename { get; init; } = string.Empty;
+
+        [JsonPropertyName("content")]
+        public string Content { get; init; } = string.Empty;
+
+        [JsonPropertyName("content_id")]
+        public string ContentId { get; init; } = string.Empty;
+
+        [JsonPropertyName("content_type")]
+        public string? ContentType { get; init; }
     }
 }
 
