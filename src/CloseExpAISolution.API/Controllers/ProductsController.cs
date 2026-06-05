@@ -641,6 +641,42 @@ public class ProductsController : ControllerBase
     }
 
     [Authorize(Roles = "SupermarketStaff")]
+    [HttpPatch("lots/{lotId:guid}/republish")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<object>>> RepublishStockLot(
+        Guid lotId,
+        CancellationToken cancellationToken = default)
+    {
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+            return supermarketIdResult.ErrorResult!;
+
+        try
+        {
+            await _services.ProductService.RepublishStockLotAsync(
+                lotId,
+                supermarketIdResult.SupermarketId!.Value,
+                cancellationToken);
+
+            return Ok(ApiResponse<object>.SuccessResponse(null!, "Đã đăng bán lại lô hàng thành công"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
     [HttpDelete("lots/{lotId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]

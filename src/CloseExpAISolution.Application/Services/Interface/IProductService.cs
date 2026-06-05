@@ -49,4 +49,5 @@ public interface IProductService
     Task<ProductDetailDto?> GetProductDetailAsync(Guid productId, bool includeHiddenDeletedProducts = false);
     Task DisableStockLotAsync(Guid lotId, Guid supermarketId, CancellationToken cancellationToken = default);
     Task DeleteStockLotAsync(Guid lotId, Guid supermarketId, CancellationToken cancellationToken = default);
+    Task RepublishStockLotAsync(Guid lotId, Guid supermarketId, CancellationToken cancellationToken = default);
 }
