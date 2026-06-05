@@ -1768,7 +1768,7 @@ public class DeliveryService : IDeliveryService
             decimal? purchaseQuantity = null;
             if (product != null)
             {
-                purchaseQuantity = _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
+                purchaseQuantity = _purchaseUnitHelper.ResolveDisplayPurchaseQuantity(
                     item.Quantity,
                     product.UnitId,
                     item.PurchaseUnitId,

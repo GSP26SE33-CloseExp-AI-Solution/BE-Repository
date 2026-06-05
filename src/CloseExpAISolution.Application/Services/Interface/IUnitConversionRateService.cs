@@ -11,6 +11,10 @@ public interface IUnitConversionRateService
     Task<Dictionary<Guid, UnitConversionInfo>> LoadUnitInfoAsync(
         IEnumerable<Guid> unitIds,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetUnitIdsByTypeAsync(
+        string unitType,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record UnitConversionInfo(Guid UnitId, string Type, decimal ConversionRate);

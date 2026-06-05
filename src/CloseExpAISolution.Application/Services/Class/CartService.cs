@@ -47,15 +47,14 @@ public class CartService : ICartService
         if (request.Quantity <= 0)
             throw new ArgumentException("Quantity must be greater than 0.");
 
-        var (lot, product, units, purchaseUnitId, allowedUnitIds) =
+        var (lot, product, units, purchaseUnitId) =
             await LoadLotContextAsync(request.LotId, request.PurchaseUnitId, cancellationToken);
 
         _purchaseUnitHelper.EnsurePurchaseUnitAllowed(
             purchaseUnitId,
             product,
             lot,
-            units,
-            allowedUnitIds);
+            units);
 
         var now = DateTime.UtcNow;
         EnsureLotOrderable(lot, now);
@@ -95,15 +94,14 @@ public class CartService : ICartService
         var item = cart.Items.FirstOrDefault(x => x.CartItemId == cartItemId)
             ?? throw new KeyNotFoundException("Không tìm thấy cart item.");
 
-        var (lot, product, units, purchaseUnitId, allowedUnitIds) =
+        var (lot, product, units, purchaseUnitId) =
             await LoadLotContextAsync(item.LotId, item.PurchaseUnitId, cancellationToken);
 
         _purchaseUnitHelper.EnsurePurchaseUnitAllowed(
             purchaseUnitId,
             product,
             lot,
-            units,
-            allowedUnitIds);
+            units);
 
         var now = DateTime.UtcNow;
         EnsureLotOrderable(lot, now);
@@ -145,8 +143,7 @@ public class CartService : ICartService
         StockLot Lot,
         Product Product,
         IReadOnlyDictionary<Guid, UnitConversionInfo> Units,
-        Guid PurchaseUnitId,
-        IReadOnlyList<Guid> AllowedUnitIds)> LoadLotContextAsync(
+        Guid PurchaseUnitId)> LoadLotContextAsync(
         Guid lotId,
         Guid? requestedPurchaseUnitId,
         CancellationToken cancellationToken)
@@ -159,25 +156,11 @@ public class CartService : ICartService
 
         var purchaseUnitId = PurchaseUnitOrderHelper.ResolvePurchaseUnitId(requestedPurchaseUnitId, lot);
 
-        var now = DateTime.UtcNow;
-        var publishedLots = (await _unitOfWork.Repository<StockLot>().FindAsync(l =>
-            l.ProductId == product.ProductId
-            && l.Status == ProductState.Published
-            && l.Quantity > 0
-            && l.ExpiryDate > now)).ToList();
-
-        var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
-            product,
-            publishedLots,
-            cancellationToken);
-
-        var unitIds = allowedUnitIds
-            .Concat(new[] { lot.UnitId, product.UnitId, purchaseUnitId })
-            .Distinct();
+        var unitIds = new[] { lot.UnitId, product.UnitId, purchaseUnitId }.Distinct();
 
         var units = await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
 
-        return (lot, product, units, purchaseUnitId, allowedUnitIds);
+        return (lot, product, units, purchaseUnitId);
     }
 
     private static void EnsureLotOrderable(StockLot lot, DateTime now)

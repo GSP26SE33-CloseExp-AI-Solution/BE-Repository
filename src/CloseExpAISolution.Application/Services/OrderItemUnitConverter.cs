@@ -39,16 +39,6 @@ public sealed class OrderItemUnitConverter
             .FindAsync(p => productIds.Contains(p.ProductId)))
             .ToDictionary(p => p.ProductId);
 
-        var now = DateTime.UtcNow;
-        var publishedLotsByProduct = (await _unitOfWork.Repository<StockLot>()
-            .FindAsync(l =>
-                productIds.Contains(l.ProductId)
-                && l.Status == ProductState.Published
-                && l.Quantity > 0
-                && l.ExpiryDate > now))
-            .GroupBy(l => l.ProductId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyCollection<StockLot>)g.ToList());
-
         var unitIds = lots.Values.Select(l => l.UnitId)
             .Concat(products.Values.Select(p => p.UnitId))
             .Concat(items.Where(i => i.PurchaseUnitId.HasValue).Select(i => i.PurchaseUnitId!.Value))
@@ -65,20 +55,11 @@ public sealed class OrderItemUnitConverter
             if (!products.TryGetValue(lot.ProductId, out var product))
                 throw new InvalidOperationException($"Không tìm thấy Product {lot.ProductId} cho StockLot {item.LotId}.");
 
-            publishedLotsByProduct.TryGetValue(product.ProductId, out var publishedLots);
-            publishedLots ??= Array.Empty<StockLot>();
-
-            var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
-                product,
-                publishedLots,
-                cancellationToken);
-
             var (qtyProduct, unitPriceProduct, purchaseUnitId) = _purchaseUnitHelper.ConvertLineForOrder(
                 item,
                 lot,
                 product,
-                units,
-                allowedUnitIds);
+                units);
 
             result.Add(new ConvertedOrderLine(item.LotId, qtyProduct, unitPriceProduct, purchaseUnitId));
         }
@@ -98,20 +79,6 @@ public sealed class OrderItemUnitConverter
         var product = await _unitOfWork.Repository<Product>().FirstOrDefaultAsync(p => p.ProductId == lot.ProductId)
             ?? throw new InvalidOperationException($"Không tìm thấy Product {lot.ProductId} cho StockLot {lotId}.");
 
-        var now = DateTime.UtcNow;
-        var publishedLots = (await _unitOfWork.Repository<StockLot>()
-            .FindAsync(l =>
-                l.ProductId == product.ProductId
-                && l.Status == ProductState.Published
-                && l.Quantity > 0
-                && l.ExpiryDate > now))
-            .ToList();
-
-        var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
-            product,
-            publishedLots,
-            cancellationToken);
-
         var purchaseUnitId = request.PurchaseUnitId ?? existing.PurchaseUnitId ?? lot.UnitId;
 
         var unitIds = new HashSet<Guid> { lot.UnitId, product.UnitId, purchaseUnitId };
@@ -129,15 +96,23 @@ public sealed class OrderItemUnitConverter
         }
         else
         {
-            var fromProductUnit = existing.PurchaseUnitId ?? product.UnitId;
-            purchaseQuantity = (int)Math.Max(
-                1,
-                Math.Round(
-                    _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
-                        existing.Quantity,
-                        product.UnitId,
-                        purchaseUnitId,
-                        units) ?? existing.Quantity));
+            if (existing.PurchaseUnitId.HasValue
+                && existing.PurchaseUnitId.Value != product.UnitId)
+            {
+                purchaseQuantity = existing.Quantity;
+            }
+            else
+            {
+                var fromProductUnit = existing.PurchaseUnitId ?? product.UnitId;
+                purchaseQuantity = (int)Math.Max(
+                    1,
+                    Math.Round(
+                        _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
+                            existing.Quantity,
+                            product.UnitId,
+                            purchaseUnitId,
+                            units) ?? existing.Quantity));
+            }
         }
 
         if (request.UnitPrice.HasValue)
@@ -166,8 +141,7 @@ public sealed class OrderItemUnitConverter
             createLine,
             lot,
             product,
-            units,
-            allowedUnitIds);
+            units);
 
         return new ConvertedOrderLine(lotId, qtyProduct, unitPriceProduct, resolvedPurchaseUnitId);
     }

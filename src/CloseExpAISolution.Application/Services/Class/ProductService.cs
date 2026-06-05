@@ -639,6 +639,7 @@ public class ProductService : IProductService
 
     public async Task<IReadOnlyList<ProductPurchaseUnitDto>> GetPurchaseUnitsForProductAsync(
         Guid productId,
+        Guid? includeStockLotId = null,
         CancellationToken cancellationToken = default)
     {
         var product = await _context.Products
@@ -659,6 +660,18 @@ public class ProductService : IProductService
                 && l.Quantity > 0
                 && l.ExpiryDate > now)
             .ToListAsync(cancellationToken);
+
+        if (includeStockLotId.HasValue)
+        {
+            var extraLot = await _context.StockLots
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    l => l.LotId == includeStockLotId.Value && l.ProductId == productId,
+                    cancellationToken);
+
+            if (extraLot != null && publishedLots.All(l => l.LotId != extraLot.LotId))
+                publishedLots.Add(extraLot);
+        }
 
         var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
             product,
@@ -1012,24 +1025,27 @@ public class ProductService : IProductService
     public async Task RepublishStockLotAsync(
         Guid lotId,
         Guid supermarketId,
+        RepublishStockLotRequestDto request,
         CancellationToken cancellationToken = default)
     {
         var lot = await _context.StockLots
             .Include(l => l.Product)
+                .ThenInclude(p => p!.Unit)
+            .Include(l => l.Unit)
             .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
             ?? throw new KeyNotFoundException($"Không tìm thấy lô hàng {lotId}.");
 
-        if (lot.Product?.SupermarketId != supermarketId)
+        var product = lot.Product
+            ?? throw new InvalidOperationException("Không tìm thấy sản phẩm của lô hàng.");
+
+        if (product.SupermarketId != supermarketId)
             throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
 
         if (lot.Status != ProductState.Hidden)
             throw new InvalidOperationException("Chỉ có thể đăng bán lại lô đang ở trạng thái ẩn.");
 
-        if (lot.Product?.Status is ProductState.Hidden or ProductState.Deleted)
+        if (product.Status is ProductState.Hidden or ProductState.Deleted)
             throw new InvalidOperationException("Sản phẩm đang bị ẩn hoặc đã xóa, không thể đăng bán lại lô.");
-
-        if (lot.Quantity <= 0)
-            throw new InvalidOperationException("Lô hàng không còn tồn kho để đăng bán lại.");
 
         if (lot.ExpiryDate <= DateTime.UtcNow)
             throw new InvalidOperationException("Lô hàng đã hết hạn, không thể đăng bán lại.");
@@ -1041,12 +1057,51 @@ public class ProductService : IProductService
                 $"Không thể đăng bán lại. Thời gian còn lại phải lớn hơn {minHours} giờ.");
         }
 
-        var hasPrice = lot.FinalUnitPrice is > 0
-            || lot.SuggestedUnitPrice > 0
-            || lot.OriginalUnitPrice > 0;
-        if (!hasPrice)
-            throw new InvalidOperationException("Lô hàng chưa có giá bán, không thể đăng bán lại.");
+        var activeOrderStates = new[]
+        {
+            OrderState.Pending,
+            OrderState.Paid,
+            OrderState.ReadyToShip,
+            OrderState.DeliveredWaitConfirm,
+        };
 
+        var hasActiveOrders = await _context.OrderItems
+            .AsNoTracking()
+            .AnyAsync(
+                oi => oi.LotId == lotId
+                      && oi.Order != null
+                      && activeOrderStates.Contains(oi.Order.Status),
+                cancellationToken);
+
+        if (hasActiveOrders)
+            throw new InvalidOperationException(
+                "Lô đang có đơn hàng chưa hoàn tất, không thể đăng bán lại với thông tin mới.");
+
+        if (request.Quantity <= 0)
+            throw new InvalidOperationException("Số lượng phải lớn hơn 0.");
+
+        if (request.FinalUnitPrice <= 0)
+            throw new InvalidOperationException("Giá bán phải lớn hơn 0.");
+
+        var newUnit = await _context.UnitOfMeasures
+            .FirstOrDefaultAsync(u => u.UnitId == request.UnitId, cancellationToken)
+            ?? throw new InvalidOperationException("Không tìm thấy đơn vị bán.");
+
+        var productUnitType = product.Unit?.Type ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(productUnitType))
+            StockLotUnitRules.EnsureLotUnitMatchesProductType(productUnitType, newUnit.Type);
+
+        var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
+            product,
+            new[] { new StockLot { UnitId = request.UnitId } },
+            cancellationToken);
+
+        if (!allowedUnitIds.Contains(request.UnitId))
+            throw new InvalidOperationException("Đơn vị bán không phù hợp với sản phẩm.");
+
+        lot.UnitId = request.UnitId;
+        lot.Quantity = request.Quantity;
+        lot.FinalUnitPrice = request.FinalUnitPrice;
         lot.Status = ProductState.Published;
         lot.PublishedAt = DateTime.UtcNow;
         lot.UpdatedAt = DateTime.UtcNow;
