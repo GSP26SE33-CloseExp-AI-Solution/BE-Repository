@@ -944,111 +944,65 @@ public class ProductService : IProductService
                 g => g.OrderByDescending(h => h.ConfirmedAt ?? h.CreatedAt).First());
     }
 
-    public async Task<StockLotDetailDto> UpdateStockLotUnitAsync(
+    public async Task<ProductResponseDto> UpdateProductUnitAsync(
+        Guid productId,
+        Guid supermarketId,
+        UpdateProductUnitRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await _context.Products
+            .Include(p => p.Unit)
+            .FirstOrDefaultAsync(p => p.ProductId == productId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Không tìm thấy sản phẩm {productId}.");
+
+        if (product.SupermarketId != supermarketId)
+            throw new UnauthorizedAccessException("Sản phẩm không thuộc siêu thị của bạn.");
+
+        if (product.UnitId == request.UnitId)
+        {
+            return (await GetByIdWithImagesAsync(productId, includeHiddenDeletedProducts: true))
+                ?? throw new KeyNotFoundException($"Không tìm thấy sản phẩm {productId}.");
+        }
+
+        var hasLots = await _context.StockLots
+            .AnyAsync(l => l.ProductId == productId, cancellationToken);
+        if (hasLots)
+        {
+            throw new InvalidOperationException(
+                "Sản phẩm đã có lô hàng. Đơn vị lô được cố định khi tạo lô; chỉ có thể đổi đơn vị gốc khi chưa có lô.");
+        }
+
+        var newUnit = await _context.UnitOfMeasures
+            .FirstOrDefaultAsync(u => u.UnitId == request.UnitId, cancellationToken)
+            ?? throw new InvalidOperationException("Không tìm thấy đơn vị mới.");
+
+        var currentType = product.Unit?.Type ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(currentType))
+        {
+            StockLotUnitRules.EnsureLotUnitMatchesProductType(currentType, newUnit.Type);
+        }
+
+        product.UnitId = request.UnitId;
+        _unitOfWork.ProductRepository.Update(product);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return (await GetByIdWithImagesAsync(productId, includeHiddenDeletedProducts: true))
+            ?? throw new KeyNotFoundException($"Không tìm thấy sản phẩm {productId}.");
+    }
+
+    public Task<StockLotDetailDto> UpdateStockLotUnitAsync(
         Guid lotId,
         Guid supermarketId,
         UpdateStockLotUnitRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        var lot = await _context.StockLots
-            .Include(l => l.Product)
-            .Include(l => l.Unit)
-            .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Không tìm thấy lô hàng {lotId}.");
+        _ = lotId;
+        _ = supermarketId;
+        _ = request;
+        _ = cancellationToken;
 
-        if (lot.Product == null)
-            throw new InvalidOperationException("Lô hàng không gắn sản phẩm hợp lệ.");
-
-        if (lot.Product.SupermarketId != supermarketId)
-            throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
-
-        if (lot.UnitId == request.UnitId)
-            return _mapper.Map<StockLotDetailDto>(lot);
-
-        if (lot.Status == ProductState.Published)
-        {
-            var hasOrderLines = await _context.OrderItems
-                .AnyAsync(oi => oi.LotId == lotId, cancellationToken);
-            if (hasOrderLines)
-            {
-                throw new InvalidOperationException(
-                    "Lô đang bán đã có đơn hàng, không thể đổi đơn vị bán. Vui lòng tạo lô mới với đơn vị mong muốn.");
-            }
-        }
-
-        var product = lot.Product;
-        var now = DateTime.UtcNow;
-        var publishedLots = await _context.StockLots
-            .AsNoTracking()
-            .Where(l =>
-                l.ProductId == product.ProductId
-                && l.Status == ProductState.Published
-                && l.Quantity > 0
-                && l.ExpiryDate > now)
-            .ToListAsync(cancellationToken);
-
-        var allowedUnitIds = await _purchaseUnitHelper.GetAllowedPurchaseUnitIdsAsync(
-            product,
-            publishedLots,
-            cancellationToken);
-
-        if (!allowedUnitIds.Contains(request.UnitId) && request.UnitId != product.UnitId)
-        {
-            throw new InvalidOperationException(
-                "Đơn vị mới không nằm trong danh sách đơn vị bán khả dụng của sản phẩm.");
-        }
-
-        var unitIds = new[] { lot.UnitId, request.UnitId, product.UnitId }.Distinct();
-        var units = await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
-
-        if (!units.TryGetValue(product.UnitId, out var productUnitInfo)
-            || !units.TryGetValue(request.UnitId, out var newUnitInfo))
-        {
-            throw new InvalidOperationException("Không tìm thấy thông tin đơn vị để quy đổi.");
-        }
-
-        StockLotUnitRules.EnsureLotUnitMatchesProductType(
-            productUnitInfo.Type,
-            newUnitInfo.Type);
-
-        var oldUnitId = lot.UnitId;
-        lot.Quantity = UnitConversionRateConverter.ConvertQuantity(
-            oldUnitId,
-            request.UnitId,
-            lot.Quantity,
-            units);
-
-        lot.OriginalUnitPrice = UnitConversionRateConverter.ConvertUnitPrice(
-            oldUnitId,
-            request.UnitId,
-            lot.OriginalUnitPrice,
-            units);
-
-        lot.SuggestedUnitPrice = UnitConversionRateConverter.ConvertUnitPrice(
-            oldUnitId,
-            request.UnitId,
-            lot.SuggestedUnitPrice,
-            units);
-
-        if (lot.FinalUnitPrice.HasValue)
-        {
-            lot.FinalUnitPrice = UnitConversionRateConverter.ConvertUnitPrice(
-                oldUnitId,
-                request.UnitId,
-                lot.FinalUnitPrice.Value,
-                units);
-        }
-
-        lot.UnitId = request.UnitId;
-        _unitOfWork.Repository<StockLot>().Update(lot);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        var refreshed = await _context.StockLots
-            .Include(l => l.Product)
-            .Include(l => l.Unit)
-            .FirstAsync(l => l.LotId == lotId, cancellationToken);
-
-        return _mapper.Map<StockLotDetailDto>(refreshed);
+        return Task.FromException<StockLotDetailDto>(new InvalidOperationException(
+            "Không thể đổi đơn vị lô hàng sau khi tạo. Giá và tồn kho được gắn với đơn vị lúc tạo lô; vui lòng cập nhật đơn vị gốc sản phẩm (khi chưa có lô) hoặc tạo lô mới."));
     }
 
     private void ApplyPresignedProductImageUrls(IEnumerable<AvailableStocklotDto> items)
