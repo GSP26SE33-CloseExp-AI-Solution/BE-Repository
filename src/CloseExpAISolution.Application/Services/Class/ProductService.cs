@@ -308,7 +308,9 @@ public class ProductService : IProductService
             query = query.Where(pl =>
                 pl.Product != null
                 && pl.Product.Status != ProductState.Hidden
-                && pl.Product.Status != ProductState.Deleted);
+                && pl.Product.Status != ProductState.Deleted
+                && pl.Status != ProductState.Hidden
+                && pl.Status != ProductState.Deleted);
         }
 
         if (filter.IsFreshFood.HasValue)
@@ -1022,7 +1024,6 @@ public class ProductService : IProductService
             throw new InvalidOperationException("Lô hàng đã bị ẩn hoặc xóa.");
 
         lot.Status = ProductState.Hidden;
-        lot.Quantity = 0;
         lot.UpdatedAt = DateTime.UtcNow;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
@@ -1043,20 +1044,78 @@ public class ProductService : IProductService
         if (lot.Status == ProductState.Deleted)
             throw new InvalidOperationException("Lô hàng đã bị xóa.");
 
-        var hasOrderItems = await _context.OrderItems
-            .AnyAsync(oi => oi.LotId == lotId, cancellationToken);
+        lot.Status = ProductState.Deleted;
+        lot.Quantity = 0;
+        lot.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
 
-        if (hasOrderItems)
+    public async Task RepublishStockLotAsync(
+        Guid lotId,
+        Guid supermarketId,
+        CancellationToken cancellationToken = default)
+    {
+        var lot = await _context.StockLots
+            .Include(l => l.Product)
+            .FirstOrDefaultAsync(l => l.LotId == lotId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Không tìm thấy lô hàng {lotId}.");
+
+        if (lot.Product?.SupermarketId != supermarketId)
+            throw new UnauthorizedAccessException("Lô hàng không thuộc siêu thị của bạn.");
+
+        if (lot.Status != ProductState.Hidden)
+            throw new InvalidOperationException("Chỉ có thể đăng bán lại lô đang ở trạng thái ẩn.");
+
+        if (lot.Product?.Status is ProductState.Hidden or ProductState.Deleted)
+            throw new InvalidOperationException("Sản phẩm đang bị ẩn hoặc đã xóa, không thể đăng bán lại lô.");
+
+        if (lot.Quantity <= 0)
+            throw new InvalidOperationException("Lô hàng không còn tồn kho để đăng bán lại.");
+
+        if (lot.ExpiryDate <= DateTime.UtcNow)
+            throw new InvalidOperationException("Lô hàng đã hết hạn, không thể đăng bán lại.");
+
+        if (!await HasRequiredShelfLifeForPublishAsync(lot.ExpiryDate, cancellationToken))
         {
-            lot.Status = ProductState.Deleted;
-            lot.Quantity = 0;
-            lot.UpdatedAt = DateTime.UtcNow;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return;
+            var minHours = await GetMinimumPublishShelfLifeHoursAsync(cancellationToken);
+            throw new InvalidOperationException(
+                $"Không thể đăng bán lại. Thời gian còn lại phải lớn hơn {minHours} giờ.");
         }
 
-        _context.StockLots.Remove(lot);
+        var hasPrice = lot.FinalUnitPrice is > 0
+            || lot.SuggestedUnitPrice > 0
+            || lot.OriginalUnitPrice > 0;
+        if (!hasPrice)
+            throw new InvalidOperationException("Lô hàng chưa có giá bán, không thể đăng bán lại.");
+
+        lot.Status = ProductState.Published;
+        lot.PublishedAt = DateTime.UtcNow;
+        lot.UpdatedAt = DateTime.UtcNow;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<int> GetMinimumPublishShelfLifeHoursAsync(CancellationToken cancellationToken)
+    {
+        const int defaultHours = 24;
+
+        var config = await _context.SystemConfigs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.ConfigKey == "MIN_PUBLISH_SHELF_LIFE_HOURS", cancellationToken);
+
+        if (config == null)
+            return defaultHours;
+
+        return int.TryParse(config.ConfigValue, out var parsed) && parsed > 0
+            ? parsed
+            : defaultHours;
+    }
+
+    private async Task<bool> HasRequiredShelfLifeForPublishAsync(
+        DateTime expiryDate,
+        CancellationToken cancellationToken)
+    {
+        var minHours = await GetMinimumPublishShelfLifeHoursAsync(cancellationToken);
+        return (expiryDate - DateTime.UtcNow).TotalHours > minHours;
     }
 
     private void ApplyPresignedProductImageUrls(IEnumerable<AvailableStocklotDto> items)
