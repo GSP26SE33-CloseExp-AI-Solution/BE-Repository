@@ -49,7 +49,11 @@ public static class FulfillmentFailureRefundHelper
             return null;
         }
 
-        var refundAmount = itemsToRefund.Sum(i => i.TotalPrice);
+        var order = await unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken);
+        if (order == null)
+            return null;
+
+        var refundAmount = PromotionLineAllocation.SumRefundableLineAmounts(order, itemsToRefund);
         if (refundAmount <= 0)
             return null;
 

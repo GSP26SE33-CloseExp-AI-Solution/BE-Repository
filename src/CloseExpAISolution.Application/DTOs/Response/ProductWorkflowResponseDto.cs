@@ -199,9 +199,14 @@ public class OcrPrefillFieldsDto
     public OcrPrefillFieldDto Barcode { get; set; } = new();
     public OcrPrefillFieldDto Category { get; set; } = new();
     public OcrPrefillFieldDto Weight { get; set; } = new();
+    public OcrPrefillFieldDto Description { get; set; } = new();
     public OcrPrefillFieldDto Ingredients { get; set; } = new();
+    public OcrPrefillFieldDto NutritionFacts { get; set; } = new();
     public OcrPrefillFieldDto Manufacturer { get; set; } = new();
     public OcrPrefillFieldDto Origin { get; set; } = new();
+    public OcrPrefillFieldDto UsageInstructions { get; set; } = new();
+    public OcrPrefillFieldDto StorageInstructions { get; set; } = new();
+    public OcrPrefillFieldDto SafetyWarnings { get; set; } = new();
     public OcrPrefillFieldDto ExpiryDate { get; set; } = new();
     public OcrPrefillFieldDto ManufactureDate { get; set; } = new();
 }
@@ -212,6 +217,7 @@ public class OcrExtractedInfoDto
     public string? Brand { get; set; }
     public string? Barcode { get; set; }
     public string? Category { get; set; }
+    public string? Description { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime? ManufactureDate { get; set; }
     public string? Weight { get; set; }
@@ -219,6 +225,9 @@ public class OcrExtractedInfoDto
     public string? Manufacturer { get; set; }
     public string? Origin { get; set; }
     public Dictionary<string, string>? NutritionFacts { get; set; }
+    public string? UsageInstructions { get; set; }
+    public string? StorageInstructions { get; set; }
+    public string? SafetyWarnings { get; set; }
 }
 
 public class StockLotResponseDto

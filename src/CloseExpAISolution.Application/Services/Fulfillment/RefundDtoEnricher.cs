@@ -43,7 +43,7 @@ internal static class RefundDtoEnricher
             })
             .ToList();
 
-        ApplyItemRefundProgress(orderDto.OrderItems, order.OrderItems, activeRefunds);
+        ApplyItemRefundProgress(orderDto.OrderItems, order, activeRefunds);
     }
 
     public static void ApplyAdminOrderRefundDetails(
@@ -67,24 +67,36 @@ internal static class RefundDtoEnricher
                 .ToList();
 
             var itemProgress = BuildItemRefundMap(order.OrderItems, activeRefunds);
+            var paidByLine = PromotionLineAllocation.ComputePaidLineAmounts(order);
             foreach (var itemDto in orderDto.OrderItems)
             {
-                if (itemProgress.TryGetValue(itemDto.OrderItemId, out var refund))
-                    itemDto.RefundProgress = ToItemProgress(refund, itemDto.TotalPrice);
+                if (!itemProgress.TryGetValue(itemDto.OrderItemId, out var refund))
+                    continue;
+
+                var lineAmount = paidByLine.TryGetValue(itemDto.OrderItemId, out var paid)
+                    ? paid
+                    : itemDto.TotalPrice;
+                itemDto.RefundProgress = ToItemProgress(refund, lineAmount);
             }
         }
     }
 
     public static void ApplyItemRefundProgress(
         IList<OrderItemResponseDto> itemDtos,
-        ICollection<OrderItem> orderItems,
+        Order order,
         IReadOnlyList<Refund> activeRefunds)
     {
-        var itemProgress = BuildItemRefundMap(orderItems, activeRefunds);
+        var itemProgress = BuildItemRefundMap(order.OrderItems, activeRefunds);
+        var paidByLine = PromotionLineAllocation.ComputePaidLineAmounts(order);
         foreach (var itemDto in itemDtos)
         {
-            if (itemProgress.TryGetValue(itemDto.OrderItemId, out var refund))
-                itemDto.RefundProgress = ToItemProgress(refund, itemDto.LineTotal);
+            if (!itemProgress.TryGetValue(itemDto.OrderItemId, out var refund))
+                continue;
+
+            var lineAmount = paidByLine.TryGetValue(itemDto.OrderItemId, out var paid)
+                ? paid
+                : itemDto.LineTotal;
+            itemDto.RefundProgress = ToItemProgress(refund, lineAmount);
         }
     }
 
@@ -153,6 +165,61 @@ internal static class RefundDtoEnricher
             PackagingStatus = item.PackagingStatus.ToString(),
             DeliveryStatus = item.DeliveryStatus?.ToString()
         };
+
+    public static IReadOnlyList<AdminRefundOrderLineItemDto> BuildAdminOrderLineItems(
+        Order order,
+        IReadOnlyList<Refund> refunds)
+    {
+        var activeRefunds = refunds
+            .Where(r => r.Status != RefundState.Rejected)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+
+        var itemProgress = BuildItemRefundMap(order.OrderItems, activeRefunds);
+        var paidByLine = PromotionLineAllocation.ComputePaidLineAmounts(order);
+
+        return order.OrderItems
+            .OrderBy(i => i.StockLot?.Product?.Supermarket?.Name)
+            .ThenBy(i => i.StockLot?.Product?.Name)
+            .Select(item =>
+            {
+                var isRefunded = itemProgress.ContainsKey(item.OrderItemId);
+                itemProgress.TryGetValue(item.OrderItemId, out var refund);
+                var linePaid = paidByLine.TryGetValue(item.OrderItemId, out var paidAmount)
+                    ? paidAmount
+                    : item.TotalPrice;
+                return new AdminRefundOrderLineItemDto
+                {
+                    OrderItemId = item.OrderItemId,
+                    ProductName = item.StockLot?.Product?.Name,
+                    SupermarketName = item.StockLot?.Product?.Supermarket?.Name,
+                    Quantity = item.Quantity,
+                    UnitPrice = item.UnitPrice,
+                    TotalPrice = item.TotalPrice,
+                    PackagingStatus = item.PackagingStatus.ToString(),
+                    DeliveryStatus = item.DeliveryStatus?.ToString(),
+                    IsRefunded = isRefunded,
+                    LineRefundAmount = isRefunded ? linePaid : null,
+                    RefundStatus = refund?.Status.ToString(),
+                    RefundId = refund?.RefundId
+                };
+            })
+            .ToList();
+    }
+
+    public static string ResolvePrimaryRefundStatus(IEnumerable<Refund> refunds)
+    {
+        var list = refunds.ToList();
+        if (list.Any(r => r.Status == RefundState.Pending))
+            return RefundState.Pending.ToString();
+        if (list.Any(r => r.Status == RefundState.Approved))
+            return RefundState.Approved.ToString();
+        if (list.Any(r => r.Status == RefundState.Completed))
+            return RefundState.Completed.ToString();
+        if (list.Any(r => r.Status == RefundState.Rejected))
+            return RefundState.Rejected.ToString();
+        return RefundState.Pending.ToString();
+    }
 
     private static OrderItemRefundProgressDto ToItemProgress(Refund refund, decimal lineAmount)
     {
