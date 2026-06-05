@@ -407,6 +407,20 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task<Guid?> ResolveUserIdFromRefreshTokenForLogoutAllAsync(string refreshToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            return null;
+
+        var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();
+        var storedToken = await refreshTokenRepo.FirstOrDefaultAsync(t => t.Token == refreshToken.Trim());
+
+        if (storedToken == null || !storedToken.IsActive)
+            return null;
+
+        return storedToken.UserId;
+    }
+
     public async Task<ApiResponse<bool>> RevokeAllUserTokensAsync(Guid userId)
     {
         var refreshTokenRepo = _unitOfWork.Repository<RefreshToken>();

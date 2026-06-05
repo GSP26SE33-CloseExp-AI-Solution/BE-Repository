@@ -12,6 +12,7 @@ public interface IAuthService
     Task<ApiResponse<AuthResponse>> SelectStaffContextAsync(Guid userId, string employeeCode);
     Task<ApiResponse<bool>> LogoutAsync(string refreshToken);
     Task<ApiResponse<bool>> RevokeAllUserTokensAsync(Guid userId);
+    Task<Guid?> ResolveUserIdFromRefreshTokenForLogoutAllAsync(string refreshToken);
 
     // Email verification (OTP)
     Task<ApiResponse<bool>> VerifyOtpAsync(VerifyOtpRequest request);

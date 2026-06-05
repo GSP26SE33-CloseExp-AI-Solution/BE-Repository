@@ -23,6 +23,7 @@ public class JwtRoleConsistencyMiddleware
         "/api/auth/forgot-password",
         "/api/auth/reset-password",
         "/api/auth/request-unlock",
+        "/api/auth/logout-all",
         "/swagger"
     };
 

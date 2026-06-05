@@ -657,6 +657,79 @@ public class AdminService : IAdminService
         if (end <= start)
             throw new InvalidOperationException("EndTime phải lớn hơn StartTime");
     }
+
+    public async Task<PaginatedResult<AdminSupermarketListItemDto>> GetSupermarketsForAdminAsync(
+        int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        // Lấy tất cả siêu thị (hiển thị cả Closed/PendingApproval cho Admin)
+        var supermarkets = (await _unitOfWork.Repository<Supermarket>().GetAllAsync())
+            .OrderByDescending(s => s.CreatedAt)
+            .ToList();
+
+        var total = supermarkets.Count;
+
+        // Phân trang
+        var pagedSupermarkets = supermarkets
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        // Lấy danh sách manager (IsManager = true, Status = Active)
+        var staffRepo = _unitOfWork.Repository<SupermarketStaff>();
+        var allStaff = (await staffRepo.FindAsync(ss =>
+                ss.IsManager && ss.Status == SupermarketStaffState.Active))
+            .ToList();
+
+        var managerBySupermarket = allStaff
+            .GroupBy(ss => ss.SupermarketId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Lấy thông tin User của các manager
+        var managerUserIds = allStaff.Select(ss => ss.UserId).Distinct().ToHashSet();
+        var users = (await _unitOfWork.Repository<User>()
+                .FindAsync(u => managerUserIds.Contains(u.UserId)))
+            .ToDictionary(u => u.UserId);
+
+        // Map sang DTO
+        var items = pagedSupermarkets.Select(s =>
+        {
+            var dto = new AdminSupermarketListItemDto
+            {
+                SupermarketId = s.SupermarketId,
+                Name = s.Name,
+                Address = s.Address,
+                Latitude = s.Latitude,
+                Longitude = s.Longitude,
+                ContactPhone = s.ContactPhone,
+                ContactEmail = s.ContactEmail,
+                Status = s.Status,
+                CreatedAt = s.CreatedAt
+            };
+
+            // Join manager info
+            if (managerBySupermarket.TryGetValue(s.SupermarketId, out var manager) &&
+                users.TryGetValue(manager.UserId, out var user))
+            {
+                dto.ManagerUserId = manager.UserId;
+                dto.ManagerEmail = user.Email;
+                dto.ManagerFullName = user.FullName;
+            }
+
+            return dto;
+        }).ToList();
+
+        return new PaginatedResult<AdminSupermarketListItemDto>
+        {
+            Items = items,
+            TotalResult = total,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+    }
 }
 
 
