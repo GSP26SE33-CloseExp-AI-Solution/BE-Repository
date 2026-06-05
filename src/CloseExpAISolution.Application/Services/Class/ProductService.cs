@@ -597,85 +597,44 @@ public class ProductService : IProductService
         if (pageSize > 200) pageSize = 200;
 
         var now = DateTime.UtcNow;
-        var (todayStartUtc, todayEndUtc) = DailyExpiryOrderingPolicy.GetVietnamDateRangeUtc(now);
-        var isCutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
-
-        var baseQuery = _context.StockLots
-            .AsNoTracking()
-            .Where(l =>
-                l.Product != null
-                && l.Product.Status != ProductState.Hidden
-                && l.Product.Status != ProductState.Deleted
-                && l.Status == ProductState.Published &&
-                l.Quantity > 0 &&
-                l.ExpiryDate > now);
-
-        if (isCutoffReached)
-        {
-            baseQuery = baseQuery.Where(l =>
-                l.ExpiryDate < todayStartUtc || l.ExpiryDate >= todayEndUtc);
-        }
-
+        var baseQuery = BuildCustomerAvailableStockLotsQuery(now);
         var totalCount = await baseQuery.CountAsync(cancellationToken);
 
-        var items = await baseQuery
+        var items = await SelectCustomerAvailableStockLotDto(baseQuery)
             .OrderBy(l => l.ExpiryDate)
-            .Select(l => new AvailableStocklotDto
-            {
-                LotId = l.LotId,
-                ProductId = l.ProductId,
-                ProductName = l.Product != null ? l.Product.Name : string.Empty,
-                ProductImageUrl = l.Product != null
-                    ? l.Product.ProductImages
-                        .OrderByDescending(pi => pi.IsPrimary)
-                        .ThenBy(pi => pi.CreatedAt)
-                        .Select(pi => pi.ImageUrl)
-                        .FirstOrDefault()
-                    : null,
-                Barcode = l.Product != null ? l.Product.Barcode : string.Empty,
-                Brand = l.Product != null && l.Product.ProductDetail != null
-                    ? (l.Product.ProductDetail.Brand ?? string.Empty)
-                    : string.Empty,
-                SupermarketId = l.Product != null ? l.Product.SupermarketId : Guid.Empty,
-                SupermarketName = l.Product != null && l.Product.Supermarket != null
-                    ? l.Product.Supermarket.Name
-                    : string.Empty,
-                UnitId = l.UnitId,
-                UnitName = l.Unit != null ? l.Unit.Name : string.Empty,
-                UnitType = l.Unit != null ? l.Unit.Type : string.Empty,
-                UnitSymbol = l.Unit != null ? l.Unit.Symbol : string.Empty,
-                ConversionRate = l.Unit != null ? l.Unit.ConversionRate : 1m,
-                ProductUnitId = l.Product != null ? l.Product.UnitId : Guid.Empty,
-                ProductUnitName = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Name : string.Empty,
-                ProductUnitType = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Type : string.Empty,
-                ProductUnitSymbol = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Symbol : string.Empty,
-                ProductConversionRate = l.Product != null && l.Product.Unit != null ? l.Product.Unit.ConversionRate : 1m,
-                Quantity = l.Quantity,
-                Weight = l.Weight,
-                Status = l.Status.ToString(),
-                ManufactureDate = l.ManufactureDate,
-                ExpiryDate = l.ExpiryDate,
-                CreatedAt = l.CreatedAt,
-                PublishedBy = l.PublishedBy,
-                PublishedAt = l.PublishedAt,
-                OriginalUnitPrice = l.OriginalUnitPrice,
-                SuggestedUnitPrice = l.SuggestedUnitPrice,
-                FinalUnitPrice = l.FinalUnitPrice,
-                SellingUnitPrice = l.FinalUnitPrice ?? l.SuggestedUnitPrice
-            })
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         ApplyPresignedProductImageUrls(items);
-
-        foreach (var item in items)
-        {
-            var remainingDays = (item.ExpiryDate.Date - now.Date).Days;
-            item.DaysRemaining = remainingDays < 0 ? 0 : remainingDays;
-        }
+        ApplyCustomerLotExpiryMetadata(items, now);
 
         return (items, totalCount);
+    }
+
+    public async Task<IReadOnlyList<AvailableStocklotDto>> GetAvailableStockLotsForCustomerByProductAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        var productExists = await _context.Products
+            .AsNoTracking()
+            .AnyAsync(
+                p => p.ProductId == productId
+                     && p.Status != ProductState.Hidden
+                     && p.Status != ProductState.Deleted,
+                cancellationToken);
+
+        if (!productExists)
+            throw new KeyNotFoundException($"Không tìm thấy sản phẩm {productId}.");
+
+        var now = DateTime.UtcNow;
+        var query = BuildCustomerAvailableStockLotsQuery(now).Where(l => l.ProductId == productId);
+
+        var items = await ProjectCustomerAvailableStockLots(query, now, cancellationToken);
+        ApplyPresignedProductImageUrls(items);
+        ApplyCustomerLotExpiryMetadata(items, now);
+
+        return items;
     }
 
     public async Task<IReadOnlyList<ProductPurchaseUnitDto>> GetPurchaseUnitsForProductAsync(
@@ -1116,6 +1075,100 @@ public class ProductService : IProductService
     {
         var minHours = await GetMinimumPublishShelfLifeHoursAsync(cancellationToken);
         return (expiryDate - DateTime.UtcNow).TotalHours > minHours;
+    }
+
+    private IQueryable<StockLot> BuildCustomerAvailableStockLotsQuery(DateTime now)
+    {
+        var (todayStartUtc, todayEndUtc) = DailyExpiryOrderingPolicy.GetVietnamDateRangeUtc(now);
+        var isCutoffReached = DailyExpiryOrderingPolicy.IsOrderCutoffReached(now);
+
+        var query = _context.StockLots
+            .AsNoTracking()
+            .Where(l =>
+                l.Product != null
+                && l.Product.Status != ProductState.Hidden
+                && l.Product.Status != ProductState.Deleted
+                && l.Status == ProductState.Published
+                && l.Quantity > 0
+                && l.ExpiryDate > now);
+
+        if (isCutoffReached)
+        {
+            query = query.Where(l =>
+                l.ExpiryDate < todayStartUtc || l.ExpiryDate >= todayEndUtc);
+        }
+
+        return query;
+    }
+
+    private static IQueryable<AvailableStocklotDto> SelectCustomerAvailableStockLotDto(
+        IQueryable<StockLot> query) =>
+        query.Select(l => new AvailableStocklotDto
+        {
+            LotId = l.LotId,
+            ProductId = l.ProductId,
+            ProductName = l.Product != null ? l.Product.Name : string.Empty,
+            ProductImageUrl = l.Product != null
+                ? l.Product.ProductImages
+                    .OrderByDescending(pi => pi.IsPrimary)
+                    .ThenBy(pi => pi.CreatedAt)
+                    .Select(pi => pi.ImageUrl)
+                    .FirstOrDefault()
+                : null,
+            Barcode = l.Product != null ? l.Product.Barcode : string.Empty,
+            Brand = l.Product != null && l.Product.ProductDetail != null
+                ? (l.Product.ProductDetail.Brand ?? string.Empty)
+                : string.Empty,
+            SupermarketId = l.Product != null ? l.Product.SupermarketId : Guid.Empty,
+            SupermarketName = l.Product != null && l.Product.Supermarket != null
+                ? l.Product.Supermarket.Name
+                : string.Empty,
+            UnitId = l.UnitId,
+            UnitName = l.Unit != null ? l.Unit.Name : string.Empty,
+            UnitType = l.Unit != null ? l.Unit.Type : string.Empty,
+            UnitSymbol = l.Unit != null ? l.Unit.Symbol : string.Empty,
+            ConversionRate = l.Unit != null ? l.Unit.ConversionRate : 1m,
+            ProductUnitId = l.Product != null ? l.Product.UnitId : Guid.Empty,
+            ProductUnitName = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Name : string.Empty,
+            ProductUnitType = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Type : string.Empty,
+            ProductUnitSymbol = l.Product != null && l.Product.Unit != null ? l.Product.Unit.Symbol : string.Empty,
+            ProductConversionRate = l.Product != null && l.Product.Unit != null ? l.Product.Unit.ConversionRate : 1m,
+            Quantity = l.Quantity,
+            Weight = l.Weight,
+            Status = l.Status.ToString(),
+            ManufactureDate = l.ManufactureDate,
+            ExpiryDate = l.ExpiryDate,
+            CreatedAt = l.CreatedAt,
+            PublishedBy = l.PublishedBy,
+            PublishedAt = l.PublishedAt,
+            OriginalUnitPrice = l.OriginalUnitPrice,
+            SuggestedUnitPrice = l.SuggestedUnitPrice,
+            FinalUnitPrice = l.FinalUnitPrice,
+            SellingUnitPrice = l.FinalUnitPrice ?? l.SuggestedUnitPrice,
+        });
+
+    private async Task<List<AvailableStocklotDto>> ProjectCustomerAvailableStockLots(
+        IQueryable<StockLot> query,
+        DateTime now,
+        CancellationToken cancellationToken) =>
+        await SelectCustomerAvailableStockLotDto(query.OrderBy(l => l.ExpiryDate))
+            .ToListAsync(cancellationToken);
+
+    private static void ApplyCustomerLotExpiryMetadata(
+        IList<AvailableStocklotDto> items,
+        DateTime now)
+    {
+        foreach (var item in items)
+        {
+            var remainingDays = (item.ExpiryDate.Date - now.Date).Days;
+            item.DaysRemaining = remainingDays < 0 ? 0 : remainingDays;
+
+            if (item.DaysRemaining == 0)
+            {
+                var hours = (int)Math.Floor((item.ExpiryDate - now).TotalHours);
+                item.HoursRemaining = Math.Max(0, hours);
+            }
+        }
     }
 
     private void ApplyPresignedProductImageUrls(IEnumerable<AvailableStocklotDto> items)
