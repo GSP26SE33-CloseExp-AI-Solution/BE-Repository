@@ -15,7 +15,7 @@ services:
       - Jwt__Issuer=${JWT__ISSUER}
       - Jwt__Audience=${JWT__AUDIENCE}
       - Jwt__ExpiryInMinutes=${JWT__EXPIRYINMINUTES:-60}
-      - AIService__BaseUrl=${AISERVICE__BASEURL:-https://ais.lendcamdio.io.vn}
+      - AIService__BaseUrl=${AISERVICE__BASEURL:-https://c122w5dv-8000.asse.devtunnels.ms}
       - AIService__ApiKey=${AISERVICE__APIKEY}
       - AIService__TimeoutSeconds=${AISERVICE__TIMEOUTSECONDS:-180}
       - GoogleAuth__ClientId=${GOOGLEAUTH__CLIENTID}

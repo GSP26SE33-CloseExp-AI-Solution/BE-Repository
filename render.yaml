@@ -24,7 +24,7 @@ services:
       - key: Jwt__ExpiryInMinutes
         value: "60"
       - key: AIService__BaseUrl
-        value: https://ais.lendcamdio.io.vn
+        value: https://c122w5dv-8000.asse.devtunnels.ms
       - key: AIService__ApiKey
         sync: false
       - key: AIService__TimeoutSeconds
