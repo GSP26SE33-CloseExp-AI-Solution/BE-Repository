@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using AutoMapper;
 using CloseExpAISolution.Application.DTOs;
 using CloseExpAISolution.Application.DTOs.Request;
+using CloseExpAISolution.Application.DTOs.Response;
 using CloseExpAISolution.Application.Services.Interface;
 using CloseExpAISolution.Domain.Entities;
 using CloseExpAISolution.Domain.Enums;
@@ -139,6 +140,44 @@ public class SupermarketStaffService : ISupermarketStaffService
             return StaffContextResult.Ok(rows[0].SupermarketId, rows[0].SupermarketStaffId);
 
         return StaffContextResult.Fail("Vui lòng chọn mã nhân viên (select-staff-context) trước khi thực hiện thao tác này.");
+    }
+
+    public async Task<IReadOnlyList<AdminSupermarketStaffDto>> GetStaffBySupermarketIdAsync(
+        Guid supermarketId,
+        CancellationToken cancellationToken = default)
+    {
+        var staffRows = (await _unitOfWork.SupermarketStaffRepository.FindAsync(
+                s => s.SupermarketId == supermarketId))
+            .OrderByDescending(s => s.IsManager)
+            .ThenBy(s => s.CreatedAt)
+            .ToList();
+
+        if (staffRows.Count == 0)
+            return Array.Empty<AdminSupermarketStaffDto>();
+
+        var userIds = staffRows.Select(s => s.UserId).Distinct().ToList();
+        var users = (await _unitOfWork.Repository<User>().FindAsync(u => userIds.Contains(u.UserId)))
+            .ToDictionary(u => u.UserId);
+
+        return staffRows
+            .Select(row =>
+            {
+                users.TryGetValue(row.UserId, out var user);
+                return new AdminSupermarketStaffDto
+                {
+                    SupermarketStaffId = row.SupermarketStaffId,
+                    UserId = row.UserId,
+                    FullName = user?.FullName ?? string.Empty,
+                    Email = user?.Email ?? string.Empty,
+                    Phone = user?.Phone ?? string.Empty,
+                    Position = row.Position,
+                    IsManager = row.IsManager,
+                    EmployeeCodeHint = row.EmployeeCodeHint,
+                    Status = (int)row.Status,
+                    CreatedAt = row.CreatedAt,
+                };
+            })
+            .ToList();
     }
 }
 
