@@ -583,7 +583,7 @@ public class AdminService : IAdminService
                 decimal? purchaseQty = null;
                 if (productUnitId != Guid.Empty && oi.PurchaseUnitId.HasValue && units.Count > 0)
                 {
-                    purchaseQty = _purchaseUnitHelper.TryConvertProductQuantityToPurchaseUnit(
+                    purchaseQty = _purchaseUnitHelper.ResolveDisplayPurchaseQuantity(
                         oi.Quantity,
                         productUnitId,
                         oi.PurchaseUnitId,

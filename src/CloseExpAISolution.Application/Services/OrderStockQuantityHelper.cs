@@ -37,6 +37,7 @@ public sealed class OrderStockQuantityHelper
 
         var unitIds = lots.Values.Select(l => l.UnitId)
             .Concat(products.Values.Select(p => p.UnitId))
+            .Concat(items.Where(i => i.PurchaseUnitId.HasValue).Select(i => i.PurchaseUnitId!.Value))
             .Distinct();
 
         var units = await _unitConversion.LoadUnitInfoAsync(unitIds, cancellationToken);
@@ -50,12 +51,18 @@ public sealed class OrderStockQuantityHelper
             if (!products.TryGetValue(lot.ProductId, out var product))
                 throw new InvalidOperationException($"Không tìm thấy Product {lot.ProductId} cho StockLot {group.Key}.");
 
-            var productQtySum = (decimal)group.Sum(x => x.Quantity);
-            result[group.Key] = UnitConversionRateConverter.ConvertQuantity(
-                product.UnitId,
-                lot.UnitId,
-                productQtySum,
-                units);
+            decimal lotQtySum = 0m;
+            foreach (var orderItem in group)
+            {
+                var purchaseUnitId = orderItem.PurchaseUnitId ?? product.UnitId;
+                lotQtySum += UnitConversionRateConverter.ConvertQuantity(
+                    purchaseUnitId,
+                    lot.UnitId,
+                    orderItem.Quantity,
+                    units);
+            }
+
+            result[group.Key] = lotQtySum;
         }
 
         return result;

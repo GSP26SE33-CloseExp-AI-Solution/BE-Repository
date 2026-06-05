@@ -76,10 +76,10 @@ public static class ProductPurchaseUnitPolicy
     private static IReadOnlySet<Guid> GetBeverageUnits(Guid productUnitId) =>
         productUnitId switch
         {
-            var id when id == UnitBottleId => UnitSet(UnitBottleId, UnitThungId),
-            var id when id == UnitCanId => UnitSet(UnitCanId, UnitThungId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
-            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId),
+            var id when id == UnitBottleId => UnitSet(UnitBottleId, UnitThungId, UnitPackId, UnitCanId),
+            var id when id == UnitCanId => UnitSet(UnitCanId, UnitThungId, UnitPackId, UnitBottleId),
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
+            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId, UnitCanId, UnitBottleId),
             _ => GetPackagedCountUnits(productUnitId)
         };
 
@@ -92,7 +92,7 @@ public static class ProductPurchaseUnitPolicy
         productUnitId switch
         {
             var id when id == UnitBottleId => UnitSet(UnitBottleId, UnitThungId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
             var id when id == UnitBagId => UnitSet(UnitBagId, UnitPieceId),
             _ => UnitSet(productUnitId, UnitPieceId)
         };
@@ -100,9 +100,9 @@ public static class ProductPurchaseUnitPolicy
     private static IReadOnlySet<Guid> GetPackagedCountUnits(Guid productUnitId) =>
         productUnitId switch
         {
-            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
-            _ => UnitSet(productUnitId, UnitPieceId, UnitBoxId)
+            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId, UnitCanId, UnitBottleId),
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
+            _ => UnitSet(productUnitId, UnitPieceId, UnitBoxId, UnitCanId, UnitBottleId)
         };
 
     private static IReadOnlySet<Guid> GetDryFoodUnits(Guid productUnitId) =>
@@ -110,8 +110,8 @@ public static class ProductPurchaseUnitPolicy
         {
             var id when id == UnitKgId => UnitSet(UnitKgId, UnitGramId),
             var id when id == UnitBagId => UnitSet(UnitBagId, UnitKgId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
-            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId),
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
+            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId, UnitCanId, UnitBottleId),
             _ => GetPackagedCountUnits(productUnitId)
         };
 
@@ -119,16 +119,16 @@ public static class ProductPurchaseUnitPolicy
         productUnitId switch
         {
             var id when id == UnitKgId => UnitSet(UnitKgId, UnitGramId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
-            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId),
-            _ => UnitSet(productUnitId, UnitPieceId)
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
+            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId, UnitCanId, UnitBottleId),
+            _ => UnitSet(productUnitId, UnitPieceId, UnitCanId, UnitBottleId)
         };
 
     private static IReadOnlySet<Guid> GetVegetarianUnits(Guid productUnitId) =>
         productUnitId switch
         {
             var id when id == UnitKgId => UnitSet(UnitKgId, UnitGramId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
             _ => UnitSet(UnitPieceId, UnitBoxId)
         };
 
@@ -139,10 +139,10 @@ public static class ProductPurchaseUnitPolicy
             var id when id == UnitGramId => UnitSet(UnitGramId, UnitKgId),
             var id when id == UnitBottleId => UnitSet(UnitBottleId, UnitThungId),
             var id when id == UnitCanId => UnitSet(UnitCanId, UnitThungId),
-            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId),
-            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId),
-            var id when id == UnitPieceId => UnitSet(UnitPieceId, UnitBoxId),
-            _ => UnitSet(productUnitId, UnitPieceId, UnitBoxId)
+            var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
+            var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId, UnitCanId, UnitBottleId),
+            var id when id == UnitPieceId => UnitSet(UnitPieceId, UnitBoxId, UnitCanId, UnitBottleId),
+            _ => UnitSet(productUnitId, UnitPieceId, UnitBoxId, UnitCanId, UnitBottleId)
         };
 
     private static HashSet<Guid> UnitSet(params Guid[] unitIds) => new(unitIds);

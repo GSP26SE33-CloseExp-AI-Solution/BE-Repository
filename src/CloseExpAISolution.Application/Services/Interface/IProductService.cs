@@ -30,7 +30,6 @@ public interface IProductService
     Task<IReadOnlyList<AvailableStocklotDto>> GetAvailableStockLotsForCustomerByProductAsync(
         Guid productId,
         CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ProductPurchaseUnitDto>> GetPurchaseUnitsForProductAsync(Guid productId, CancellationToken cancellationToken = default);
     Task<ProductResponseDto> UpdateProductUnitAsync(
         Guid productId,
         Guid supermarketId,
@@ -52,5 +51,13 @@ public interface IProductService
     Task<ProductDetailDto?> GetProductDetailAsync(Guid productId, bool includeHiddenDeletedProducts = false);
     Task DisableStockLotAsync(Guid lotId, Guid supermarketId, CancellationToken cancellationToken = default);
     Task DeleteStockLotAsync(Guid lotId, Guid supermarketId, CancellationToken cancellationToken = default);
-    Task RepublishStockLotAsync(Guid lotId, Guid supermarketId, CancellationToken cancellationToken = default);
+    Task RepublishStockLotAsync(
+        Guid lotId,
+        Guid supermarketId,
+        RepublishStockLotRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProductPurchaseUnitDto>> GetPurchaseUnitsForProductAsync(
+        Guid productId,
+        Guid? includeStockLotId = null,
+        CancellationToken cancellationToken = default);
 }

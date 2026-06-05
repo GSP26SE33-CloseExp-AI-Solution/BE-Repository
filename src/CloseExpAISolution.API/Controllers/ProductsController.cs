@@ -308,12 +308,13 @@ public class ProductsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>>> GetProductPurchaseUnits(
         Guid productId,
+        [FromQuery] Guid? lotId = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             var units = await _services.ProductService
-                .GetPurchaseUnitsForProductAsync(productId, cancellationToken);
+                .GetPurchaseUnitsForProductAsync(productId, lotId, cancellationToken);
 
             return Ok(ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>.SuccessResponse(
                 units,
@@ -647,6 +648,7 @@ public class ProductsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<object>>> RepublishStockLot(
         Guid lotId,
+        [FromBody] RepublishStockLotRequestDto request,
         CancellationToken cancellationToken = default)
     {
         var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
@@ -658,6 +660,7 @@ public class ProductsController : ControllerBase
             await _services.ProductService.RepublishStockLotAsync(
                 lotId,
                 supermarketIdResult.SupermarketId!.Value,
+                request,
                 cancellationToken);
 
             return Ok(ApiResponse<object>.SuccessResponse(null!, "Đã đăng bán lại lô hàng thành công"));

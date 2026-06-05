@@ -38,12 +38,13 @@ public class CustomersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>>> GetProductPurchaseUnits(
         Guid productId,
+        [FromQuery] Guid? lotId = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             var units = await _services.ProductService
-                .GetPurchaseUnitsForProductAsync(productId, cancellationToken);
+                .GetPurchaseUnitsForProductAsync(productId, includeStockLotId: lotId, cancellationToken);
 
             return Ok(ApiResponse<IReadOnlyList<ProductPurchaseUnitDto>>.SuccessResponse(
                 units,

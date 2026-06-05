@@ -21,42 +21,59 @@ public sealed class PurchaseUnitOrderHelper
         IReadOnlyCollection<StockLot> publishedLots,
         CancellationToken cancellationToken = default)
     {
-        var ids = new HashSet<Guid> { product.UnitId };
-        foreach (var lot in publishedLots)
-            ids.Add(lot.UnitId);
+        var lotUnitIds = publishedLots.Select(l => l.UnitId).Distinct().ToList();
+        if (lotUnitIds.Count == 0)
+            return Array.Empty<Guid>();
 
-        var units = await _unitConversion.LoadUnitInfoAsync(ids, cancellationToken);
+        var bootstrapUnits = await _unitConversion.LoadUnitInfoAsync(
+            lotUnitIds.Append(product.UnitId),
+            cancellationToken);
 
-        if (!units.TryGetValue(product.UnitId, out var baseUnit))
+        if (!bootstrapUnits.TryGetValue(product.UnitId, out var baseUnit))
         {
-            return ids.Where(units.ContainsKey).ToList();
+            return lotUnitIds.Where(bootstrapUnits.ContainsKey).ToList();
         }
 
-        var productType = baseUnit.Type;
-        var purchasableCatalog = ProductPurchaseUnitPolicy.GetPurchasableUnitIds(
-            product.UnitId,
-            product.CategoryId.GetValueOrDefault());
+        var sameTypeUnitIds = await _unitConversion.GetUnitIdsByTypeAsync(
+            baseUnit.Type,
+            cancellationToken);
 
-        return ids
-            .Where(id => purchasableCatalog.Contains(id)
-                         && units.TryGetValue(id, out var u)
-                         && string.Equals(u.Type, productType, StringComparison.OrdinalIgnoreCase))
+        var units = await _unitConversion.LoadUnitInfoAsync(
+            sameTypeUnitIds.Concat(lotUnitIds).Append(product.UnitId).Distinct(),
+            cancellationToken);
+
+        return sameTypeUnitIds
+            .Where(units.ContainsKey)
+            .Where(id => lotUnitIds.Any(lotUnitId => CanConvertBetweenUnits(id, lotUnitId, units)))
+            .Distinct()
             .ToList();
+    }
+
+    private static bool CanConvertBetweenUnits(
+        Guid fromUnitId,
+        Guid toUnitId,
+        IReadOnlyDictionary<Guid, UnitConversionInfo> units)
+    {
+        if (fromUnitId == toUnitId)
+            return true;
+
+        try
+        {
+            _ = UnitConversionRateConverter.ConvertQuantity(fromUnitId, toUnitId, 1m, units);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public void EnsurePurchaseUnitAllowed(
         Guid purchaseUnitId,
         Product product,
         StockLot lot,
-        IReadOnlyDictionary<Guid, UnitConversionInfo> units,
-        IReadOnlyCollection<Guid> allowedUnitIds)
+        IReadOnlyDictionary<Guid, UnitConversionInfo> units)
     {
-        if (!allowedUnitIds.Contains(purchaseUnitId))
-        {
-            throw new InvalidOperationException(
-                "Đơn vị mua không được phép cho sản phẩm này.");
-        }
-
         if (!units.TryGetValue(purchaseUnitId, out var purchaseUnit))
             throw new InvalidOperationException($"Không tìm thấy đơn vị mua: {purchaseUnitId}.");
 
@@ -133,25 +150,40 @@ public sealed class PurchaseUnitOrderHelper
         CreateOrderItemDto item,
         StockLot lot,
         Product product,
-        IReadOnlyDictionary<Guid, UnitConversionInfo> units,
-        IReadOnlyCollection<Guid> allowedUnitIds)
+        IReadOnlyDictionary<Guid, UnitConversionInfo> units)
     {
         var purchaseUnitId = ResolvePurchaseUnitId(item.PurchaseUnitId, lot);
-        EnsurePurchaseUnitAllowed(purchaseUnitId, product, lot, units, allowedUnitIds);
+        EnsurePurchaseUnitAllowed(purchaseUnitId, product, lot, units);
 
-        var qtyProduct = UnitConversionRateConverter.ConvertQuantityToShort(
+        if (item.Quantity <= 0 || item.Quantity > short.MaxValue)
+            throw new InvalidOperationException("Số lượng đặt hàng không hợp lệ.");
+
+        _ = ConvertPurchaseQuantityToLotQuantity(
             purchaseUnitId,
-            product.UnitId,
+            lot.UnitId,
             item.Quantity,
             units);
 
-        var unitPriceProduct = UnitConversionRateConverter.ConvertUnitPrice(
-            purchaseUnitId,
-            product.UnitId,
-            item.UnitPrice,
-            units);
+        return ((short)item.Quantity, item.UnitPrice, purchaseUnitId);
+    }
 
-        return (qtyProduct, unitPriceProduct, purchaseUnitId);
+    public decimal? ResolveDisplayPurchaseQuantity(
+        short quantity,
+        Guid productUnitId,
+        Guid? purchaseUnitId,
+        IReadOnlyDictionary<Guid, UnitConversionInfo> units)
+    {
+        if (!purchaseUnitId.HasValue || purchaseUnitId.Value == Guid.Empty)
+            return quantity;
+
+        if (purchaseUnitId.Value != productUnitId)
+            return quantity;
+
+        return TryConvertProductQuantityToPurchaseUnit(
+            quantity,
+            productUnitId,
+            purchaseUnitId,
+            units);
     }
 
     public async Task<Dictionary<Guid, decimal>> SumRequiredQuantitiesInLotUnitAsync(

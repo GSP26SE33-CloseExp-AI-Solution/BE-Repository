@@ -29,6 +29,21 @@ public sealed class UnitConversionRateService : IUnitConversionRateService
             u => new UnitConversionInfo(u.UnitId, u.Type, u.ConversionRate));
     }
 
+    public async Task<IReadOnlyList<Guid>> GetUnitIdsByTypeAsync(
+        string unitType,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(unitType))
+            return Array.Empty<Guid>();
+
+        var normalized = unitType.Trim();
+        var units = await _unitOfWork.Repository<UnitOfMeasure>().FindAsync(_ => true);
+        return units
+            .Where(u => string.Equals(u.Type, normalized, StringComparison.OrdinalIgnoreCase))
+            .Select(u => u.UnitId)
+            .ToList();
+    }
+
     public decimal ConvertQuantity(Guid fromUnitId, Guid toUnitId, decimal quantity)
     {
         var units = LoadUnitInfoSync(fromUnitId, toUnitId);
