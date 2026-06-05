@@ -72,7 +72,7 @@ public class SupermarketsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var supermarket = await _services.SupermarketService.GetByIdWithDtoAsync(id);
+        var supermarket = await _services.SupermarketService.FirstOrDefaultAsync(s => s.SupermarketId == id);
         if (supermarket == null)
             return NotFound(ApiResponse<IReadOnlyList<AdminSupermarketStaffDto>>.ErrorResponse("Không tìm thấy siêu thị"));
 
