@@ -694,21 +694,47 @@ public class BarcodeLookupService : IBarcodeLookupService
         if (nutriments == null) return null;
 
         var facts = new Dictionary<string, string>();
+        var perServing = nutriments.HasServingData;
 
-        if (nutriments.EnergyKcal100g.HasValue)
-            facts["calories"] = $"{nutriments.EnergyKcal100g}kcal";
-        if (nutriments.Proteins100g.HasValue)
-            facts["protein"] = $"{nutriments.Proteins100g}g";
-        if (nutriments.Fat100g.HasValue)
-            facts["fat"] = $"{nutriments.Fat100g}g";
-        if (nutriments.Carbohydrates100g.HasValue)
-            facts["carbs"] = $"{nutriments.Carbohydrates100g}g";
-        if (nutriments.Sugars100g.HasValue)
-            facts["sugar"] = $"{nutriments.Sugars100g}g";
-        if (nutriments.Sodium100g.HasValue)
-            facts["sodium"] = $"{nutriments.Sodium100g}mg";
-        if (nutriments.Fiber100g.HasValue)
-            facts["fiber"] = $"{nutriments.Fiber100g}g";
+        if (perServing && nutriments.EnergyKcalServing.HasValue)
+            facts["calories"] = $"{nutriments.EnergyKcalServing} kcal";
+        else if (nutriments.EnergyKcal100g.HasValue)
+            facts["calories"] = $"{nutriments.EnergyKcal100g} kcal/100g";
+
+        if (perServing && nutriments.ProteinsServing.HasValue)
+            facts["protein"] = $"{nutriments.ProteinsServing} g";
+        else if (nutriments.Proteins100g.HasValue)
+            facts["protein"] = $"{nutriments.Proteins100g} g/100g";
+
+        if (perServing && nutriments.FatServing.HasValue)
+            facts["fat"] = $"{nutriments.FatServing} g";
+        else if (nutriments.Fat100g.HasValue)
+            facts["fat"] = $"{nutriments.Fat100g} g/100g";
+
+        if (perServing && nutriments.SaturatedFatServing.HasValue)
+            facts["saturated_fat"] = $"{nutriments.SaturatedFatServing} g";
+        else if (nutriments.SaturatedFat100g.HasValue)
+            facts["saturated_fat"] = $"{nutriments.SaturatedFat100g} g/100g";
+
+        if (perServing && nutriments.CarbohydratesServing.HasValue)
+            facts["carbs"] = $"{nutriments.CarbohydratesServing} g";
+        else if (nutriments.Carbohydrates100g.HasValue)
+            facts["carbs"] = $"{nutriments.Carbohydrates100g} g/100g";
+
+        if (perServing && nutriments.SugarsServing.HasValue)
+            facts["sugar"] = $"{nutriments.SugarsServing} g";
+        else if (nutriments.Sugars100g.HasValue)
+            facts["sugar"] = $"{nutriments.Sugars100g} g/100g";
+
+        if (perServing && nutriments.SodiumServing.HasValue)
+            facts["sodium"] = $"{nutriments.SodiumServing} mg";
+        else if (nutriments.Sodium100g.HasValue)
+            facts["sodium"] = $"{nutriments.Sodium100g} mg/100g";
+
+        if (perServing && nutriments.FiberServing.HasValue)
+            facts["fiber"] = $"{nutriments.FiberServing} g";
+        else if (nutriments.Fiber100g.HasValue)
+            facts["fiber"] = $"{nutriments.Fiber100g} g/100g";
 
         return facts.Count > 0 ? facts : null;
     }
@@ -798,23 +824,57 @@ internal class OpenFoodFactsNutriments
     [JsonPropertyName("energy-kcal_100g")]
     public float? EnergyKcal100g { get; set; }
 
+    [JsonPropertyName("energy-kcal_serving")]
+    public float? EnergyKcalServing { get; set; }
+
     [JsonPropertyName("proteins_100g")]
     public float? Proteins100g { get; set; }
+
+    [JsonPropertyName("proteins_serving")]
+    public float? ProteinsServing { get; set; }
 
     [JsonPropertyName("fat_100g")]
     public float? Fat100g { get; set; }
 
+    [JsonPropertyName("fat_serving")]
+    public float? FatServing { get; set; }
+
+    [JsonPropertyName("saturated-fat_100g")]
+    public float? SaturatedFat100g { get; set; }
+
+    [JsonPropertyName("saturated-fat_serving")]
+    public float? SaturatedFatServing { get; set; }
+
     [JsonPropertyName("carbohydrates_100g")]
     public float? Carbohydrates100g { get; set; }
+
+    [JsonPropertyName("carbohydrates_serving")]
+    public float? CarbohydratesServing { get; set; }
 
     [JsonPropertyName("sugars_100g")]
     public float? Sugars100g { get; set; }
 
+    [JsonPropertyName("sugars_serving")]
+    public float? SugarsServing { get; set; }
+
     [JsonPropertyName("sodium_100g")]
     public float? Sodium100g { get; set; }
 
+    [JsonPropertyName("sodium_serving")]
+    public float? SodiumServing { get; set; }
+
     [JsonPropertyName("fiber_100g")]
     public float? Fiber100g { get; set; }
+
+    [JsonPropertyName("fiber_serving")]
+    public float? FiberServing { get; set; }
+
+    [JsonIgnore]
+    public bool HasServingData =>
+        EnergyKcalServing.HasValue
+        || ProteinsServing.HasValue
+        || FatServing.HasValue
+        || SodiumServing.HasValue;
 }
 
 internal class UpcItemDbResponse

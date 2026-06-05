@@ -9,6 +9,11 @@ internal static class RealWorldCatalogSeedData
     internal static readonly Guid SupermarketWinMartId = Guid.Parse("66666666-6666-6666-6666-666666666666");
     internal static readonly Guid SupermarketMegaMarketId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
+    internal static readonly Guid SupplierStaffUserLotteId = Guid.Parse("bbbb0003-0003-0003-0003-000000000003");
+    internal static readonly Guid SupplierStaffUserBachHoaXanhId = Guid.Parse("bbbb0004-0004-0004-0004-000000000004");
+    internal static readonly Guid SupplierStaffUserWinMartId = Guid.Parse("bbbb0005-0005-0005-0005-000000000005");
+    internal static readonly Guid SupplierStaffUserMegaMarketId = Guid.Parse("bbbb0006-0006-0006-0006-000000000006");
+
     internal sealed record SupermarketEntry(
         Guid SupermarketId,
         string Name,
@@ -47,6 +52,8 @@ internal static class RealWorldCatalogSeedData
     private static readonly Guid UnitPieceId = Guid.Parse("aaaa0008-0008-0008-0008-000000000008");
     private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
     private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
+    private static readonly Guid UnitThungId = Guid.Parse("aaaa000b-000b-000b-000b-00000000000b");
+    private static readonly Guid CategoryTofuEggId = Guid.Parse("ccca000c-000c-000c-000c-00000000000c");
 
     internal static readonly SupermarketEntry[] Supermarkets =
     [
@@ -78,6 +85,46 @@ internal static class RealWorldCatalogSeedData
             10.8038m,
             106.7482m,
             "028-3744-9000"),
+    ];
+
+    internal sealed record SupplierStaffEntry(
+        Guid UserId,
+        Guid SupermarketId,
+        string Email,
+        string FullName,
+        string Phone,
+        string Position);
+
+    internal static readonly SupplierStaffEntry[] SupplierStaffAccounts =
+    [
+        new(
+            SupplierStaffUserLotteId,
+            SupermarketLotteId,
+            "supplier.3@gmail.com",
+            "Trần Văn Lotte - Nhà cung cấp",
+            "0914777777",
+            "Quản lý kho Lotte Mart"),
+        new(
+            SupplierStaffUserBachHoaXanhId,
+            SupermarketBachHoaXanhId,
+            "supplier.4@gmail.com",
+            "Lê Thị BHX - Nhà cung cấp",
+            "0914888888",
+            "Quản lý kho Bách Hóa Xanh"),
+        new(
+            SupplierStaffUserWinMartId,
+            SupermarketWinMartId,
+            "supplier.5@gmail.com",
+            "Phạm Văn WinMart - Nhà cung cấp",
+            "0914999999",
+            "Quản lý kho WinMart+"),
+        new(
+            SupplierStaffUserMegaMarketId,
+            SupermarketMegaMarketId,
+            "supplier.6@gmail.com",
+            "Ngô Thị Mega - Nhà cung cấp",
+            "0915000000",
+            "Quản lý kho MM Mega Market"),
     ];
 
     internal static readonly ProductEntry[] Products =
@@ -281,13 +328,13 @@ internal static class RealWorldCatalogSeedData
         new(
             Guid.Parse("bbbb00e2-0001-0001-0001-000000000001"),
             SupermarketBachHoaXanhId,
-            Guid.Parse("ccca000c-000c-000c-000c-00000000000c"),
-            Guid.Parse("aaaa0007-0007-0007-0007-000000000007"),
+            CategoryTofuEggId,
+            UnitPieceId,
             "Trứng gà CP vỉ 10 trứng",
             "8934834567890",
             "CP",
             "Trứng gà công nghiệp vỉ 10 quả",
-            35000m,
+            3500m,
             14,
             80),
         new(
@@ -454,10 +501,10 @@ internal static class RealWorldCatalogSeedData
         if (productUnitId == UnitKgId && lotUnitId == UnitGramId)
             return Math.Max(1m, Math.Round(productUnitPrice / 1000m, 0, MidpointRounding.AwayFromZero));
 
-        if (productUnitId == UnitBottleId && lotUnitId == UnitPackId)
-            return Math.Round(productUnitPrice * 6m, 0, MidpointRounding.AwayFromZero);
+        if (productUnitId == UnitBottleId && lotUnitId == UnitThungId)
+            return Math.Round(productUnitPrice * 24m, 0, MidpointRounding.AwayFromZero);
 
-        if (productUnitId == UnitBottleId && lotUnitId == UnitBoxId)
+        if (productUnitId == UnitCanId && lotUnitId == UnitThungId)
             return Math.Round(productUnitPrice * 24m, 0, MidpointRounding.AwayFromZero);
 
         if (productUnitId == UnitBoxId && lotUnitId == UnitPackId)
@@ -466,7 +513,13 @@ internal static class RealWorldCatalogSeedData
         if (productUnitId == UnitPackId && lotUnitId == UnitBoxId)
             return Math.Round(productUnitPrice * 4m, 0, MidpointRounding.AwayFromZero);
 
-        if (lotUnitId == UnitPieceId)
+        if (productUnitId == UnitPieceId && lotUnitId == UnitBoxId)
+            return Math.Round(productUnitPrice * 12m, 0, MidpointRounding.AwayFromZero);
+
+        if (productUnitId == UnitPieceId && lotUnitId == UnitPackId)
+            return Math.Round(productUnitPrice * 10m, 0, MidpointRounding.AwayFromZero);
+
+        if (lotUnitId == UnitPieceId && productUnitId is var pu && (pu == UnitKgId || pu == UnitBoxId || pu == UnitPackId))
             return Math.Max(1m, Math.Round(productUnitPrice / 2m, 0, MidpointRounding.AwayFromZero));
 
         return productUnitPrice;
@@ -480,16 +533,21 @@ internal static class RealWorldCatalogSeedData
             _ => 5
         };
 
-    private static Guid[] GetLotUnits(Guid primaryUnitId) =>
+    private static Guid[] GetLotUnits(ProductEntry product) =>
+        product.CategoryId == CategoryTofuEggId
+            ? [UnitPieceId, UnitBoxId, UnitPieceId, UnitBoxId, UnitPieceId]
+            : GetLotUnitsByPrimaryUnit(product.UnitId);
+
+    private static Guid[] GetLotUnitsByPrimaryUnit(Guid primaryUnitId) =>
         primaryUnitId switch
         {
-            var id when id == UnitKgId => [UnitKgId, UnitGramId, UnitBagId, UnitKgId, UnitGramId],
-            var id when id == UnitBottleId => [UnitBottleId, UnitPackId, UnitBoxId, UnitPieceId, UnitBottleId],
-            var id when id == UnitCanId => [UnitCanId, UnitPackId, UnitPieceId, UnitPackId, UnitCanId],
-            var id when id == UnitBoxId => [UnitBoxId, UnitPackId, UnitPieceId, UnitBoxId, UnitPackId],
-            var id when id == UnitPackId => [UnitPackId, UnitBoxId, UnitPieceId, UnitBagId, UnitPackId],
-            var id when id == UnitPieceId => [UnitPieceId, UnitPackId, UnitBoxId, UnitPieceId, UnitPackId],
-            _ => [primaryUnitId, UnitPackId, UnitPieceId, UnitBoxId, UnitBagId]
+            var id when id == UnitKgId => [UnitKgId, UnitGramId, UnitKgId, UnitGramId, UnitKgId],
+            var id when id == UnitBottleId => [UnitBottleId, UnitThungId, UnitBottleId, UnitThungId, UnitBottleId],
+            var id when id == UnitCanId => [UnitCanId, UnitThungId, UnitCanId, UnitThungId, UnitCanId],
+            var id when id == UnitBoxId => [UnitBoxId, UnitPieceId, UnitBoxId, UnitPieceId, UnitBoxId],
+            var id when id == UnitPackId => [UnitPackId, UnitPieceId, UnitPackId, UnitPieceId, UnitPackId],
+            var id when id == UnitPieceId => [UnitPieceId, UnitBoxId, UnitPieceId, UnitBoxId, UnitPieceId],
+            _ => [primaryUnitId, UnitPieceId, UnitBoxId]
         };
 
     private static (int ExpiryDays, decimal Quantity) GetLotSchedule(ProductEntry product, int variant, int lotCount)
@@ -530,6 +588,9 @@ internal static class RealWorldCatalogSeedData
         if (lotUnitId == UnitBagId)
             return Math.Max(1m, Math.Round(quantity / 3m, MidpointRounding.AwayFromZero));
 
+        if (lotUnitId == UnitThungId && (product.UnitId == UnitBottleId || product.UnitId == UnitCanId))
+            return Math.Max(1m, Math.Round(quantity / 24m, MidpointRounding.AwayFromZero));
+
         return quantity;
     }
 
@@ -540,7 +601,7 @@ internal static class RealWorldCatalogSeedData
         foreach (var product in Products)
         {
             var lotCount = GetLotCountForProduct(product);
-            var units = GetLotUnits(product.UnitId);
+            var units = GetLotUnits(product);
 
             for (var variant = 1; variant <= lotCount; variant++)
             {

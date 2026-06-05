@@ -33,6 +33,7 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.StockLot)
                     .ThenInclude(pl => pl!.Product)
+                        .ThenInclude(p => p!.Supermarket)
             .FirstOrDefaultAsync(o => o.OrderId == orderId, cancellationToken);
     }
 

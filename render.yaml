@@ -24,7 +24,7 @@ services:
       - key: Jwt__ExpiryInMinutes
         value: "60"
       - key: AIService__BaseUrl
-        value: https://closeexp-ai.nicecliff-c0acbb42.southeastasia.azurecontainerapps.io
+        value: https://ais.lendcamdio.io.vn
       - key: AIService__ApiKey
         sync: false
       - key: AIService__TimeoutSeconds

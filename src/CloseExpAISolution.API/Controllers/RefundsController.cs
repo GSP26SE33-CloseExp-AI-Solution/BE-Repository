@@ -72,6 +72,45 @@ public class RefundsController : ControllerBase
         return Ok(ApiResponse<PaginatedResult<RefundResponseDto>>.SuccessResponse(result));
     }
 
+    [HttpGet("orders")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AdminRefundOrderSummaryDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<AdminRefundOrderSummaryDto>>>> GetOrdersWithRefunds(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 100) pageSize = 100;
+
+        var (items, total) = await _services.RefundService.GetAdminOrdersWithRefundsAsync(
+            pageNumber, pageSize, cancellationToken);
+
+        var result = new PaginatedResult<AdminRefundOrderSummaryDto>
+        {
+            Items = items,
+            TotalResult = total,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
+        return Ok(ApiResponse<PaginatedResult<AdminRefundOrderSummaryDto>>.SuccessResponse(result));
+    }
+
+    [HttpGet("orders/{orderId:guid}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<AdminRefundOrderDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<AdminRefundOrderDetailDto>>> GetOrderRefundDetail(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var detail = await _services.RefundService.GetAdminOrderRefundDetailAsync(orderId, cancellationToken);
+        if (detail == null)
+            return NotFound(ApiResponse<AdminRefundOrderDetailDto>.ErrorResponse("Order refund not found"));
+        return Ok(ApiResponse<AdminRefundOrderDetailDto>.SuccessResponse(detail));
+    }
+
     [HttpGet("{id:guid}")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<RefundResponseDto>), StatusCodes.Status200OK)]

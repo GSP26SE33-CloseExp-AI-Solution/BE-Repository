@@ -567,6 +567,44 @@ public class ProductsController : ControllerBase
     }
 
     [Authorize(Roles = "SupermarketStaff")]
+    [HttpPatch("{productId:guid}/unit")]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ProductResponseDto>>> UpdateProductUnit(
+        Guid productId,
+        [FromBody] UpdateProductUnitRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var supermarketIdResult = await GetCurrentStaffSupermarketIdAsync();
+        if (!supermarketIdResult.Success)
+            return supermarketIdResult.ErrorResult!;
+
+        try
+        {
+            var data = await _services.ProductService.UpdateProductUnitAsync(
+                productId,
+                supermarketIdResult.SupermarketId!.Value,
+                request,
+                cancellationToken);
+
+            return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(data, "Cập nhật đơn vị gốc sản phẩm thành công"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [Authorize(Roles = "SupermarketStaff")]
     [HttpPatch("lots/{lotId:guid}/unit")]
     [ProducesResponseType(typeof(ApiResponse<StockLotDetailDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]

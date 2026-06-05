@@ -33,9 +33,13 @@ public sealed class PurchaseUnitOrderHelper
         }
 
         var productType = baseUnit.Type;
+        var purchasableCatalog = ProductPurchaseUnitPolicy.GetPurchasableUnitIds(
+            product.UnitId,
+            product.CategoryId.GetValueOrDefault());
 
         return ids
-            .Where(id => units.TryGetValue(id, out var u)
+            .Where(id => purchasableCatalog.Contains(id)
+                         && units.TryGetValue(id, out var u)
                          && string.Equals(u.Type, productType, StringComparison.OrdinalIgnoreCase))
             .ToList();
     }

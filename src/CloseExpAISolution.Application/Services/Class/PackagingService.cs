@@ -351,15 +351,15 @@ public class PackagingService : IPackagingService
                 if (record.Status == PackagingState.Completed || record.Status == PackagingState.Failed)
                     throw new InvalidOperationException($"Dòng hàng {item.OrderItemId} đã kết thúc đóng gói.");
 
-        record.Status = PackagingState.Pending;
+                record.Status = PackagingState.Pending;
                 record.PackagedAt = null;
-        _unitOfWork.Repository<OrderPackaging>().Update(record);
+                _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Pending;
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
         }
         catch
@@ -418,11 +418,11 @@ public class PackagingService : IPackagingService
             if (record.Status == PackagingState.Packaging)
                 continue;
 
-        if (record.Status != PackagingState.Pending)
+            if (record.Status != PackagingState.Pending)
                 throw new InvalidOperationException("Bản ghi đóng gói không ở trạng thái chờ thu gom.");
 
-        record.Status = PackagingState.Packaging;
-        _unitOfWork.Repository<OrderPackaging>().Update(record);
+            record.Status = PackagingState.Packaging;
+            _unitOfWork.Repository<OrderPackaging>().Update(record);
 
             item.PackagingStatus = PackagingState.Packaging;
             _unitOfWork.Repository<OrderItem>().Update(item);
@@ -506,7 +506,7 @@ public class PackagingService : IPackagingService
                 await EnsureRecordOwnedByCurrentStaffAsync(record, packagingStaffId, cancellationToken);
                 record.Status = PackagingState.Completed;
                 record.PackagedAt = now;
-            _unitOfWork.Repository<OrderPackaging>().Update(record);
+                _unitOfWork.Repository<OrderPackaging>().Update(record);
 
                 item.PackagingStatus = PackagingState.Completed;
                 item.PackagedAt = now;
@@ -655,15 +655,32 @@ public class PackagingService : IPackagingService
                 _unitOfWork.Repository<OrderItem>().Update(item);
             }
 
-            pendingRefundId = await FulfillmentFailureRefundHelper.TryCreateRefundForFailedOrderItemsAsync(
-                _unitOfWork,
-                _refundService,
-                _logger,
+            var allItemsAfterFail = await GetOrderItemsAsync(orderId, cancellationToken);
+            var allOrderItemsFailed = allItemsAfterFail.Count > 0
+                && allItemsAfterFail.All(i => i.PackagingStatus == PackagingState.Failed);
+
+            decimal failedAmount;
+            IReadOnlyList<Guid> refundedItemIds;
+            if (allOrderItemsFailed)
+            {
+                failedAmount = 0;
+                refundedItemIds = allItemsAfterFail.Select(i => i.OrderItemId).ToList();
+            }
+            else
+            {
+                var orderForRefund = await _unitOfWork.OrderRepository.GetByIdWithDetailsAsync(orderId, cancellationToken)
+                    ?? order;
+                failedAmount = PromotionLineAllocation.SumRefundableLineAmounts(orderForRefund, actionableTargets);
+                refundedItemIds = actionableTargets.Select(i => i.OrderItemId).ToList();
+            }
+
+            pendingRefundId = await TryRefundForPackagingFailureAsync(
                 orderId,
-                actionableTargets,
+                failedAmount,
+                allOrderItemsFailed,
                 note,
-                cancellationToken,
-                throwIfNoPaidTransaction: true);
+                refundedItemIds,
+                cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
@@ -1011,21 +1028,21 @@ public class PackagingService : IPackagingService
 
     private async Task NotifyDeliveryStaffOrderReadyAsync(Order order, DateTime now, CancellationToken cancellationToken)
     {
-            var deliveryStaffs = await _unitOfWork.Repository<User>()
-                .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
+        var deliveryStaffs = await _unitOfWork.Repository<User>()
+            .FindAsync(u => u.RoleId == (int)RoleUser.DeliveryStaff);
 
-            var notifications = deliveryStaffs.Select(staff => new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = staff.UserId,
-                Title = "Có đơn cần giao",
-                Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
-                Type = NotificationType.DeliveryUpdate,
-                IsRead = false,
+        var notifications = deliveryStaffs.Select(staff => new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = staff.UserId,
+            Title = "Có đơn cần giao",
+            Content = $"Đơn hàng {order.OrderCode} đã sẵn sàng để giao.",
+            Type = NotificationType.DeliveryUpdate,
+            IsRead = false,
             CreatedAt = now
-            }).ToList();
+        }).ToList();
 
-            if (notifications.Count > 0)
+        if (notifications.Count > 0)
             await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1054,6 +1071,54 @@ public class PackagingService : IPackagingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task<Guid?> TryRefundForPackagingFailureAsync(
+        Guid orderId,
+        decimal failedLineItemsAmount,
+        bool refundFullOrderRemainder,
+        string reason,
+        IReadOnlyList<Guid> refundedOrderItemIds,
+        CancellationToken cancellationToken)
+    {
+        var transactions = (await _unitOfWork.Repository<Transaction>()
+                .FindAsync(t => t.OrderId == orderId && t.PaymentStatus == PaymentState.Paid))
+            .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+            .ToList();
+
+        var paidTx = transactions.FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                "Không tìm thấy giao dịch thanh toán thành công, không thể tạo yêu cầu hoàn tiền.");
+
+        var existingRefundTotal = (await _unitOfWork.Repository<Refund>().FindAsync(r =>
+                r.TransactionId == paidTx.TransactionId && r.Status != RefundState.Rejected))
+            .Sum(r => r.Amount);
+
+        var refundable = paidTx.Amount - existingRefundTotal;
+        if (refundable <= 0)
+        {
+            _logger.LogWarning("Order {OrderId}: no refundable balance left on transaction {TxId}.", orderId, paidTx.TransactionId);
+            return null;
+        }
+
+        var amount = refundFullOrderRemainder
+            ? refundable
+            : Math.Min(failedLineItemsAmount, refundable);
+
+        if (amount <= 0)
+            return null;
+
+        var refundReason = reason.Length > 2000 ? reason[..2000] : reason;
+        var created = await _refundService.CreateAsync(
+            new CreateRefundRequestDto
+            {
+                OrderId = orderId,
+                TransactionId = paidTx.TransactionId,
+                Amount = amount,
+                Reason = refundReason,
+                OrderItemIds = refundedOrderItemIds
+            },
+            cancellationToken);
+        return created.RefundId;
+    }
 
     private async Task RestoreStockForOrderItemsAsync(
         IReadOnlyList<OrderItem> items,

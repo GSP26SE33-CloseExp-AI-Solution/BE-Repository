@@ -10,10 +10,12 @@ namespace CloseExpAISolution.Application.Services.Class;
 public class PromotionService : IPromotionService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRealtimeNotificationPublisher? _realtimePublisher;
 
-    public PromotionService(IUnitOfWork unitOfWork)
+    public PromotionService(IUnitOfWork unitOfWork, IRealtimeNotificationPublisher? realtimePublisher = null)
     {
         _unitOfWork = unitOfWork;
+        _realtimePublisher = realtimePublisher;
     }
 
     public async Task<IEnumerable<AdminPromotionDto>> GetPromotionsAsync(CancellationToken cancellationToken = default)
@@ -65,6 +67,9 @@ public class PromotionService : IPromotionService
         await _unitOfWork.Repository<Promotion>().AddAsync(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (entity.Status == PromotionState.Active)
+            await NotifyVendorsAboutNewPromotionAsync(entity, cancellationToken);
+
         return MapPromotion(entity);
     }
 
@@ -112,9 +117,14 @@ public class PromotionService : IPromotionService
         if (!TryParsePromotionStatus(status, out var parsedStatus))
             throw new ArgumentException("Status không hợp lệ. Giá trị cho phép: Draft, Active, Inactive, Expired.", nameof(status));
 
+        var wasActive = entity.Status == PromotionState.Active;
         entity.Status = parsedStatus;
         _unitOfWork.Repository<Promotion>().Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (!wasActive && parsedStatus == PromotionState.Active)
+            await NotifyVendorsAboutNewPromotionAsync(entity, cancellationToken);
+
         return MapPromotion(entity);
     }
 
@@ -173,6 +183,76 @@ public class PromotionService : IPromotionService
 
     private static bool TryParsePromotionStatus(string status, out PromotionState parsedStatus)
         => Enum.TryParse(status?.Trim(), ignoreCase: true, out parsedStatus);
+
+    public async Task<IReadOnlyList<CustomerPromotionOptionDto>> GetAvailableForCustomerAsync(
+        Guid userId,
+        decimal cartSubtotal,
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var promotions = (await _unitOfWork.Repository<Promotion>()
+                .FindAsync(p => p.Status == PromotionState.Active))
+            .Where(p => now >= p.StartDate && now <= p.EndDate)
+            .OrderByDescending(p => p.StartDate)
+            .ToList();
+
+        if (promotions.Count == 0)
+            return Array.Empty<CustomerPromotionOptionDto>();
+
+        var promotionIds = promotions.Select(p => p.PromotionId).ToList();
+        var usages = (await _unitOfWork.Repository<PromotionUsage>()
+                .FindAsync(u => u.UserId == userId && promotionIds.Contains(u.PromotionId)))
+            .GroupBy(u => u.PromotionId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var options = new List<CustomerPromotionOptionDto>();
+        foreach (var promotion in promotions)
+        {
+            usages.TryGetValue(promotion.PromotionId, out var userUsageCount);
+            var exhaustedGlobal = promotion.UsedCount >= promotion.MaxUsage;
+            var exhaustedUser = userUsageCount >= promotion.PerUserLimit;
+            var belowMin = promotion.MinOrderAmount.HasValue && cartSubtotal < promotion.MinOrderAmount.Value;
+
+            string? disabledReason = null;
+            var isDisabled = false;
+            if (exhaustedUser)
+            {
+                isDisabled = true;
+                disabledReason = "Bạn đã sử dụng mã này";
+            }
+            else if (exhaustedGlobal)
+            {
+                isDisabled = true;
+                disabledReason = "Mã đã hết lượt";
+            }
+            else if (belowMin)
+            {
+                isDisabled = true;
+                disabledReason = $"Đơn tối thiểu {promotion.MinOrderAmount!.Value:N0}đ";
+            }
+
+            var previewDiscount = isDisabled ? 0m : CalculateDiscount(promotion, cartSubtotal);
+            options.Add(new CustomerPromotionOptionDto
+            {
+                PromotionId = promotion.PromotionId,
+                Code = promotion.Code,
+                Name = promotion.Name,
+                DiscountType = promotion.DiscountType,
+                DiscountValue = promotion.DiscountValue,
+                MinOrderAmount = promotion.MinOrderAmount,
+                MaxDiscountAmount = promotion.MaxDiscountAmount,
+                PerUserLimit = promotion.PerUserLimit,
+                UserUsageCount = userUsageCount,
+                CanApply = !isDisabled,
+                IsDisabled = isDisabled,
+                DisabledReason = disabledReason,
+                PreviewDiscountAmount = previewDiscount,
+                PreviewFinalAmount = Math.Max(0, cartSubtotal - previewDiscount)
+            });
+        }
+
+        return options;
+    }
 
     public async Task<PromotionValidationResultDto> ValidatePromotionAsync(Guid userId, ValidatePromotionRequestDto request, CancellationToken cancellationToken = default)
     {
@@ -244,6 +324,38 @@ public class PromotionService : IPromotionService
         DiscountAmount = 0,
         FinalAmount = originalAmount
     };
+
+    private async Task NotifyVendorsAboutNewPromotionAsync(Promotion promotion, CancellationToken cancellationToken)
+    {
+        var vendors = (await _unitOfWork.Repository<User>()
+                .FindAsync(u => u.RoleId == (int)RoleUser.Vendor && u.Status == UserState.Active))
+            .ToList();
+
+        if (vendors.Count == 0)
+            return;
+
+        var now = DateTime.UtcNow;
+        var title = "Khuyến mãi mới";
+        var content =
+            $"Mã {promotion.Code} — {promotion.Name}. Áp dụng tại bước thanh toán trước {promotion.EndDate:dd/MM/yyyy}.";
+
+        var notifications = vendors.Select(v => new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = v.UserId,
+            Title = title,
+            Content = content,
+            Type = NotificationType.Promotion,
+            IsRead = false,
+            CreatedAt = now
+        }).ToList();
+
+        await _unitOfWork.Repository<Notification>().AddRangeAsync(notifications);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (_realtimePublisher != null)
+            await _realtimePublisher.PublishManyAsync(notifications, cancellationToken);
+    }
 
     public static AdminPromotionDto MapPromotion(Promotion x) => new()
     {

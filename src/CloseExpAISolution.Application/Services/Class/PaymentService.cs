@@ -400,6 +400,18 @@ public sealed class PaymentService : IPaymentService, IDisposable
             order.UpdatedAt = now;
             _unitOfWork.OrderRepository.Update(order);
         }
+
+        if (order.Status == OrderState.Paid && _services != null)
+        {
+            try
+            {
+                await _services.OrderService.RecordPromotionUsageWhenPaidAsync(order.OrderId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to record promotion usage for paid order {OrderId}", order.OrderId);
+            }
+        }
     }
 
     private async Task<bool> TryConsumeStockForOrderAsync(Order order, CancellationToken cancellationToken)

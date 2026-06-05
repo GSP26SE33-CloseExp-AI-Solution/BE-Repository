@@ -43,6 +43,7 @@ public static class DataSeeder
     private static readonly Guid UnitPieceId = Guid.Parse("aaaa0008-0008-0008-0008-000000000008");
     private static readonly Guid UnitCanId = Guid.Parse("aaaa0009-0009-0009-0009-000000000009");
     private static readonly Guid UnitBagId = Guid.Parse("aaaa000a-000a-000a-000a-00000000000a");
+    private static readonly Guid UnitThungId = Guid.Parse("aaaa000b-000b-000b-000b-00000000000b");
 
     private static readonly Guid CategoryDairyId = Guid.Parse("ccca0001-0001-0001-0001-000000000001");
     private static readonly Guid CategoryMeatSeafoodId = Guid.Parse("ccca0002-0002-0002-0002-000000000002");
@@ -182,6 +183,8 @@ public static class DataSeeder
         await SeedCategoriesAsync(context);
         await SeedProductsAsync(context);
         await SeedRealWorldCatalogAsync(context);
+        await SeedRealWorldCatalogSupplierStaffAsync(context);
+        await SyncRealWorldCatalogProductsAsync(context);
         await SeedRealWorldCatalogStockLotsAsync(context);
         await SeedStockLotsAsync(context);
         await SeedExpiryStatusCoverageStockLotsAsync(context);
@@ -197,6 +200,7 @@ public static class DataSeeder
         await SeedClusterDraftDemoDataAsync(context);
         await SeedMultiUnitPurchaseDemoAsync(context);
         await BackfillOrderItemPurchaseUnitsAsync(context);
+        await BackfillSeededProductVerificationAsync(context);
         await RefreshProductCatalogTimestampsAsync(context);
     }
 
@@ -364,6 +368,83 @@ public static class DataSeeder
         }
 
         await context.SaveChangesAsync();
+    }
+
+    private static async Task BackfillSeededProductVerificationAsync(ApplicationDbContext context)
+    {
+        var seedProductIds = GetSeededProductIds();
+        var products = await context.Products
+            .Where(p => seedProductIds.Contains(p.ProductId) && p.VerifiedAt == null)
+            .ToListAsync();
+
+        if (products.Count == 0)
+            return;
+
+        var verifiedBy = MarketStaffUserId1.ToString();
+        var now = DateTime.UtcNow;
+        var productIds = products.Select(p => p.ProductId).ToList();
+        var existingLogProductIds = (await context.AIVerificationLogs
+            .Where(l => productIds.Contains(l.ProductId))
+            .Select(l => l.ProductId)
+            .ToListAsync()).ToHashSet();
+
+        var logsToAdd = new List<AIVerificationLog>();
+
+        foreach (var product in products)
+        {
+            var verifiedAt = product.CreatedAt == default ? now : product.CreatedAt;
+            product.VerifiedBy = verifiedBy;
+            product.VerifiedAt = verifiedAt;
+            product.UpdatedAt = now;
+
+            if (product.Status == ProductState.Draft)
+                product.Status = ProductState.Verified;
+
+            if (existingLogProductIds.Contains(product.ProductId))
+                continue;
+
+            logsToAdd.Add(new AIVerificationLog
+            {
+                VerificationId = Guid.NewGuid(),
+                ProductId = product.ProductId,
+                ExtractedName = product.Name,
+                ExtractedBarcode = product.Barcode,
+                ConfidenceScore = 1m,
+                RawData = """{"source":"seed"}""",
+                VerifiedAt = verifiedAt,
+                VerifiedBy = verifiedBy
+            });
+            existingLogProductIds.Add(product.ProductId);
+        }
+
+        if (logsToAdd.Count > 0)
+            await context.AIVerificationLogs.AddRangeAsync(logsToAdd);
+
+        await context.SaveChangesAsync();
+    }
+
+    private static HashSet<Guid> GetSeededProductIds()
+    {
+        var ids = new HashSet<Guid>
+        {
+            Product1Id,
+            Product2Id,
+            Product3Id,
+            Product4Id,
+            Product5Id,
+            Product6Id,
+            Product7Id,
+            Product8Id,
+            Product9Id,
+            Product10Id,
+            Product11Id,
+            Product12Id
+        };
+
+        foreach (var entry in RealWorldCatalogSeedData.Products)
+            ids.Add(entry.ProductId);
+
+        return ids;
     }
 
     private static async Task SeedSystemConfigsAsync(ApplicationDbContext context)
@@ -888,6 +969,7 @@ public static class DataSeeder
     private static async Task SeedUnitsAsync(ApplicationDbContext context)
     {
         await EnsureUnitCatalogAsync(context);
+        await EnsureCatalogUnitsPresentAsync(context);
     }
 
     private static async Task EnsureUnitCatalogAsync(ApplicationDbContext context)
@@ -933,6 +1015,41 @@ public static class DataSeeder
             product.UnitId = ResolveUnitIdByProduct(product.ProductId);
 
         if (products.Count > 0)
+            await context.SaveChangesAsync();
+    }
+
+    private static async Task EnsureCatalogUnitsPresentAsync(ApplicationDbContext context)
+    {
+        var now = DateTime.UtcNow;
+        var changed = false;
+
+        foreach (var unit in BuildUnitCatalog(now))
+        {
+            var existing = await context.UnitOfMeasures.FindAsync(unit.UnitId);
+            if (existing is null)
+            {
+                await context.UnitOfMeasures.AddAsync(unit);
+                changed = true;
+                continue;
+            }
+
+            if (existing.Name == unit.Name
+                && existing.Type == unit.Type
+                && existing.Symbol == unit.Symbol
+                && existing.ConversionRate == unit.ConversionRate)
+            {
+                continue;
+            }
+
+            existing.Name = unit.Name;
+            existing.Type = unit.Type;
+            existing.Symbol = unit.Symbol;
+            existing.ConversionRate = unit.ConversionRate;
+            existing.UpdatedAt = now;
+            changed = true;
+        }
+
+        if (changed)
             await context.SaveChangesAsync();
     }
 
@@ -1077,6 +1194,16 @@ public static class DataSeeder
             Type = "Đếm",
             Symbol = "túi",
             ConversionRate = 2m,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            UnitId = UnitThungId,
+            Name = "Thùng",
+            Type = "Đếm",
+            Symbol = "thùng",
+            ConversionRate = 24m,
             CreatedAt = now,
             UpdatedAt = now
         }
@@ -1272,8 +1399,13 @@ public static class DataSeeder
             }
         };
 
+        var verifiedBy = MarketStaffUserId1.ToString();
         foreach (var product in products)
+        {
             product.UnitId = ResolveUnitIdByProduct(product.ProductId);
+            product.VerifiedBy = verifiedBy;
+            product.VerifiedAt = now;
+        }
 
         await context.Products.AddRangeAsync(products);
         await context.SaveChangesAsync();
@@ -2081,6 +2213,8 @@ public static class DataSeeder
                 UpdatedAt = now,
                 PublishedBy = publishedBy,
                 PublishedAt = now,
+                VerifiedBy = publishedBy,
+                VerifiedAt = now,
                 IsFeatured = false
             });
 
@@ -2108,6 +2242,132 @@ public static class DataSeeder
             await context.Products.AddRangeAsync(productsToAdd);
             await context.ProductDetails.AddRangeAsync(detailsToAdd);
             await context.StockLots.AddRangeAsync(lotsToAdd);
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedRealWorldCatalogSupplierStaffAsync(ApplicationDbContext context)
+    {
+        const int supermarketStaffRoleId = 4;
+        var entries = RealWorldCatalogSeedData.SupplierStaffAccounts;
+        if (entries.Length == 0)
+            return;
+
+        var supermarketIds = entries.Select(e => e.SupermarketId).Distinct().ToList();
+        var existingSupermarketIds = (await context.Supermarkets
+            .Where(s => supermarketIds.Contains(s.SupermarketId))
+            .Select(s => s.SupermarketId)
+            .ToListAsync()).ToHashSet();
+
+        var eligible = entries.Where(e => existingSupermarketIds.Contains(e.SupermarketId)).ToList();
+        if (eligible.Count == 0)
+            return;
+
+        var emails = eligible.Select(e => e.Email).ToList();
+        var usersByEmail = await context.Users
+            .Where(u => emails.Contains(u.Email))
+            .ToDictionaryAsync(u => u.Email, u => u);
+
+        var userIds = eligible.Select(e => e.UserId).ToList();
+        var usersById = await context.Users
+            .Where(u => userIds.Contains(u.UserId))
+            .ToDictionaryAsync(u => u.UserId, u => u);
+
+        var now = DateTime.UtcNow;
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword("123456");
+        var usersToAdd = new List<User>();
+
+        foreach (var entry in eligible)
+        {
+            if (usersByEmail.ContainsKey(entry.Email) || usersById.ContainsKey(entry.UserId))
+                continue;
+
+            var user = new User
+            {
+                UserId = entry.UserId,
+                FullName = entry.FullName,
+                Email = entry.Email,
+                Phone = entry.Phone,
+                PasswordHash = passwordHash,
+                RoleId = supermarketStaffRoleId,
+                Status = UserState.Active,
+                FailedLoginCount = 0,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            usersToAdd.Add(user);
+            usersByEmail[entry.Email] = user;
+            usersById[entry.UserId] = user;
+        }
+
+        if (usersToAdd.Count > 0)
+        {
+            await context.Users.AddRangeAsync(usersToAdd);
+            await context.SaveChangesAsync();
+        }
+
+        var resolvedUserIds = eligible
+            .Select(e => usersByEmail.TryGetValue(e.Email, out var u) ? u.UserId : e.UserId)
+            .Distinct()
+            .ToList();
+
+        var existingLinks = (await context.SupermarketStaffs
+            .Where(s => resolvedUserIds.Contains(s.UserId) && supermarketIds.Contains(s.SupermarketId))
+            .Select(s => new { s.UserId, s.SupermarketId })
+            .ToListAsync())
+            .Select(x => (x.UserId, x.SupermarketId))
+            .ToHashSet();
+
+        var staffToAdd = new List<SupermarketStaff>();
+        foreach (var entry in eligible)
+        {
+            var userId = usersByEmail.TryGetValue(entry.Email, out var user)
+                ? user.UserId
+                : entry.UserId;
+
+            if (existingLinks.Contains((userId, entry.SupermarketId)))
+                continue;
+
+            staffToAdd.Add(new SupermarketStaff
+            {
+                SupermarketStaffId = Guid.NewGuid(),
+                UserId = userId,
+                SupermarketId = entry.SupermarketId,
+                Position = entry.Position,
+                CreatedAt = now,
+                IsManager = true,
+                Status = SupermarketStaffState.Active
+            });
+            existingLinks.Add((userId, entry.SupermarketId));
+        }
+
+        if (staffToAdd.Count == 0)
+            return;
+
+        await context.SupermarketStaffs.AddRangeAsync(staffToAdd);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SyncRealWorldCatalogProductsAsync(ApplicationDbContext context)
+    {
+        var catalogById = RealWorldCatalogSeedData.Products.ToDictionary(p => p.ProductId);
+        var products = await context.Products
+            .Where(p => catalogById.Keys.Contains(p.ProductId))
+            .ToListAsync();
+
+        if (products.Count == 0)
+            return;
+
+        var now = DateTime.UtcNow;
+        foreach (var product in products)
+        {
+            if (!catalogById.TryGetValue(product.ProductId, out var seed))
+                continue;
+
+            product.UnitId = seed.UnitId;
+            product.CategoryId = seed.CategoryId;
+            product.UpdatedAt = now;
         }
 
         await context.SaveChangesAsync();
