@@ -85,5 +85,6 @@ public class AvailableStocklotDto
     public decimal? FinalUnitPrice { get; set; }
     public decimal SellingUnitPrice { get; set; }
     public int DaysRemaining { get; set; }
+    public int? HoursRemaining { get; set; }
     public float RelevanceScore { get; set; } = 0f;
 }

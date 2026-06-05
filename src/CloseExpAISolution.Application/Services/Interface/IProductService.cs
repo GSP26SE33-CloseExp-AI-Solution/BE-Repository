@@ -27,6 +27,9 @@ public interface IProductService
         StockLotFilterDto filter,
         bool includeHiddenDeletedProducts = false);
     Task<(IEnumerable<AvailableStocklotDto> Items, int TotalCount)> GetAvailableStockLotsForCustomerAsync(int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AvailableStocklotDto>> GetAvailableStockLotsForCustomerByProductAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProductPurchaseUnitDto>> GetPurchaseUnitsForProductAsync(Guid productId, CancellationToken cancellationToken = default);
     Task<ProductResponseDto> UpdateProductUnitAsync(
         Guid productId,

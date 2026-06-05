@@ -61,6 +61,30 @@ public class CustomersController : ControllerBase
         }
     }
 
+    [HttpGet("products/{productId:guid}/available-stocklots")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AvailableStocklotDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AvailableStocklotDto>>>> GetAvailableStockLotsByProduct(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var items = await _services.ProductService
+                .GetAvailableStockLotsForCustomerByProductAsync(productId, cancellationToken);
+
+            return Ok(ApiResponse<IReadOnlyList<AvailableStocklotDto>>.SuccessResponse(
+                items,
+                items.Count == 0
+                    ? "Sản phẩm hiện chưa có lô hàng khả dụng"
+                    : $"Tìm thấy {items.Count} lô hàng khả dụng"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
     [HttpGet("stocklots/available")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResult<AvailableStocklotDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<AvailableStocklotDto>>>> GetAvailableStockLots(
