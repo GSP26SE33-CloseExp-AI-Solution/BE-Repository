@@ -115,8 +115,8 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
             return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Không tìm thấy hồ sơ.");
         if (supermarket.ApplicantUserId != vendorUserId)
             return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Bạn không có quyền cập nhật hồ sơ này.");
-        if (supermarket.Status != SupermarketState.PendingApproval)
-            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Chỉ có thể cập nhật hồ sơ đang chờ duyệt.");
+        if (supermarket.Status != SupermarketState.Rejected)
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Chỉ có thể cập nhật hồ sơ đã bị từ chối.");
 
         var name = CoalesceTrimmed(request.Name, supermarket.Name);
         var address = CoalesceTrimmed(request.Address, supermarket.Address);
@@ -160,12 +160,18 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
         supermarket.Longitude = longitude;
         supermarket.ContactPhone = contactPhone;
         supermarket.ContactEmail = contactEmail;
+        supermarket.Status = SupermarketState.PendingApproval;
         supermarket.SubmittedAt = DateTime.UtcNow;
+        supermarket.ReviewedAt = null;
+        supermarket.ReviewedByUserId = null;
+        supermarket.AdminReviewNote = null;
 
         supermarketRepo.Update(supermarket);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return ApiResponse<MySupermarketApplicationDto>.SuccessResponse(MapMyDto(supermarket), "Đã cập nhật hồ sơ đăng ký siêu thị.");
+        return ApiResponse<MySupermarketApplicationDto>.SuccessResponse(
+            MapMyDto(supermarket),
+            "Đã cập nhật và gửi lại hồ sơ đăng ký siêu thị.");
     }
 
     public async Task<ApiResponse<IReadOnlyList<MySupermarketApplicationDto>>> GetMyApplicationsAsync(
