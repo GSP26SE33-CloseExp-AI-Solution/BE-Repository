@@ -44,7 +44,23 @@ public sealed class PurchaseUnitOrderHelper
 
         return sameTypeUnitIds
             .Where(units.ContainsKey)
-            .Where(id => lotUnitIds.Any(lotUnitId => CanConvertBetweenUnits(id, lotUnitId, units)))
+            .Where(id =>
+            {
+                var purchaseUnit = units[id];
+                return publishedLots.Any(lot =>
+                {
+                    if (!units.TryGetValue(lot.UnitId, out var lotUnit))
+                        return false;
+
+                    if (!CanConvertBetweenUnits(id, lot.UnitId, units))
+                        return false;
+
+                    if (lotUnit.ConversionRate > 1.0m && purchaseUnit.ConversionRate < lotUnit.ConversionRate)
+                        return false;
+
+                    return true;
+                });
+            })
             .Distinct()
             .ToList();
     }
@@ -111,6 +127,13 @@ public sealed class PurchaseUnitOrderHelper
                     "Không thể quy đổi đơn vị mua sang đơn vị tồn kho của lô hàng.",
                     ex);
             }
+        }
+
+        if (lotUnit.ConversionRate > 1.0m && purchaseUnit.ConversionRate < lotUnit.ConversionRate)
+        {
+            throw new InvalidOperationException(
+                $"Lô hàng này có đơn vị gốc có hệ số quy đổi lớn ({lotUnit.ConversionRate:0.##}), " +
+                $"chỉ cho phép đặt mua với các đơn vị lớn hơn hoặc cùng hệ số.");
         }
     }
 
