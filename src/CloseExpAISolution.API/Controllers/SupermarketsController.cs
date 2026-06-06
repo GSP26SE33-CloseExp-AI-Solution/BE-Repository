@@ -172,6 +172,26 @@ public class SupermarketsController : ControllerBase
     }
 
     [Authorize(Roles = "Vendor")]
+    [HttpPut("applications/{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<MySupermarketApplicationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<MySupermarketApplicationDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateSupermarketApplication(
+        Guid id,
+        [FromBody] UpdateSupermarketApplicationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = StaffClaimsParser.ReadUserId(User);
+        if (userId == null)
+            return Unauthorized(ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Không thể xác định người dùng"));
+
+        var result = await _services.SupermarketRegistrationService.UpdateApplicationAsync(
+            userId.Value, id, request, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "Vendor")]
     [HttpGet("applications/my")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<MySupermarketApplicationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMySupermarketApplications(CancellationToken cancellationToken)

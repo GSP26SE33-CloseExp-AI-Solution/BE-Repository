@@ -52,7 +52,11 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
         if (ownActive != null)
             return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Bạn đã có siêu thị đang hoạt động. Không thể mở thêm siêu thị mới theo chính sách hiện tại.");
 
-        var blocking = await FindBlockingDuplicateAsync(request);
+        var blocking = await FindBlockingDuplicateAsync(
+            request.Name.Trim(),
+            request.Address.Trim(),
+            request.Latitude,
+            request.Longitude);
         if (blocking != null)
         {
             if (blocking.Status == SupermarketState.PendingApproval && blocking.ApplicantUserId != vendorUserId)
@@ -92,6 +96,76 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
         }
 
         return ApiResponse<MySupermarketApplicationDto>.SuccessResponse(MapMyDto(supermarket), "Đã tiếp nhận hồ sơ đăng ký siêu thị.");
+    }
+
+    public async Task<ApiResponse<MySupermarketApplicationDto>> UpdateApplicationAsync(
+        Guid vendorUserId,
+        Guid supermarketId,
+        UpdateSupermarketApplicationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userRepo = _unitOfWork.Repository<User>();
+        var user = await userRepo.FirstOrDefaultAsync(u => u.UserId == vendorUserId);
+        if (user == null || user.RoleId != (int)RoleUser.Vendor || user.Status != UserState.Active)
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Chỉ tài khoản Vendor đang hoạt động mới có thể cập nhật hồ sơ.");
+
+        var supermarketRepo = _unitOfWork.Repository<Supermarket>();
+        var supermarket = await supermarketRepo.FirstOrDefaultAsync(s => s.SupermarketId == supermarketId);
+        if (supermarket == null)
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Không tìm thấy hồ sơ.");
+        if (supermarket.ApplicantUserId != vendorUserId)
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Bạn không có quyền cập nhật hồ sơ này.");
+        if (supermarket.Status != SupermarketState.PendingApproval)
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Chỉ có thể cập nhật hồ sơ đang chờ duyệt.");
+
+        var name = CoalesceTrimmed(request.Name, supermarket.Name);
+        var address = CoalesceTrimmed(request.Address, supermarket.Address);
+        var latitude = request.Latitude ?? supermarket.Latitude;
+        var longitude = request.Longitude ?? supermarket.Longitude;
+        var contactPhone = CoalesceTrimmed(request.ContactPhone, supermarket.ContactPhone);
+        var contactEmail = request.ContactEmail == null
+            ? supermarket.ContactEmail
+            : string.IsNullOrWhiteSpace(request.ContactEmail) ? null : request.ContactEmail.Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Tên siêu thị không được để trống.");
+        if (string.IsNullOrWhiteSpace(address))
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Địa chỉ không được để trống.");
+        if (string.IsNullOrWhiteSpace(contactPhone))
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Số điện thoại không được để trống.");
+
+        var hasChanges =
+            name != supermarket.Name
+            || address != supermarket.Address
+            || latitude != supermarket.Latitude
+            || longitude != supermarket.Longitude
+            || contactPhone != supermarket.ContactPhone
+            || contactEmail != supermarket.ContactEmail;
+
+        if (!hasChanges)
+            return ApiResponse<MySupermarketApplicationDto>.ErrorResponse("Không có thông tin nào để cập nhật.");
+
+        var blocking = await FindBlockingDuplicateAsync(name, address, latitude, longitude, supermarketId);
+        if (blocking != null)
+        {
+            if (blocking.Status == SupermarketState.PendingApproval && blocking.ApplicantUserId != vendorUserId)
+                return ApiResponse<MySupermarketApplicationDto>.ErrorResponse(MsgPendingOtherAccount);
+            if (blocking.Status is SupermarketState.Active or SupermarketState.Suspended)
+                return ApiResponse<MySupermarketApplicationDto>.ErrorResponse(MsgActiveExists);
+        }
+
+        supermarket.Name = name;
+        supermarket.Address = address;
+        supermarket.Latitude = latitude;
+        supermarket.Longitude = longitude;
+        supermarket.ContactPhone = contactPhone;
+        supermarket.ContactEmail = contactEmail;
+        supermarket.SubmittedAt = DateTime.UtcNow;
+
+        supermarketRepo.Update(supermarket);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<MySupermarketApplicationDto>.SuccessResponse(MapMyDto(supermarket), "Đã cập nhật hồ sơ đăng ký siêu thị.");
     }
 
     public async Task<ApiResponse<IReadOnlyList<MySupermarketApplicationDto>>> GetMyApplicationsAsync(
@@ -322,7 +396,12 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
         AdminReviewNote = s.AdminReviewNote
     };
 
-    private async Task<Supermarket?> FindBlockingDuplicateAsync(NewSupermarketRequest request)
+    private async Task<Supermarket?> FindBlockingDuplicateAsync(
+        string name,
+        string address,
+        decimal latitude,
+        decimal longitude,
+        Guid? excludeSupermarketId = null)
     {
         var supermarketRepo = _unitOfWork.Repository<Supermarket>();
         var relevant = await supermarketRepo.FindAsync(s =>
@@ -330,14 +409,18 @@ public class SupermarketRegistrationService : ISupermarketRegistrationService
             || s.Status == SupermarketState.Active
             || s.Status == SupermarketState.Suspended);
 
-        var nName = NormalizeKeyPart(request.Name);
-        var nAddr = NormalizeKeyPart(request.Address);
+        var nName = NormalizeKeyPart(name);
+        var nAddr = NormalizeKeyPart(address);
         return relevant.FirstOrDefault(s =>
-            NormalizeKeyPart(s.Name) == nName
+            (excludeSupermarketId == null || s.SupermarketId != excludeSupermarketId.Value)
+            && NormalizeKeyPart(s.Name) == nName
             && NormalizeKeyPart(s.Address) == nAddr
-            && s.Latitude == request.Latitude
-            && s.Longitude == request.Longitude);
+            && s.Latitude == latitude
+            && s.Longitude == longitude);
     }
+
+    private static string CoalesceTrimmed(string? incoming, string existing) =>
+        string.IsNullOrWhiteSpace(incoming) ? existing : incoming.Trim();
 
     private static string NormalizeKeyPart(string value) => value.Trim().ToLowerInvariant();
 
