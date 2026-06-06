@@ -123,6 +123,8 @@ public class ProductMappingProfile : Profile
         CreateMap<UpdateProductRequestDto, Product>()
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))
             .ForMember(dest => dest.ProductId, opt => opt.Ignore())
+            .ForMember(dest => dest.UnitId, opt => opt.Ignore())
+            .ForMember(dest => dest.CategoryId, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
             .ForMember(dest => dest.Supermarket, opt => opt.Ignore())

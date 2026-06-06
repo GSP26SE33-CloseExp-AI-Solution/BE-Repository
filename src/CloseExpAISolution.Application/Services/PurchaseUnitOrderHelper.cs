@@ -26,7 +26,7 @@ public sealed class PurchaseUnitOrderHelper
             return Array.Empty<Guid>();
 
         var bootstrapUnits = await _unitConversion.LoadUnitInfoAsync(
-            lotUnitIds.Append(product.UnitId),
+            lotUnitIds.Append(product.UnitId).Distinct(),
             cancellationToken);
 
         if (!bootstrapUnits.TryGetValue(product.UnitId, out var baseUnit))
@@ -34,16 +34,20 @@ public sealed class PurchaseUnitOrderHelper
             return lotUnitIds.Where(bootstrapUnits.ContainsKey).ToList();
         }
 
-        var sameTypeUnitIds = await _unitConversion.GetUnitIdsByTypeAsync(
-            baseUnit.Type,
-            cancellationToken);
+        var purchasableCatalog = ProductPurchaseUnitPolicy.GetPurchasableUnitIds(
+            product.UnitId,
+            product.CategoryId ?? Guid.Empty);
 
-        var units = await _unitConversion.LoadUnitInfoAsync(
-            sameTypeUnitIds.Concat(lotUnitIds).Append(product.UnitId).Distinct(),
-            cancellationToken);
+        var candidateIds = new HashSet<Guid>(purchasableCatalog) { product.UnitId };
+        foreach (var lotUnitId in lotUnitIds)
+            candidateIds.Add(lotUnitId);
 
-        return sameTypeUnitIds
+        var units = await _unitConversion.LoadUnitInfoAsync(candidateIds, cancellationToken);
+
+        return candidateIds
+            .Where(purchasableCatalog.Contains)
             .Where(units.ContainsKey)
+            .Where(id => UnitMeasureTypeCompatibility.AreCompatible(units[id].Type, baseUnit.Type))
             .Where(id =>
             {
                 var purchaseUnit = units[id];
@@ -98,6 +102,14 @@ public sealed class PurchaseUnitOrderHelper
 
         if (!units.TryGetValue(product.UnitId, out var productUnit))
             throw new InvalidOperationException($"Không tìm thấy đơn vị sản phẩm: {product.UnitId}.");
+
+        if (!ProductPurchaseUnitPolicy.IsPurchasableUnit(
+                purchaseUnitId,
+                product.UnitId,
+                product.CategoryId ?? Guid.Empty))
+        {
+            throw new InvalidOperationException("Đơn vị mua không được phép cho sản phẩm này.");
+        }
 
         if (!UnitMeasureTypeCompatibility.AreCompatible(purchaseUnit.Type, productUnit.Type))
         {

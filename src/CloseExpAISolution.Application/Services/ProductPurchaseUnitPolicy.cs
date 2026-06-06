@@ -76,8 +76,8 @@ public static class ProductPurchaseUnitPolicy
     private static IReadOnlySet<Guid> GetBeverageUnits(Guid productUnitId) =>
         productUnitId switch
         {
-            var id when id == UnitBottleId => UnitSet(UnitBottleId, UnitThungId, UnitPackId, UnitCanId),
-            var id when id == UnitCanId => UnitSet(UnitCanId, UnitThungId, UnitPackId, UnitBottleId),
+            var id when id == UnitBottleId => UnitSet(UnitBottleId, UnitThungId),
+            var id when id == UnitCanId => UnitSet(UnitCanId, UnitThungId),
             var id when id == UnitPackId => UnitSet(UnitPackId, UnitPieceId, UnitCanId, UnitBottleId),
             var id when id == UnitBoxId => UnitSet(UnitBoxId, UnitPieceId, UnitCanId, UnitBottleId),
             _ => GetPackagedCountUnits(productUnitId)

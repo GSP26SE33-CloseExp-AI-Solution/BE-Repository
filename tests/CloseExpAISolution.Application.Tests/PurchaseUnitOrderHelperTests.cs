@@ -23,6 +23,7 @@ public class PurchaseUnitOrderHelperTests
             CancellationToken cancellationToken = default)
         {
             var dict = unitIds
+                .Distinct()
                 .Where(_units.ContainsKey)
                 .ToDictionary(id => id, id => _units[id]);
             return Task.FromResult(dict);
@@ -53,24 +54,30 @@ public class PurchaseUnitOrderHelperTests
     }
 
     [Fact]
-    public async Task GetAllowedPurchaseUnitIds_IncludesLotUnit_WhenRatesDifferFromProduct()
+    public async Task GetAllowedPurchaseUnitIds_ExcludesSmallerUnits_WhenLotUsesLargerPack()
     {
+        var packId = ProductPurchaseUnitPolicy.UnitPackId;
+        var pieceId = ProductPurchaseUnitPolicy.UnitPieceId;
         var units = new Dictionary<Guid, UnitConversionInfo>
         {
-            [PieceId] = new UnitConversionInfo(PieceId, "Count", 1m),
-            [PackId] = new UnitConversionInfo(PackId, "Count", 6m),
-            [BoxId] = new UnitConversionInfo(BoxId, "Count", 12m),
+            [packId] = new UnitConversionInfo(packId, "Đếm", 6m),
+            [pieceId] = new UnitConversionInfo(pieceId, "Đếm", 1m),
         };
 
         var helper = new PurchaseUnitOrderHelper(new FakeUnitConversion(units));
-        var product = new Product { ProductId = Guid.NewGuid(), UnitId = PieceId };
+        var product = new Product
+        {
+            ProductId = Guid.NewGuid(),
+            UnitId = packId,
+            CategoryId = ProductPurchaseUnitPolicy.CategoryInstantFoodId,
+        };
         var lots = new[]
         {
             new StockLot
             {
                 LotId = Guid.NewGuid(),
                 ProductId = product.ProductId,
-                UnitId = PackId,
+                UnitId = packId,
                 Status = ProductState.Published,
                 Quantity = 10,
                 ExpiryDate = DateTime.UtcNow.AddDays(5),
@@ -79,13 +86,12 @@ public class PurchaseUnitOrderHelperTests
 
         var allowed = await helper.GetAllowedPurchaseUnitIdsAsync(product, lots);
 
-        Assert.Contains(PieceId, allowed);
-        Assert.Contains(PackId, allowed);
-        Assert.Contains(BoxId, allowed);
+        Assert.Contains(packId, allowed);
+        Assert.DoesNotContain(pieceId, allowed);
     }
 
     [Fact]
-    public void EnsurePurchaseUnitAllowed_AllowsProductUnit_WhenLotUsesDifferentRate()
+    public void EnsurePurchaseUnitAllowed_RejectsSmallerUnit_WhenLotUsesLargerPack()
     {
         var units = new Dictionary<Guid, UnitConversionInfo>
         {
@@ -102,10 +108,10 @@ public class PurchaseUnitOrderHelperTests
             UnitId = PackId,
         };
 
-        var exception = Record.Exception(() =>
+        var ex = Assert.Throws<InvalidOperationException>(() =>
             helper.EnsurePurchaseUnitAllowed(PieceId, product, lot, units));
 
-        Assert.Null(exception);
+        Assert.Contains("hệ số quy đổi lớn", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -139,7 +145,7 @@ public class PurchaseUnitOrderHelperTests
     }
 
     [Fact]
-    public async Task GetAllowedPurchaseUnitIds_IncludesLotPack_WhenProductIsBottle()
+    public async Task GetAllowedPurchaseUnitIds_ReturnsEmpty_WhenLegacyPackLotDoesNotMatchBottlePolicy()
     {
         var bottleId = ProductPurchaseUnitPolicy.UnitBottleId;
         var packId = ProductPurchaseUnitPolicy.UnitPackId;
@@ -171,12 +177,11 @@ public class PurchaseUnitOrderHelperTests
 
         var allowed = await helper.GetAllowedPurchaseUnitIdsAsync(product, lots);
 
-        Assert.Contains(packId, allowed);
-        Assert.Contains(bottleId, allowed);
+        Assert.Empty(allowed);
     }
 
     [Fact]
-    public void EnsurePurchaseUnitAllowed_AllowsLotPack_WhenCustomerBuysByPack()
+    public void EnsurePurchaseUnitAllowed_RejectsPack_WhenBottleProductUsesDairyPolicy()
     {
         var bottleId = ProductPurchaseUnitPolicy.UnitBottleId;
         var packId = ProductPurchaseUnitPolicy.UnitPackId;
@@ -200,10 +205,10 @@ public class PurchaseUnitOrderHelperTests
             UnitId = packId,
         };
 
-        var exception = Record.Exception(() =>
+        var ex = Assert.Throws<InvalidOperationException>(() =>
             helper.EnsurePurchaseUnitAllowed(packId, product, lot, units));
 
-        Assert.Null(exception);
+        Assert.Contains("không được phép", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

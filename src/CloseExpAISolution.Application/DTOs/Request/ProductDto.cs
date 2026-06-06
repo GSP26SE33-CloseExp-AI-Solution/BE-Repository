@@ -63,7 +63,7 @@ public class UpdateProductRequestDto
     public bool isFeatured { get; set; }
     public string[] Tags { get; set; } = Array.Empty<string>();
     public Guid? UnitId { get; set; }
-    public ProductDetailRequestDto Detail { get; set; } = new();
+    public ProductDetailRequestDto? Detail { get; set; }
 }
 
 public class VerifyProductRequestDto

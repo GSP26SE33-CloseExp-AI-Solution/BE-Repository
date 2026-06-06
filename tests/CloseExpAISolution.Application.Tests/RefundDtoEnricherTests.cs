@@ -40,12 +40,13 @@ public class RefundDtoEnricherTests
             new() { OrderItemId = item2Id, TotalPrice = 30_000 }
         };
 
-        RefundDtoEnricher.ApplyItemRefundProgress(itemDtos, order.OrderItems, new[] { refund });
+        RefundDtoEnricher.ApplyItemRefundProgress(itemDtos, order, new[] { refund });
 
-        Assert.NotNull(itemDtos[0].RefundProgress);
-        Assert.Equal(refundId, itemDtos[0].RefundProgress!.RefundId);
-        Assert.Equal("Pending", itemDtos[0].RefundProgress.RefundStatus);
-        Assert.Equal(3, itemDtos[0].RefundProgress.Steps.Count);
+        var progress = itemDtos[0].RefundProgress;
+        Assert.NotNull(progress);
+        Assert.Equal(refundId, progress.RefundId);
+        Assert.Equal("Pending", progress.RefundStatus);
+        Assert.Equal(3, progress.Steps.Count);
         Assert.Null(itemDtos[1].RefundProgress);
     }
 

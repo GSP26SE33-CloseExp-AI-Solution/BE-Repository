@@ -223,19 +223,20 @@ public class ProductService : IProductService
         var added = await _unitOfWork.ProductRepository.AddAsync(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var requestDetail = request.Detail ?? new ProductDetailRequestDto();
         var detail = new ProductDetail
         {
             ProductDetailId = Guid.NewGuid(),
             ProductId = added.ProductId,
-            Brand = request.Detail.Brand,
-            Ingredients = request.Detail.Ingredients,
-            NutritionFacts = request.Detail.NutritionFactsJson,
-            UsageInstructions = request.Detail.UsageInstructions,
-            StorageInstructions = request.Detail.StorageInstructions,
-            Manufacturer = request.Detail.Manufacturer,
-            Origin = request.Detail.Origin,
-            Description = request.Detail.Description,
-            SafetyWarning = request.Detail.SafetyWarnings
+            Brand = requestDetail.Brand,
+            Ingredients = requestDetail.Ingredients,
+            NutritionFacts = requestDetail.NutritionFactsJson,
+            UsageInstructions = requestDetail.UsageInstructions,
+            StorageInstructions = requestDetail.StorageInstructions,
+            Manufacturer = requestDetail.Manufacturer,
+            Origin = requestDetail.Origin,
+            Description = requestDetail.Description,
+            SafetyWarning = requestDetail.SafetyWarnings
         };
         await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -271,20 +272,28 @@ public class ProductService : IProductService
 
         if (product == null) throw new KeyNotFoundException($"Không tìm thấy sản phẩm với id {id}");
 
+        var existingUnitId = product.UnitId;
+        var existingCategoryId = product.CategoryId;
+        var existingName = product.Name;
+        var existingBarcode = product.Barcode;
+
         _mapper.Map(request, product);
 
-        UnitOfMeasure? unitForProduct = null;
-        var finalUnitId = request.UnitId ?? product.UnitId;
-        if (finalUnitId != Guid.Empty)
-        {
-            unitForProduct = await _context.UnitOfMeasures
-                .FirstOrDefaultAsync(u => u.UnitId == finalUnitId, cancellationToken);
-        }
+        if (string.IsNullOrWhiteSpace(product.Name))
+            product.Name = existingName;
+        if (string.IsNullOrWhiteSpace(product.Barcode))
+            product.Barcode = existingBarcode;
+
+        var finalUnitId = request.UnitId is { } requestedUnitId && requestedUnitId != Guid.Empty
+            ? requestedUnitId
+            : existingUnitId;
+
+        var unitForProduct = finalUnitId != Guid.Empty
+            ? await _context.UnitOfMeasures.FirstOrDefaultAsync(u => u.UnitId == finalUnitId, cancellationToken)
+            : null;
 
         if (unitForProduct == null)
-        {
             throw new ArgumentException("Đơn vị chuẩn sản phẩm là bắt buộc và phải tồn tại.");
-        }
 
         product.UnitId = unitForProduct.UnitId;
 
@@ -295,45 +304,58 @@ public class ProductService : IProductService
                 c => c.Name != null && c.Name.ToLower() == request.CategoryName.Trim().ToLower(),
                 cancellationToken);
         }
+        else if (existingCategoryId.HasValue)
+        {
+            category = await _context.Categories.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.CategoryId == existingCategoryId.Value, cancellationToken);
+        }
 
         if (category == null)
-        {
             throw new ArgumentException("Danh mục sản phẩm là bắt buộc và phải tồn tại.");
-        }
 
         product.CategoryId = category.CategoryId;
 
         var updateConfigKey = category.IsFreshFood ? SystemConfigKeys.CategoryFreshFoodUnitType : SystemConfigKeys.CategoryNonFreshFoodUnitType;
         var updateConfig = await _context.SystemConfigs.AsNoTracking().FirstOrDefaultAsync(x => x.ConfigKey == updateConfigKey, cancellationToken);
         var updateAllowedUnitType = updateConfig?.ConfigValue;
+        var categoryName = !string.IsNullOrWhiteSpace(request.CategoryName)
+            ? request.CategoryName
+            : category.Name ?? string.Empty;
 
         CategoryUnitTypePolicy.EnsureProductReadyForStockLot(
-            request.Name,
-            request.Barcode,
-            request.CategoryName,
+            product.Name,
+            product.Barcode,
+            categoryName,
             category,
             unitForProduct,
             request.Detail?.Brand,
             updateAllowedUnitType);
 
-        var detail = product.ProductDetail ?? new ProductDetail { ProductDetailId = Guid.NewGuid(), ProductId = product.ProductId };
-        detail.Brand = request.Detail.Brand;
-        detail.Ingredients = request.Detail.Ingredients;
-        detail.NutritionFacts = request.Detail.NutritionFactsJson;
-        detail.UsageInstructions = request.Detail.UsageInstructions;
-        detail.StorageInstructions = request.Detail.StorageInstructions;
-        detail.Manufacturer = request.Detail.Manufacturer;
-        detail.Origin = request.Detail.Origin;
-        detail.Description = request.Detail.Description;
-        detail.SafetyWarning = request.Detail.SafetyWarnings;
-        if (product.ProductDetail == null)
+        if (request.Detail != null)
         {
-            await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
-            product.ProductDetail = detail;
-        }
-        else
-            _unitOfWork.Repository<ProductDetail>().Update(detail);
+            var detail = product.ProductDetail ?? new ProductDetail { ProductDetailId = Guid.NewGuid(), ProductId = product.ProductId };
+            detail.Brand = request.Detail.Brand;
+            detail.Ingredients = request.Detail.Ingredients;
+            detail.NutritionFacts = request.Detail.NutritionFactsJson;
+            detail.UsageInstructions = request.Detail.UsageInstructions;
+            detail.StorageInstructions = request.Detail.StorageInstructions;
+            detail.Manufacturer = request.Detail.Manufacturer;
+            detail.Origin = request.Detail.Origin;
+            detail.Description = request.Detail.Description;
+            detail.SafetyWarning = request.Detail.SafetyWarnings;
 
+            if (product.ProductDetail == null)
+            {
+                await _unitOfWork.Repository<ProductDetail>().AddAsync(detail);
+                product.ProductDetail = detail;
+            }
+            else
+            {
+                _unitOfWork.Repository<ProductDetail>().Update(detail);
+            }
+        }
+
+        product.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.ProductRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
